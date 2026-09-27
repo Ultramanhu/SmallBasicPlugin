@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { activateCommon } from "./common/activation";
+import { selectDefaultDebugBackend } from "./debug/backend-selection";
 import { SmallBasicDebugAdapterFactory } from "./debug/factory";
 import { isSmallBasicDocument } from "./language/providers";
 import { CSharpRunner } from "./run/csharp-runner";
@@ -17,9 +18,15 @@ export function deactivate(): void {
 }
 
 function createDebugConfigurationProvider(extensionPath: string): vscode.DebugConfigurationProvider {
+  const preferredBackend = (): "javascript" | "csharp" =>
+    selectDefaultDebugBackend(
+      process.platform,
+      CSharpRunner.resolveHostCommand(extensionPath) !== undefined
+    );
+
   const baseConfig = (
     program: string,
-    backend: "javascript" | "csharp" = "javascript"
+    backend: "javascript" | "csharp" = preferredBackend()
   ): vscode.DebugConfiguration => ({
     type: "smallbasic",
     request: "launch",
@@ -40,14 +47,14 @@ function createDebugConfigurationProvider(extensionPath: string): vscode.DebugCo
     resolveDebugConfiguration(_folder, config) {
       if (config.type === "smallbasic" && typeof config.program === "string") {
         if (config.backend !== "csharp" && config.backend !== "javascript") {
-          config.backend = "javascript";
+          config.backend = preferredBackend();
         }
 
         return config;
       }
 
       const program = activeSmallBasicPath();
-      return program ? baseConfig(program, "javascript") : undefined;
+      return program ? baseConfig(program) : undefined;
     },
     async resolveDebugConfigurationWithSubstitutedVariables(_folder, config) {
       if (config.type !== "smallbasic") {
@@ -55,7 +62,7 @@ function createDebugConfigurationProvider(extensionPath: string): vscode.DebugCo
       }
 
       if (config.backend !== "csharp" && config.backend !== "javascript") {
-        config.backend = "javascript";
+        config.backend = preferredBackend();
       }
 
       let program = typeof config.program === "string" ? config.program.trim() : "";

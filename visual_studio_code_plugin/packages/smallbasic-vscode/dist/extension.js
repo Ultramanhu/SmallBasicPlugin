@@ -16064,6 +16064,11 @@ function shouldTriggerSuggest(event) {
   return /^\.?$|^[\r\n]+$|^[\p{L}\p{N}_]$/u.test(change.text);
 }
 
+// src/debug/backend-selection.ts
+function selectDefaultDebugBackend(platform, hasCSharpHost) {
+  return platform === "win32" && hasCSharpHost ? "csharp" : "javascript";
+}
+
 // src/debug/factory.ts
 var import_node_path2 = __toESM(require("path"));
 var vscode7 = __toESM(require("vscode"));
@@ -16217,7 +16222,11 @@ function activate(context) {
 function deactivate() {
 }
 function createDebugConfigurationProvider(extensionPath) {
-  const baseConfig = (program, backend = "javascript") => ({
+  const preferredBackend = () => selectDefaultDebugBackend(
+    process.platform,
+    CSharpRunner.resolveHostCommand(extensionPath) !== void 0
+  );
+  const baseConfig = (program, backend = preferredBackend()) => ({
     type: "smallbasic",
     request: "launch",
     name: backend === "csharp" ? "SmallBasic: Debug current file with C# backend" : "SmallBasic: Launch current file (JS debugger)",
@@ -16233,19 +16242,19 @@ function createDebugConfigurationProvider(extensionPath) {
     resolveDebugConfiguration(_folder, config) {
       if (config.type === "smallbasic" && typeof config.program === "string") {
         if (config.backend !== "csharp" && config.backend !== "javascript") {
-          config.backend = "javascript";
+          config.backend = preferredBackend();
         }
         return config;
       }
       const program = activeSmallBasicPath();
-      return program ? baseConfig(program, "javascript") : void 0;
+      return program ? baseConfig(program) : void 0;
     },
     async resolveDebugConfigurationWithSubstitutedVariables(_folder, config) {
       if (config.type !== "smallbasic") {
         return config;
       }
       if (config.backend !== "csharp" && config.backend !== "javascript") {
-        config.backend = "javascript";
+        config.backend = preferredBackend();
       }
       let program = typeof config.program === "string" ? config.program.trim() : "";
       if (!program) {

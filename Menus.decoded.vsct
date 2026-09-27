@@ -1,25 +1,21 @@
-<?xml version="1.0" encoding="utf-8"?>
-<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
-  <Extern href="stdidcmd.h" />
-  <Extern href="vsshlids.h" />
-
+﻿<?xml version="1.0" encoding="utf-8"?>
+<CommandTable language="zh-CN" xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable">
+  <Commands>
+    <Groups>
+      <Group guid="guidSmallBasicCommandSet" id="SmallBasicToolsGroup" priority="0x0100">
+        <Parent guid="guidSmallBasicCommandSet" id="SmallBasicToolsMenu" />
+      </Group>
+    </Groups>
+  </Commands>
   <Commands package="guidSmallBasicPackage">
     <Menus>
       <Menu guid="guidSmallBasicCommandSet" id="SmallBasicToolsMenu" priority="0x0600" type="Menu">
         <Parent guid="guidSHLMainMenu" id="IDM_VS_MENU_TOOLS" />
         <Strings>
           <ButtonText>Small Basic</ButtonText>
-          <CommandName>Small Basic</CommandName>
         </Strings>
       </Menu>
     </Menus>
-
-    <Groups>
-      <Group guid="guidSmallBasicCommandSet" id="SmallBasicToolsGroup" priority="0x0100">
-        <Parent guid="guidSmallBasicCommandSet" id="SmallBasicToolsMenu" />
-      </Group>
-    </Groups>
-
     <Buttons>
       <Button guid="guidSmallBasicCommandSet" id="RunCSharpCommand" priority="0x0100" type="Button">
         <Parent guid="guidSmallBasicCommandSet" id="SmallBasicToolsGroup" />
@@ -47,16 +43,23 @@
       </Button>
     </Buttons>
   </Commands>
-
   <Symbols>
-    <GuidSymbol name="guidSmallBasicPackage" value="{6E7C57A3-C7AD-4E3E-8B37-21AD5C8EC3D1}" />
-    <GuidSymbol name="guidSmallBasicCommandSet" value="{9F9C24AA-EF08-4E53-962B-C84406360C9C}">
-      <IDSymbol name="SmallBasicToolsMenu" value="0x1000" />
-      <IDSymbol name="SmallBasicToolsGroup" value="0x1020" />
-      <IDSymbol name="RunCSharpCommand" value="0x0100" />
+    <GuidSymbol name="guidSmallBasicPackage" value="{6e7c57a3-c7ad-4e3e-8b37-21ad5c8ec3d1}" />
+    <GuidSymbol name="Group_Undefined" value="{83285929-227c-11d3-b870-00c04f79f802}" />
+    <GuidSymbol name="Pkg_Undefined" value="{8328592a-227c-11d3-b870-00c04f79f802}" />
+    <GuidSymbol name="guidSmallBasicCommandSet" value="{9f9c24aa-ef08-4e53-962b-c84406360c9c}">
       <IDSymbol name="DebugCSharpCommand" value="0x0101" />
-      <IDSymbol name="RunJavaScriptCommand" value="0x0102" />
       <IDSymbol name="DebugJavaScriptCommand" value="0x0103" />
+      <IDSymbol name="RunCSharpCommand" value="0x0100" />
+      <IDSymbol name="RunJavaScriptCommand" value="0x0102" />
+      <IDSymbol name="SmallBasicToolsGroup" value="0x1020" />
+      <IDSymbol name="SmallBasicToolsMenu" value="0x1000" />
+    </GuidSymbol>
+    <GuidSymbol name="guidSHLMainMenu" value="{d309f791-903f-11d0-9efc-00a0c911004f}">
+      <IDSymbol name="IDM_VS_MENU_TOOLS" value="0x0085" />
+    </GuidSymbol>
+    <GuidSymbol name="guidOfficeIcon" value="{d309f794-903f-11d0-9efc-00a0c911004f}">
+      <IDSymbol name="msotcidNoIcon" value="0x02EA" />
     </GuidSymbol>
   </Symbols>
 </CommandTable>

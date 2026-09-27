@@ -14,6 +14,7 @@ type ExtensionManifest = {
       configurationAttributes?: {
         launch?: {
           properties?: {
+            backend?: { default?: string };
             stopOnEntry?: { default?: boolean };
           };
         };
@@ -43,6 +44,13 @@ describe("VS Code extension manifest", () => {
       (snippets: Array<{ body?: { stopOnEntry?: boolean } }> | undefined) =>
         !!snippets?.length && snippets.every((snippet) => snippet.body?.stopOnEntry === true)
     );
+  });
+
+  it("leaves backend selection to the platform-aware desktop provider", () => {
+    const debuggerContribution = manifest.contributes?.debuggers?.[0];
+    expect(
+      debuggerContribution?.configurationAttributes?.launch?.properties?.backend?.default
+    ).toBeUndefined();
   });
 
   it("publishes a browser entry point for VS Code for the Web", () => {

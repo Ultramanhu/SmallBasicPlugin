@@ -32,7 +32,7 @@ namespace SmallBasic.Vsix.Commands
 
             string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicDebugLauncher).Assembly.Location) ?? string.Empty;
             ResolveAdapter(extensionDirectory, backend, out string adapterPath, out string adapterArguments);
-            string launchPath = WriteLaunchConfiguration(programPath, adapterPath, adapterArguments, stopOnEntry);
+            string launchPath = WriteLaunchConfiguration(programPath, backend, adapterPath, adapterArguments, stopOnEntry);
             launchInProgress = true;
 
             // The current F5 command is still on Visual Studio's command stack.
@@ -122,17 +122,28 @@ namespace SmallBasic.Vsix.Commands
             adapterArguments = $"\"{scriptPath}\"";
         }
 
-        private static string WriteLaunchConfiguration(string programPath, string adapterPath, string adapterArguments, bool stopOnEntry)
+        private static string WriteLaunchConfiguration(
+            string programPath,
+            SmallBasicBackend backend,
+            string adapterPath,
+            string adapterArguments,
+            bool stopOnEntry)
         {
             string directory = Path.Combine(Path.GetTempPath(), "SmallBasicPlugin", "Debug");
             Directory.CreateDirectory(directory);
-            string launchPath = Path.Combine(directory, $"launch-{Guid.NewGuid():N}.json");
+            DeleteLegacyLaunchConfigurations(directory);
+
+            string backendName = backend == SmallBasicBackend.CSharp ? "C#" : "JavaScript";
+            string launchFileName = backend == SmallBasicBackend.CSharp
+                ? "launch-csharp.json"
+                : "launch-javascript.json";
+            string launchPath = Path.Combine(directory, launchFileName);
 
             var properties = new List<KeyValuePair<string, object>>
             {
                 new KeyValuePair<string, object>("$adapter", adapterPath),
                 new KeyValuePair<string, object>("$adapterArgs", adapterArguments),
-                new KeyValuePair<string, object>("name", "Small Basic: Debug current file"),
+                new KeyValuePair<string, object>("name", $"Small Basic: Debug current file ({backendName} backend)"),
                 new KeyValuePair<string, object>("type", "smallbasic"),
                 new KeyValuePair<string, object>("request", "launch"),
                 new KeyValuePair<string, object>("program", Path.GetFullPath(programPath)),
@@ -152,6 +163,33 @@ namespace SmallBasic.Vsix.Commands
             json.AppendLine("}");
             File.WriteAllText(launchPath, json.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             return launchPath;
+        }
+
+        private static void DeleteLegacyLaunchConfigurations(string directory)
+        {
+            foreach (string path in Directory.EnumerateFiles(directory, "launch-*.json"))
+            {
+                string fileNameWithoutExtension = Path.GetFileNameWithoutExtension(path);
+                const string prefix = "launch-";
+                if (fileNameWithoutExtension.Length <= prefix.Length ||
+                    !Guid.TryParseExact(fileNameWithoutExtension.Substring(prefix.Length), "N", out _))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    File.Delete(path);
+                }
+                catch (IOException)
+                {
+                    // A running Visual Studio instance may still be reading an old launch file.
+                }
+                catch (UnauthorizedAccessException)
+                {
+                    // Cleanup is best-effort and must never prevent a new debug session.
+                }
+            }
         }
 
         private static string? FindNodeExecutable()

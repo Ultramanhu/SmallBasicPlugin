@@ -45,7 +45,7 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 - **运行**（编辑器标题栏播放按钮或命令面板）：
   - `SmallBasic: Run` — 内置 JS 引擎，跨平台（含 VS Code for the Web），支持 `TextWindow` 文本交互；
   - `SmallBasic: Run with C# Backend` — 使用内置 .NET 运行宿主：Windows 下为图形宿主（net8.0-windows，支持 `GraphicsWindow`/`Shapes` 等图形程序），Linux/macOS 下为便携命令行宿主（net8.0）。
-- **调试**：`.sb` 文件中打断点，F5 选择以下启动配置之一：
+- **调试**：`.sb` 文件中打断点后按 F5。Windows 桌面版在未显式指定后端时默认使用随扩展分发的 C# 图形宿主，可直接调试 `GraphicsWindow` / `Shapes` / `Turtle`；其他平台默认使用 JS。也可以在 `launch.json` 中显式选择：
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic: Launch current file (JS debugger)",
@@ -83,12 +83,14 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 | `F10` / `F11`（设计时） | 以「入口即断」方式启动调试 |
 | 调试会话中 `F5`/`F10`/`F11`/`Shift+F5` | 继续 / 单步 / 步入 / 停止，直接转发给调试器 |
 
-`工具 (Tools)` 菜单还提供四个显式入口，可随时选择后端：
+`工具 (Tools) > Small Basic` 子菜单还提供四个显式入口，可随时选择后端：
 
-- `Small Basic: Run with C# Backend`
-- `Small Basic: Debug with C# Backend`
-- `Small Basic: Run with JavaScript Backend`
-- `Small Basic: Debug with JavaScript Backend`
+- `Run with C# Backend`
+- `Debug with C# Backend`
+- `Run with JavaScript Backend`
+- `Debug with JavaScript Backend`
+
+在「打开文件夹」模式中，Visual Studio 的「显示或隐藏调试目标」还会列出 C# 与 JavaScript 两个动态启动目标。它们是 Debug Adapter Host 的启动描述，不是项目或额外编译目标；C# 目标指向内置 `SmallBasic.RunHost.exe debug`，JavaScript 目标指向系统 `node.exe` 与扩展携带的 `adapter.js`。扩展为两个后端复用固定的启动描述文件，避免每次调试都向该列表追加同名项。
 
 JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`、`Shapes`、`Turtle` 等图形库；选择 JS 路径运行图形程序时，插件会在启动前给出提示并停止。
 

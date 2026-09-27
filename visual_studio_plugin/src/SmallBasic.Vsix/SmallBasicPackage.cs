@@ -14,7 +14,9 @@ namespace SmallBasic.Vsix
     /// </summary>
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [InstalledProductRegistration("SmallBasic for Visual Studio", "SmallBasic language support", "0.1.0")]
-    [ProvideMenuResource("Menus.ctmenu", 1)]
+    // Increment this version whenever Menus.vsct changes so Visual Studio does
+    // not reuse a stale command-table cache after an extension update.
+    [ProvideMenuResource("Menus.ctmenu", 2)]
     [Guid(PackageGuidString)]
     public sealed class SmallBasicPackage : AsyncPackage
     {

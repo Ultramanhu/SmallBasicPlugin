@@ -31,7 +31,7 @@
 | 语法着色 | TextMate 语法（新建）+ 语义令牌（基于 compiler tokens） | MEF `IClassifier`（基于 compiler Scanner 的 tokens） |
 | IntelliSense | `CompletionService` / `HoverService` / `Compilation.diagnostics` 直接映射到 VS Code API | `CompletionItemProvider` / `HoverProvider` / `Diagnostics` 映射到 VS Async Completion / Error List |
 | 运行 | JS 与 C# 双后端 | C# 与 JS 双后端；F5/Ctrl+F5 默认 C# |
-| 调试 | TS 与 C# 两套 DAP 调试适配器 | 同一组 TS/C# DAP 适配器，经 VS **Debug Adapter Host** 接入 |
+| 调试 | TS 与 C# 两套 DAP 调试适配器；Windows F5 自动默认 C# 图形宿主 | 同一组 TS/C# DAP 适配器，经 VS **Debug Adapter Host** 接入 |
 | 文档数据源 | HomeSite 的 `SmallBasicLibrary.xml`（21 语言本地化）用于补全/悬停文案 | 同左 |
 
 **为什么不用一套 LSP 服务通吃两端**：现状两套编译器都已功能完整且带测试，分别在目标宿主的母语运行时下；引入 LSP/IPC 会增加进程管理、序列化与部署成本，却无法消除 VS 侧仍需要的 MEF 分类器等原生代码。双引擎行为发散风险用**共享一致性测试集**（同一批 `.sb` 程序 + 期望输出，双引擎对跑）对冲。

@@ -1,5 +1,5 @@
 {
-  "name": "smallbasic",
+  "name": "smallbasic-tools",
   "displayName": "SmallBasic for VSCode",
   "description": "SmallBasic language support for VSCode.",
   "version": "0.1.0",
@@ -122,8 +122,7 @@
                   "javascript",
                   "csharp"
                 ],
-                "default": "javascript",
-                "description": "Backend to launch. javascript is built in and also works in VS Code for the Web; csharp uses the bundled .NET host (Windows graphics host or portable command-line host on Linux/macOS)."
+                "description": "Backend to launch. When omitted, Windows desktop uses the bundled C# graphics host and other platforms use JavaScript. Explicit JavaScript debugging remains text-only; C# uses the bundled Windows graphics host or portable command-line host on Linux/macOS."
               },
               "stopOnEntry": {
                 "type": "boolean",
