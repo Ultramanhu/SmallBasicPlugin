@@ -1,0 +1,73 @@
+@using System.Globalization
+
+<svg class="graphics-window"
+     style="display: @(Scene.Visible ? "block" : "none")"
+     width="@F(Scene.Width)"
+     height="@F(Scene.Height)"
+     viewBox="0 0 @F(Scene.Width) @F(Scene.Height)"
+     tabindex="0"
+     role="application"
+     aria-label="@Scene.Title"
+     @onkeydown="OnKeyDown"
+     @onkeyup="OnKeyUp"
+     @onmousemove="OnMouseMove"
+     @onmousedown="OnMouseDown"
+     @onmouseup="OnMouseUp">
+    <rect x="0" y="0" width="100%" height="100%" fill="@Scene.BackgroundColor" />
+    @foreach (GraphicElement element in Scene.Elements.OrderBy(item => item.ZIndex))
+    {
+        if (!element.Visible)
+        {
+            continue;
+        }
+
+        switch (element.Kind)
+        {
+            case "line":
+                <line x1="@F(element.X)" y1="@F(element.Y)" x2="@F(element.X2)" y2="@F(element.Y2)"
+                      stroke="@element.Stroke" stroke-width="@F(element.StrokeWidth)" opacity="@Opacity(element)" transform="@element.Transform" />
+                break;
+            case "rectangle":
+                <rect x="@F(element.X)" y="@F(element.Y)" width="@F(element.Width)" height="@F(element.Height)"
+                      fill="@element.Fill" stroke="@element.Stroke" stroke-width="@F(element.StrokeWidth)" opacity="@Opacity(element)" transform="@element.Transform" />
+                break;
+            case "ellipse":
+                <ellipse cx="@F(element.X + (element.Width / 2))" cy="@F(element.Y + (element.Height / 2))"
+                         rx="@F(element.Width / 2)" ry="@F(element.Height / 2)" fill="@element.Fill" stroke="@element.Stroke"
+                         stroke-width="@F(element.StrokeWidth)" opacity="@Opacity(element)" transform="@element.Transform" />
+                break;
+            case "triangle":
+            case "turtle":
+                <polygon points="@element.Points" fill="@element.Fill" stroke="@element.Stroke" stroke-width="@F(element.StrokeWidth)"
+                         opacity="@Opacity(element)" transform="@element.Transform" />
+                break;
+            case "image":
+                <image href="@element.Href" x="@F(element.X)" y="@F(element.Y)" width="@F(element.Width)" height="@F(element.Height)"
+                       preserveAspectRatio="xMidYMid meet" opacity="@Opacity(element)" transform="@element.Transform" />
+                break;
+            case "text":
+                <foreignObject x="@F(element.X)" y="@F(element.Y)" width="@(element.Width > 0 ? F(element.Width) : "100%")" height="@F(Math.Max(element.FontSize * 2, 24))"
+                               opacity="@Opacity(element)" transform="@element.Transform">
+                    <div xmlns="http://www.w3.org/1999/xhtml"
+                         style="color: @element.Fill; font-family: @element.FontName; font-size: @(F(element.FontSize))px; font-weight: @(element.FontBold ? "bold" : "normal"); font-style: @(element.FontItalic ? "italic" : "normal");">@element.Text</div>
+                </foreignObject>
+                break;
+        }
+    }
+</svg>
+
+@code {
+    [Parameter, EditorRequired]
+    public GraphicsScene Scene { get; set; } = null!;
+
+    [Parameter, EditorRequired]
+    public GraphicsWindowLibrary Input { get; set; } = null!;
+
+    private void OnKeyDown(KeyboardEventArgs args) => this.Input.HandleKeyDown(args.Key);
+    private void OnKeyUp(KeyboardEventArgs args) => this.Input.HandleKeyUp(args.Key);
+    private void OnMouseMove(MouseEventArgs args) => this.Input.HandleMouseMove((decimal)args.OffsetX, (decimal)args.OffsetY);
+    private void OnMouseDown(MouseEventArgs args) => this.Input.HandleMouseDown((decimal)args.OffsetX, (decimal)args.OffsetY);
+    private void OnMouseUp(MouseEventArgs args) => this.Input.HandleMouseUp((decimal)args.OffsetX, (decimal)args.OffsetY);
+    private static string F(decimal value) => value.ToString(CultureInfo.InvariantCulture);
+    private static string Opacity(GraphicElement element) => (element.Opacity / 100m).ToString(CultureInfo.InvariantCulture);
+}

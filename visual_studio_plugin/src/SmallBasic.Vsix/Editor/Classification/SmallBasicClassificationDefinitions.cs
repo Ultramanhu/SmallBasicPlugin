@@ -11,6 +11,12 @@ namespace SmallBasic.Vsix.Editor.Classification
         public const string Number = "sb-number";
         public const string Comment = "sb-comment";
         public const string Library = "sb-library";
+
+        /// <summary>Marker for plain identifiers; the classifier resolves the final type.</summary>
+        public const string Identifier = "sb-identifier";
+
+        /// <summary>Procedure names (<c>Sub</c> declarations and call sites).</summary>
+        public const string Function = "sb-function";
     }
 
     internal static class SmallBasicClassificationTypes
@@ -43,6 +49,13 @@ namespace SmallBasic.Vsix.Editor.Classification
         [Name(SmallBasicClassificationNames.Library)]
         [BaseDefinition("class name")]
         internal static ClassificationTypeDefinition LibraryType = null;
+
+        // Procedure names reuse the built-in "method name" colour so they stay
+        // theme-aware, mirroring the VS Code "function" semantic token.
+        [Export(typeof(ClassificationTypeDefinition))]
+        [Name(SmallBasicClassificationNames.Function)]
+        [BaseDefinition("method name")]
+        internal static ClassificationTypeDefinition FunctionType = null;
     }
 
     [Export(typeof(EditorFormatDefinition))]
@@ -102,6 +115,18 @@ namespace SmallBasic.Vsix.Editor.Classification
         public SmallBasicLibraryFormat()
         {
             this.DisplayName = "SmallBasic Library";
+        }
+    }
+
+    [Export(typeof(EditorFormatDefinition))]
+    [ClassificationType(ClassificationTypeNames = SmallBasicClassificationNames.Function)]
+    [Name(SmallBasicClassificationNames.Function)]
+    [UserVisible(true)]
+    internal sealed class SmallBasicFunctionFormat : ClassificationFormatDefinition
+    {
+        public SmallBasicFunctionFormat()
+        {
+            this.DisplayName = "SmallBasic Function";
         }
     }
 }

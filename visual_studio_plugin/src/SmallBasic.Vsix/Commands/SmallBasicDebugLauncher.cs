@@ -94,6 +94,23 @@ namespace SmallBasic.Vsix.Commands
             return nodePath;
         }
 
+        internal static string RequireDotNetExecutable()
+        {
+            string? dotnetPath = FindExecutableOnPath("dotnet.exe");
+            if (dotnetPath == null)
+            {
+                string candidate = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "dotnet", "dotnet.exe");
+                dotnetPath = File.Exists(candidate) ? candidate : null;
+            }
+
+            if (dotnetPath == null)
+            {
+                throw new FileNotFoundException("未找到 dotnet.exe。Small Basic Blazor 后端需要 .NET 8 Runtime。");
+            }
+
+            return dotnetPath;
+        }
+
         private static void ResolveAdapter(
             string extensionDirectory,
             SmallBasicBackend backend,
@@ -102,13 +119,26 @@ namespace SmallBasic.Vsix.Commands
         {
             if (backend == SmallBasicBackend.CSharp)
             {
-                adapterPath = Path.Combine(extensionDirectory, "runhost", "SmallBasic.RunHost.exe");
+                adapterPath = Path.Combine(extensionDirectory, "runhost", "csharp", "SmallBasic.RunHost.exe");
                 adapterArguments = "debug";
                 if (!File.Exists(adapterPath))
                 {
                     throw new FileNotFoundException("未找到 Small Basic C# 调试适配器。请重新安装完整的 VSIX。", adapterPath);
                 }
 
+                return;
+            }
+
+            if (backend == SmallBasicBackend.Blazor)
+            {
+                string hostPath = Path.Combine(extensionDirectory, "runhost", "blazor", "SmallBasic.Blazor.RunHost.dll");
+                if (!File.Exists(hostPath))
+                {
+                    throw new FileNotFoundException("未找到 Small Basic Blazor 调试宿主。请重新安装完整的 VSIX。", hostPath);
+                }
+
+                adapterPath = RequireDotNetExecutable();
+                adapterArguments = $"\"{hostPath}\" debug";
                 return;
             }
 
@@ -133,10 +163,12 @@ namespace SmallBasic.Vsix.Commands
             Directory.CreateDirectory(directory);
             DeleteLegacyLaunchConfigurations(directory);
 
-            string backendName = backend == SmallBasicBackend.CSharp ? "C#" : "JavaScript";
+            string backendName = backend == SmallBasicBackend.CSharp
+                ? "C#"
+                : backend == SmallBasicBackend.Blazor ? "Blazor" : "JavaScript";
             string launchFileName = backend == SmallBasicBackend.CSharp
                 ? "launch-csharp.json"
-                : "launch-javascript.json";
+                : backend == SmallBasicBackend.Blazor ? "launch-blazor.json" : "launch-javascript.json";
             string launchPath = Path.Combine(directory, launchFileName);
 
             var properties = new List<KeyValuePair<string, object>>
@@ -219,6 +251,27 @@ namespace SmallBasic.Vsix.Commands
 
             foreach (string candidate in candidates)
             {
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static string? FindExecutableOnPath(string executableName)
+        {
+            string pathValue = Environment.GetEnvironmentVariable("PATH") ?? string.Empty;
+            foreach (string pathEntry in pathValue.Split(Path.PathSeparator))
+            {
+                string directory = pathEntry.Trim().Trim('"');
+                if (directory.Length == 0)
+                {
+                    continue;
+                }
+
+                string candidate = Path.Combine(directory, executableName);
                 if (File.Exists(candidate))
                 {
                     return candidate;

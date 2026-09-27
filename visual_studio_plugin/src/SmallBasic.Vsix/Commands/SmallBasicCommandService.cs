@@ -15,8 +15,15 @@ namespace SmallBasic.Vsix.Commands
     /// </summary>
     internal static class SmallBasicCommandService
     {
+        // Visual Studio's standard F5/Ctrl+F5 commands arrive through the editor
+        // command filter without a backend argument. Remember the backend chosen
+        // by the most recent explicit Tools > Small Basic command so those
+        // standard commands do not silently fall back to C#.
+        public static SmallBasicBackend SelectedBackend { get; private set; } = SmallBasicBackend.CSharp;
+
         public static void RunActiveDocument(SmallBasicBackend backend)
         {
+            SelectedBackend = backend;
             if (TrySaveActiveDocument(out string? filePath))
             {
                 Run(filePath!, backend);
@@ -25,6 +32,7 @@ namespace SmallBasic.Vsix.Commands
 
         public static void DebugActiveDocument(SmallBasicBackend backend)
         {
+            SelectedBackend = backend;
             if (TrySaveActiveDocument(out string? filePath))
             {
                 Debug(filePath!, backend, stopOnEntry: false);
@@ -42,9 +50,20 @@ namespace SmallBasic.Vsix.Commands
                 }
 
                 string extensionDirectory = GetExtensionDirectory();
-                ProcessStartInfo startInfo = backend == SmallBasicBackend.CSharp
-                    ? CreateCSharpRunStartInfo(extensionDirectory, filePath)
-                    : CreateJavaScriptRunStartInfo(extensionDirectory, filePath);
+                ProcessStartInfo startInfo;
+                switch (backend)
+                {
+                    case SmallBasicBackend.CSharp:
+                        startInfo = CreateCSharpRunStartInfo(extensionDirectory, filePath);
+                        break;
+                    case SmallBasicBackend.Blazor:
+                        startInfo = CreateBlazorRunStartInfo(extensionDirectory, filePath);
+                        break;
+                    default:
+                        startInfo = CreateJavaScriptRunStartInfo(extensionDirectory, filePath);
+                        break;
+                }
+
                 Process.Start(startInfo);
             }
             catch (Exception ex)
@@ -73,7 +92,7 @@ namespace SmallBasic.Vsix.Commands
 
         private static ProcessStartInfo CreateCSharpRunStartInfo(string extensionDirectory, string filePath)
         {
-            string runHostPath = Path.Combine(extensionDirectory, "runhost", "SmallBasic.RunHost.exe");
+            string runHostPath = Path.Combine(extensionDirectory, "runhost", "csharp", "SmallBasic.RunHost.exe");
             if (!File.Exists(runHostPath))
             {
                 throw new FileNotFoundException("未找到 Small Basic C# 运行宿主。请重新安装完整的 VSIX。", runHostPath);
@@ -100,6 +119,23 @@ namespace SmallBasic.Vsix.Commands
             return new ProcessStartInfo
             {
                 FileName = nodePath,
+                Arguments = $"{QuoteArgument(runHostPath)} run --file {QuoteArgument(filePath)} --pause",
+                WorkingDirectory = Path.GetDirectoryName(filePath) ?? extensionDirectory,
+                UseShellExecute = true,
+            };
+        }
+
+        private static ProcessStartInfo CreateBlazorRunStartInfo(string extensionDirectory, string filePath)
+        {
+            string runHostPath = Path.Combine(extensionDirectory, "runhost", "blazor", "SmallBasic.Blazor.RunHost.dll");
+            if (!File.Exists(runHostPath))
+            {
+                throw new FileNotFoundException("未找到 Small Basic Blazor RunHost。请重新安装完整的 VSIX。", runHostPath);
+            }
+
+            return new ProcessStartInfo
+            {
+                FileName = SmallBasicDebugLauncher.RequireDotNetExecutable(),
                 Arguments = $"{QuoteArgument(runHostPath)} run --file {QuoteArgument(filePath)} --pause",
                 WorkingDirectory = Path.GetDirectoryName(filePath) ?? extensionDirectory,
                 UseShellExecute = true,

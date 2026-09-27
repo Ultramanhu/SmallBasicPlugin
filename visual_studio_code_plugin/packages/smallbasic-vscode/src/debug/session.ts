@@ -1,5 +1,4 @@
 import {
-  Breakpoint,
   ExitedEvent,
   Handles,
   InitializedEvent,
@@ -17,6 +16,9 @@ import {
   ArrayValue,
   BaseValue,
   Compilation,
+  CompiledDebugExpression,
+  compileDebugExpression,
+  evaluateDebugCondition,
   ExecutionEngine,
   ExecutionMode,
   ExecutionState,
@@ -49,6 +51,8 @@ type SessionBreakpoint = {
   requestedLine: number;
   actualLine?: number;
   verified: boolean;
+  condition?: string;
+  compiledCondition?: CompiledDebugExpression;
 };
 
 class DebugTextWindow implements ITextWindowLibraryPlugin {
@@ -135,6 +139,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     this.executionStarted = false;
     response.body = {
       supportsConfigurationDoneRequest: true,
+      supportsConditionalBreakpoints: true,
       supportsEvaluateForHovers: false,
       supportsStepBack: false,
       supportsRestartRequest: false
@@ -180,8 +185,13 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     args: DebugProtocol.SetBreakpointsArguments
   ): void {
     const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
-    const requestedLines = args.breakpoints?.map((breakpoint) => breakpoint.line) ?? args.lines ?? [];
-    const requested: SessionBreakpoint[] = requestedLines.map((line) => ({ requestedLine: line - 1, verified: false }));
+    const requested: SessionBreakpoint[] = args.breakpoints
+      ? args.breakpoints.map((breakpoint) => ({
+          requestedLine: breakpoint.line - 1,
+          verified: false,
+          condition: breakpoint.condition?.trim() || undefined
+        }))
+      : (args.lines ?? []).map((line) => ({ requestedLine: line - 1, verified: false }));
     const verified = sourcePath ? this.verifyBreakpoints(sourcePath, requested) : requested;
 
     if (sourcePath) {
@@ -189,9 +199,16 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     }
 
     response.body = {
-      breakpoints: verified.map(
-        (breakpoint) => new Breakpoint(breakpoint.verified, (breakpoint.actualLine ?? breakpoint.requestedLine) + 1)
-      )
+      breakpoints: verified.map((breakpoint) => {
+        const result: DebugProtocol.Breakpoint = {
+          verified: breakpoint.verified,
+          line: (breakpoint.actualLine ?? breakpoint.requestedLine) + 1
+        };
+        if (!breakpoint.verified && breakpoint.condition) {
+          result.message = `无法编译条件: ${breakpoint.condition}`;
+        }
+        return result;
+      })
     };
 
     this.sendResponse(response);
@@ -386,11 +403,22 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     const lines = this.getExecutableLines(compilation);
     return breakpoints.map((breakpoint) => {
       const actualLine = lines.find((line) => line >= breakpoint.requestedLine);
-      return {
-        requestedLine: breakpoint.requestedLine,
-        actualLine,
-        verified: actualLine !== undefined
-      };
+      if (actualLine === undefined) {
+        return { ...breakpoint, actualLine, verified: false };
+      }
+
+      if (breakpoint.condition) {
+        // A condition that does not compile invalidates the breakpoint so the
+        // client can surface the problem instead of silently ignoring it.
+        const compiledCondition = compileDebugExpression(breakpoint.condition);
+        if (!compiledCondition) {
+          return { ...breakpoint, actualLine, verified: false, compiledCondition: undefined };
+        }
+
+        return { ...breakpoint, actualLine, verified: true, compiledCondition };
+      }
+
+      return { ...breakpoint, actualLine, verified: true };
     });
   }
 
@@ -437,17 +465,29 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     // breakpoint on the first line is not skipped.
     if (!this.initialLocationChecked) {
       this.initialLocationChecked = true;
-      if (this.activeControl.kind === "continue" && this.isBreakpointAtCurrentLine()) {
-        this.sendEvent(new StoppedEvent("breakpoint", THREAD_ID));
-        return;
-      }
+      void this.checkInitialBreakpoint();
+      return;
     }
 
     this.running = true;
-    setTimeout(() => this.executionLoop(), 0);
+    setTimeout(() => void this.executionLoop(), 0);
   }
 
-  private executionLoop(): void {
+  private async checkInitialBreakpoint(): Promise<void> {
+    if (!this.engine) {
+      return;
+    }
+
+    if (this.activeControl.kind === "continue" && await this.shouldStopAtLine(this.getCurrentLine())) {
+      this.sendEvent(new StoppedEvent("breakpoint", THREAD_ID));
+      return;
+    }
+
+    this.running = true;
+    setTimeout(() => void this.executionLoop(), 0);
+  }
+
+  private async executionLoop(): Promise<void> {
     if (!this.engine) {
       this.running = false;
       return;
@@ -475,7 +515,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       }
 
       if (this.engine.state === ExecutionState.Paused) {
-        const stopReason = this.getStopReason();
+        const stopReason = await this.getStopReason();
         if (stopReason) {
           this.running = false;
           this.sendEvent(new StoppedEvent(stopReason, THREAD_ID));
@@ -490,7 +530,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     }
   }
 
-  private getStopReason(): DebugProtocol.StoppedEvent["body"]["reason"] | undefined {
+  private async getStopReason(): Promise<DebugProtocol.StoppedEvent["body"]["reason"] | undefined> {
     if (!this.engine) {
       return undefined;
     }
@@ -500,7 +540,6 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       return "pause";
     }
 
-    const currentLine = this.getCurrentLine();
     const currentDepth = this.getStackDepth();
 
     switch (this.activeControl.kind) {
@@ -510,26 +549,38 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
         return currentDepth <= this.activeControl.depth ? "step" : undefined;
       case "stepOut":
         return currentDepth < this.activeControl.depth ? "step" : undefined;
-      case "continue": {
-        if (currentLine === undefined) {
-          return undefined;
-        }
-
-        return this.isBreakpointAtLine(currentLine) ? "breakpoint" : undefined;
-      }
+      case "continue":
+        return await this.shouldStopAtLine(this.getCurrentLine()) ? "breakpoint" : undefined;
       default:
         return undefined;
     }
   }
 
-  private isBreakpointAtCurrentLine(): boolean {
-    const currentLine = this.getCurrentLine();
-    return currentLine !== undefined && this.isBreakpointAtLine(currentLine);
-  }
+  // A line stops execution when it has a verified unconditional breakpoint, or a
+  // conditional breakpoint whose condition evaluates to true. Conditions are
+  // evaluated against the live program memory; failures simply fall through so
+  // the program keeps running.
+  private async shouldStopAtLine(line: number | undefined): Promise<boolean> {
+    if (line === undefined || !this.engine) {
+      return false;
+    }
 
-  private isBreakpointAtLine(line: number): boolean {
     const fileBreakpoints = this.breakpointMap.get(this.normalizePath(this.programPath)) ?? [];
-    return fileBreakpoints.some((breakpoint) => breakpoint.verified && breakpoint.actualLine === line);
+    for (const breakpoint of fileBreakpoints) {
+      if (!breakpoint.verified || breakpoint.actualLine !== line) {
+        continue;
+      }
+
+      if (!breakpoint.compiledCondition) {
+        return true;
+      }
+
+      if (evaluateDebugCondition(this.engine, breakpoint.compiledCondition)) {
+        return true;
+      }
+    }
+
+    return false;
   }
 
   private endSession(exitCode: number): void {

@@ -7,8 +7,8 @@ export class SmallBasicWebDebugAdapterFactory implements vscode.DebugAdapterDesc
   public async createDebugAdapterDescriptor(
     session: vscode.DebugSession
   ): Promise<vscode.DebugAdapterDescriptor | undefined> {
-    if (session.configuration.backend === "csharp") {
-      void vscode.window.showErrorMessage("VS Code for the Web 不支持启动本机 C# 进程，请使用 JavaScript 后端。");
+    if (session.configuration.backend === "csharp" || session.configuration.backend === "blazor") {
+      void vscode.window.showErrorMessage("VS Code for the Web 不支持启动本机 C#/Blazor RunHost，请使用 JavaScript 后端。");
       return undefined;
     }
 

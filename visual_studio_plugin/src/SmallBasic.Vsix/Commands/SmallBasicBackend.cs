@@ -7,5 +7,6 @@ namespace SmallBasic.Vsix.Commands
     {
         CSharp,
         JavaScript,
+        Blazor,
     }
 }

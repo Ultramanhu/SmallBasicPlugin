@@ -163,13 +163,16 @@ namespace SmallBasic.Vsix.Commands
         private void Run(ITextDocument document)
         {
             document.Save();
-            SmallBasicCommandService.Run(document.FilePath, SmallBasicBackend.CSharp);
+            SmallBasicCommandService.Run(document.FilePath, SmallBasicCommandService.SelectedBackend);
         }
 
         private void Debug(ITextDocument document, bool stopOnEntry)
         {
             document.Save();
-            SmallBasicCommandService.Debug(document.FilePath, SmallBasicBackend.CSharp, stopOnEntry);
+            SmallBasicCommandService.Debug(
+                document.FilePath,
+                SmallBasicCommandService.SelectedBackend,
+                stopOnEntry);
         }
     }
 }

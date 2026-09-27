@@ -1,13 +1,26 @@
 param(
     [string]$Configuration = "Release",
     [string]$Framework = "net48",
-    [string]$PackageName = "SmallBasic.Vsix.0.1.1.vsix"
+    [string]$PackageName
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+$repositoryRoot = Split-Path -Parent $repoRoot
 $projectRoot = Join-Path $repoRoot "src\SmallBasic.Vsix"
+
+# version.json is the single source of truth shared with the VS Code extension.
+# Regenerate the VSIX manifest and VersionInfo.g.cs before building.
+& node (Join-Path $repositoryRoot "tools\sync-version.mjs")
+if ($LASTEXITCODE -ne 0) {
+    throw "Version synchronization failed with exit code $LASTEXITCODE."
+}
+
+$version = [string]((Get-Content -LiteralPath (Join-Path $repositoryRoot "version.json") -Raw | ConvertFrom-Json).version)
+if ([string]::IsNullOrWhiteSpace($PackageName)) {
+    $PackageName = "SmallBasic.Vsix.$version.vsix"
+}
 $project = Join-Path $projectRoot "SmallBasic.Vsix.csproj"
 $generatedPackage = Join-Path $projectRoot (Join-Path "bin\$Configuration" (Join-Path $Framework "SmallBasic.Vsix.vsix"))
 $packagePath = Join-Path $PSScriptRoot $PackageName
@@ -41,7 +54,7 @@ try {
         "SmallBasic.Vsix.dll",
         "SmallBasic.Vsix.pkgdef",
         "debugadapter/adapter.js",
-        "runhost/SmallBasic.RunHost.exe",
+        "runhost/csharp/SmallBasic.RunHost.exe",
         "runhost/javascript/smallbasic-runhost.js"
     )) {
         if ($entries -notcontains $payloadEntry) {
@@ -68,10 +81,38 @@ try {
     if ($bundledNode.Count -ne 0) {
         throw "The VSIX unexpectedly contains a bundled Node.js runtime: $($bundledNode -join ', ')"
     }
+
+    # Release packages must stay free of managed debug symbols.
+    if ($Configuration -eq "Release") {
+        $debugSymbols = @($entries | Where-Object { $_.EndsWith(".pdb", [System.StringComparison]::OrdinalIgnoreCase) })
+        if ($debugSymbols.Count -ne 0) {
+            throw "The Release VSIX unexpectedly contains debug symbols: $($debugSymbols -join ', ')"
+        }
+    }
 }
 finally {
     $archive.Dispose()
 }
 
+# Snapshot the packages that already exist so the artifact produced by this run
+# can never be selected for removal.
+$stalePackages = @(Get-ChildItem -LiteralPath $PSScriptRoot -Filter "SmallBasic.Vsix.*.vsix" -File)
+$targetPath = [System.IO.Path]::GetFullPath($packagePath)
+
 Copy-Item -LiteralPath $generatedPackage -Destination $packagePath -Force
+
+if (-not (Test-Path -LiteralPath $packagePath)) {
+    throw "VSIX package was not produced: $packagePath"
+}
+
+# Drop the superseded packages now that the fresh one is safely on disk.
+foreach ($stale in $stalePackages) {
+    if ([System.IO.Path]::GetFullPath($stale.FullName) -eq $targetPath) {
+        continue
+    }
+
+    Write-Host "Removing stale package: $($stale.Name)"
+    Remove-Item -LiteralPath $stale.FullName -Force
+}
+
 Write-Host "Validated VSIX v3 package created by VSSDK: $packagePath"

@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>SmallBasic.Blazor.RunHost</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmallBasic.Blazor.Client\SmallBasic.Blazor.Client.csproj" />
+    <ProjectReference Include="..\SmallBasic.Blazor.Shared\SmallBasic.Blazor.Shared.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <Compile Include="..\SmallBasic.RunHost\Debug\DapStream.cs" Link="Debug\DapStream.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\ProgramLibrary.cs" Link="Libraries\ProgramLibrary.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\RuntimeLibrariesCollection.cs" Link="Libraries\RuntimeLibrariesCollection.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\TextWindowLibrary.cs" Link="Libraries\TextWindowLibrary.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\UnsupportedLibraries.cs" Link="Libraries\UnsupportedLibraries.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ArrayLibrary.cs" Link="Libraries\Imported\ArrayLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ClockLibrary.cs" Link="Libraries\Imported\ClockLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\DictionaryLibrary.cs" Link="Libraries\Imported\DictionaryLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\MathLibrary.cs" Link="Libraries\Imported\MathLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\StackLibrary.cs" Link="Libraries\Imported\StackLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TextLibrary.cs" Link="Libraries\Imported\TextLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TimerLibrary.cs" Link="Libraries\Imported\TimerLibrary.cs" />
+  </ItemGroup>
+</Project>

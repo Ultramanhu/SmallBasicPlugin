@@ -9,6 +9,7 @@ export interface PlatformActivation {
   debugAdapterFactory: vscode.DebugAdapterDescriptorFactory;
   debugConfigurationProvider: vscode.DebugConfigurationProvider;
   runCSharp?: () => Promise<void>;
+  runBlazor?: () => Promise<void>;
 }
 
 export function activateCommon(context: vscode.ExtensionContext, platform: PlatformActivation): void {
@@ -79,13 +80,17 @@ export function activateCommon(context: vscode.ExtensionContext, platform: Platf
     vscode.commands.registerCommand("smallbasic.newFile", async (resource?: vscode.Uri) => {
       await createNewFile(resource);
     }),
-    vscode.commands.registerCommand("smallbasic.run", async () => {
+    vscode.commands.registerCommand("smallbasic.runJavaScript", async () => {
       await runActiveDocument(cache, diagnostics);
     })
   ];
 
   if (platform.runCSharp) {
     subscriptions.push(vscode.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
+  }
+
+  if (platform.runBlazor) {
+    subscriptions.push(vscode.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
   }
 
   context.subscriptions.push(...subscriptions);

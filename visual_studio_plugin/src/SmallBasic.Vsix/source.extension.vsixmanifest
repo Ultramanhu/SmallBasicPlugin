@@ -3,7 +3,7 @@
                  xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Language="en-US" Id="smallbasic-tools-vs" Version="0.1.1" Publisher="ultramanhu" />
+    <Identity Language="en-US" Id="smallbasic-tools-vs" Version="0.1.2" Publisher="ultramanhu" />
     <DisplayName>SmallBasic for Visual Studio</DisplayName>
     <Description xml:space="preserve">SmallBasic editor support for Visual Studio.</Description>
     <License>LICENSE.txt</License>

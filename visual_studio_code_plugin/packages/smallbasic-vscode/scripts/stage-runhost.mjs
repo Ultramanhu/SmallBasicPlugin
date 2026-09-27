@@ -5,8 +5,19 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const extensionDirectory = path.resolve(scriptDirectory, "..");
 const repositoryRoot = path.resolve(extensionDirectory, "..", "..", "..");
-const configurations = ["Release", "Debug"];
 const hostRoot = path.join(repositoryRoot, "visual_studio_plugin", "src", "SmallBasic.RunHost", "bin");
+
+// The requested configuration is forwarded by package-vsix.mjs so the staged
+// binaries match the rest of the build. Without it any existing build is
+// accepted, preferring Release.
+const requestedConfiguration = (process.argv[2] ?? "").trim() || undefined;
+const configurations = requestedConfiguration ? [requestedConfiguration] : ["Release", "Debug"];
+
+// Managed debug symbols are only staged for an explicit Debug request. Every
+// other case (including a direct run that prefers the Release build) produces
+// the Release payload, where the PDBs would roughly double the staged RunHost
+// size without being usable from an installed extension.
+const keepDebugSymbols = (requestedConfiguration ?? "").toLowerCase() === "debug";
 
 function findHost(targetFramework, fileName) {
   for (const configuration of configurations) {
@@ -16,21 +27,42 @@ function findHost(targetFramework, fileName) {
     }
   }
 
+  const searched = configurations
+    .map((configuration) => path.join(hostRoot, configuration, targetFramework))
+    .join(", ");
   throw new Error(
-    `${targetFramework}/${fileName} was not found. Build visual_studio_plugin/src/SmallBasic.RunHost first.`
+    `${targetFramework}/${fileName} was not found under: ${searched}. ` +
+      `Build visual_studio_plugin/src/SmallBasic.RunHost for the requested configuration first.`
   );
 }
 
 const windowsSource = findHost("net8.0-windows", "SmallBasic.RunHost.exe");
 const portableSource = findHost("net8.0", "SmallBasic.RunHost.dll");
+const blazorSource = path.join(repositoryRoot, "runhost", "blazor");
+if (!fs.existsSync(path.join(blazorSource, "SmallBasic.Blazor.RunHost.dll"))) {
+  throw new Error("runhost/blazor/SmallBasic.Blazor.RunHost.dll was not found. Run runhost/Build-RunHost.ps1 first.");
+}
 
 const destinationDirectory = path.join(extensionDirectory, "runhost");
 fs.rmSync(destinationDirectory, { recursive: true, force: true });
 const windowsDestination = path.join(destinationDirectory, "windows");
 const portableDestination = path.join(destinationDirectory, "portable");
+const blazorDestination = path.join(destinationDirectory, "blazor");
 fs.mkdirSync(windowsDestination, { recursive: true });
 fs.mkdirSync(portableDestination, { recursive: true });
-fs.cpSync(windowsSource, windowsDestination, { recursive: true, force: true });
-fs.cpSync(portableSource, portableDestination, { recursive: true, force: true });
+fs.mkdirSync(blazorDestination, { recursive: true });
+const copyOptions = {
+  recursive: true,
+  force: true,
+  filter: (source) => keepDebugSymbols || path.extname(source).toLowerCase() !== ".pdb"
+};
+
+fs.cpSync(windowsSource, windowsDestination, copyOptions);
+fs.cpSync(portableSource, portableDestination, copyOptions);
+fs.cpSync(blazorSource, blazorDestination, copyOptions);
 console.log(`Staged Windows C# run host from ${windowsSource}`);
 console.log(`Staged portable C# run host from ${portableSource}`);
+console.log(`Staged Blazor run host from ${blazorSource}`);
+if (!keepDebugSymbols) {
+  console.log("Skipped PDB files (release packaging).");
+}

@@ -63,6 +63,10 @@ namespace SmallBasic.Compiler
 
         public string[] ProvideHover(TextPosition position) => HoverProvider.Provide(this.diagnostics, this.parser, position);
 
+        // Document outline: procedure declarations plus the first use of every
+        // variable, grouped by the scope owning that first use.
+        public IReadOnlyList<OutlineItem> GetOutlineItems() => OutlineProvider.Provide(this.parser.SyntaxTree);
+
         // Lines (0-based) that contain at least one emitted instruction. Debug
         // adapters use this to snap breakpoints onto executable statements.
         public IReadOnlyCollection<int> GetExecutableLines()
@@ -84,6 +88,44 @@ namespace SmallBasic.Compiler
                     target.Add(instruction.Range.Start.Line);
                 }
             }
+        }
+
+        // Synthetic variable that captures a compiled expression's value. It is
+        // restored (or removed) by the engine after evaluation, so even the
+        // unlikely collision with a user variable does not corrupt the program.
+        internal const string ExpressionResultVariable = "__SmallBasicDebugExpression";
+
+        // Compiles a single value-producing expression (for example a conditional
+        // breakpoint condition) into an evaluatable form. Returns null when the
+        // text is empty or does not parse/bind as an expression. Sub module
+        // invocations are rejected because the evaluator cannot unwind their
+        // execution frames.
+        public CompiledExpression CompileExpression(string expression)
+        {
+            if (string.IsNullOrWhiteSpace(expression))
+            {
+                return null;
+            }
+
+            // The parser only understands whole statements, so wrap the
+            // expression in an assignment. Newlines would terminate the statement
+            // early, so collapse them into spaces first.
+            string normalized = expression.Replace('\r', ' ').Replace('\n', ' ');
+            string source = $"{ExpressionResultVariable} = ({normalized})";
+
+            var expressionDiagnostics = new DiagnosticBag();
+            var scanner = new Scanner(source, expressionDiagnostics);
+            var parser = new Parser(scanner.Tokens, expressionDiagnostics);
+            var binder = new Binder(parser.SyntaxTree, expressionDiagnostics, this.isRunningOnDesktop);
+
+            if (expressionDiagnostics.Contents.Count > 0)
+            {
+                return null;
+            }
+
+            var emitter = new ModuleEmitter(binder.MainModule);
+            var module = new RuntimeModule("<expression>", emitter.Instructions, parser.SyntaxTree);
+            return new CompiledExpression(module, ExpressionResultVariable);
         }
     }
 }

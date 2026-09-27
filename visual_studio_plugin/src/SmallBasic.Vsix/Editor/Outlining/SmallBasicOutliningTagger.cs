@@ -5,16 +5,28 @@ namespace SmallBasic.Vsix.Editor.Outlining
     using Microsoft.VisualStudio.Text;
     using Microsoft.VisualStudio.Text.Adornments;
     using Microsoft.VisualStudio.Text.Tagging;
+    using SmallBasic.Compiler.Scanning;
+    using SmallBasic.Compiler.Services;
+    using SmallBasic.Vsix.Services;
 
+    /// <summary>
+    /// Publishes the document outline ("文档大纲") and the folding regions of a
+    /// SmallBasic buffer as <see cref="IStructureTag"/> spans:
+    /// control-flow blocks (If / While / For) are scanned line by line, while the
+    /// procedure declarations and variable first uses come from the compiler so
+    /// the outline matches the language semantics.
+    /// </summary>
     internal sealed class SmallBasicStructureTagger : ITagger<IStructureTag>
     {
         private readonly ITextBuffer textBuffer;
+        private readonly SmallBasicCompilationService compilationService;
         private ITextSnapshot? cachedSnapshot;
-        private IReadOnlyList<BlockRegion> cachedRegions = Array.Empty<BlockRegion>();
+        private IReadOnlyList<TagSpan<IStructureTag>> cachedTags = Array.Empty<TagSpan<IStructureTag>>();
 
-        public SmallBasicStructureTagger(ITextBuffer textBuffer)
+        public SmallBasicStructureTagger(ITextBuffer textBuffer, SmallBasicCompilationService compilationService)
         {
             this.textBuffer = textBuffer;
+            this.compilationService = compilationService;
             this.textBuffer.Changed += this.OnTextBufferChanged;
         }
 
@@ -31,42 +43,15 @@ namespace SmallBasic.Vsix.Editor.Outlining
             if (!ReferenceEquals(snapshot, this.cachedSnapshot))
             {
                 this.cachedSnapshot = snapshot;
-                this.cachedRegions = FindRegions(snapshot);
+                this.cachedTags = BuildTags(snapshot);
             }
 
-            foreach (BlockRegion region in this.cachedRegions)
+            foreach (TagSpan<IStructureTag> tag in this.cachedTags)
             {
-                ITextSnapshotLine openingLine = snapshot.GetLineFromLineNumber(region.OpeningLine);
-                ITextSnapshotLine closingLine = snapshot.GetLineFromLineNumber(region.ClosingLine);
-                var outliningSpan = Span.FromBounds(openingLine.End.Position, closingLine.End.Position);
-                var regionSpan = new SnapshotSpan(snapshot, outliningSpan);
-
-                if (!IntersectsRequestedSpan(spans, regionSpan))
+                if (IntersectsRequestedSpan(spans, tag.Span))
                 {
-                    continue;
+                    yield return tag;
                 }
-
-                string hoverText = snapshot.GetText(
-                    Span.FromBounds(openingLine.Start.Position, closingLine.End.Position));
-                int headerStart = FindFirstNonWhitespace(openingLine);
-                var headerSpan = Span.FromBounds(headerStart, openingLine.End.Position);
-                var structureSpan = new SnapshotSpan(
-                    snapshot,
-                    Span.FromBounds(openingLine.Start.Position, closingLine.End.Position));
-                yield return new TagSpan<IStructureTag>(
-                    structureSpan,
-                    new StructureTag(
-                        snapshot,
-                        outliningSpan,
-                        headerSpan,
-                        guideLineSpan: null,
-                        guideLineHorizontalAnchor: headerStart,
-                        type: GetStructureType(region.Kind),
-                        isCollapsible: true,
-                        isDefaultCollapsed: false,
-                        isImplementation: region.Kind == BlockKind.Sub,
-                        collapsedForm: "...",
-                        collapsedHintForm: hoverText));
             }
         }
 
@@ -135,6 +120,85 @@ namespace SmallBasic.Vsix.Editor.Outlining
             return line.Start.Position + index;
         }
 
+        private static bool TryToSpan(ITextSnapshot snapshot, TextRange range, out SnapshotSpan span)
+        {
+            span = default;
+            if (range.Start.Line < 0 || range.End.Line < 0
+                || range.Start.Line >= snapshot.LineCount || range.End.Line >= snapshot.LineCount)
+            {
+                return false;
+            }
+
+            ITextSnapshotLine startLine = snapshot.GetLineFromLineNumber(range.Start.Line);
+            ITextSnapshotLine endLine = snapshot.GetLineFromLineNumber(range.End.Line);
+            int start = startLine.Start.Position + Math.Min(range.Start.Column, startLine.Length);
+            int end = endLine.Start.Position + Math.Min(range.End.Column, endLine.Length);
+            if (end < start || end > snapshot.Length)
+            {
+                return false;
+            }
+
+            span = new SnapshotSpan(snapshot, Span.FromBounds(start, end));
+            return true;
+        }
+
+        private static TagSpan<IStructureTag> CreateTag(
+            ITextSnapshot snapshot,
+            Span structureSpan,
+            Span outliningSpan,
+            Span headerSpan,
+            string type,
+            bool isCollapsible,
+            string collapsedForm,
+            string collapsedHintForm)
+        {
+            var structureTag = new StructureTag(
+                snapshot,
+                outliningSpan,
+                headerSpan,
+                guideLineSpan: null,
+                guideLineHorizontalAnchor: headerSpan.Start,
+                type: type,
+                isCollapsible: isCollapsible,
+                isDefaultCollapsed: false,
+                isImplementation: false,
+                collapsedForm: collapsedForm,
+                collapsedHintForm: collapsedHintForm);
+            return new TagSpan<IStructureTag>(new SnapshotSpan(snapshot, structureSpan), structureTag);
+        }
+
+        private static void AddOutlineTags(ITextSnapshot snapshot, List<TagSpan<IStructureTag>> tags, OutlineItem item)
+        {
+            if (TryToSpan(snapshot, item.Range, out SnapshotSpan span))
+            {
+                bool isProcedure = item.Kind == OutlineItemKind.Procedure;
+                ITextSnapshotLine firstLine = snapshot.GetLineFromPosition(span.Start.Position);
+                ITextSnapshotLine lastLine = snapshot.GetLineFromPosition(span.End.Position);
+                bool isCollapsible = isProcedure && lastLine.LineNumber > firstLine.LineNumber;
+                var headerSpan = isProcedure
+                    ? Span.FromBounds(FindFirstNonWhitespace(firstLine), firstLine.End.Position)
+                    : span.Span;
+                var outliningSpan = isCollapsible
+                    ? Span.FromBounds(firstLine.End.Position, lastLine.End.Position)
+                    : span.Span;
+
+                tags.Add(CreateTag(
+                    snapshot,
+                    span.Span,
+                    outliningSpan,
+                    headerSpan,
+                    GetStructureType(item.Kind),
+                    isCollapsible,
+                    collapsedForm: isProcedure ? "..." : item.Name,
+                    collapsedHintForm: isProcedure ? snapshot.GetText(span.Span) : item.Name));
+            }
+
+            foreach (OutlineItem child in item.Children)
+            {
+                AddOutlineTags(snapshot, tags, child);
+            }
+        }
+
         private static string GetStructureType(BlockKind kind)
         {
             switch (kind)
@@ -144,11 +208,16 @@ namespace SmallBasic.Vsix.Editor.Outlining
                 case BlockKind.While:
                 case BlockKind.For:
                     return PredefinedStructureTagTypes.Loop;
-                case BlockKind.Sub:
-                    return PredefinedStructureTagTypes.Member;
                 default:
                     return PredefinedStructureTagTypes.Structural;
             }
+        }
+
+        private static string GetStructureType(OutlineItemKind kind)
+        {
+            return kind == OutlineItemKind.Procedure
+                ? PredefinedStructureTagTypes.Member
+                : PredefinedStructureTagTypes.Statement;
         }
 
         private static string ReadLeadingKeyword(string line)
@@ -193,12 +262,6 @@ namespace SmallBasic.Vsix.Editor.Outlining
                 return true;
             }
 
-            if (keyword.Equals("Sub", StringComparison.OrdinalIgnoreCase))
-            {
-                kind = BlockKind.Sub;
-                return true;
-            }
-
             kind = default;
             return false;
         }
@@ -223,20 +286,53 @@ namespace SmallBasic.Vsix.Editor.Outlining
                 return true;
             }
 
-            if (keyword.Equals("EndSub", StringComparison.OrdinalIgnoreCase))
-            {
-                kind = BlockKind.Sub;
-                return true;
-            }
-
             kind = default;
             return false;
+        }
+
+        private IReadOnlyList<TagSpan<IStructureTag>> BuildTags(ITextSnapshot snapshot)
+        {
+            var tags = new List<TagSpan<IStructureTag>>();
+
+            // Folding regions for the control-flow blocks.
+            foreach (BlockRegion region in FindRegions(snapshot))
+            {
+                ITextSnapshotLine openingLine = snapshot.GetLineFromLineNumber(region.OpeningLine);
+                ITextSnapshotLine closingLine = snapshot.GetLineFromLineNumber(region.ClosingLine);
+                int headerStart = FindFirstNonWhitespace(openingLine);
+                string hoverText = snapshot.GetText(Span.FromBounds(openingLine.Start.Position, closingLine.End.Position));
+                tags.Add(CreateTag(
+                    snapshot,
+                    Span.FromBounds(openingLine.Start.Position, closingLine.End.Position),
+                    Span.FromBounds(openingLine.End.Position, closingLine.End.Position),
+                    Span.FromBounds(headerStart, openingLine.End.Position),
+                    GetStructureType(region.Kind),
+                    isCollapsible: true,
+                    collapsedForm: "...",
+                    collapsedHintForm: hoverText));
+            }
+
+            // Document outline: procedure declarations and variable first uses.
+            // A compiler failure must never cost the folding regions above.
+            try
+            {
+                foreach (OutlineItem item in this.compilationService.GetCompilation(this.textBuffer).GetOutlineItems())
+                {
+                    AddOutlineTags(snapshot, tags, item);
+                }
+            }
+            catch (Exception)
+            {
+                // Ignore: the control-flow folding regions are already collected.
+            }
+
+            return tags;
         }
 
         private void OnTextBufferChanged(object? sender, TextContentChangedEventArgs e)
         {
             this.cachedSnapshot = null;
-            this.cachedRegions = Array.Empty<BlockRegion>();
+            this.cachedTags = Array.Empty<TagSpan<IStructureTag>>();
             this.TagsChanged?.Invoke(
                 this,
                 new SnapshotSpanEventArgs(new SnapshotSpan(e.After, 0, e.After.Length)));
@@ -247,7 +343,6 @@ namespace SmallBasic.Vsix.Editor.Outlining
             If,
             While,
             For,
-            Sub,
         }
 
         private readonly struct OpenBlock

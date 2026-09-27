@@ -13,6 +13,20 @@ export { StringValue } from "../../../vendor/SmallBasicOnline/src/compiler/runti
 export { Diagnostic, ErrorCode } from "../../../vendor/SmallBasicOnline/src/compiler/utils/diagnostics";
 export { CompilerPosition, CompilerRange } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/ranges";
 export { TokenKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/tokens";
+export { SyntaxKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes";
+export type {
+    BaseSyntaxNode,
+    ForCommandSyntax,
+    IdentifierExpressionSyntax,
+    StatementBlockSyntax,
+    SubModuleDeclarationSyntax
+} from "../../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes";
 export { CompilerUtils } from "../../../vendor/SmallBasicOnline/src/compiler/utils/compiler-utils";
+export {
+    compileDebugExpression,
+    evaluateDebugCondition,
+    evaluateDebugExpression,
+    type CompiledDebugExpression
+} from "./debug-expression";
 export { setDocumentationLocale } from "../../../vendor/SmallBasicOnline/src/strings/documentation";
 export { resolveDocumentationLocale } from "../../../vendor/SmallBasicOnline/src/strings/locale";

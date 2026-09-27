@@ -4,12 +4,14 @@ import { selectDefaultDebugBackend } from "./debug/backend-selection";
 import { SmallBasicDebugAdapterFactory } from "./debug/factory";
 import { isSmallBasicDocument } from "./language/providers";
 import { CSharpRunner } from "./run/csharp-runner";
+import { BlazorRunner } from "./run/blazor-runner";
 
 export function activate(context: vscode.ExtensionContext): void {
   activateCommon(context, {
     debugAdapterFactory: new SmallBasicDebugAdapterFactory(context),
     debugConfigurationProvider: createDebugConfigurationProvider(context.extensionPath),
-    runCSharp: async () => CSharpRunner.runActiveDocument(context.extensionPath)
+    runCSharp: async () => CSharpRunner.runActiveDocument(context.extensionPath),
+    runBlazor: async () => BlazorRunner.runActiveDocument(context.extensionPath)
   });
 }
 
@@ -18,7 +20,7 @@ export function deactivate(): void {
 }
 
 function createDebugConfigurationProvider(extensionPath: string): vscode.DebugConfigurationProvider {
-  const preferredBackend = (): "javascript" | "csharp" =>
+  const preferredBackend = (): "javascript" | "csharp" | "blazor" =>
     selectDefaultDebugBackend(
       process.platform,
       CSharpRunner.resolveHostCommand(extensionPath) !== undefined
@@ -26,13 +28,15 @@ function createDebugConfigurationProvider(extensionPath: string): vscode.DebugCo
 
   const baseConfig = (
     program: string,
-    backend: "javascript" | "csharp" = preferredBackend()
+    backend: "javascript" | "csharp" | "blazor" = preferredBackend()
   ): vscode.DebugConfiguration => ({
     type: "smallbasic",
     request: "launch",
     name: backend === "csharp"
       ? "SmallBasic: Debug current file with C# backend"
-      : "SmallBasic: Launch current file (JS debugger)",
+      : backend === "blazor"
+        ? "SmallBasic: Debug current file with Blazor backend"
+        : "SmallBasic: Debug current file with JavaScript backend",
     program,
     backend,
     stopOnEntry: true
@@ -46,7 +50,7 @@ function createDebugConfigurationProvider(extensionPath: string): vscode.DebugCo
   return {
     resolveDebugConfiguration(_folder, config) {
       if (config.type === "smallbasic" && typeof config.program === "string") {
-        if (config.backend !== "csharp" && config.backend !== "javascript") {
+        if (config.backend !== "csharp" && config.backend !== "javascript" && config.backend !== "blazor") {
           config.backend = preferredBackend();
         }
 
@@ -61,7 +65,7 @@ function createDebugConfigurationProvider(extensionPath: string): vscode.DebugCo
         return config;
       }
 
-      if (config.backend !== "csharp" && config.backend !== "javascript") {
+      if (config.backend !== "csharp" && config.backend !== "javascript" && config.backend !== "blazor") {
         config.backend = preferredBackend();
       }
 
@@ -85,6 +89,21 @@ function createDebugConfigurationProvider(extensionPath: string): vscode.DebugCo
           void vscode.window.showErrorMessage(
             "未找到可用的 SmallBasic C# 运行宿主。请安装 .NET 8、重新安装完整扩展，" +
             "或在 smallbasic.csharp.runHostPath 中指定宿主路径。"
+          );
+          return undefined;
+        }
+      }
+
+      if (config.backend === "blazor") {
+        if (config.noDebug === true) {
+          await BlazorRunner.runProgram(program, extensionPath);
+          return undefined;
+        }
+
+        if (!BlazorRunner.resolveHostCommand(extensionPath)) {
+          void vscode.window.showErrorMessage(
+            "未找到 Small Basic Blazor RunHost。请安装 .NET 8 / ASP.NET Core 8 Runtime、重新安装完整扩展，" +
+            "或在 smallbasic.blazor.runHostPath 中指定宿主路径。"
           );
           return undefined;
         }

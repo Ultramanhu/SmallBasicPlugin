@@ -4,6 +4,7 @@
 #   net8.0-windows/  - .NET 8 host (Windows, WPF graphics supported)
 #   net8.0/          - .NET 8 portable host (Windows/Linux/macOS, text-only)
 #   javascript/      - Node.js host (any platform with Node >= 20, text-only)
+#   blazor/           - .NET 8 + Blazor WASM host (CLI text, browser graphics)
 #
 # Usage examples:
 #   .\Build-RunHost.ps1                                # all platforms
@@ -29,6 +30,7 @@ $ErrorActionPreference = "Stop"
 $outputRoot = $PSScriptRoot
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
+$blazorProjectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
 $vscodeRoot = Join-Path $repoRoot "visual_studio_code_plugin"
 $vscodePackage = Join-Path $vscodeRoot "packages\smallbasic-vscode"
 
@@ -36,15 +38,29 @@ if (-not (Test-Path $projectPath)) {
     throw "RunHost project not found: $projectPath"
 }
 
+if (-not (Test-Path $blazorProjectPath)) {
+    throw "Blazor RunHost project not found: $blazorProjectPath"
+}
+
 if ($Clean) {
     # Only remove generated platform folders, never the folder itself (this
     # script and future support files live here too).
-    foreach ($name in @($DotNetPlatforms) + @("javascript")) {
+    foreach ($name in @($DotNetPlatforms) + @("javascript", "blazor")) {
         $target = Join-Path $outputRoot $name
         if (Test-Path $target) {
             Remove-Item $target -Recurse -Force
         }
     }
+}
+
+$blazorDestination = Join-Path $outputRoot "blazor"
+if (Test-Path $blazorDestination) {
+    Remove-Item $blazorDestination -Recurse -Force
+}
+Write-Host "==> Publishing SmallBasic.Blazor.RunHost (net8.0, $Configuration) to $blazorDestination" -ForegroundColor Cyan
+dotnet publish $blazorProjectPath -c $Configuration -f net8.0 -o $blazorDestination --nologo
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet publish failed for the Blazor RunHost"
 }
 
 New-Item -ItemType Directory -Force -Path $outputRoot | Out-Null
@@ -88,3 +104,4 @@ Write-Host "  net48            : SmallBasic.RunHost.exe (.NET Framework 4.8, Win
 Write-Host "  net8.0-windows   : SmallBasic.RunHost.exe (.NET 8, Windows graphics)"
 Write-Host "  net8.0           : SmallBasic.RunHost.dll  (.NET 8 portable: 'dotnet SmallBasic.RunHost.dll', text-only)"
 Write-Host "  javascript       : smallbasic-runhost.js    ('node smallbasic-runhost.js', text-only)"
+Write-Host "  blazor           : SmallBasic.Blazor.RunHost.dll ('dotnet ...', CLI text + browser graphics)"

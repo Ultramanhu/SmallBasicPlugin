@@ -10,11 +10,12 @@ type ExtensionManifest = {
   };
   contributes?: {
     breakpoints?: Array<{ language?: string }>;
+    commands?: Array<{ command?: string; icon?: string }>;
     debuggers?: Array<{
       configurationAttributes?: {
         launch?: {
           properties?: {
-            backend?: { default?: string };
+            backend?: { default?: string; enum?: string[] };
             stopOnEntry?: { default?: boolean };
           };
         };
@@ -62,5 +63,26 @@ describe("VS Code extension manifest", () => {
   it("hides the native C# run command in web workspaces", () => {
     const runMenu = manifest.contributes?.menus?.["editor/title/run"];
     expect(runMenu?.find((item) => item.command === "smallbasic.runCSharp")?.when).toContain("!isWeb");
+  });
+
+  it("names backend run commands explicitly and unifies their icons", () => {
+    const runCommands = (manifest.contributes?.commands ?? []).filter((item) =>
+      item.command?.startsWith("smallbasic.run")
+    );
+    expect(runCommands.map((item) => item.command)).toEqual([
+      "smallbasic.runJavaScript",
+      "smallbasic.runCSharp",
+      "smallbasic.runBlazor"
+    ]);
+    expect(runCommands.every((item) => item.icon === "$(play)")).toBe(true);
+  });
+
+  it("contributes the desktop Blazor backend and hides its run command on the web", () => {
+    const debuggerContribution = manifest.contributes?.debuggers?.[0];
+    expect(
+      debuggerContribution?.configurationAttributes?.launch?.properties?.backend?.enum
+    ).toContain("blazor");
+    const runMenu = manifest.contributes?.menus?.["editor/title/run"];
+    expect(runMenu?.find((item) => item.command === "smallbasic.runBlazor")?.when).toContain("!isWeb");
   });
 });

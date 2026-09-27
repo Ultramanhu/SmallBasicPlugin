@@ -18,6 +18,13 @@
     <JavaScriptRunHostSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\runhost.js</JavaScriptRunHostSource>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- The extension version is owned by <repo>/version.json and propagated by
+         tools/sync-version.mjs, which this project runs before every build. -->
+    <RepoRootDirectory>$(MSBuildThisFileDirectory)..\..\..\</RepoRootDirectory>
+    <VersionSyncScript>$(RepoRootDirectory)tools\sync-version.mjs</VersionSyncScript>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" PrivateAssets="all" />
@@ -56,6 +63,13 @@
     </Content>
   </ItemGroup>
 
+  <!-- Regenerate the VSIX manifest and VersionInfo.g.cs from version.json even
+       when the project is built directly (VS IDE or `dotnet build`). The step is
+       non-fatal so an offline build still succeeds using the committed values. -->
+  <Target Name="SyncSharedVersion" BeforeTargets="BeforeBuild" Condition="Exists('$(VersionSyncScript)')">
+    <Exec Command="node &quot;$(VersionSyncScript)&quot;" ContinueOnError="WarnAndContinue" StandardOutputImportance="low" />
+  </Target>
+
   <Target Name="ValidateDebugAdapterOutput" BeforeTargets="Build">
     <Warning
       Condition="!Exists('$(DebugAdapterSource)')"
@@ -72,6 +86,15 @@
       Properties="Configuration=$(Configuration);TargetFramework=net48" />
 
     <PropertyGroup>
+      <BlazorRunHostStaging>$(MSBuildProjectDirectory)\obj\$(Configuration)\vsix\runhost\blazor\</BlazorRunHostStaging>
+    </PropertyGroup>
+    <RemoveDir Directories="$(BlazorRunHostStaging)" />
+    <MSBuild
+      Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);TargetFramework=net8.0;PublishDir=$(BlazorRunHostStaging)" />
+
+    <PropertyGroup>
       <JavaScriptRunHostStaging>$(IntermediateOutputPath)vsix\runhost\javascript\smallbasic-runhost.js</JavaScriptRunHostStaging>
     </PropertyGroup>
 
@@ -86,14 +109,36 @@
 
     <ItemGroup>
       <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
+      <BlazorRunHostFiles Include="$(BlazorRunHostStaging)**\*" />
       <Content Include="@(RunHostFiles)">
-        <Link>runhost\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <Link>runhost\csharp\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
+      <Content Include="@(BlazorRunHostFiles)">
+        <Link>runhost\blazor\%(RecursiveDir)%(Filename)%(Extension)</Link>
         <IncludeInVSIX>true</IncludeInVSIX>
       </Content>
       <Content Include="$(JavaScriptRunHostStaging)" Condition="Exists('$(JavaScriptRunHostStaging)')">
         <Link>runhost\javascript\smallbasic-runhost.js</Link>
         <IncludeInVSIX>true</IncludeInVSIX>
       </Content>
+    </ItemGroup>
+  </Target>
+
+  <!-- A Release VSIX stays as small as possible and ships no managed debug
+       symbols. This drops every PDB collected into @(VSIXSourceItem): the
+       RunHost/Blazor payload PDBs (staged above as linked Content items) and the
+       PDBs that come along with the referenced compiler assemblies.
+       IncludeDebugSymbolsInVSIXContainer only covers this project's own assembly,
+       so the referenced ones need this explicit removal. The target runs after
+       @(VSIXSourceItem) is complete and before it is turned into files.json, so
+       the VSSDK-generated VSIX v3 manifest stays consistent. Debug builds keep
+       the symbols. -->
+  <Target Name="ExcludeDebugSymbolsFromVsix"
+          BeforeTargets="GenerateFileManifest"
+          Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="'%(VSIXSourceItem.Extension)' == '.pdb'" />
     </ItemGroup>
   </Target>
 </Project>

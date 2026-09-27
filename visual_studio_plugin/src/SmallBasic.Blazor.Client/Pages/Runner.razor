@@ -1,0 +1,119 @@
+@page "/"
+@implements IAsyncDisposable
+@inject HttpClient Http
+@inject NavigationManager Navigation
+
+<PageTitle>@(descriptor is null ? "Small Basic Blazor RunHost" : descriptor.ProgramName)</PageTitle>
+
+@if (error is not null)
+{
+    <main class="status-card error">
+        <h2>Small Basic could not start</h2>
+        <pre>@error</pre>
+    </main>
+}
+else if (descriptor is null || session is null)
+{
+    <main class="status-card">Starting the Small Basic WebAssembly runtime…</main>
+}
+else
+{
+    <div class="runner">
+        <header class="toolbar">
+            <span class="brand">Small Basic</span>
+            <span class="program-name">@descriptor.ProgramName</span>
+            <span>@view.Status</span>
+            <span class="runtime-badge">Blazor WASM</span>
+        </header>
+        <main class="workspace">
+            @if (descriptor.UsesGraphics)
+            {
+                <section class="graphics-card">
+                    <GraphicsSurface Scene="view.Graphics"
+                                     Input="session.GraphicsWindow" />
+                </section>
+            }
+            <section class="console-card">
+                <div class="console-title">TextWindow / debug output</div>
+                <pre class="console-output">@view.ConsoleText</pre>
+                @if (view.WaitingForInput)
+                {
+                    <form class="input-row" @onsubmit="SubmitInput">
+                        <input autofocus inputmode="@(view.WaitingForNumber ? "decimal" : "text")" @bind="inputText" />
+                        <button type="submit">Send</button>
+                    </form>
+                }
+            </section>
+        </main>
+    </div>
+}
+
+@code {
+    private readonly RuntimeViewModel view = new();
+    private SessionDescriptor? descriptor;
+    private BrowserBridge? bridge;
+    private BrowserEngineSession? session;
+    private string? error;
+    private string inputText = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        this.view.Changed += this.OnViewChanged;
+        try
+        {
+            string sessionId = GetQueryValue(new Uri(this.Navigation.Uri).Query, "session")
+                ?? throw new InvalidOperationException("The RunHost session id is missing.");
+            this.descriptor = await this.Http.GetFromJsonAsync<SessionDescriptor>($"api/sessions/{Uri.EscapeDataString(sessionId)}")
+                ?? throw new InvalidOperationException("The RunHost session no longer exists.");
+
+            this.bridge = new BrowserBridge();
+            Uri httpBase = this.Navigation.ToAbsoluteUri($"ws/{Uri.EscapeDataString(sessionId)}");
+            var socketUri = new UriBuilder(httpBase)
+            {
+                Scheme = httpBase.Scheme == "https" ? "wss" : "ws",
+            }.Uri;
+            await this.bridge.ConnectAsync(socketUri);
+            this.session = new BrowserEngineSession(this.descriptor, this.view, this.bridge);
+            _ = this.session.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            this.error = ex.ToString();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        this.view.Changed -= this.OnViewChanged;
+        if (this.session is not null)
+        {
+            await this.session.DisposeAsync();
+        }
+        else if (this.bridge is not null)
+        {
+            await this.bridge.DisposeAsync();
+        }
+    }
+
+    private void OnViewChanged() => _ = this.InvokeAsync(this.StateHasChanged);
+
+    private void SubmitInput()
+    {
+        this.session?.SubmitInput(this.inputText);
+        this.inputText = string.Empty;
+    }
+
+    private static string? GetQueryValue(string query, string name)
+    {
+        foreach (string entry in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            string[] pair = entry.Split('=', 2);
+            if (Uri.UnescapeDataString(pair[0]).Equals(name, StringComparison.OrdinalIgnoreCase))
+            {
+                return pair.Length == 2 ? Uri.UnescapeDataString(pair[1]) : string.Empty;
+            }
+        }
+
+        return null;
+    }
+}

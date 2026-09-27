@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Publishing a Blazor WebAssembly app emits every _framework asset three
+         times: the raw file plus a .br and a .gz precompressed copy. The RunHost
+         serves them through UseBlazorFrameworkFiles, which negotiates the
+         encoding by probing the file system and falls back to the raw file when
+         the preferred variant is absent, so shipping a single variant is
+         sufficient. Brotli wins: it compresses better and every WebAssembly
+         capable browser advertises br, so only the .br copies are published -
+         saving ~3.7 MB of already-compressed duplicates per packaged host.
+         Builds keep gzip so `dotnet run` development stays compressed. -->
+    <EnableDefaultCompressionFormats>false</EnableDefaultCompressionFormats>
+    <BuildCompressionFormats>gzip</BuildCompressionFormats>
+    <PublishCompressionFormats>brotli</PublishCompressionFormats>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="8.0.22" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmallBasic.Blazor.Shared\SmallBasic.Blazor.Shared.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ArrayLibrary.cs" Link="Runtime\Imported\ArrayLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ClockLibrary.cs" Link="Runtime\Imported\ClockLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\DictionaryLibrary.cs" Link="Runtime\Imported\DictionaryLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\MathLibrary.cs" Link="Runtime\Imported\MathLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\StackLibrary.cs" Link="Runtime\Imported\StackLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TextLibrary.cs" Link="Runtime\Imported\TextLibrary.cs" />
+    <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TimerLibrary.cs" Link="Runtime\Imported\TimerLibrary.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\UnsupportedLibraries.cs" Link="Runtime\Imported\UnsupportedLibraries.cs" />
+  </ItemGroup>
+</Project>

@@ -129,6 +129,85 @@ namespace SmallBasic.Compiler
             }
         }
 
+        // Evaluates a compiled expression (for example a conditional breakpoint
+        // condition) against the current memory. The execution stack, evaluation
+        // stack and engine state are restored afterwards, so the paused program is
+        // left untouched. Returns null when the expression cannot be evaluated.
+        public async Task<bool?> EvaluateConditionAsync(CompiledExpression expression)
+        {
+            BaseValue result = await this.EvaluateExpressionAsync(expression).ConfigureAwait(false);
+            return result?.ToBoolean();
+        }
+
+        private async Task<BaseValue> EvaluateExpressionAsync(CompiledExpression expression)
+        {
+            RuntimeModule module = expression.Module;
+            ExecutionState savedState = this.State;
+            int savedLine = this.CurrentSourceLine;
+            bool hadPrevious = this.Memory.TryGetValue(expression.ResultVariable, out BaseValue previous);
+
+            var frame = new Frame(module);
+            this.ExecutionStack.AddLast(frame);
+            int targetDepth = this.ExecutionStack.Count;
+
+            try
+            {
+                // Bounds the loop in case a library method blocks on input without
+                // advancing the frame pointer.
+                int steps = 0;
+                int maxSteps = (module.Instructions.Count * 1000) + 1000;
+
+                while (this.ExecutionStack.Count >= targetDepth)
+                {
+                    Frame current = this.ExecutionStack.Last();
+                    if (current.InstructionIndex >= current.Module.Instructions.Count)
+                    {
+                        if (this.ExecutionStack.Count == targetDepth)
+                        {
+                            break;
+                        }
+
+                        this.ExecutionStack.RemoveLast();
+                        continue;
+                    }
+
+                    if (++steps > maxSteps)
+                    {
+                        return null;
+                    }
+
+                    await current.Module.Instructions[current.InstructionIndex].Execute(this, current).ConfigureAwait(false);
+
+                    if (this.State == ExecutionState.Terminated)
+                    {
+                        return null;
+                    }
+                }
+
+                return this.Memory.TryGetValue(expression.ResultVariable, out BaseValue result) ? result : null;
+            }
+            finally
+            {
+                while (this.ExecutionStack.Count > targetDepth - 1)
+                {
+                    this.ExecutionStack.RemoveLast();
+                }
+
+                if (hadPrevious)
+                {
+                    this.Memory[expression.ResultVariable] = previous;
+                }
+                else
+                {
+                    this.Memory.Remove(expression.ResultVariable);
+                }
+
+                this.EvaluationStack.Clear();
+                this.State = savedState;
+                this.CurrentSourceLine = savedLine;
+            }
+        }
+
         public void InputReceived()
         {
             switch (this.State)

@@ -23,7 +23,7 @@ function createWebDebugConfigurationProvider(): vscode.DebugConfigurationProvide
   const createConfig = (document: vscode.TextDocument): vscode.DebugConfiguration => ({
     type: "smallbasic",
     request: "launch",
-    name: "SmallBasic: Launch current file (Web JS debugger)",
+    name: "SmallBasic: Debug current file with JavaScript backend",
     program: document.fileName || document.uri.toString(),
     backend: "javascript",
     stopOnEntry: true
@@ -31,8 +31,8 @@ function createWebDebugConfigurationProvider(): vscode.DebugConfigurationProvide
 
   return {
     resolveDebugConfiguration(_folder, config) {
-      if (config.backend === "csharp") {
-        void vscode.window.showErrorMessage("VS Code for the Web 仅支持 JavaScript 运行与调试后端。");
+      if (config.backend === "csharp" || config.backend === "blazor") {
+        void vscode.window.showErrorMessage("VS Code for the Web 仅支持 JavaScript 后端；Blazor RunHost 需要桌面扩展启动本机进程。");
         return undefined;
       }
 
@@ -45,8 +45,8 @@ function createWebDebugConfigurationProvider(): vscode.DebugConfigurationProvide
       return document ? createConfig(document) : undefined;
     },
     resolveDebugConfigurationWithSubstitutedVariables(_folder, config) {
-      if (config.backend === "csharp") {
-        void vscode.window.showErrorMessage("VS Code for the Web 仅支持 JavaScript 运行与调试后端。");
+      if (config.backend === "csharp" || config.backend === "blazor") {
+        void vscode.window.showErrorMessage("VS Code for the Web 仅支持 JavaScript 后端；Blazor RunHost 需要桌面扩展启动本机进程。");
         return undefined;
       }
 

@@ -315,7 +315,7 @@ var require_debugSession = __commonJS({
       }
     };
     exports2.Scope = Scope2;
-    var StackFrame3 = class {
+    var StackFrame4 = class {
       constructor(i, nm, src, ln = 0, col = 0) {
         this.id = i;
         this.source = src;
@@ -324,7 +324,7 @@ var require_debugSession = __commonJS({
         this.name = nm;
       }
     };
-    exports2.StackFrame = StackFrame3;
+    exports2.StackFrame = StackFrame4;
     var Thread2 = class {
       constructor(id, name) {
         this.id = id;
@@ -350,7 +350,7 @@ var require_debugSession = __commonJS({
       }
     };
     exports2.Variable = Variable;
-    var Breakpoint2 = class {
+    var Breakpoint = class {
       constructor(verified, line, column, source) {
         this.verified = verified;
         const e = this;
@@ -368,7 +368,7 @@ var require_debugSession = __commonJS({
         this.id = id;
       }
     };
-    exports2.Breakpoint = Breakpoint2;
+    exports2.Breakpoint = Breakpoint;
     var Module = class {
       constructor(id, name) {
         this.id = id;
@@ -16670,6 +16670,58 @@ var HoverService;
   }
 })(HoverService || (HoverService = {}));
 
+// ../smallbasic-lang-core/src/debug-expression.ts
+var RESULT_VARIABLE = "__SmallBasicDebugExpression";
+var MAX_EVALUATION_STEPS = 1e5;
+function compileDebugExpression(text) {
+  const normalized = text.replace(/\r?\n/g, " ").trim();
+  if (!normalized) {
+    return void 0;
+  }
+  const compilation = new Compilation(`${RESULT_VARIABLE} = (${normalized})`);
+  if (!compilation.isReadyToRun) {
+    return void 0;
+  }
+  const instructions = compilation.emit()[ModulesBinder.MainModuleName];
+  if (!instructions || instructions.length === 0) {
+    return void 0;
+  }
+  if (instructions.some((instruction) => instruction.kind === 5 /* InvokeSubModule */)) {
+    return void 0;
+  }
+  return { instructions, resultVariable: RESULT_VARIABLE };
+}
+function evaluateDebugExpression(engine, expression) {
+  const savedState = engine.state;
+  const previous = engine.memory.getValue(expression.resultVariable);
+  const hadPrevious = previous !== void 0;
+  const frame = { moduleName: "<debug-expression>", instructionIndex: 0 };
+  try {
+    let steps = 0;
+    while (frame.instructionIndex < expression.instructions.length) {
+      if (steps >= MAX_EVALUATION_STEPS) {
+        return void 0;
+      }
+      steps += 1;
+      expression.instructions[frame.instructionIndex].execute(engine, 1 /* Debug */, frame);
+    }
+    return engine.memory.getValue(expression.resultVariable);
+  } finally {
+    while (engine.evaluationStack.length > 0) {
+      engine.popEvaluationStack();
+    }
+    if (hadPrevious && previous) {
+      engine.memory.setIndex(expression.resultVariable, previous);
+    } else {
+      engine.memory.deleteIndex(expression.resultVariable);
+    }
+    engine.state = savedState;
+  }
+}
+function evaluateDebugCondition(engine, expression) {
+  return evaluateDebugExpression(engine, expression)?.toBoolean();
+}
+
 // src/debug/session.ts
 var THREAD_ID = 1;
 var DebugTextWindow = class {
@@ -16743,6 +16795,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     this.executionStarted = false;
     response.body = {
       supportsConfigurationDoneRequest: true,
+      supportsConditionalBreakpoints: true,
       supportsEvaluateForHovers: false,
       supportsStepBack: false,
       supportsRestartRequest: false
@@ -16774,16 +16827,26 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   }
   setBreakPointsRequest(response, args) {
     const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
-    const requestedLines = args.breakpoints?.map((breakpoint) => breakpoint.line) ?? args.lines ?? [];
-    const requested = requestedLines.map((line) => ({ requestedLine: line - 1, verified: false }));
+    const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
+      requestedLine: breakpoint.line - 1,
+      verified: false,
+      condition: breakpoint.condition?.trim() || void 0
+    })) : (args.lines ?? []).map((line) => ({ requestedLine: line - 1, verified: false }));
     const verified = sourcePath ? this.verifyBreakpoints(sourcePath, requested) : requested;
     if (sourcePath) {
       this.breakpointMap.set(this.normalizePath(sourcePath), verified);
     }
     response.body = {
-      breakpoints: verified.map(
-        (breakpoint) => new import_debugadapter.Breakpoint(breakpoint.verified, (breakpoint.actualLine ?? breakpoint.requestedLine) + 1)
-      )
+      breakpoints: verified.map((breakpoint) => {
+        const result = {
+          verified: breakpoint.verified,
+          line: (breakpoint.actualLine ?? breakpoint.requestedLine) + 1
+        };
+        if (!breakpoint.verified && breakpoint.condition) {
+          result.message = `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${breakpoint.condition}`;
+        }
+        return result;
+      })
     };
     this.sendResponse(response);
   }
@@ -16922,11 +16985,17 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     const lines = this.getExecutableLines(compilation);
     return breakpoints.map((breakpoint) => {
       const actualLine = lines.find((line) => line >= breakpoint.requestedLine);
-      return {
-        requestedLine: breakpoint.requestedLine,
-        actualLine,
-        verified: actualLine !== void 0
-      };
+      if (actualLine === void 0) {
+        return { ...breakpoint, actualLine, verified: false };
+      }
+      if (breakpoint.condition) {
+        const compiledCondition = compileDebugExpression(breakpoint.condition);
+        if (!compiledCondition) {
+          return { ...breakpoint, actualLine, verified: false, compiledCondition: void 0 };
+        }
+        return { ...breakpoint, actualLine, verified: true, compiledCondition };
+      }
+      return { ...breakpoint, actualLine, verified: true };
     });
   }
   getExecutableLines(compilation) {
@@ -16958,15 +17027,24 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     }
     if (!this.initialLocationChecked) {
       this.initialLocationChecked = true;
-      if (this.activeControl.kind === "continue" && this.isBreakpointAtCurrentLine()) {
-        this.sendEvent(new import_debugadapter.StoppedEvent("breakpoint", THREAD_ID));
-        return;
-      }
+      void this.checkInitialBreakpoint();
+      return;
     }
     this.running = true;
-    setTimeout(() => this.executionLoop(), 0);
+    setTimeout(() => void this.executionLoop(), 0);
   }
-  executionLoop() {
+  async checkInitialBreakpoint() {
+    if (!this.engine) {
+      return;
+    }
+    if (this.activeControl.kind === "continue" && await this.shouldStopAtLine(this.getCurrentLine())) {
+      this.sendEvent(new import_debugadapter.StoppedEvent("breakpoint", THREAD_ID));
+      return;
+    }
+    this.running = true;
+    setTimeout(() => void this.executionLoop(), 0);
+  }
+  async executionLoop() {
     if (!this.engine) {
       this.running = false;
       return;
@@ -16991,7 +17069,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
         return;
       }
       if (this.engine.state === 1 /* Paused */) {
-        const stopReason = this.getStopReason();
+        const stopReason = await this.getStopReason();
         if (stopReason) {
           this.running = false;
           this.sendEvent(new import_debugadapter.StoppedEvent(stopReason, THREAD_ID));
@@ -17004,7 +17082,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.resumeExecution();
     }
   }
-  getStopReason() {
+  async getStopReason() {
     if (!this.engine) {
       return void 0;
     }
@@ -17012,7 +17090,6 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.pauseRequested = false;
       return "pause";
     }
-    const currentLine = this.getCurrentLine();
     const currentDepth = this.getStackDepth();
     switch (this.activeControl.kind) {
       case "stepIn":
@@ -17021,23 +17098,33 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
         return currentDepth <= this.activeControl.depth ? "step" : void 0;
       case "stepOut":
         return currentDepth < this.activeControl.depth ? "step" : void 0;
-      case "continue": {
-        if (currentLine === void 0) {
-          return void 0;
-        }
-        return this.isBreakpointAtLine(currentLine) ? "breakpoint" : void 0;
-      }
+      case "continue":
+        return await this.shouldStopAtLine(this.getCurrentLine()) ? "breakpoint" : void 0;
       default:
         return void 0;
     }
   }
-  isBreakpointAtCurrentLine() {
-    const currentLine = this.getCurrentLine();
-    return currentLine !== void 0 && this.isBreakpointAtLine(currentLine);
-  }
-  isBreakpointAtLine(line) {
+  // A line stops execution when it has a verified unconditional breakpoint, or a
+  // conditional breakpoint whose condition evaluates to true. Conditions are
+  // evaluated against the live program memory; failures simply fall through so
+  // the program keeps running.
+  async shouldStopAtLine(line) {
+    if (line === void 0 || !this.engine) {
+      return false;
+    }
     const fileBreakpoints = this.breakpointMap.get(this.normalizePath(this.programPath)) ?? [];
-    return fileBreakpoints.some((breakpoint) => breakpoint.verified && breakpoint.actualLine === line);
+    for (const breakpoint of fileBreakpoints) {
+      if (!breakpoint.verified || breakpoint.actualLine !== line) {
+        continue;
+      }
+      if (!breakpoint.compiledCondition) {
+        return true;
+      }
+      if (evaluateDebugCondition(this.engine, breakpoint.compiledCondition)) {
+        return true;
+      }
+    }
+    return false;
   }
   endSession(exitCode) {
     if (this.terminated) {

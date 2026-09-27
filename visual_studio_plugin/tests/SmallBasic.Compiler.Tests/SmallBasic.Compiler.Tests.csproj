@@ -25,6 +25,7 @@
   <ItemGroup>
     <Compile Include="TestExtensions.cs" />
     <Compile Include="Editor\SmallBasicSnippetTests.cs" />
+    <Compile Include="Editor\SmallBasicOutlineTests.cs" />
     <Compile Include="Runtime\**\*.cs" />
     <Compile Include="..\..\src\SmallBasic.Vsix\Editor\Completion\SmallBasicSnippet.cs" Link="Editor\SmallBasicSnippet.cs" />
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Tests\CultureFixture.cs" Link="CultureFixture.cs" />

@@ -5,6 +5,7 @@
     "packages/*"
   ],
   "scripts": {
+    "sync:version": "node ../tools/sync-version.mjs",
     "build": "npm run build --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
     "lint": "npm run typecheck --workspaces --if-present",

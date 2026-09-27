@@ -3,7 +3,7 @@
   "displayName": "SmallBasic for Visual Studio Code",
   "icon": "media/icon.png",
   "description": "Microsoft SmallBasic Support for Visual Studio Code",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "publisher": "ultramanhu",
   "private": true,
   "license": "MIT",
@@ -79,25 +79,35 @@
         "title": "SmallBasic: New File"
       },
       {
-        "command": "smallbasic.run",
-        "title": "SmallBasic: Run",
+        "command": "smallbasic.runJavaScript",
+        "title": "SmallBasic: Run with JavaScript Backend",
         "icon": "$(play)"
       },
       {
         "command": "smallbasic.runCSharp",
         "title": "SmallBasic: Run with C# Backend",
-        "icon": "$(debug-start)"
+        "icon": "$(play)"
+      },
+      {
+        "command": "smallbasic.runBlazor",
+        "title": "SmallBasic: Run with Blazor Backend",
+        "icon": "$(play)"
       }
     ],
     "menus": {
       "editor/title/run": [
         {
-          "command": "smallbasic.run",
+          "command": "smallbasic.runJavaScript",
           "when": "resourceLangId == smallbasic",
           "group": "navigation"
         },
         {
           "command": "smallbasic.runCSharp",
+          "when": "resourceLangId == smallbasic && !isWeb",
+          "group": "navigation"
+        },
+        {
+          "command": "smallbasic.runBlazor",
           "when": "resourceLangId == smallbasic && !isWeb",
           "group": "navigation"
         }
@@ -131,9 +141,10 @@
                 "type": "string",
                 "enum": [
                   "javascript",
-                  "csharp"
+                  "csharp",
+                  "blazor"
                 ],
-                "description": "Backend to launch. When omitted, Windows desktop uses the bundled C# graphics host and other platforms use JavaScript. Explicit JavaScript debugging remains text-only; C# uses the bundled Windows graphics host or portable command-line host on Linux/macOS."
+                "description": "Backend to launch. Blazor runs text-only programs in the terminal and opens a browser only for GraphicsWindow/Shapes/Turtle programs."
               },
               "stopOnEntry": {
                 "type": "boolean",
@@ -145,14 +156,14 @@
         },
         "configurationSnippets": [
           {
-            "label": "SmallBasic: Launch current file (JS debugger)",
+            "label": "SmallBasic: Debug current file with JavaScript backend",
             "body": {
               "type": "smallbasic",
               "request": "launch",
-              "name": "SmallBasic: Launch current file (JS debugger)",
+              "name": "SmallBasic: Debug current file with JavaScript backend",
               "program": "${file}",
               "backend": "javascript",
-              "stopOnEntry": true
+              "stopOnEntry": false
             }
           },
           {
@@ -163,7 +174,18 @@
               "name": "SmallBasic: Debug current file with C# backend",
               "program": "${file}",
               "backend": "csharp",
-              "stopOnEntry": true
+              "stopOnEntry": false
+            }
+          },
+          {
+            "label": "SmallBasic: Debug current file with Blazor backend",
+            "body": {
+              "type": "smallbasic",
+              "request": "launch",
+              "name": "SmallBasic: Debug current file with Blazor backend",
+              "program": "${file}",
+              "backend": "blazor",
+              "stopOnEntry": false
             }
           }
         ]
@@ -182,6 +204,11 @@
           "type": "string",
           "default": "",
           "description": "Path to SmallBasic.RunHost.exe or SmallBasic.RunHost.dll for the C# runtime backend. If empty, the extension uses the bundled Windows or portable host."
+        },
+        "smallbasic.blazor.runHostPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to SmallBasic.Blazor.RunHost.dll or its executable. If empty, the extension uses the bundled cross-platform host."
         }
       }
     }
@@ -189,7 +216,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "node ./scripts/stage-runhost.mjs && vsce package --no-dependencies --allow-missing-repository -o ../../build/SmallBasic.VSCode-0.1.1.vsix"
+    "package": "node ./scripts/package-vsix.mjs"
   },
   "devDependencies": {
     "smallbasic-lang-core": "0.1.0"

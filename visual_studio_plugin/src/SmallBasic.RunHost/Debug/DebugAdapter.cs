@@ -62,6 +62,10 @@ public sealed class DebugAdapter
         public int? ActualLine { get; set; }
 
         public bool Verified { get; set; }
+
+        public string? Condition { get; set; }
+
+        public CompiledExpression? CompiledCondition { get; set; }
     }
 
     private async Task MessageLoopAsync()
@@ -102,6 +106,7 @@ public sealed class DebugAdapter
                 this.SendResponse(seq, command, new JsonObject
                 {
                     ["supportsConfigurationDoneRequest"] = true,
+                    ["supportsConditionalBreakpoints"] = true,
                     ["supportsEvaluateForHovers"] = false,
                     ["supportsStepBack"] = false,
                     ["supportsRestartRequest"] = false,
@@ -275,46 +280,67 @@ public sealed class DebugAdapter
     private void HandleSetBreakpoints(int seq, string command, JsonObject? arguments)
     {
         string? sourcePath = (string?)(arguments?["source"] as JsonObject)?["path"];
-        var requested = new List<int>();
+        var requestedLines = new List<int>();
+        var requestedConditions = new List<string>();
         if (arguments?["breakpoints"] is JsonArray breakpointsArray)
         {
             foreach (JsonNode? node in breakpointsArray)
             {
                 if ((int?)node?["line"] is int line)
                 {
-                    requested.Add(line - 1);
+                    requestedLines.Add(line - 1);
+                    requestedConditions.Add(((string?)node?["condition"] ?? string.Empty).Trim());
                 }
             }
         }
 
-        var verified = new List<SessionBreakpoint>();
-        IReadOnlyCollection<int>? executableLines = null;
+        SmallBasicCompilation? sourceCompilation = null;
         if (!string.IsNullOrEmpty(sourcePath) && File.Exists(sourcePath))
         {
             try
             {
-                executableLines = new SmallBasicCompilation(File.ReadAllText(sourcePath)).GetExecutableLines();
+                sourceCompilation = new SmallBasicCompilation(File.ReadAllText(sourcePath));
             }
             catch
             {
-                executableLines = null;
+                sourceCompilation = null;
             }
         }
 
-        foreach (int requestedLine in requested)
+        IReadOnlyCollection<int>? executableLines = sourceCompilation?.GetExecutableLines();
+
+        var verified = new List<SessionBreakpoint>();
+        for (int i = 0; i < requestedLines.Count; i++)
         {
+            int requestedLine = requestedLines[i];
+            string condition = requestedConditions[i];
+
             int? actualLine = executableLines?
                 .Where(line => line >= requestedLine)
                 .OrderBy(line => line)
                 .Cast<int?>()
                 .FirstOrDefault();
 
-            verified.Add(new SessionBreakpoint
+            var breakpoint = new SessionBreakpoint
             {
                 RequestedLine = requestedLine,
                 ActualLine = actualLine,
                 Verified = actualLine.HasValue,
-            });
+                Condition = condition,
+            };
+
+            if (breakpoint.Verified && condition.Length > 0)
+            {
+                // A condition that does not compile invalidates the breakpoint so
+                // the client can surface the problem instead of silently ignoring it.
+                breakpoint.CompiledCondition = sourceCompilation?.CompileExpression(condition);
+                if (breakpoint.CompiledCondition is null)
+                {
+                    breakpoint.Verified = false;
+                }
+            }
+
+            verified.Add(breakpoint);
         }
 
         if (!string.IsNullOrEmpty(sourcePath))
@@ -324,12 +350,24 @@ public sealed class DebugAdapter
 
         this.SendResponse(seq, command, new JsonObject
         {
-            ["breakpoints"] = new JsonArray(verified.Select(breakpoint => (JsonNode)new JsonObject
-            {
-                ["verified"] = breakpoint.Verified,
-                ["line"] = (breakpoint.ActualLine ?? breakpoint.RequestedLine) + 1,
-            }).ToArray()),
+            ["breakpoints"] = new JsonArray(verified.Select(breakpoint => (JsonNode)this.CreateBreakpointJson(breakpoint)).ToArray()),
         });
+    }
+
+    private JsonObject CreateBreakpointJson(SessionBreakpoint breakpoint)
+    {
+        var json = new JsonObject
+        {
+            ["verified"] = breakpoint.Verified,
+            ["line"] = (breakpoint.ActualLine ?? breakpoint.RequestedLine) + 1,
+        };
+
+        if (!breakpoint.Verified && !string.IsNullOrEmpty(breakpoint.Condition))
+        {
+            json["message"] = $"Invalid condition: {breakpoint.Condition}";
+        }
+
+        return json;
     }
 
     private void HandleStackTrace(int seq, string command)
@@ -473,7 +511,7 @@ public sealed class DebugAdapter
             this.SendStopped("entry");
             await this.WaitForResumeAsync().ConfigureAwait(false);
         }
-        else if (this.activeControl == "continue" && this.IsBreakpointAtLine(firstLine))
+        else if (this.activeControl == "continue" && await this.ShouldStopAtLineAsync(firstLine).ConfigureAwait(false))
         {
             this.SendStopped("breakpoint");
             await this.WaitForResumeAsync().ConfigureAwait(false);
@@ -496,7 +534,7 @@ public sealed class DebugAdapter
             {
                 case ExecutionState.Paused:
                 {
-                    string? reason = this.ComputeStopReason();
+                    string? reason = await this.ComputeStopReasonAsync().ConfigureAwait(false);
                     if (reason is null)
                     {
                         engine.Continue();
@@ -537,7 +575,7 @@ public sealed class DebugAdapter
         }
     }
 
-    private string? ComputeStopReason()
+    private async Task<string?> ComputeStopReasonAsync()
     {
         if (this.pauseRequested)
         {
@@ -555,14 +593,44 @@ public sealed class DebugAdapter
             case "stepOut":
                 return depth < this.activeControlDepth ? "step" : null;
             default:
-                return this.engine is { } engine && this.IsBreakpointAtLine(engine.CurrentSourceLine) ? "breakpoint" : null;
+                return this.engine is { } engine && await this.ShouldStopAtLineAsync(engine.CurrentSourceLine).ConfigureAwait(false)
+                    ? "breakpoint"
+                    : null;
         }
     }
 
-    private bool IsBreakpointAtLine(int line)
+    // A line stops execution when it has a verified unconditional breakpoint, or
+    // a conditional breakpoint whose condition evaluates to true. Conditions are
+    // evaluated against the live program memory; failures simply fall through so
+    // the program keeps running.
+    private async Task<bool> ShouldStopAtLineAsync(int line)
     {
-        return this.breakpoints.TryGetValue(this.programPath, out List<SessionBreakpoint>? fileBreakpoints)
-            && fileBreakpoints.Any(breakpoint => breakpoint.Verified && breakpoint.ActualLine == line);
+        if (this.engine is null
+            || !this.breakpoints.TryGetValue(this.programPath, out List<SessionBreakpoint>? fileBreakpoints))
+        {
+            return false;
+        }
+
+        foreach (SessionBreakpoint breakpoint in fileBreakpoints)
+        {
+            if (!breakpoint.Verified || breakpoint.ActualLine != line)
+            {
+                continue;
+            }
+
+            if (breakpoint.CompiledCondition is null)
+            {
+                return true;
+            }
+
+            bool? condition = await this.engine.EvaluateConditionAsync(breakpoint.CompiledCondition).ConfigureAwait(false);
+            if (condition == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private int GetStackDepth() => this.engine?.GetSnapshot().ExecutionStack.Count ?? 0;

@@ -1,9 +1,10 @@
 import * as vscode from "vscode";
 import {
   Compilation,
-  CompletionService,
   CompilerPosition,
+  CompilerRange,
   CompilerUtils,
+  CompletionService,
   Diagnostic,
   HoverService,
   RuntimeLibraries,
@@ -12,6 +13,7 @@ import {
 import { CompilationCache } from "./compilation-cache";
 import { getCompletionSpan } from "./completion-span";
 import { getContextualCompletions, type RankedCompletion } from "./contextual-completions";
+import { collectOutlineSymbols, type OutlineSymbol } from "./document-symbols";
 import { toCompilerPosition, toVsCodeRange } from "../util/positions";
 
 const semanticTokenTypes = [
@@ -137,6 +139,11 @@ export function registerLanguageFeatures(
             },
             ...completionTriggerCharacters
         ),
+    vscode.languages.registerDocumentSymbolProvider({ language: "smallbasic" }, {
+      provideDocumentSymbols(document) {
+        return toDocumentSymbols(collectOutlineSymbols(cache.get(document)));
+      }
+    }),
     vscode.languages.registerHoverProvider({ language: "smallbasic" }, {
       provideHover(document, position) {
         const compilation = cache.get(document);
@@ -181,6 +188,29 @@ export function registerLanguageFeatures(
   );
 
   context.subscriptions.push(diagnostics);
+}
+
+function toDocumentSymbols(symbols: OutlineSymbol[]): vscode.DocumentSymbol[] {
+  return symbols.map((symbol) => {
+    const children = toDocumentSymbols(symbol.children);
+    // VS Code requires a parent range to contain its selection range and all of
+    // its children, so the reported range is widened defensively.
+    const range = CompilerRange.spanning([
+      symbol.range,
+      symbol.selectionRange,
+      ...symbol.children.map((child) => child.range)
+    ]);
+    const documentSymbol = new vscode.DocumentSymbol(
+      symbol.name,
+      symbol.kind === "sub" ? "Sub" : "Variable",
+      symbol.kind === "sub" ? vscode.SymbolKind.Function : vscode.SymbolKind.Variable,
+      toVsCodeRange(range),
+      toVsCodeRange(symbol.selectionRange)
+    );
+
+    documentSymbol.children = children;
+    return documentSymbol;
+  });
 }
 
 export function publishDiagnostics(

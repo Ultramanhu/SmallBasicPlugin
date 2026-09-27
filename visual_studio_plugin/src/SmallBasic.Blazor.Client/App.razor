@@ -1,0 +1,8 @@
+<Router AppAssembly="@typeof(App).Assembly">
+    <Found Context="routeData">
+        <RouteView RouteData="@routeData" />
+    </Found>
+    <NotFound>
+        <main class="status-card">Small Basic Blazor RunHost: page not found.</main>
+    </NotFound>
+</Router>

@@ -239,7 +239,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 
 // src/common/activation.ts
 var vscode5 = __toESM(require("vscode"));
@@ -15517,6 +15517,77 @@ function getContextualCompletions(sourceBeforeCursor, prefix) {
   return [...unique.values()];
 }
 
+// src/language/document-symbols.ts
+function comparePositions(left, right) {
+  return left.line !== right.line ? left.line - right.line : left.column - right.column;
+}
+function sortByPosition(symbols) {
+  return symbols.sort((left, right) => comparePositions(left.range.start, right.range.start));
+}
+function forEachVariableUse(block, isExcluded, report) {
+  const visit = (node) => {
+    if (node.kind === 29 /* IdentifierExpression */) {
+      const identifier = node.identifierToken;
+      if (!isExcluded(identifier.token.text)) {
+        report(identifier.token.text, identifier.range);
+      }
+    } else if (node.kind === 12 /* ForCommand */) {
+      const identifier = node.identifierToken;
+      if (!isExcluded(identifier.token.text)) {
+        report(identifier.token.text, identifier.range);
+      }
+    }
+    for (const child of node.children()) {
+      visit(child);
+    }
+  };
+  visit(block);
+}
+function collectOutlineSymbols(compilation) {
+  const subModules = compilation.parseTree.subModules;
+  const subModuleNames = new Set(Object.keys(compilation.boundSubModules).map((name) => name.toLowerCase()));
+  const isExcluded = (name) => subModuleNames.has(name.toLowerCase()) || CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, name) !== void 0;
+  const firstUses = /* @__PURE__ */ new Map();
+  const registerScope = (block, subModuleIndex) => {
+    forEachVariableUse(block, isExcluded, (name, range) => {
+      const key = name.toLowerCase();
+      const existing = firstUses.get(key);
+      if (existing === void 0 || comparePositions(range.start, existing.range.start) < 0) {
+        firstUses.set(key, { name, range, subModuleIndex });
+      }
+    });
+  };
+  registerScope(compilation.parseTree.mainModule, -1);
+  subModules.forEach((subModule, index) => registerScope(subModule.statementsList, index));
+  const variablesByScope = /* @__PURE__ */ new Map();
+  for (const use of firstUses.values()) {
+    const symbol = {
+      name: use.name,
+      kind: "variable",
+      range: use.range,
+      selectionRange: use.range,
+      children: []
+    };
+    const bucket = variablesByScope.get(use.subModuleIndex);
+    if (bucket === void 0) {
+      variablesByScope.set(use.subModuleIndex, [symbol]);
+    } else {
+      bucket.push(symbol);
+    }
+  }
+  const procedures = subModules.map((subModule, index) => {
+    const nameToken = subModule.subCommand.nameToken;
+    return {
+      name: nameToken.token.text,
+      kind: "sub",
+      range: subModule.range,
+      selectionRange: nameToken.range,
+      children: sortByPosition(variablesByScope.get(index) ?? [])
+    };
+  });
+  return sortByPosition([...variablesByScope.get(-1) ?? [], ...procedures]);
+}
+
 // src/util/positions.ts
 var vscode2 = __toESM(require("vscode"));
 function toCompilerPosition(position) {
@@ -15633,6 +15704,11 @@ function registerLanguageFeatures(context, cache, diagnostics) {
       },
       ...completionTriggerCharacters
     ),
+    vscode3.languages.registerDocumentSymbolProvider({ language: "smallbasic" }, {
+      provideDocumentSymbols(document) {
+        return toDocumentSymbols(collectOutlineSymbols(cache.get(document)));
+      }
+    }),
     vscode3.languages.registerHoverProvider({ language: "smallbasic" }, {
       provideHover(document, position) {
         const compilation = cache.get(document);
@@ -15672,6 +15748,25 @@ function registerLanguageFeatures(context, cache, diagnostics) {
     )
   );
   context.subscriptions.push(diagnostics);
+}
+function toDocumentSymbols(symbols) {
+  return symbols.map((symbol) => {
+    const children = toDocumentSymbols(symbol.children);
+    const range = CompilerRange.spanning([
+      symbol.range,
+      symbol.selectionRange,
+      ...symbol.children.map((child) => child.range)
+    ]);
+    const documentSymbol = new vscode3.DocumentSymbol(
+      symbol.name,
+      symbol.kind === "sub" ? "Sub" : "Variable",
+      symbol.kind === "sub" ? vscode3.SymbolKind.Function : vscode3.SymbolKind.Variable,
+      toVsCodeRange(range),
+      toVsCodeRange(symbol.selectionRange)
+    );
+    documentSymbol.children = children;
+    return documentSymbol;
+  });
 }
 function publishDiagnostics(document, cache, diagnostics) {
   if (!isSmallBasicDocument(document)) {
@@ -15958,12 +16053,15 @@ function activateCommon(context, platform) {
     vscode5.commands.registerCommand("smallbasic.newFile", async (resource) => {
       await createNewFile(resource);
     }),
-    vscode5.commands.registerCommand("smallbasic.run", async () => {
+    vscode5.commands.registerCommand("smallbasic.runJavaScript", async () => {
       await runActiveDocument(cache, diagnostics);
     })
   ];
   if (platform.runCSharp) {
     subscriptions.push(vscode5.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
+  }
+  if (platform.runBlazor) {
+    subscriptions.push(vscode5.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
   }
   context.subscriptions.push(...subscriptions);
 }
@@ -16070,8 +16168,8 @@ function selectDefaultDebugBackend(platform, hasCSharpHost) {
 }
 
 // src/debug/factory.ts
-var import_node_path2 = __toESM(require("path"));
-var vscode7 = __toESM(require("vscode"));
+var import_node_path3 = __toESM(require("path"));
+var vscode8 = __toESM(require("vscode"));
 
 // src/run/csharp-runner.ts
 var import_node_fs = __toESM(require("fs"));
@@ -16180,6 +16278,69 @@ var CSharpRunner = class _CSharpRunner {
   }
 };
 
+// src/run/blazor-runner.ts
+var import_node_fs2 = __toESM(require("fs"));
+var import_node_path2 = __toESM(require("path"));
+var vscode7 = __toESM(require("vscode"));
+var BlazorRunner = class _BlazorRunner {
+  static async runActiveDocument(extensionPath) {
+    const editor = vscode7.window.activeTextEditor;
+    if (!editor || editor.document.languageId !== "smallbasic") {
+      void vscode7.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+      return;
+    }
+    if (editor.document.isUntitled || !await editor.document.save()) {
+      void vscode7.window.showWarningMessage("\u8BF7\u5148\u4FDD\u5B58\u6587\u4EF6\u540E\u518D\u4F7F\u7528 Blazor \u540E\u7AEF\u8FD0\u884C\u3002");
+      return;
+    }
+    await _BlazorRunner.runProgram(editor.document.uri.fsPath, extensionPath);
+  }
+  static async runProgram(filePath, extensionPath) {
+    const host = _BlazorRunner.resolveHostCommand(extensionPath);
+    if (!host) {
+      void vscode7.window.showErrorMessage(
+        "\u672A\u627E\u5230 Small Basic Blazor RunHost\u3002\u8BF7\u5B89\u88C5 .NET 8 / ASP.NET Core 8 Runtime\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.blazor.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
+      );
+      return;
+    }
+    if (!import_node_fs2.default.existsSync(filePath)) {
+      void vscode7.window.showErrorMessage(`\u627E\u4E0D\u5230 SmallBasic \u7A0B\u5E8F\u6587\u4EF6\uFF1A${filePath}`);
+      return;
+    }
+    const terminal = vscode7.window.createTerminal({
+      name: `SmallBasic (Blazor): ${import_node_path2.default.basename(filePath)}`,
+      shellPath: host.executable,
+      shellArgs: [...host.argumentsPrefix, "run", "--file", filePath],
+      cwd: import_node_path2.default.dirname(filePath)
+    });
+    terminal.show(true);
+  }
+  static resolveHostCommand(extensionPath) {
+    const configured = vscode7.workspace.getConfiguration("smallbasic").get("blazor.runHostPath");
+    if (configured && import_node_fs2.default.existsSync(configured)) {
+      return _BlazorRunner.toCommand(configured);
+    }
+    const roots = vscode7.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
+    const developmentRoot = import_node_path2.default.resolve(extensionPath, "..", "..", "..");
+    const candidates = [
+      import_node_path2.default.join(extensionPath, "runhost", "blazor", "SmallBasic.Blazor.RunHost.dll"),
+      import_node_path2.default.join(developmentRoot, "runhost", "blazor", "SmallBasic.Blazor.RunHost.dll"),
+      ...[developmentRoot, ...roots].flatMap((root) => [
+        import_node_path2.default.join(root, "visual_studio_plugin", "src", "SmallBasic.Blazor.RunHost", "bin", "Release", "net8.0", "SmallBasic.Blazor.RunHost.dll"),
+        import_node_path2.default.join(root, "visual_studio_plugin", "src", "SmallBasic.Blazor.RunHost", "bin", "Debug", "net8.0", "SmallBasic.Blazor.RunHost.dll"),
+        import_node_path2.default.resolve(root, "..", "visual_studio_plugin", "src", "SmallBasic.Blazor.RunHost", "bin", "Release", "net8.0", "SmallBasic.Blazor.RunHost.dll"),
+        import_node_path2.default.resolve(root, "..", "visual_studio_plugin", "src", "SmallBasic.Blazor.RunHost", "bin", "Debug", "net8.0", "SmallBasic.Blazor.RunHost.dll")
+      ])
+    ];
+    const artifact = candidates.find((candidate) => import_node_fs2.default.existsSync(candidate));
+    return artifact ? _BlazorRunner.toCommand(artifact) : void 0;
+  }
+  static toCommand(artifactPath) {
+    const resolved = import_node_path2.default.resolve(artifactPath);
+    return import_node_path2.default.extname(resolved).toLowerCase() === ".dll" ? { executable: "dotnet", argumentsPrefix: [resolved], cwd: import_node_path2.default.dirname(resolved), artifactPath: resolved } : { executable: resolved, argumentsPrefix: [], cwd: import_node_path2.default.dirname(resolved), artifactPath: resolved };
+  }
+};
+
 // src/debug/factory.ts
 var SmallBasicDebugAdapterFactory = class {
   constructor(context) {
@@ -16187,21 +16348,33 @@ var SmallBasicDebugAdapterFactory = class {
   }
   context;
   createDebugAdapterDescriptor(session) {
-    const backend = session.configuration.backend === "csharp" ? "csharp" : "javascript";
+    const backend = session.configuration.backend === "csharp" ? "csharp" : session.configuration.backend === "blazor" ? "blazor" : "javascript";
+    if (backend === "blazor") {
+      const host = BlazorRunner.resolveHostCommand(this.context.extensionPath);
+      if (!host) {
+        void vscode8.window.showErrorMessage(
+          "\u672A\u627E\u5230 Small Basic Blazor \u8C03\u8BD5\u5BBF\u4E3B\u3002\u8BF7\u5B89\u88C5 .NET 8 / ASP.NET Core 8 Runtime\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.blazor.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
+        );
+        return void 0;
+      }
+      return new vscode8.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
+        cwd: host.cwd
+      });
+    }
     if (backend === "csharp") {
       const host = CSharpRunner.resolveHostCommand(this.context.extensionPath);
       if (!host) {
-        void vscode7.window.showErrorMessage(
+        void vscode8.window.showErrorMessage(
           "\u672A\u627E\u5230\u53EF\u7528\u7684 SmallBasic C# \u8C03\u8BD5\u5BBF\u4E3B\u3002\u8BF7\u5B89\u88C5 .NET 8\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.csharp.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
         );
         return void 0;
       }
-      return new vscode7.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
+      return new vscode8.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
         cwd: host.cwd
       });
     }
-    const adapterPath = import_node_path2.default.join(this.context.extensionPath, "dist", "debug", "adapter.js");
-    return new vscode7.DebugAdapterExecutable(process.execPath, [adapterPath], {
+    const adapterPath = import_node_path3.default.join(this.context.extensionPath, "dist", "debug", "adapter.js");
+    return new vscode8.DebugAdapterExecutable(process.execPath, [adapterPath], {
       cwd: this.context.extensionPath,
       env: {
         ...process.env,
@@ -16216,7 +16389,8 @@ function activate(context) {
   activateCommon(context, {
     debugAdapterFactory: new SmallBasicDebugAdapterFactory(context),
     debugConfigurationProvider: createDebugConfigurationProvider(context.extensionPath),
-    runCSharp: async () => CSharpRunner.runActiveDocument(context.extensionPath)
+    runCSharp: async () => CSharpRunner.runActiveDocument(context.extensionPath),
+    runBlazor: async () => BlazorRunner.runActiveDocument(context.extensionPath)
   });
 }
 function deactivate() {
@@ -16229,19 +16403,19 @@ function createDebugConfigurationProvider(extensionPath) {
   const baseConfig = (program, backend = preferredBackend()) => ({
     type: "smallbasic",
     request: "launch",
-    name: backend === "csharp" ? "SmallBasic: Debug current file with C# backend" : "SmallBasic: Launch current file (JS debugger)",
+    name: backend === "csharp" ? "SmallBasic: Debug current file with C# backend" : backend === "blazor" ? "SmallBasic: Debug current file with Blazor backend" : "SmallBasic: Debug current file with JavaScript backend",
     program,
     backend,
     stopOnEntry: true
   });
   const activeSmallBasicPath = () => {
-    const editor = vscode8.window.activeTextEditor;
+    const editor = vscode9.window.activeTextEditor;
     return editor && isSmallBasicDocument(editor.document) ? editor.document.uri.fsPath : void 0;
   };
   return {
     resolveDebugConfiguration(_folder, config) {
       if (config.type === "smallbasic" && typeof config.program === "string") {
-        if (config.backend !== "csharp" && config.backend !== "javascript") {
+        if (config.backend !== "csharp" && config.backend !== "javascript" && config.backend !== "blazor") {
           config.backend = preferredBackend();
         }
         return config;
@@ -16253,7 +16427,7 @@ function createDebugConfigurationProvider(extensionPath) {
       if (config.type !== "smallbasic") {
         return config;
       }
-      if (config.backend !== "csharp" && config.backend !== "javascript") {
+      if (config.backend !== "csharp" && config.backend !== "javascript" && config.backend !== "blazor") {
         config.backend = preferredBackend();
       }
       let program = typeof config.program === "string" ? config.program.trim() : "";
@@ -16261,7 +16435,7 @@ function createDebugConfigurationProvider(extensionPath) {
         program = activeSmallBasicPath() ?? "";
       }
       if (!program) {
-        void vscode8.window.showErrorMessage("\u8C03\u8BD5\u914D\u7F6E\u7F3A\u5C11\u6709\u6548\u7684 program \u8DEF\u5F84\u3002\u8BF7\u6253\u5F00\u4E00\u4E2A .sb \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
+        void vscode9.window.showErrorMessage("\u8C03\u8BD5\u914D\u7F6E\u7F3A\u5C11\u6709\u6548\u7684 program \u8DEF\u5F84\u3002\u8BF7\u6253\u5F00\u4E00\u4E2A .sb \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
         return void 0;
       }
       if (config.backend === "csharp") {
@@ -16270,8 +16444,20 @@ function createDebugConfigurationProvider(extensionPath) {
           return void 0;
         }
         if (!CSharpRunner.resolveHostCommand(extensionPath)) {
-          void vscode8.window.showErrorMessage(
+          void vscode9.window.showErrorMessage(
             "\u672A\u627E\u5230\u53EF\u7528\u7684 SmallBasic C# \u8FD0\u884C\u5BBF\u4E3B\u3002\u8BF7\u5B89\u88C5 .NET 8\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.csharp.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
+          );
+          return void 0;
+        }
+      }
+      if (config.backend === "blazor") {
+        if (config.noDebug === true) {
+          await BlazorRunner.runProgram(program, extensionPath);
+          return void 0;
+        }
+        if (!BlazorRunner.resolveHostCommand(extensionPath)) {
+          void vscode9.window.showErrorMessage(
+            "\u672A\u627E\u5230 Small Basic Blazor RunHost\u3002\u8BF7\u5B89\u88C5 .NET 8 / ASP.NET Core 8 Runtime\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.blazor.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
           );
           return void 0;
         }

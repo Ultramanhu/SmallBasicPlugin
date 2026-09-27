@@ -6270,7 +6270,7 @@ var require_debugSession = __commonJS({
       }
     };
     exports.Scope = Scope2;
-    var StackFrame3 = class {
+    var StackFrame4 = class {
       constructor(i, nm, src, ln = 0, col = 0) {
         this.id = i;
         this.source = src;
@@ -6279,7 +6279,7 @@ var require_debugSession = __commonJS({
         this.name = nm;
       }
     };
-    exports.StackFrame = StackFrame3;
+    exports.StackFrame = StackFrame4;
     var Thread2 = class {
       constructor(id, name) {
         this.id = id;
@@ -6305,7 +6305,7 @@ var require_debugSession = __commonJS({
       }
     };
     exports.Variable = Variable;
-    var Breakpoint2 = class {
+    var Breakpoint = class {
       constructor(verified, line, column, source) {
         this.verified = verified;
         const e = this;
@@ -6323,7 +6323,7 @@ var require_debugSession = __commonJS({
         this.id = id;
       }
     };
-    exports.Breakpoint = Breakpoint2;
+    exports.Breakpoint = Breakpoint;
     var Module = class {
       constructor(id, name) {
         this.id = id;
@@ -22385,6 +22385,59 @@ var HoverService;
   }
 })(HoverService || (HoverService = {}));
 
+// ../smallbasic-lang-core/src/debug-expression.ts
+init_polyfills();
+var RESULT_VARIABLE = "__SmallBasicDebugExpression";
+var MAX_EVALUATION_STEPS = 1e5;
+function compileDebugExpression(text) {
+  const normalized = text.replace(/\r?\n/g, " ").trim();
+  if (!normalized) {
+    return void 0;
+  }
+  const compilation = new Compilation(`${RESULT_VARIABLE} = (${normalized})`);
+  if (!compilation.isReadyToRun) {
+    return void 0;
+  }
+  const instructions = compilation.emit()[ModulesBinder.MainModuleName];
+  if (!instructions || instructions.length === 0) {
+    return void 0;
+  }
+  if (instructions.some((instruction) => instruction.kind === 5 /* InvokeSubModule */)) {
+    return void 0;
+  }
+  return { instructions, resultVariable: RESULT_VARIABLE };
+}
+function evaluateDebugExpression(engine, expression) {
+  const savedState = engine.state;
+  const previous = engine.memory.getValue(expression.resultVariable);
+  const hadPrevious = previous !== void 0;
+  const frame = { moduleName: "<debug-expression>", instructionIndex: 0 };
+  try {
+    let steps = 0;
+    while (frame.instructionIndex < expression.instructions.length) {
+      if (steps >= MAX_EVALUATION_STEPS) {
+        return void 0;
+      }
+      steps += 1;
+      expression.instructions[frame.instructionIndex].execute(engine, 1 /* Debug */, frame);
+    }
+    return engine.memory.getValue(expression.resultVariable);
+  } finally {
+    while (engine.evaluationStack.length > 0) {
+      engine.popEvaluationStack();
+    }
+    if (hadPrevious && previous) {
+      engine.memory.setIndex(expression.resultVariable, previous);
+    } else {
+      engine.memory.deleteIndex(expression.resultVariable);
+    }
+    engine.state = savedState;
+  }
+}
+function evaluateDebugCondition(engine, expression) {
+  return evaluateDebugExpression(engine, expression)?.toBoolean();
+}
+
 // ../../vendor/SmallBasicOnline/src/strings/locale.ts
 init_polyfills();
 var exactMatches = {
@@ -22631,6 +22684,78 @@ function getContextualCompletions(sourceBeforeCursor, prefix) {
   return [...unique.values()];
 }
 
+// src/language/document-symbols.ts
+init_polyfills();
+function comparePositions(left, right) {
+  return left.line !== right.line ? left.line - right.line : left.column - right.column;
+}
+function sortByPosition(symbols) {
+  return symbols.sort((left, right) => comparePositions(left.range.start, right.range.start));
+}
+function forEachVariableUse(block, isExcluded, report) {
+  const visit = (node) => {
+    if (node.kind === 29 /* IdentifierExpression */) {
+      const identifier = node.identifierToken;
+      if (!isExcluded(identifier.token.text)) {
+        report(identifier.token.text, identifier.range);
+      }
+    } else if (node.kind === 12 /* ForCommand */) {
+      const identifier = node.identifierToken;
+      if (!isExcluded(identifier.token.text)) {
+        report(identifier.token.text, identifier.range);
+      }
+    }
+    for (const child of node.children()) {
+      visit(child);
+    }
+  };
+  visit(block);
+}
+function collectOutlineSymbols(compilation) {
+  const subModules = compilation.parseTree.subModules;
+  const subModuleNames = new Set(Object.keys(compilation.boundSubModules).map((name) => name.toLowerCase()));
+  const isExcluded = (name) => subModuleNames.has(name.toLowerCase()) || CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, name) !== void 0;
+  const firstUses = /* @__PURE__ */ new Map();
+  const registerScope = (block, subModuleIndex) => {
+    forEachVariableUse(block, isExcluded, (name, range) => {
+      const key = name.toLowerCase();
+      const existing = firstUses.get(key);
+      if (existing === void 0 || comparePositions(range.start, existing.range.start) < 0) {
+        firstUses.set(key, { name, range, subModuleIndex });
+      }
+    });
+  };
+  registerScope(compilation.parseTree.mainModule, -1);
+  subModules.forEach((subModule, index) => registerScope(subModule.statementsList, index));
+  const variablesByScope = /* @__PURE__ */ new Map();
+  for (const use of firstUses.values()) {
+    const symbol = {
+      name: use.name,
+      kind: "variable",
+      range: use.range,
+      selectionRange: use.range,
+      children: []
+    };
+    const bucket = variablesByScope.get(use.subModuleIndex);
+    if (bucket === void 0) {
+      variablesByScope.set(use.subModuleIndex, [symbol]);
+    } else {
+      bucket.push(symbol);
+    }
+  }
+  const procedures = subModules.map((subModule, index) => {
+    const nameToken = subModule.subCommand.nameToken;
+    return {
+      name: nameToken.token.text,
+      kind: "sub",
+      range: subModule.range,
+      selectionRange: nameToken.range,
+      children: sortByPosition(variablesByScope.get(index) ?? [])
+    };
+  });
+  return sortByPosition([...variablesByScope.get(-1) ?? [], ...procedures]);
+}
+
 // src/util/positions.ts
 init_polyfills();
 var vscode2 = __toESM(require("vscode"));
@@ -22748,6 +22873,11 @@ function registerLanguageFeatures(context, cache, diagnostics) {
       },
       ...completionTriggerCharacters
     ),
+    vscode3.languages.registerDocumentSymbolProvider({ language: "smallbasic" }, {
+      provideDocumentSymbols(document) {
+        return toDocumentSymbols(collectOutlineSymbols(cache.get(document)));
+      }
+    }),
     vscode3.languages.registerHoverProvider({ language: "smallbasic" }, {
       provideHover(document, position) {
         const compilation = cache.get(document);
@@ -22787,6 +22917,25 @@ function registerLanguageFeatures(context, cache, diagnostics) {
     )
   );
   context.subscriptions.push(diagnostics);
+}
+function toDocumentSymbols(symbols) {
+  return symbols.map((symbol) => {
+    const children = toDocumentSymbols(symbol.children);
+    const range = CompilerRange.spanning([
+      symbol.range,
+      symbol.selectionRange,
+      ...symbol.children.map((child) => child.range)
+    ]);
+    const documentSymbol = new vscode3.DocumentSymbol(
+      symbol.name,
+      symbol.kind === "sub" ? "Sub" : "Variable",
+      symbol.kind === "sub" ? vscode3.SymbolKind.Function : vscode3.SymbolKind.Variable,
+      toVsCodeRange(range),
+      toVsCodeRange(symbol.selectionRange)
+    );
+    documentSymbol.children = children;
+    return documentSymbol;
+  });
 }
 function publishDiagnostics(document, cache, diagnostics) {
   if (!isSmallBasicDocument(document)) {
@@ -23074,12 +23223,15 @@ function activateCommon(context, platform) {
     vscode5.commands.registerCommand("smallbasic.newFile", async (resource) => {
       await createNewFile(resource);
     }),
-    vscode5.commands.registerCommand("smallbasic.run", async () => {
+    vscode5.commands.registerCommand("smallbasic.runJavaScript", async () => {
       await runActiveDocument(cache, diagnostics);
     })
   ];
   if (platform.runCSharp) {
     subscriptions.push(vscode5.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
+  }
+  if (platform.runBlazor) {
+    subscriptions.push(vscode5.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
   }
   context.subscriptions.push(...subscriptions);
 }
@@ -23259,6 +23411,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     this.executionStarted = false;
     response.body = {
       supportsConfigurationDoneRequest: true,
+      supportsConditionalBreakpoints: true,
       supportsEvaluateForHovers: false,
       supportsStepBack: false,
       supportsRestartRequest: false
@@ -23290,16 +23443,26 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   }
   setBreakPointsRequest(response, args) {
     const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
-    const requestedLines = args.breakpoints?.map((breakpoint) => breakpoint.line) ?? args.lines ?? [];
-    const requested = requestedLines.map((line) => ({ requestedLine: line - 1, verified: false }));
+    const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
+      requestedLine: breakpoint.line - 1,
+      verified: false,
+      condition: breakpoint.condition?.trim() || void 0
+    })) : (args.lines ?? []).map((line) => ({ requestedLine: line - 1, verified: false }));
     const verified = sourcePath ? this.verifyBreakpoints(sourcePath, requested) : requested;
     if (sourcePath) {
       this.breakpointMap.set(this.normalizePath(sourcePath), verified);
     }
     response.body = {
-      breakpoints: verified.map(
-        (breakpoint) => new import_debugadapter.Breakpoint(breakpoint.verified, (breakpoint.actualLine ?? breakpoint.requestedLine) + 1)
-      )
+      breakpoints: verified.map((breakpoint) => {
+        const result = {
+          verified: breakpoint.verified,
+          line: (breakpoint.actualLine ?? breakpoint.requestedLine) + 1
+        };
+        if (!breakpoint.verified && breakpoint.condition) {
+          result.message = `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${breakpoint.condition}`;
+        }
+        return result;
+      })
     };
     this.sendResponse(response);
   }
@@ -23438,11 +23601,17 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     const lines = this.getExecutableLines(compilation);
     return breakpoints.map((breakpoint) => {
       const actualLine = lines.find((line) => line >= breakpoint.requestedLine);
-      return {
-        requestedLine: breakpoint.requestedLine,
-        actualLine,
-        verified: actualLine !== void 0
-      };
+      if (actualLine === void 0) {
+        return { ...breakpoint, actualLine, verified: false };
+      }
+      if (breakpoint.condition) {
+        const compiledCondition = compileDebugExpression(breakpoint.condition);
+        if (!compiledCondition) {
+          return { ...breakpoint, actualLine, verified: false, compiledCondition: void 0 };
+        }
+        return { ...breakpoint, actualLine, verified: true, compiledCondition };
+      }
+      return { ...breakpoint, actualLine, verified: true };
     });
   }
   getExecutableLines(compilation) {
@@ -23474,15 +23643,24 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     }
     if (!this.initialLocationChecked) {
       this.initialLocationChecked = true;
-      if (this.activeControl.kind === "continue" && this.isBreakpointAtCurrentLine()) {
-        this.sendEvent(new import_debugadapter.StoppedEvent("breakpoint", THREAD_ID));
-        return;
-      }
+      void this.checkInitialBreakpoint();
+      return;
     }
     this.running = true;
-    setTimeout(() => this.executionLoop(), 0);
+    setTimeout(() => void this.executionLoop(), 0);
   }
-  executionLoop() {
+  async checkInitialBreakpoint() {
+    if (!this.engine) {
+      return;
+    }
+    if (this.activeControl.kind === "continue" && await this.shouldStopAtLine(this.getCurrentLine())) {
+      this.sendEvent(new import_debugadapter.StoppedEvent("breakpoint", THREAD_ID));
+      return;
+    }
+    this.running = true;
+    setTimeout(() => void this.executionLoop(), 0);
+  }
+  async executionLoop() {
     if (!this.engine) {
       this.running = false;
       return;
@@ -23507,7 +23685,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
         return;
       }
       if (this.engine.state === 1 /* Paused */) {
-        const stopReason = this.getStopReason();
+        const stopReason = await this.getStopReason();
         if (stopReason) {
           this.running = false;
           this.sendEvent(new import_debugadapter.StoppedEvent(stopReason, THREAD_ID));
@@ -23520,7 +23698,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.resumeExecution();
     }
   }
-  getStopReason() {
+  async getStopReason() {
     if (!this.engine) {
       return void 0;
     }
@@ -23528,7 +23706,6 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.pauseRequested = false;
       return "pause";
     }
-    const currentLine = this.getCurrentLine();
     const currentDepth = this.getStackDepth();
     switch (this.activeControl.kind) {
       case "stepIn":
@@ -23537,23 +23714,33 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
         return currentDepth <= this.activeControl.depth ? "step" : void 0;
       case "stepOut":
         return currentDepth < this.activeControl.depth ? "step" : void 0;
-      case "continue": {
-        if (currentLine === void 0) {
-          return void 0;
-        }
-        return this.isBreakpointAtLine(currentLine) ? "breakpoint" : void 0;
-      }
+      case "continue":
+        return await this.shouldStopAtLine(this.getCurrentLine()) ? "breakpoint" : void 0;
       default:
         return void 0;
     }
   }
-  isBreakpointAtCurrentLine() {
-    const currentLine = this.getCurrentLine();
-    return currentLine !== void 0 && this.isBreakpointAtLine(currentLine);
-  }
-  isBreakpointAtLine(line) {
+  // A line stops execution when it has a verified unconditional breakpoint, or a
+  // conditional breakpoint whose condition evaluates to true. Conditions are
+  // evaluated against the live program memory; failures simply fall through so
+  // the program keeps running.
+  async shouldStopAtLine(line) {
+    if (line === void 0 || !this.engine) {
+      return false;
+    }
     const fileBreakpoints = this.breakpointMap.get(this.normalizePath(this.programPath)) ?? [];
-    return fileBreakpoints.some((breakpoint) => breakpoint.verified && breakpoint.actualLine === line);
+    for (const breakpoint of fileBreakpoints) {
+      if (!breakpoint.verified || breakpoint.actualLine !== line) {
+        continue;
+      }
+      if (!breakpoint.compiledCondition) {
+        return true;
+      }
+      if (evaluateDebugCondition(this.engine, breakpoint.compiledCondition)) {
+        return true;
+      }
+    }
+    return false;
   }
   endSession(exitCode) {
     if (this.terminated) {
@@ -23647,8 +23834,8 @@ var WebDebugSourceAccessor = class {
 // src/web/debug-factory.ts
 var SmallBasicWebDebugAdapterFactory = class {
   async createDebugAdapterDescriptor(session) {
-    if (session.configuration.backend === "csharp") {
-      void vscode6.window.showErrorMessage("VS Code for the Web \u4E0D\u652F\u6301\u542F\u52A8\u672C\u673A C# \u8FDB\u7A0B\uFF0C\u8BF7\u4F7F\u7528 JavaScript \u540E\u7AEF\u3002");
+    if (session.configuration.backend === "csharp" || session.configuration.backend === "blazor") {
+      void vscode6.window.showErrorMessage("VS Code for the Web \u4E0D\u652F\u6301\u542F\u52A8\u672C\u673A C#/Blazor RunHost\uFF0C\u8BF7\u4F7F\u7528 JavaScript \u540E\u7AEF\u3002");
       return void 0;
     }
     const configuredProgram = typeof session.configuration.program === "string" ? session.configuration.program : "";
@@ -23704,15 +23891,15 @@ function createWebDebugConfigurationProvider() {
   const createConfig = (document) => ({
     type: "smallbasic",
     request: "launch",
-    name: "SmallBasic: Launch current file (Web JS debugger)",
+    name: "SmallBasic: Debug current file with JavaScript backend",
     program: document.fileName || document.uri.toString(),
     backend: "javascript",
     stopOnEntry: true
   });
   return {
     resolveDebugConfiguration(_folder, config) {
-      if (config.backend === "csharp") {
-        void vscode7.window.showErrorMessage("VS Code for the Web \u4EC5\u652F\u6301 JavaScript \u8FD0\u884C\u4E0E\u8C03\u8BD5\u540E\u7AEF\u3002");
+      if (config.backend === "csharp" || config.backend === "blazor") {
+        void vscode7.window.showErrorMessage("VS Code for the Web \u4EC5\u652F\u6301 JavaScript \u540E\u7AEF\uFF1BBlazor RunHost \u9700\u8981\u684C\u9762\u6269\u5C55\u542F\u52A8\u672C\u673A\u8FDB\u7A0B\u3002");
         return void 0;
       }
       if (config.type === "smallbasic" && typeof config.program === "string") {
@@ -23723,8 +23910,8 @@ function createWebDebugConfigurationProvider() {
       return document ? createConfig(document) : void 0;
     },
     resolveDebugConfigurationWithSubstitutedVariables(_folder, config) {
-      if (config.backend === "csharp") {
-        void vscode7.window.showErrorMessage("VS Code for the Web \u4EC5\u652F\u6301 JavaScript \u8FD0\u884C\u4E0E\u8C03\u8BD5\u540E\u7AEF\u3002");
+      if (config.backend === "csharp" || config.backend === "blazor") {
+        void vscode7.window.showErrorMessage("VS Code for the Web \u4EC5\u652F\u6301 JavaScript \u540E\u7AEF\uFF1BBlazor RunHost \u9700\u8981\u684C\u9762\u6269\u5C55\u542F\u52A8\u672C\u673A\u8FDB\u7A0B\u3002");
         return void 0;
       }
       const document = activeDocument();

@@ -79,6 +79,13 @@ namespace SmallBasic.Vsix.Editor.Classification
                         {
                             yield return new SmallBasicTokenSpan(line.Start.Position + index, end - index, SmallBasicClassificationNames.Library);
                         }
+                        else
+                        {
+                            // Plain identifiers are surfaced so the classifier can
+                            // colour the ones that name a procedure; everything else
+                            // keeps the default foreground.
+                            yield return new SmallBasicTokenSpan(line.Start.Position + index, end - index, SmallBasicClassificationNames.Identifier);
+                        }
 
                         index = end;
                         continue;

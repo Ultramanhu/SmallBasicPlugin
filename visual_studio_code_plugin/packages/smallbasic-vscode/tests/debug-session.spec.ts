@@ -220,6 +220,70 @@ describe("smallbasic debug session", () => {
     expect(client.outputText()).toContain("2");
   });
 
+  it("stops only when a conditional breakpoint condition is true", async () => {
+    const program = writeProgram(
+      "conditional.sb",
+      ['For i = 1 To 5', 'TextWindow.WriteLine(i)', 'EndFor', ''].join("\n")
+    );
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    const breakpoints = await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 2, condition: "i = 3" }]
+    });
+    expect((breakpoints.body?.breakpoints as Array<{ verified: boolean; line: number }>)[0]).toMatchObject({
+      verified: true,
+      line: 2
+    });
+    await client.request("configurationDone");
+
+    const stopped = await client.waitForEvent("stopped");
+    expect(stopped.body?.reason).toBe("breakpoint");
+
+    const evaluation = await client.request("evaluate", { expression: "i" });
+    expect(evaluation.body?.result).toBe("3");
+    expect(client.outputText()).toContain("2");
+    expect(client.outputText()).not.toContain("3");
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+    expect(client.outputText()).toContain("5");
+  });
+
+  it("never stops when a conditional breakpoint condition stays false", async () => {
+    const program = writeProgram(
+      "conditional-false.sb",
+      ['For i = 1 To 5', 'TextWindow.WriteLine(i)', 'EndFor', ''].join("\n")
+    );
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 2, condition: "i = 99" }]
+    });
+    await client.request("configurationDone");
+
+    await client.waitForEvent("terminated");
+    expect(client.eventCount("stopped")).toBe(0);
+    expect(client.outputText()).toContain("5");
+  });
+
+  it("rejects a conditional breakpoint whose condition does not compile", async () => {
+    const program = writeProgram("conditional-invalid.sb", ['x = 1', 'TextWindow.WriteLine(x)', ''].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    const breakpoints = await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 2, condition: "x = = 1" }]
+    });
+    const [breakpoint] = breakpoints.body?.breakpoints as Array<{ verified: boolean; message?: string }>;
+    expect(breakpoint.verified).toBe(false);
+    expect(breakpoint.message).toContain("无法编译条件");
+  });
+
   it("snaps breakpoints on blank lines to the next executable line", async () => {
     const program = writeProgram("snap.sb", ['x = 1', '', 'TextWindow.WriteLine(x)', ''].join("\n"));
 

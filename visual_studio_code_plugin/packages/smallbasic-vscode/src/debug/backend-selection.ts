@@ -1,4 +1,4 @@
-export type SmallBasicDebugBackend = "javascript" | "csharp";
+export type SmallBasicDebugBackend = "javascript" | "csharp" | "blazor";
 
 /**
  * Select the backend for a desktop F5 launch that does not explicitly name one.
