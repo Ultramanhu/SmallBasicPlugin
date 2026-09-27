@@ -2,10 +2,10 @@
 
 Microsoft Small Basic 语言支持插件，适用于 **Visual Studio 2022/2026** 与 **Visual Studio Code**。
 
-| 宿主 | DisplayName |
-|---|---|
-| Visual Studio 2022/2026 | SmallBasic for Visual Studio |
-| Visual Studio Code | SmallBasic for VSCode |
+| 宿主 | DisplayName | identify | 
+|---|---|---|
+| Visual Studio 2022/2026 | SmallBasic for Visual Studio | smallbasic-tools-vs |
+| Visual Studio Code | SmallBasic for Visual Studio Code | smallbasic-tools-vsc |
 
 origin repository: https://github.com/sb
 
