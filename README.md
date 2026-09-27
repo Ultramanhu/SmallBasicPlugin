@@ -19,9 +19,9 @@ origin repository: https://github.com/sb
 | 实时诊断 | Problems 面板 + 波浪线 | 错误列表 + 波浪线 |
 | 代码片段 / 新建文件 | 有（命令 + 资源管理器右键） | — |
 | 代码折叠大纲 | — | 有 |
-| 运行程序 | 双后端（JS / C#） | 内置 net48 运行宿主 |
-| 图形程序（GraphicsWindow/Shapes） | Windows + C# 后端 | 有（内置官方图形库） |
-| 调试（断点/单步/变量/调用栈） | 有（双后端，仅非图形程序） | 有（仅非图形程序，需 Node.js 20+） |
+| 运行程序 | 双后端（JS / C#） | 双后端（C# / JS） |
+| 图形程序（GraphicsWindow/Shapes） | Windows + C# 后端 | C# 后端（内置官方图形库） |
+| 调试（断点/单步/变量/调用栈） | 双后端；图形程序使用 Windows C# 后端 | 双后端；图形程序使用 C# 后端 |
 | 多语言 | 支持 | 支持 |
 
 两端共享同一套编译器与 DAP 调试适配器实现，调试语义（断点吸附、单步、变量展开）保持一致。
@@ -66,7 +66,7 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 
 ## Visual Studio 扩展
 
-要求 VS 2022（17.0+，amd64；17.4+，arm64）或 VS 2026。调试功能需要 **Node.js 20+**（用于运行随 VSIX 分发的 DAP 调试适配器）。
+要求 VS 2022（17.0+，amd64；17.4+，arm64）或 VS 2026。默认的 C# 运行与调试路径不需要 Node.js；仅 JavaScript 路径要求系统安装 **Node.js 20+**。VSIX 只携带 JS 单文件 bundle，不内置 Node.js。
 
 ### 安装
 
@@ -74,14 +74,23 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 
 ### 使用
 
-打开任意 `.sb` 文件（无需项目系统，可直接「打开文件夹」），即可获得语法着色、补全、悬停、错误列表与代码折叠。按键行为：
+打开任意 `.sb` 文件（无需项目系统，可直接「打开文件夹」），即可获得语法着色、补全、悬停、错误列表与代码折叠。F5/Ctrl+F5 默认使用纯 C# 路径：
 
 | 按键 | 行为 |
 |---|---|
-| `Ctrl+F5` | 保存并运行当前 `.sb`（内置 net48 运行宿主，`TextWindow` 走控制台，图形程序弹出官方图形窗口） |
-| `F5` | 保存并调试当前 `.sb`（断点、单步、变量、调用栈） |
+| `Ctrl+F5` | 使用内置 net48 C# 运行宿主运行当前 `.sb`；支持图形程序 |
+| `F5` | 使用纯 C# DAP 调试当前 `.sb`；支持断点、单步、变量、调用栈和图形窗口 |
 | `F10` / `F11`（设计时） | 以「入口即断」方式启动调试 |
 | 调试会话中 `F5`/`F10`/`F11`/`Shift+F5` | 继续 / 单步 / 步入 / 停止，直接转发给调试器 |
+
+`工具 (Tools)` 菜单还提供四个显式入口，可随时选择后端：
+
+- `Small Basic: Run with C# Backend`
+- `Small Basic: Debug with C# Backend`
+- `Small Basic: Run with JavaScript Backend`
+- `Small Basic: Debug with JavaScript Backend`
+
+JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`、`Shapes`、`Turtle` 等图形库；选择 JS 路径运行图形程序时，插件会在启动前给出提示并停止。
 
 ## 示例程序
 
@@ -127,6 +136,10 @@ dotnet build visual_studio_plugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj -c 
 .\visual_studio_plugin\build\Package-Vsix.ps1 -Configuration Release
 ```
 
+Visual Studio 包由 `Microsoft.VSSDK.BuildTools` 原生生成完整 VSIX v3 声明（包括
+`manifest.json`、`catalog.json` 和 `extensionDir`）；打包脚本只负责校验并复制生成物，
+不会手工改写安装清单。
+
 ## 仓库结构
 
 ```
@@ -148,6 +161,5 @@ SmallBasicPlugin/
 
 ## 已知限制
 
-- JS 后端暂不支持 `GraphicsWindow`/`Controls`/`Turtle`，图形程序请使用 Windows + C# 后端（VS Code）或 VS 扩展直接运行。
-- 图形程序暂不支持调试（两端均只支持 `TextWindow` / 非图形程序）。
-- VS 扩展调试依赖系统安装的 Node.js 20+。
+- JS 后端暂不支持 `GraphicsWindow`/`Shapes`/`Turtle` 等图形库，图形程序请使用 Windows C# 后端。
+- VS 扩展的 C# 路径不依赖 Node.js；仅 JS 运行/调试路径依赖外部 Node.js 20+。

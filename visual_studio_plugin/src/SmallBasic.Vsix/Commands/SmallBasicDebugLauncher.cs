@@ -2,6 +2,7 @@ namespace SmallBasic.Vsix.Commands
 {
     using System;
     using System.Collections.Generic;
+    using System.Diagnostics;
     using System.Globalization;
     using System.IO;
     using System.Text;
@@ -20,7 +21,7 @@ namespace SmallBasic.Vsix.Commands
     {
         private static bool launchInProgress;
 
-        public static void Launch(string programPath, bool stopOnEntry = false)
+        public static void Launch(string programPath, SmallBasicBackend backend, bool stopOnEntry = false)
         {
             // Rapid F5 presses (or a second F5 while the Debug Adapter Host is
             // still taking over) must not stack multiple launches.
@@ -30,19 +31,8 @@ namespace SmallBasic.Vsix.Commands
             }
 
             string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicDebugLauncher).Assembly.Location) ?? string.Empty;
-            string adapterPath = Path.Combine(extensionDirectory, "debugadapter", "adapter.js");
-            if (!File.Exists(adapterPath))
-            {
-                throw new FileNotFoundException("未找到 Small Basic 调试适配器。请重新生成并安装完整的 VSIX。", adapterPath);
-            }
-
-            string? nodePath = FindNodeExecutable();
-            if (nodePath == null)
-            {
-                throw new FileNotFoundException("未找到 node.exe。Small Basic 调试适配器需要 Node.js 20 或更高版本。请安装 Node.js 并重新启动 Visual Studio。");
-            }
-
-            string launchPath = WriteLaunchConfiguration(programPath, adapterPath, nodePath, stopOnEntry);
+            ResolveAdapter(extensionDirectory, backend, out string adapterPath, out string adapterArguments);
+            string launchPath = WriteLaunchConfiguration(programPath, adapterPath, adapterArguments, stopOnEntry);
             launchInProgress = true;
 
             // The current F5 command is still on Visual Studio's command stack.
@@ -85,7 +75,54 @@ namespace SmallBasic.Vsix.Commands
             }
         }
 
-        private static string WriteLaunchConfiguration(string programPath, string adapterPath, string nodePath, bool stopOnEntry)
+        internal static string RequireNodeExecutable()
+        {
+            string? nodePath = FindNodeExecutable();
+            if (nodePath == null)
+            {
+                throw new FileNotFoundException(
+                    "未找到外部 node.exe。Small Basic JavaScript 后端需要 Node.js 20 或更高版本；VSIX 不会内置 Node.js。");
+            }
+
+            int? majorVersion = TryGetNodeMajorVersion(nodePath);
+            if (majorVersion.HasValue && majorVersion.Value < 20)
+            {
+                throw new InvalidOperationException(
+                    $"检测到 Node.js {majorVersion.Value}，JavaScript 后端需要 Node.js 20 或更高版本。");
+            }
+
+            return nodePath;
+        }
+
+        private static void ResolveAdapter(
+            string extensionDirectory,
+            SmallBasicBackend backend,
+            out string adapterPath,
+            out string adapterArguments)
+        {
+            if (backend == SmallBasicBackend.CSharp)
+            {
+                adapterPath = Path.Combine(extensionDirectory, "runhost", "SmallBasic.RunHost.exe");
+                adapterArguments = "debug";
+                if (!File.Exists(adapterPath))
+                {
+                    throw new FileNotFoundException("未找到 Small Basic C# 调试适配器。请重新安装完整的 VSIX。", adapterPath);
+                }
+
+                return;
+            }
+
+            string scriptPath = Path.Combine(extensionDirectory, "debugadapter", "adapter.js");
+            if (!File.Exists(scriptPath))
+            {
+                throw new FileNotFoundException("未找到 Small Basic JavaScript 调试适配器。请重新安装完整的 VSIX。", scriptPath);
+            }
+
+            adapterPath = RequireNodeExecutable();
+            adapterArguments = $"\"{scriptPath}\"";
+        }
+
+        private static string WriteLaunchConfiguration(string programPath, string adapterPath, string adapterArguments, bool stopOnEntry)
         {
             string directory = Path.Combine(Path.GetTempPath(), "SmallBasicPlugin", "Debug");
             Directory.CreateDirectory(directory);
@@ -93,8 +130,8 @@ namespace SmallBasic.Vsix.Commands
 
             var properties = new List<KeyValuePair<string, object>>
             {
-                new KeyValuePair<string, object>("$adapter", nodePath),
-                new KeyValuePair<string, object>("$adapterArgs", $"\"{adapterPath}\""),
+                new KeyValuePair<string, object>("$adapter", adapterPath),
+                new KeyValuePair<string, object>("$adapterArgs", adapterArguments),
                 new KeyValuePair<string, object>("name", "Small Basic: Debug current file"),
                 new KeyValuePair<string, object>("type", "smallbasic"),
                 new KeyValuePair<string, object>("request", "launch"),
@@ -151,6 +188,37 @@ namespace SmallBasic.Vsix.Commands
             }
 
             return null;
+        }
+
+        private static int? TryGetNodeMajorVersion(string nodePath)
+        {
+            try
+            {
+                using (var process = Process.Start(new ProcessStartInfo
+                {
+                    FileName = nodePath,
+                    Arguments = "--version",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    CreateNoWindow = true,
+                }))
+                {
+                    if (process == null || !process.WaitForExit(3000))
+                    {
+                        return null;
+                    }
+
+                    string version = process.StandardOutput.ReadToEnd().Trim().TrimStart('v', 'V');
+                    string major = version.Split('.')[0];
+                    return int.TryParse(major, NumberStyles.None, CultureInfo.InvariantCulture, out int parsed)
+                        ? parsed
+                        : (int?)null;
+                }
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         private static string ToJsonString(string value)

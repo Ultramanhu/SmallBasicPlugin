@@ -202,6 +202,7 @@ public sealed class DebugAdapter
 
             case "disconnect":
                 this.SendResponse(seq, command);
+                this.DisposeLibraries();
                 this.SendTerminated();
                 Environment.Exit(0);
                 break;
@@ -246,13 +247,18 @@ public sealed class DebugAdapter
             return;
         }
 
+#if !GRAPHICS_HOST
         if (compilation.Analysis.UsesGraphicsWindow)
         {
-            this.SendErrorResponse(seq, command, "Debugging GraphicsWindow/Shapes/Turtle/Controls programs is not supported yet. Run them without debugging instead.");
+            this.SendErrorResponse(seq, command, "This C# debug host is text-only. Use the Windows C# host for GraphicsWindow/Shapes/Turtle programs.");
             return;
         }
+#endif
 
-        this.libraries = new RuntimeLibrariesCollection(TextReader.Null, new DapTextWriter(this));
+        this.libraries = new RuntimeLibrariesCollection(
+            TextReader.Null,
+            new DapTextWriter(this),
+            enableGraphics: compilation.Analysis.UsesGraphicsWindow);
         this.engine = new SmallBasicEngine(compilation, this.libraries)
         {
             Mode = ExecutionMode.NextLine,
@@ -581,8 +587,24 @@ public sealed class DebugAdapter
         }
 
         this.endSent = true;
+        this.DisposeLibraries();
         this.SendEvent("exited", new JsonObject { ["exitCode"] = exitCode });
         this.SendTerminated();
+    }
+
+    private void DisposeLibraries()
+    {
+        try
+        {
+            this.libraries?.Dispose();
+        }
+        catch
+        {
+            // Session teardown must still report termination if a desktop
+            // library fails while closing its UI resources.
+        }
+
+        this.libraries = null;
     }
 
     private void SendTerminated()

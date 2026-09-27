@@ -1,16 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net48</TargetFramework>
+    <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <UseCodebase>true</UseCodebase>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
     <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <!-- Let VSSDK BuildTools create the complete VSIX v3 package, including
+         manifest.json, catalog.json, extensionDir, hashes and dependencies. -->
     <CreateVsixContainer>true</CreateVsixContainer>
+    <TargetVsixContainerName>SmallBasic.Vsix.vsix</TargetVsixContainerName>
     <DeployExtension>false</DeployExtension>
     <CopyVsixManifestToOutput>true</CopyVsixManifestToOutput>
     <DebugAdapterSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\debug\adapter.js</DebugAdapterSource>
+    <JavaScriptRunHostSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\runhost.js</JavaScriptRunHostSource>
   </PropertyGroup>
 
   <ItemGroup>
@@ -20,6 +25,7 @@
 
   <ItemGroup>
     <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Design" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
   </ItemGroup>
@@ -30,6 +36,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <VSCTCompile Include="Menus.vsct" />
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
@@ -44,23 +51,40 @@
     <Warning
       Condition="!Exists('$(DebugAdapterSource)')"
       Text="Small Basic debug adapter was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
+    <Warning
+      Condition="!Exists('$(JavaScriptRunHostSource)')"
+      Text="Small Basic JavaScript run host was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
   </Target>
 
-  <Target Name="CopyRunHostOutput" AfterTargets="Build">
+  <Target Name="PrepareRunHostForVsix" BeforeTargets="GetVsixSourceItems">
     <MSBuild
       Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
       Targets="Build"
-      Properties="Configuration=$(Configuration)" />
+      Properties="Configuration=$(Configuration);TargetFramework=net48" />
+
+    <PropertyGroup>
+      <JavaScriptRunHostStaging>$(IntermediateOutputPath)vsix\runhost\javascript\smallbasic-runhost.js</JavaScriptRunHostStaging>
+    </PropertyGroup>
+
+    <MakeDir
+      Directories="$([System.IO.Path]::GetDirectoryName('$(JavaScriptRunHostStaging)'))"
+      Condition="Exists('$(JavaScriptRunHostSource)')" />
+    <Copy
+      SourceFiles="$(JavaScriptRunHostSource)"
+      DestinationFiles="$(JavaScriptRunHostStaging)"
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(JavaScriptRunHostSource)')" />
 
     <ItemGroup>
       <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
+      <Content Include="@(RunHostFiles)">
+        <Link>runhost\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
+      <Content Include="$(JavaScriptRunHostStaging)" Condition="Exists('$(JavaScriptRunHostStaging)')">
+        <Link>runhost\javascript\smallbasic-runhost.js</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
     </ItemGroup>
-
-    <RemoveDir Directories="$(TargetDir)runhost" />
-    <MakeDir Directories="$(TargetDir)runhost" />
-    <Copy
-      SourceFiles="@(RunHostFiles)"
-      DestinationFiles="@(RunHostFiles->'$(TargetDir)runhost\%(RecursiveDir)%(Filename)%(Extension)')"
-      SkipUnchangedFiles="true" />
   </Target>
 </Project>
