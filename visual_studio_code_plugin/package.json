@@ -10,7 +10,7 @@
     "lint": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
-    "package:vsix": "npm --workspace smallbasic-tools run package"
+    "package:vsix": "npm --workspace smallbasic-tools-vsc run package"
   },
   "devDependencies": {
     "@types/jasmine": "^5.1.9",

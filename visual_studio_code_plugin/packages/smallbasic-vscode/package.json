@@ -1,6 +1,7 @@
 {
-  "name": "smallbasic-tools",
-  "displayName": "SmallBasic for VSCode",
+  "name": "smallbasic-tools-vsc",
+  "displayName": "SmallBasic for Visual Studio Code",
+  "icon": "media/icon.png",
   "description": "SmallBasic language support for VSCode.",
   "version": "0.1.0",
   "publisher": "ultramanhu",
