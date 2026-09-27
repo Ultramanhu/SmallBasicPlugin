@@ -1,15 +1,24 @@
 param(
-    [string]$Configuration = "Debug",
+    [string]$Configuration = "Release",
     [string]$Framework = "net48",
-    [string]$PackageName = "SmallBasic.Vsix.0.1.0.vsix"
+    [string]$PackageName = "SmallBasic.Vsix.0.1.1.vsix"
 )
 
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $projectRoot = Join-Path $repoRoot "src\SmallBasic.Vsix"
+$project = Join-Path $projectRoot "SmallBasic.Vsix.csproj"
 $generatedPackage = Join-Path $projectRoot (Join-Path "bin\$Configuration" (Join-Path $Framework "SmallBasic.Vsix.vsix"))
 $packagePath = Join-Path $PSScriptRoot $PackageName
+
+# Always (re)build first so the generated VSIX is fresh; dotnet build is
+# incremental and the target also stages RunHost + JS payloads into the VSIX.
+Write-Host "Building $project ($Configuration)..."
+& dotnet build $project -c $Configuration --nologo
+if ($LASTEXITCODE -ne 0) {
+    throw "dotnet build failed with exit code $LASTEXITCODE."
+}
 
 if (-not (Test-Path -LiteralPath $generatedPackage)) {
     throw "VSSDK-generated VSIX not found: $generatedPackage. Build SmallBasic.Vsix first."

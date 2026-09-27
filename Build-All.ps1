@@ -2,10 +2,10 @@
 #
 #   1. runhost\Build-RunHost.ps1                 -> runhost\<platform>\ + runhost\javascript\
 #   2. visual_studio_code_plugin\build\Package-Vsix.ps1
-#                                                -> visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.0.vsix
+#                                                -> visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.1.vsix
 #                                                   (also refreshes dist\debug\adapter.js used by the VS side)
 #   3. visual_studio_plugin\src\SmallBasic.Vsix    -> VSIX project build (builds RunHost net48 automatically)
-#   4. visual_studio_plugin\build\Package-Vsix.ps1 -> visual_studio_plugin\build\SmallBasic.Vsix.0.1.0.vsix
+#   4. visual_studio_plugin\build\Package-Vsix.ps1 -> visual_studio_plugin\build\SmallBasic.Vsix.0.1.1.vsix
 #
 # Usage examples:
 #   .\Build-All.ps1                    # full Release build
@@ -71,5 +71,5 @@ Write-Host "=== Package-Vsix: visual_studio_plugin ===" -ForegroundColor Yellow
 Write-Host ""
 Write-Host "Build-All completed:" -ForegroundColor Green
 Write-Host "  runhost\net48, net8.0, net8.0-windows, javascript"
-Write-Host "  visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.0.vsix"
-Write-Host "  visual_studio_plugin\build\SmallBasic.Vsix.0.1.0.vsix"
+Write-Host "  visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.1.vsix"
+Write-Host "  visual_studio_plugin\build\SmallBasic.Vsix.0.1.1.vsix"

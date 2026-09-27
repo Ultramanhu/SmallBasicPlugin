@@ -33,7 +33,7 @@ origin repository: https://github.com/sb
 ### 安装
 
 ```powershell
-code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
+code --install-extension build\SmallBasic.VSCode-0.1.1.vsix
 ```
 
 或在扩展面板 `…` 菜单中选择「从 VSIX 安装…」。
@@ -70,7 +70,7 @@ code --install-extension build\SmallBasic.VSCode-0.1.0.vsix
 
 ### 安装
 
-双击 `build\SmallBasic.Vsix.0.1.0.vsix`，按 VSIX Installer 提示完成安装。
+双击 `build\SmallBasic.Vsix.0.1.1.vsix`，按 VSIX Installer 提示完成安装。
 
 ### 使用
 
@@ -120,8 +120,8 @@ JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`�
 | 产物 | 路径 |
 |---|---|
 | RunHost 运行时分发 | `runhost\net48`、`runhost\net8.0`、`runhost\net8.0-windows`、`runhost\javascript` |
-| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.0.vsix` |
-| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.0.vsix` |
+| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.1.vsix` |
+| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.1.vsix` |
 
 单独构建：
 

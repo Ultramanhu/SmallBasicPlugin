@@ -2,11 +2,20 @@
   "name": "smallbasic-tools-vsc",
   "displayName": "SmallBasic for Visual Studio Code",
   "icon": "media/icon.png",
-  "description": "SmallBasic language support for VSCode.",
-  "version": "0.1.0",
+  "description": "Microsoft SmallBasic Support for Visual Studio Code",
+  "version": "0.1.1",
   "publisher": "ultramanhu",
   "private": true,
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ultramanhu/SmallBasicPlugin.git"
+  },
+  "keywords": [
+    "SmallBasic",
+    "Basic",
+    "Microsoft"
+  ],
   "engines": {
     "vscode": "^1.96.0"
   },
@@ -19,6 +28,7 @@
     "Programming Languages"
   ],
   "files": [
+    "README.md",
     "dist/**",
     "LICENSE.txt",
     "language-configuration.json",
@@ -179,7 +189,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "node ./scripts/stage-runhost.mjs && vsce package --no-dependencies --allow-missing-repository -o ../../build/SmallBasic.VSCode-0.1.0.vsix"
+    "package": "node ./scripts/stage-runhost.mjs && vsce package --no-dependencies --allow-missing-repository -o ../../build/SmallBasic.VSCode-0.1.1.vsix"
   },
   "devDependencies": {
     "smallbasic-lang-core": "0.1.0"
