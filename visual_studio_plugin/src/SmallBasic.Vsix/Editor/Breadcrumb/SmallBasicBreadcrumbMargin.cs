@@ -126,11 +126,11 @@ namespace SmallBasic.Vsix.Editor.Breadcrumb
                 int column = caret.Position - caretLine.Start.Position;
 
                 this.panel.Children.Clear();
-                this.AddSegment(GetDocumentPath(), string.Empty, null, foreground, isLast: false, isPath: true);
+                this.AddSegment(this.GetDocumentPath(), string.Empty, null, foreground, isLast: false, isPath: true);
 
                 IReadOnlyList<OutlineItem> items = this.GetOutline();
-                OutlineItem procedure = FindEnclosingProcedure(items, line, column);
-                OutlineItem variable = FindVariableAt(procedure, items, line, column);
+                OutlineItem? procedure = this.FindEnclosingProcedure(items, line, column);
+                OutlineItem? variable = this.FindVariableAt(procedure, items, line, column);
 
                 if (procedure != null)
                 {
@@ -166,11 +166,11 @@ namespace SmallBasic.Vsix.Editor.Breadcrumb
             }
         }
 
-        private static OutlineItem FindEnclosingProcedure(IReadOnlyList<OutlineItem> items, int line, int column)
+        private OutlineItem? FindEnclosingProcedure(IReadOnlyList<OutlineItem> items, int line, int column)
         {
             foreach (OutlineItem item in items)
             {
-                if (item.Kind == OutlineItemKind.Procedure && Contains(item.Range, line, column))
+                if (item.Kind == OutlineItemKind.Procedure && this.Contains(item.Range, line, column))
                 {
                     return item;
                 }
@@ -179,12 +179,12 @@ namespace SmallBasic.Vsix.Editor.Breadcrumb
             return null;
         }
 
-        private static OutlineItem FindVariableAt(OutlineItem procedure, IReadOnlyList<OutlineItem> items, int line, int column)
+        private OutlineItem? FindVariableAt(OutlineItem? procedure, IReadOnlyList<OutlineItem> items, int line, int column)
         {
             IReadOnlyList<OutlineItem> scope = procedure != null ? procedure.Children : items;
             foreach (OutlineItem item in scope)
             {
-                if (item.Kind == OutlineItemKind.Variable && Contains(item.Range, line, column))
+                if (item.Kind == OutlineItemKind.Variable && this.Contains(item.Range, line, column))
                 {
                     return item;
                 }
@@ -193,17 +193,17 @@ namespace SmallBasic.Vsix.Editor.Breadcrumb
             return null;
         }
 
-        private static bool Contains(TextRange range, int line, int column)
+        private bool Contains(TextRange range, int line, int column)
         {
-            return Compare(range.Start, line, column) <= 0 && Compare(range.End, line, column) >= 0;
+            return this.Compare(range.Start, line, column) <= 0 && this.Compare(range.End, line, column) >= 0;
         }
 
-        private static int Compare(TextPosition position, int line, int column)
+        private int Compare(TextPosition position, int line, int column)
         {
             return position.Line != line ? position.Line - line : position.Column - column;
         }
 
-        private void AddSegment(string text, string tooltip, OutlineItem target, Brush foreground, bool isLast, bool isPath)
+        private void AddSegment(string text, string tooltip, OutlineItem? target, Brush foreground, bool isLast, bool isPath)
         {
             if (!isPath && this.panel.Children.Count > 0)
             {

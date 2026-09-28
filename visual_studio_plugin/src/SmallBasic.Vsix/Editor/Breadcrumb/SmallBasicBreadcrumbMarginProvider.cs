@@ -16,15 +16,7 @@ namespace SmallBasic.Vsix.Editor.Breadcrumb
     /// <c>file path › scope › variable</c> for the caret position, mirroring the
     /// VS Code breadcrumb, and navigates when a segment is clicked.
     /// </remarks>
-    // ---------------------------------------------------------------
-    // DISABLED (2026-09-28): the outline / breadcrumb surfaces are switched
-    // off because the integration could not be validated inside Visual Studio
-    // (the breadcrumb bar did not show up above the text view and the native
-    // navigation bar cannot be reached). The implementation is kept as-is.
-    //
-    // To re-enable the breadcrumb bar, uncomment the [Export] line below.
-    // ---------------------------------------------------------------
-    // [Export(typeof(IWpfTextViewMarginProvider))]
+    [Export(typeof(IWpfTextViewMarginProvider))]
     [Name(SmallBasicBreadcrumbMargin.MarginName)]
     [ContentType("smallbasic")]
     [MarginContainer(PredefinedMarginNames.Top)]
@@ -32,15 +24,15 @@ namespace SmallBasic.Vsix.Editor.Breadcrumb
     internal sealed class SmallBasicBreadcrumbMarginProvider : IWpfTextViewMarginProvider
     {
         [Import]
-        internal SmallBasicCompilationService CompilationService = null!;
+        private SmallBasicCompilationService compilationService = null!;
 
         [Import]
-        internal IEditorFormatMapService EditorFormatMapService = null!;
+        private IEditorFormatMapService editorFormatMapService = null!;
 
         public IWpfTextViewMargin CreateMargin(IWpfTextViewHost textViewHost, IWpfTextViewMargin containerMargin)
         {
             SmallBasicDiagnostics.Write("[breadcrumb] margin created");
-            return new SmallBasicBreadcrumbMargin(textViewHost.TextView, this.CompilationService, this.EditorFormatMapService);
+            return new SmallBasicBreadcrumbMargin(textViewHost.TextView, this.compilationService, this.editorFormatMapService);
         }
     }
 }

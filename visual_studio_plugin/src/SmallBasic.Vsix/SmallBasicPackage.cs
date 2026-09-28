@@ -5,6 +5,7 @@ namespace SmallBasic.Vsix
     using System.Runtime.InteropServices;
     using System.Threading;
     using Microsoft.VisualStudio.Shell;
+    using Microsoft.VisualStudio.Threading;
     using SmallBasic.Vsix.Commands;
     using SmallBasic.Vsix.Editor.NavigationBar;
     using SmallBasic.Vsix.Editor.Outline;
@@ -21,19 +22,9 @@ namespace SmallBasic.Vsix
     // not reuse a stale command-table cache after an extension update.
     [ProvideMenuResource("Menus.ctmenu", 4)]
     [ProvideToolWindow(typeof(SmallBasicOutlineToolWindow))]
-    // ---------------------------------------------------------------
-    // DISABLED (2026-09-28): the legacy language service exists solely so the
-    // editor would hand us the code window (the only supported way to attach the
-    // native navigation bar), but Visual Studio never invokes
-    // IVsLanguageInfo.GetCodeWindowManager for a MEF text editor buffer, so the
-    // registration is switched off to keep .sb file mapping untouched.
-    // SmallBasicLanguageService / SmallBasicCodeWindowManager are kept as-is.
-    //
-    // To re-enable it, uncomment the three attributes below.
-    // ---------------------------------------------------------------
-    // [ProvideLanguageService(typeof(SmallBasicLanguageService), "SmallBasic", 100, ShowDropDownOptions = true)]
-    // [ProvideLanguageExtension(typeof(SmallBasicLanguageService), ".sb")]
-    // [ProvideObject(typeof(SmallBasicLanguageService), RegisterUsing = RegistrationMethod.CodeBase)]
+    [ProvideLanguageService(typeof(SmallBasicLanguageService), "SmallBasic", 100, ShowDropDownOptions = true)]
+    [ProvideLanguageExtension(typeof(SmallBasicLanguageService), ".sb")]
+    [ProvideObject(typeof(SmallBasicLanguageService), RegisterUsing = RegistrationMethod.CodeBase)]
     [Guid(PackageGuidString)]
     public sealed class SmallBasicPackage : AsyncPackage
     {
@@ -49,13 +40,13 @@ namespace SmallBasic.Vsix
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             SmallBasicDiagnostics.Write(
                 $"extension {SmallBasicVersion.Value} initialized from {typeof(SmallBasicPackage).Assembly.Location}");
-            if (await this.GetServiceAsync(typeof(IMenuCommandService)) is OleMenuCommandService commandService)
+            if (await this.GetServiceAsync(typeof(IMenuCommandService)).ConfigureAwait(true) is OleMenuCommandService commandService)
             {
                 AddCommand(commandService, 0x0100, () => SmallBasicCommandService.RunActiveDocument(SmallBasicBackend.CSharp));
                 AddCommand(commandService, 0x0101, () => SmallBasicCommandService.DebugActiveDocument(SmallBasicBackend.CSharp));
                 AddCommand(commandService, 0x0102, () => SmallBasicCommandService.RunActiveDocument(SmallBasicBackend.JavaScript));
                 AddCommand(commandService, 0x0103, () => SmallBasicCommandService.DebugActiveDocument(SmallBasicBackend.JavaScript));
-                AddCommand(commandService, 0x0104, () => ShowOutline());
+                AddCommand(commandService, 0x0104, () => this.ShowOutline());
                 AddCommand(commandService, 0x0105, () => SmallBasicCommandService.RunActiveDocument(SmallBasicBackend.Blazor));
                 AddCommand(commandService, 0x0106, () => SmallBasicCommandService.DebugActiveDocument(SmallBasicBackend.Blazor));
             }
@@ -71,24 +62,25 @@ namespace SmallBasic.Vsix
         {
             ThreadHelper.ThrowIfNotOnUIThread();
             this.JoinableTaskFactory.RunAsync(async () =>
-            {
-                try
                 {
-                    ToolWindowPane? window = await this.ShowToolWindowAsync(
-                        typeof(SmallBasicOutlineToolWindow),
-                        0,
-                        create: true,
-                        cancellationToken: this.DisposalToken);
-                    if (window?.Content is SmallBasicOutlineControl control)
+                    try
                     {
-                        control.Refresh();
+                        ToolWindowPane? window = await this.ShowToolWindowAsync(
+                            typeof(SmallBasicOutlineToolWindow),
+                            0,
+                            create: true,
+                            cancellationToken: this.DisposalToken).ConfigureAwait(true);
+                        if (window?.Content is SmallBasicOutlineControl control)
+                        {
+                            control.Refresh();
+                        }
                     }
-                }
-                catch (Exception)
-                {
-                    // The outline is a convenience surface; never fail the command.
-                }
-            });
+                    catch (Exception)
+                    {
+                        // The outline is a convenience surface; never fail the command.
+                    }
+                })
+                .FileAndForget("SmallBasic/ShowOutline");
         }
     }
 }

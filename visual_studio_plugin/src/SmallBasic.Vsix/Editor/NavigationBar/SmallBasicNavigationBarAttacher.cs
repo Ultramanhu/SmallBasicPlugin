@@ -14,14 +14,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
     /// which case the language service is not involved at all. Whichever path runs
     /// first wins; the other detects the existing bar and backs off.
     /// </summary>
-    // ---------------------------------------------------------------
-    // DISABLED (2026-09-28): the text view adapter never exposes
-    // IVsDropdownBarManager, so this path only logged "=no" for every view and
-    // is switched off. The implementation is kept as-is.
-    //
-    // To re-enable it, uncomment the [Export] line below.
-    // ---------------------------------------------------------------
-    // [Export(typeof(IVsTextViewCreationListener))]
+    [Export(typeof(IVsTextViewCreationListener))]
     [ContentType("smallbasic")]
     [TextViewRole(PredefinedTextViewRoles.Document)]
     internal sealed class SmallBasicNavigationBarAttacher : IVsTextViewCreationListener

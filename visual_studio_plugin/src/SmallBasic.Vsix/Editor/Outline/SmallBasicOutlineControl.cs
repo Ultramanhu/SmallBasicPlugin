@@ -91,8 +91,26 @@ namespace SmallBasic.Vsix.Editor.Outline
                 SmallBasicDiagnostics.Write("outline window: no active Small Basic view detected");
             }
 
-            if (view != null)
+            if (view == null)
             {
+                this.noViewLogged = true;
+
+                if (this.buffer != null)
+                {
+                    this.buffer.Changed -= this.OnBufferChanged;
+                    this.buffer = null;
+                    changed = true;
+                }
+
+                if (this.textView != null)
+                {
+                    this.textView = null;
+                    changed = true;
+                }
+            }
+            else
+            {
+                this.noViewLogged = false;
                 ITextBuffer active = view.TextBuffer;
                 if (!ReferenceEquals(active, this.buffer))
                 {
