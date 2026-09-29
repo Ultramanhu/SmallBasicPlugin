@@ -15,7 +15,7 @@ namespace SmallBasic.Vsix
     /// Tools menu. The editor command filter reuses the most recently selected backend.
     /// </summary>
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
-    [InstalledProductRegistration("SmallBasic for Visual Studio", "SmallBasic language support", SmallBasicVersion.Value)]
+    [InstalledProductRegistration("SmallBasic for Visual Studio (Classic)", "SmallBasic language support", SmallBasicVersion.Value)]
     // Increment this version whenever Menus.vsct changes so Visual Studio does
     // not reuse a stale command-table cache after an extension update.
     [ProvideMenuResource("Menus.ctmenu", 7)]

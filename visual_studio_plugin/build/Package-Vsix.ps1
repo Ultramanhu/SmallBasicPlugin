@@ -84,6 +84,7 @@ try {
     foreach ($payloadEntry in @(
         "SmallBasic.Vsix.dll",
         "SmallBasic.Vsix.pkgdef",
+        "SmallBasic.VsCommon.dll",
         "debugadapter/adapter.js",
         "runhost/csharp/SmallBasic.RunHost.exe",
         "runhost/javascript/smallbasic-runhost.js"
@@ -91,6 +92,22 @@ try {
         if ($entries -notcontains $payloadEntry) {
             throw "VSSDK-generated VSIX is missing required extension payload: $payloadEntry"
         }
+    }
+
+    # The shared integration assembly owns the classifier, outlining tagger, navigation
+    # bar, debug inline values and the Open Folder debug target, so it must join this
+    # extension's MEF catalog. Losing the asset would silently disable all of them.
+    $vsixManifestEntry = $archive.GetEntry("extension.vsixmanifest")
+    $manifestReader = [System.IO.StreamReader]::new($vsixManifestEntry.Open())
+    try {
+        $vsixManifest = $manifestReader.ReadToEnd()
+    }
+    finally {
+        $manifestReader.Dispose()
+    }
+
+    if ($vsixManifest -notmatch 'MefComponent[^>]*Path="SmallBasic\.VsCommon\.dll"') {
+        throw "extension.vsixmanifest does not declare SmallBasic.VsCommon.dll as a MefComponent."
     }
 
     $manifestEntry = $archive.GetEntry("manifest.json")

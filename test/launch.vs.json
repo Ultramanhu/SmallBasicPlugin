@@ -1,0 +1,36 @@
+{
+  "version": "0.2.1",
+  "defaults": {},
+  "configurations": [
+    {
+      "type": "smallbasic",
+      "project": ".",
+      "request": "launch",
+      "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
+      "program": "${file}",
+      "backend": "javascript",
+      "mode": "cli",
+      "stopOnEntry": false
+    },
+    {
+      "type": "smallbasic",
+      "project": ".",
+      "request": "launch",
+      "name": "SmallBasic [CLI]: Debug current file with C# backend",
+      "program": "${file}",
+      "backend": "csharp",
+      "mode": "cli",
+      "stopOnEntry": false
+    },
+    {
+      "type": "smallbasic",
+      "project": ".",
+      "request": "launch",
+      "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+      "program": "${file}",
+      "backend": "blazor",
+      "mode": "cli",
+      "stopOnEntry": false
+    }
+  ]
+}

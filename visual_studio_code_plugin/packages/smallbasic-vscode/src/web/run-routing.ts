@@ -28,19 +28,19 @@ export interface WebDebugRequest {
 export type WebDebugRouting =
   /** Let the built-in JavaScript run/debug adapter handle the request. */
   | { kind: "javascript" }
-  /** Run the program in the Blazor webview; no debug session is started. */
-  | { kind: "webview"; note?: string }
+  /** Run the program in the browser webview; no debug session is started. */
+  | { kind: "webview"; backend: "javascript" | "blazor"; note?: string }
   /** Refuse the request with an explanation of what to use instead. */
   | { kind: "reject"; message: string };
 
 const RUN_WITH_BLAZOR = "“SmallBasic: Run with Blazor Backend”";
 
 const C_SHARP_MESSAGE =
-  "VS Code for the Web 无法启动本机 C# RunHost：请用 JavaScript 后端运行 TextWindow 程序，" +
+  "Web 模式无法启动本机 C# RunHost：请用 JavaScript 后端运行 TextWindow 程序，" +
   `图形程序请按 Ctrl+F5（运行但不调试）或执行 ${RUN_WITH_BLAZOR}。`;
 
 const BLAZOR_DEBUG_MESSAGE =
-  "VS Code for the Web 不支持 Blazor 后端的逐行调试。" +
+  "Web 模式不支持 Blazor 后端的逐行调试。" +
   `请按 Ctrl+F5（运行但不调试）或执行 ${RUN_WITH_BLAZOR}，两者都在 Webview 内运行同一份 Blazor WASM 后端。`;
 
 const GRAPHICS_DEBUG_MESSAGE =
@@ -63,23 +63,26 @@ export function routeWebDebugRequest(request: WebDebugRequest, programDrawsShape
 
   // Only Blazor can draw here, so a program that draws needs it whether the user
   // picked the JavaScript backend or did not pick one at all.
-  const wantsBlazor = backend === "blazor" || programDrawsShapes;
-  if (!wantsBlazor) {
-    return { kind: "javascript" };
-  }
-
-  if (request.noDebug !== true) {
+  const selectedBackend = backend === "blazor" || programDrawsShapes ? "blazor" : "javascript";
+  if (request.noDebug === true) {
     return {
-      kind: "reject",
-      message: backend === "blazor" && !programDrawsShapes ? BLAZOR_DEBUG_MESSAGE : GRAPHICS_DEBUG_MESSAGE
+      kind: "webview",
+      backend: selectedBackend,
+      // The user explicitly asked for JavaScript, which cannot run this program
+      // at all, so explain the substitution instead of silently changing backends.
+      note: backend === "javascript" && programDrawsShapes ? GRAPHICS_FALLBACK_NOTE : undefined
     };
   }
 
+  // JavaScript remains debuggable in the web extension host. A webview is an
+  // execution surface rather than a DAP client, so F5 keeps using the adapter.
+  if (selectedBackend === "javascript") {
+    return { kind: "javascript" };
+  }
+
   return {
-    kind: "webview",
-    // The user explicitly asked for JavaScript, which cannot run this program at
-    // all, so explain the substitution instead of silently changing backends.
-    note: backend === "javascript" ? GRAPHICS_FALLBACK_NOTE : undefined
+    kind: "reject",
+    message: backend === "blazor" && !programDrawsShapes ? BLAZOR_DEBUG_MESSAGE : GRAPHICS_DEBUG_MESSAGE
   };
 }
 

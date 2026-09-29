@@ -1,0 +1,58 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'x86'">AnyCPU</Platform>
+    <Platforms>AnyCPU</Platforms>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <RootNamespace>SmallBasic.Vsix</RootNamespace>
+    <AssemblyName>SmallBasic.VsCommon</AssemblyName>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RepoRootDirectory>$(MSBuildThisFileDirectory)..\..\..\</RepoRootDirectory>
+    <VersionSyncScript>$(RepoRootDirectory)tools\sync-version.mjs</VersionSyncScript>
+  </PropertyGroup>
+
+  <!--
+    Shared Visual Studio integration layer used by BOTH Visual Studio packages:
+
+      * SmallBasic.Vsix  (classic VSSDK + MEF extension)
+      * SmallBasic.Ext   (VisualStudio.Extensibility extension)
+
+    Everything here used to be duplicated: the classic project owned the files and
+    the Extensibility project link-compiled them from ..\SmallBasic.Vsix. Moving them
+    into this ordinary library removes that coupling and guarantees both packages
+    ship the exact same command/debug/editor/MEF behaviour.
+
+    Namespaces intentionally stay in the SmallBasic.Vsix.* family so neither consumer
+    needs source changes; the assembly name describes the *shared* part of the
+    Visual Studio story.
+  -->
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VisualStudio.Workspace" Version="17.12.19" ExcludeAssets="runtime" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Design" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <!-- System.Windows.Threading.DispatcherTimer used by the debug inline-values adornment. -->
+    <Reference Include="WindowsBase" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+  </ItemGroup>
+
+  <!-- Keep VersionInfo.g.cs (generated from version.json) in sync even when this
+       project is built on its own. -->
+  <Target Name="SyncSharedVersion" BeforeTargets="BeforeBuild" Condition="Exists('$(VersionSyncScript)')">
+    <Exec Command="node &quot;$(VersionSyncScript)&quot;" ContinueOnError="WarnAndContinue" StandardOutputImportance="low" />
+  </Target>
+</Project>

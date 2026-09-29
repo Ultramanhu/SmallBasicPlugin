@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <RootNamespace>SmallBasic.LanguageServices</RootNamespace>
+    <AssemblyName>SmallBasic.LanguageServices</AssemblyName>
+    <GenerateAssemblyInfo>true</GenerateAssemblyInfo>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The built-in language server speaks JSON-RPC. In-proc Visual Studio hosting
+         provides System.Text.Json from the devenv installation (the VSSDK keeps it out
+         of the VSIX package), so this reference only has to compile against the same
+         version the Extensibility SDK resolves; the APIs used here exist since
+         System.Text.Json 6.0, and the net8.0 tests use this package directly. -->
+    <PackageReference Include="System.Text.Json" Version="9.0.0" />
+  </ItemGroup>
+</Project>

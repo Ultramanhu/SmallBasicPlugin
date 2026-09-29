@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { Compilation } from "smallbasic-lang-core";
 import { activateCommon } from "../common/activation";
 import { isSmallBasicDocument } from "../language/providers";
-import { runInBlazorWebview } from "./blazor-webview";
+import { runInWebview, type WebviewBackend } from "./blazor-webview";
 import { SmallBasicWebDebugAdapterFactory } from "./debug-factory";
 import { routeWebDebugRequest } from "./run-routing";
 
@@ -13,7 +13,8 @@ export function activate(context: vscode.ExtensionContext): void {
     // The Blazor backend runs entirely inside a webview here: the same
     // SmallBasic.Blazor.Client WebAssembly build that the desktop RunHost serves
     // over HTTP, so graphics work without any local process.
-    runBlazor: async () => runBlazorActiveDocument(context)
+    runJavaScript: async () => runWebActiveDocument(context, "javascript"),
+    runBlazor: async () => runWebActiveDocument(context, "blazor")
   });
 }
 
@@ -21,7 +22,10 @@ export function deactivate(): void {
   // no-op
 }
 
-async function runBlazorActiveDocument(context: vscode.ExtensionContext): Promise<void> {
+async function runWebActiveDocument(
+  context: vscode.ExtensionContext,
+  backend: WebviewBackend
+): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
     void vscode.window.showWarningMessage("请先打开一个 SmallBasic (.sb) 文件。");
@@ -29,9 +33,11 @@ async function runBlazorActiveDocument(context: vscode.ExtensionContext): Promis
   }
 
   const document = editor.document;
-  warnWhenJavaScriptWouldDo(document);
+  if (backend === "blazor") {
+    warnWhenJavaScriptWouldDo(document);
+  }
 
-  await runInBlazorWebview(context, documentName(document), document.getText());
+  await runInWebview(context, documentName(document), document.getText(), backend);
 }
 
 function warnWhenJavaScriptWouldDo(document: vscode.TextDocument): void {
@@ -86,6 +92,7 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
         : "SmallBasic: Debug current file with JavaScript backend",
       program: document.fileName || document.uri.toString(),
       backend,
+      mode: "web",
       stopOnEntry: true
     };
   };
@@ -105,6 +112,10 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
       if (config.type !== "smallbasic") {
         return config;
       }
+
+      // A browser extension host has no local process/terminal host. Treat the
+      // launch configuration as web mode even if a shared launch.json says cli.
+      config.mode = "web";
 
       const document = activeDocument();
       const program = (typeof config.program === "string" ? config.program.trim() : "")
@@ -138,7 +149,7 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
           void vscode.window.setStatusBarMessage(routing.note, 8000);
         }
 
-        await runInBlazorWebview(context, documentName(target), target.getText());
+        await runInWebview(context, documentName(target), target.getText(), routing.backend);
         // The program already ran in the webview, so this request is complete.
         return undefined;
       }

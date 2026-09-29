@@ -1,10 +1,18 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/SmallBasic.Ext/SmallBasic.Ext.csproj" />
     <Project Path="src/SmallBasic.RunHost/SmallBasic.RunHost.csproj" />
-    <Project Path="src/SmallBasic.Vsix/SmallBasic.Vsix.csproj" />
+    <Project Path="src/SmallBasic.Vsix/SmallBasic.Vsix.csproj">
+      <Deploy />
+    </Project>
+  </Folder>
+  <Folder Name="/shared/">
+    <Project Path="src/SmallBasic.LanguageServices/SmallBasic.LanguageServices.csproj" />
+    <Project Path="src/SmallBasic.VsCommon/SmallBasic.VsCommon.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/SmallBasic.Compiler.Tests/SmallBasic.Compiler.Tests.csproj" />
+    <Project Path="tests/SmallBasic.Ext.Tests/SmallBasic.Ext.Tests.csproj" />
   </Folder>
   <Folder Name="/vendor/">
     <Project Path="vendor/SmallBasicEditor/Source/SmallBasic.Compiler/SmallBasic.Compiler.csproj" />

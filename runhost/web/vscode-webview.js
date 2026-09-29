@@ -1,80 +1,202 @@
 /*
- * VS Code webview glue for the Blazor WebAssembly backend.
+ * VS Code Webview glue shared by the JavaScript and Blazor WASM backends.
  *
- * The VS Code extension (visual_studio_code_plugin/packages/smallbasic-vscode,
- * src/web/blazor-webview.ts) opens a webview whose <base href> points at this
- * folder and which loads:
+ * The extension loads the browser JavaScript runtime from dist/web-runhost.js
+ * and the Blazor payload from this folder, then drives both with the same
+ * protocol used by the standalone runhost/web shell:
  *
- *   _framework/blazor.webassembly.js   (autostart=false)
- *   vscode-webview.js                  (this file)
- *
- * The webview plays the role that shell.js plays for the standalone web RunHost:
- *   host -> page : { type: "run", name, source } | { type: "stop" }
+ *   host -> page : { type: "run", backend, name, source } | { type: "stop" }
+ *                  { type: "resource-response", requestId, ok, data/error }
  *   page -> host : { type: "ready" } | { type: "output", text }
  *                  { type: "notify", json } | { type: "failed", text }
- *
- * It has no VS Code API dependency beyond acquireVsCodeApi(), so the same file can
- * be loaded in a plain browser for manual testing (messages are then logged).
+ *                  { type: "resource-request", requestId, path }
  */
 (() => {
     "use strict";
 
+    const BACKEND_JAVASCRIPT = "javascript";
+    const BACKEND_BLAZOR = "blazor";
     const ASSEMBLY = "SmallBasic.Blazor.Client";
+    const TEXT_COLORS = [
+        "#000000", "#000080", "#008000", "#008080", "#800000", "#800080", "#808000", "#c0c0c0",
+        "#808080", "#0000ff", "#00ff00", "#00ffff", "#ff0000", "#ff00ff", "#ffff00", "#ffffff"
+    ];
+    const DEFAULT_FOREGROUND = 15;
+    const DEFAULT_BACKGROUND = 0;
     const api = typeof acquireVsCodeApi === "function"
         ? acquireVsCodeApi()
         : { postMessage: (message) => console.log("[smallbasic-webview]", message) };
-
     const post = (message) => api.postMessage(message);
 
-    /*
-     * The webview document lives on vscode-webview://<id> while the Blazor payload
-     * is served by the extension resource host (a *.vscode-cdn.net origin), so the
-     * document has no <base> element pointing at the payload: Blazor rejects a base
-     * URI that does not contain the current location at startup. This script always
-     * sits next to the payload, so its own URL is the absolute payload root.
-     */
+    const dom = {
+        page: document.getElementById("web-runhost"),
+        console: document.getElementById("console"),
+        inputRow: document.getElementById("input-row"),
+        inputPrompt: document.getElementById("input-prompt"),
+        inputField: document.getElementById("input-field"),
+        outputNote: document.getElementById("output-note"),
+        blazorHost: document.getElementById("blazor-host"),
+        diagnostics: document.getElementById("diagnostics")
+    };
+
+    let activeBackend = BACKEND_BLAZOR;
+    let pendingInput = null;
+
+    function showDiagnostics(text) {
+        dom.diagnostics.hidden = !text;
+        dom.diagnostics.textContent = text || "";
+        if (text) {
+            console.error(text);
+        }
+    }
+
+    function clearConsole() {
+        dom.console.textContent = "";
+    }
+
+    function mirrorOutput(text) {
+        const chunk = String(text || "");
+        const line = chunk.replace(/\n$/, "");
+        if (line) {
+            console.log(line);
+        }
+
+        post({ type: "output", text: chunk });
+    }
+
+    function appendConsole(text, foreground, background) {
+        if (!text) {
+            return;
+        }
+
+        const span = document.createElement("span");
+        span.textContent = text;
+        span.style.color = TEXT_COLORS[foreground] || TEXT_COLORS[DEFAULT_FOREGROUND];
+        span.style.backgroundColor = TEXT_COLORS[background] || TEXT_COLORS[DEFAULT_BACKGROUND];
+        dom.console.appendChild(span);
+        dom.console.scrollTop = dom.console.scrollHeight;
+    }
+
+    function selectBackend(backend) {
+        activeBackend = backend === BACKEND_JAVASCRIPT ? BACKEND_JAVASCRIPT : BACKEND_BLAZOR;
+        const javascript = activeBackend === BACKEND_JAVASCRIPT;
+        dom.console.hidden = !javascript;
+        dom.inputRow.hidden = !javascript || !pendingInput;
+        dom.blazorHost.hidden = javascript;
+        dom.outputNote.textContent = javascript
+            ? "JavaScript 后端：TextWindow 在 Webview 内运行，输出同时写入“输出”面板。"
+            : "Blazor WASM 后端：GraphicsWindow 绘制在下方，TextWindow 输出同时写入“输出”面板。";
+        dom.page.dataset.backend = activeBackend;
+    }
+
+    function requestInput(kind) {
+        return new Promise((resolve) => {
+            pendingInput = { resolve, kind };
+            dom.inputPrompt.textContent = kind === "number" ? "ReadNumber" : "Read";
+            dom.inputField.value = "";
+            dom.inputRow.hidden = false;
+            dom.inputField.focus();
+        });
+    }
+
+    function resolvePendingInput(value = "") {
+        const pending = pendingInput;
+        pendingInput = null;
+        dom.inputRow.hidden = true;
+        if (pending) {
+            pending.resolve(value);
+        }
+    }
+
+    dom.inputRow.addEventListener("submit", (event) => {
+        event.preventDefault();
+        const value = dom.inputField.value;
+        dom.inputField.value = "";
+        appendConsole(value + "\n", DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
+        mirrorOutput(value + "\n");
+        resolvePendingInput(value);
+    });
+
+    /* ------------------------------------------------------ Blazor boot bridge */
+
     function resolvePayloadBase() {
-        const current = document.currentScript;
-        const source = current && current.src
-            ? current.src
-            : (document.querySelector('script[src*="vscode-webview.js"]') || { src: "" }).src;
+        const script = document.querySelector('script[src*="vscode-webview.js"]');
+        const source = script && script.src ? script.src : "";
         const separator = source.lastIndexOf("/");
         return separator > 0 ? source.slice(0, separator + 1) : "";
     }
 
     const payloadBase = resolvePayloadBase();
+    let nextResourceRequest = 0;
+    const pendingResources = new Map();
 
-    /*
-     * Two boot resources need an explicit URL because they cannot be resolved
-     * relative to the document:
-     *
-     * - "dotnetjs": the runtime module, which is otherwise looked up under
-     *   document.baseURI. Blazor reports the same type for dotnet.js,
-     *   dotnet.native.js and dotnet.runtime.js, so only the module itself is
-     *   redirected; the siblings keep their (already absolute) default URL, and
-     *   every remaining boot resource resolves relative to the module URL.
-     * - "manifest" (blazor.boot.json): dotnet.js fetches it with
-     *   `credentials: "include"`, which browsers only allow when the resource host
-     *   echoes the webview origin *and* allows credentials - a plain
-     *   `Access-Control-Allow-Origin: *` host fails with "must not be the wildcard
-     *   '*' when the request's credentials mode is 'include'". Returning a Promise
-     *   from loadBootResource replaces that request with our own credential-free
-     *   fetch; returning a string (or undefined) for every other type leaves the
-     *   remaining resources on their default, credential-free code path.
-     */
+    function requestBootResource(type, name) {
+        const requestId = `boot-${++nextResourceRequest}`;
+        const path = `_framework/${name}`;
+
+        return new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => {
+                pendingResources.delete(requestId);
+                reject(new Error(`读取 Blazor 资源超时：${path}`));
+            }, 120000);
+
+            pendingResources.set(requestId, { resolve, reject, timeout, type, name });
+            post({ type: "resource-request", requestId, path });
+        });
+    }
+
+    function resourceContentType(type, name) {
+        if (type === "dotnetwasm" || name.endsWith(".wasm")) {
+            return "application/wasm";
+        }
+
+        if (type === "manifest" || type === "configuration" || name.endsWith(".json")) {
+            return "application/json";
+        }
+
+        return "application/octet-stream";
+    }
+
+    function completeResourceRequest(message) {
+        const pending = pendingResources.get(message.requestId);
+        if (!pending) {
+            return;
+        }
+
+        pendingResources.delete(message.requestId);
+        clearTimeout(pending.timeout);
+
+        if (message.ok === false) {
+            pending.reject(new Error(message.error || `读取 Blazor 资源失败：${pending.name}`));
+            return;
+        }
+
+        let body;
+        if (message.data instanceof ArrayBuffer) {
+            body = message.data;
+        } else if (ArrayBuffer.isView(message.data)) {
+            body = new Uint8Array(message.data.buffer, message.data.byteOffset, message.data.byteLength);
+        } else {
+            pending.reject(new Error(`Blazor 资源返回了无效数据：${pending.name}`));
+            return;
+        }
+
+        pending.resolve(new Response(body, {
+            status: 200,
+            headers: { "content-type": resourceContentType(pending.type, pending.name) }
+        }));
+    }
+
     function loadBootResource(type, name, defaultUri) {
         if (type === "dotnetjs" && name === "dotnet.js") {
             return `${payloadBase}_framework/dotnet.js`;
         }
 
-        if (type === "manifest") {
-            return fetch(`${payloadBase}_framework/blazor.boot.json`, {
-                cache: "no-cache",
-                credentials: "omit"
-            });
+        if (type === "dotnetjs") {
+            return defaultUri;
         }
 
-        return defaultUri;
+        return requestBootResource(type, name);
     }
 
     let blazorStart = null;
@@ -108,27 +230,57 @@
         return window.DotNet.invokeMethodAsync(ASSEMBLY, method, ...args);
     }
 
-    // Probed by Runner.razor (WebRunHost.IsEmbeddedAsync): true means the runner
-    // waits for SetSession instead of reading a descriptor from the CLI RunHost API.
     window.SmallBasicWebHost = {
         isWebRunHost: () => true,
-
-        // TextWindow output: kept in the page's console (DevTools of the webview)
-        // and forwarded to the extension, which mirrors it into an output channel.
         write(text) {
-            const line = text.replace(/\n$/, "");
-            if (line.length > 0) {
-                console.log(line);
-            }
-
-            post({ type: "output", text });
+            mirrorOutput(text);
         },
-
-        // Lifecycle messages (ready/terminated/stopped) from WebShellTransport.
         notify(json) {
             post({ type: "notify", json });
         }
     };
+
+    /* --------------------------------------------------------------- running */
+
+    async function runJavaScript(message) {
+        const backend = window.SmallBasicWeb;
+        if (!backend || typeof backend.runJavaScript !== "function") {
+            throw new Error("web-runhost.js 未导出 SmallBasicWeb.runJavaScript");
+        }
+
+        post({ type: "notify", json: JSON.stringify({ type: "ready" }) });
+        const exitCode = await backend.runJavaScript(message.source || "", {
+            writeText(text, newLine, foreground, background) {
+                const chunk = newLine ? text + "\n" : text;
+                appendConsole(chunk, foreground, background);
+                mirrorOutput(chunk);
+            },
+            readInput: requestInput,
+            writeError: showDiagnostics
+        });
+        resolvePendingInput();
+        post({ type: "notify", json: JSON.stringify({ type: "terminated", exitCode }) });
+    }
+
+    async function runBlazor(message) {
+        await startBlazor();
+        await invoke("SetSession", JSON.stringify({
+            name: message.name || "program.sb",
+            source: message.source || ""
+        }));
+    }
+
+    async function stop() {
+        if (activeBackend === BACKEND_JAVASCRIPT) {
+            if (window.SmallBasicWeb && typeof window.SmallBasicWeb.stopJavaScript === "function") {
+                window.SmallBasicWeb.stopJavaScript();
+            }
+            resolvePendingInput();
+            return;
+        }
+
+        await invoke("Stop");
+    }
 
     window.addEventListener("message", (event) => {
         const message = event.data;
@@ -136,26 +288,34 @@
             return;
         }
 
+        if (message.type === "resource-response") {
+            completeResourceRequest(message);
+            return;
+        }
+
         void (async () => {
             try {
                 if (message.type === "run") {
-                    await startBlazor();
-                    await invoke("SetSession", JSON.stringify({
-                        name: message.name || "program.sb",
-                        source: message.source || ""
-                    }));
+                    selectBackend(message.backend);
+                    clearConsole();
+                    showDiagnostics("");
+                    if (activeBackend === BACKEND_JAVASCRIPT) {
+                        await runJavaScript(message);
+                    } else {
+                        await runBlazor(message);
+                    }
                 } else if (message.type === "stop") {
-                    await invoke("Stop");
+                    await stop();
                 }
             } catch (error) {
+                resolvePendingInput();
                 const text = error && error.stack ? error.stack : String(error);
-                console.error(text);
+                showDiagnostics(text);
                 post({ type: "failed", text });
             }
         })();
     });
 
-    // Tells the extension the page can receive "run" messages. The Blazor runtime
-    // itself is only started on the first run, so opening the panel is cheap.
+    selectBackend(BACKEND_BLAZOR);
     post({ type: "ready" });
 })();

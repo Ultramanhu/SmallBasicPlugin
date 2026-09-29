@@ -1,0 +1,22 @@
+:root { color-scheme: dark; font-family: Inter, Segoe UI, sans-serif; background: #111827; color: #e5e7eb; }
+* { box-sizing: border-box; }
+body { margin: 0; min-height: 100vh; background: radial-gradient(circle at top, #1f3656, #0b1020 52%); }
+.runner { min-height: 100vh; display: grid; grid-template-rows: auto 1fr; }
+.toolbar { display: flex; align-items: center; gap: .8rem; padding: .7rem 1rem; background: rgba(8, 15, 30, .88); border-bottom: 1px solid #334155; }
+.brand { font-weight: 700; color: #7dd3fc; }
+.program-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.runtime-badge { margin-left: auto; padding: .18rem .55rem; border-radius: 999px; color: #082f49; background: #7dd3fc; font-size: .78rem; font-weight: 700; }
+.workspace { padding: 1rem; display: grid; grid-template-columns: minmax(360px, 2fr) minmax(280px, 1fr); gap: 1rem; min-height: 0; }
+.graphics-card, .console-card, .status-card { background: rgba(15, 23, 42, .94); border: 1px solid #334155; border-radius: 12px; box-shadow: 0 18px 45px rgba(0,0,0,.3); }
+.graphics-card { min-width: 0; overflow: auto; padding: 1rem; display: grid; place-items: center; }
+.graphics-window { outline: none; box-shadow: 0 8px 24px rgba(0,0,0,.35); max-width: 100%; height: auto; touch-action: none; }
+.console-card { padding: 1rem; display: flex; flex-direction: column; min-height: 220px; }
+.console-title { color: #94a3b8; font-size: .82rem; text-transform: uppercase; letter-spacing: .08em; margin-bottom: .6rem; }
+.console-output { flex: 1; margin: 0; overflow: auto; white-space: pre-wrap; color: #d1fae5; font: 14px/1.45 Consolas, monospace; }
+.input-row { display: flex; gap: .5rem; margin-top: .7rem; }
+.input-row input { flex: 1; min-width: 0; padding: .55rem .7rem; color: #f8fafc; background: #020617; border: 1px solid #475569; border-radius: 6px; }
+.input-row button { border: 0; border-radius: 6px; padding: .55rem .85rem; color: #082f49; background: #7dd3fc; font-weight: 700; cursor: pointer; }
+.status-card { margin: 15vh auto; padding: 1.3rem 1.6rem; width: min(560px, calc(100vw - 2rem)); }
+.error { color: #fecaca; border-color: #991b1b; }
+#blazor-error-ui { display: none; position: fixed; inset: auto 0 0; padding: .7rem 1rem; color: #450a0a; background: #fecaca; }
+@media (max-width: 820px) { .workspace { grid-template-columns: 1fr; } }

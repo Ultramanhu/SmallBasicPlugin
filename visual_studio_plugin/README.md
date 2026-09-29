@@ -1,8 +1,13 @@
-# SmallBasic for Visual Studio
+# SmallBasic for Visual Studio (Classic) / SmallBasic for Visual Studio (Extensibility)
 
 Microsoft Small Basic language support for Visual Studio 2022/2026.
 
 repo: https://github.com/Ultramanhu/SmallBasicPlugin/
+
+## Attension
+- **Visual Studio (Classic)**: the most feature-complete traditional integration, go through the classic VSSDK/MEF.
+- **Visual Studio (Ext / LSP)**: migrates commands and tool windows to VisualStudio.Extensibility, and re-implements via an in-process LSP server to validate the new framework migration path.
+- **Note: Do not install both Visual Studio plugins simultaneously, as they will conflict — choose one only.**
 
 ## Features
 
@@ -33,8 +38,19 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
 - **Choose a backend**: use `Tools > Small Basic` to run or debug explicitly with C#, JavaScript, or Blazor. The chosen backend remains active for subsequent standard run/debug commands in the current Visual Studio session; C# is the initial default.
 - **Run**: press `Ctrl+F5` to run the current `.sb` with the active backend.
 - **Debug**: set breakpoints in a `.sb` file and press `F5`. `F10`/`F11` at design time start with stop-on-entry; during a debug session `F5`/`F10`/`F11`/`Shift+F5` are forwarded to the debugger.
+`launch.vs.json` (Visual Studio launch configuration file):
 
-## Known limitations
+```jsonc
+{  "type": "smallbasic",  "project": ".",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
+  "program": "${file}",  "backend": "javascript",  "mode": "cli",  "stopOnEntry": false }
+
+{  "type": "smallbasic",  "project": ".",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with C# backend",
+  "program": "${file}",  "backend": "csharp",  "mode": "cli",  "stopOnEntry": false }
+
+{  "type": "smallbasic",  "project": ".",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+  "program": "${file}",  "backend": "blazor",  "mode": "cli",  "stopOnEntry": false }
+```
+
 
 - The JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use the Windows C# backend or the cross-platform Blazor backend.
 

@@ -1,0 +1,172 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'x86'">AnyCPU</Platform>
+    <Platforms>AnyCPU</Platforms>
+    <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
+    <VssdkCompatibleExtension>true</VssdkCompatibleExtension>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <UseCodebase>true</UseCodebase>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <TargetVsixContainerName>SmallBasic.Ext.vsix</TargetVsixContainerName>
+    <DeployExtension>false</DeployExtension>
+    <CopyVsixManifestToOutput>true</CopyVsixManifestToOutput>
+    <RootNamespace>SmallBasic.Ext</RootNamespace>
+    <AssemblyName>SmallBasic.Ext</AssemblyName>
+    <DebugAdapterSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\debug\adapter.js</DebugAdapterSource>
+    <JavaScriptRunHostSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\runhost.js</JavaScriptRunHostSource>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
+    <StartAction>Program</StartAction>
+    <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/RootSuffix Exp</StartArguments>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <RepoRootDirectory>$(MSBuildThisFileDirectory)..\..\..\</RepoRootDirectory>
+    <VersionSyncScript>$(RepoRootDirectory)tools\sync-version.mjs</VersionSyncScript>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility" Version="17.14.2098" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.40608" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
+    <!-- Pin the same VSSDK BuildTools as the classic package: the 17.14 BuildTools
+         cannot resolve an assembly shared through a ProjectReference in
+         source.extension.vsixmanifest (VSSDK1044), which SmallBasic.VsCommon needs.
+         Keeping both packages on one version also keeps the generated VSIX v3
+         metadata identical. -->
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.ComponentModel.Composition" />
+    <Reference Include="System.Design" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+    <!-- Shared VS integration layer: commands, debug launcher, run filter, Open Folder
+         debug target and the classic MEF editor parts. Shared verbatim with SmallBasic.Vsix. -->
+    <ProjectReference Include="..\SmallBasic.VsCommon\SmallBasic.VsCommon.csproj" />
+    <!-- Framework agnostic language layer: LSP models, compiler semantic mapping,
+         document outline and the built-in Small Basic language server. -->
+    <ProjectReference Include="..\SmallBasic.LanguageServices\SmallBasic.LanguageServices.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The legacy language service is the only remaining source file compiled straight
+         into this package. Visual Studio activates it through ProvideObject with
+         RegistrationMethod.CodeBase, which emits "$PackageFolder$\SmallBasic.Ext.dll"
+         for the CLSID, so the COM-visible type must live in the package assembly.
+         Everything it calls into (SmallBasicCodeWindowManager, navigation bar client,
+         MEF attacher) comes from SmallBasic.VsCommon. -->
+    <Compile Include="..\SmallBasic.Vsix\Editor\NavigationBar\SmallBasicLanguageService.cs"
+             Link="Compatibility\Editor\NavigationBar\SmallBasicLanguageService.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="source.extension.vsixmanifest">
+      <SubType>Designer</SubType>
+    </None>
+    <Content Include="..\SmallBasic.Vsix\icon.png">
+      <Link>icon.png</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\..\LICENSE.txt">
+      <Link>LICENSE.txt</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="$(DebugAdapterSource)" Condition="Exists('$(DebugAdapterSource)')">
+      <Link>debugadapter\adapter.js</Link>
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="ToolWindows\Outline\SmallBasicOutlineControl.xaml"
+                      LogicalName="SmallBasic.Ext.ToolWindows.Outline.SmallBasicOutlineControl.xaml" />
+    <Page Remove="ToolWindows\Outline\SmallBasicOutlineControl.xaml" />
+  </ItemGroup>
+
+  <Target Name="SyncSharedVersion" BeforeTargets="BeforeBuild" Condition="Exists('$(VersionSyncScript)')">
+    <Exec Command="node &quot;$(VersionSyncScript)&quot;" ContinueOnError="WarnAndContinue" StandardOutputImportance="low" />
+  </Target>
+
+  <Target Name="ValidateDebugAdapterOutput" BeforeTargets="Build">
+    <Warning
+      Condition="!Exists('$(DebugAdapterSource)')"
+      Text="Small Basic debug adapter was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
+    <Warning
+      Condition="!Exists('$(JavaScriptRunHostSource)')"
+      Text="Small Basic JavaScript run host was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
+  </Target>
+
+  <Target Name="PrepareRunHostForVsix" BeforeTargets="GetVsixSourceItems">
+    <MSBuild
+      Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
+      Targets="Build"
+      Properties="Configuration=$(Configuration);TargetFramework=net48" />
+
+    <PropertyGroup>
+      <BlazorRunHostStaging>$(MSBuildProjectDirectory)\obj\$(Configuration)\vsix\runhost\blazor\</BlazorRunHostStaging>
+    </PropertyGroup>
+    <RemoveDir Directories="$(BlazorRunHostStaging)" />
+    <MSBuild
+      Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
+      Targets="Publish"
+      Properties="Configuration=$(Configuration);TargetFramework=net8.0;PublishDir=$(BlazorRunHostStaging)" />
+
+    <PropertyGroup>
+      <JavaScriptRunHostStaging>$(IntermediateOutputPath)vsix\runhost\javascript\smallbasic-runhost.js</JavaScriptRunHostStaging>
+    </PropertyGroup>
+
+    <MakeDir
+      Directories="$([System.IO.Path]::GetDirectoryName('$(JavaScriptRunHostStaging)'))"
+      Condition="Exists('$(JavaScriptRunHostSource)')" />
+    <Copy
+      SourceFiles="$(JavaScriptRunHostSource)"
+      DestinationFiles="$(JavaScriptRunHostStaging)"
+      SkipUnchangedFiles="true"
+      Condition="Exists('$(JavaScriptRunHostSource)')" />
+
+    <ItemGroup>
+      <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
+      <BlazorRunHostFiles Include="$(BlazorRunHostStaging)**\*" />
+      <Content Include="@(RunHostFiles)">
+        <Link>runhost\csharp\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
+      <Content Include="@(BlazorRunHostFiles)">
+        <Link>runhost\blazor\%(RecursiveDir)%(Filename)%(Extension)</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
+      <Content Include="$(JavaScriptRunHostStaging)" Condition="Exists('$(JavaScriptRunHostStaging)')">
+        <Link>runhost\javascript\smallbasic-runhost.js</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="ExcludeDebugSymbolsFromVsix"
+          BeforeTargets="GenerateFileManifest"
+          Condition="'$(Configuration)' == 'Release'">
+    <ItemGroup>
+      <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="'%(VSIXSourceItem.Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+</Project>

@@ -14,10 +14,10 @@ namespace SmallBasic.Vsix.Commands
     using Microsoft.VisualStudio.Utilities;
 
     /// <summary>
-    /// Installs a command filter on every Small Basic text view so that Ctrl+F5,
-    /// plus classic solution-mode F5 / F10 / F11, run the active .sb file. Open
-    /// Folder debugging must flow to the workspace launch pipeline so the chosen
-    /// .vscode/launch.json profile can select the backend.
+    /// Installs a command filter on every Small Basic text view so classic
+    /// solution-mode F5 / Ctrl+F5 / F10 / F11 run the active .sb file. Every
+    /// Open Folder launch command must flow to the workspace launch pipeline so
+    /// the chosen launch.vs.json profile selects the exact backend.
     /// </summary>
     [Export(typeof(ITextViewCreationListener))]
     [Name("SmallBasic Run Command Filter")]
@@ -112,10 +112,9 @@ namespace SmallBasic.Vsix.Commands
             {
                 Services.SmallBasicDiagnostics.Write($"[command filter] exec cmdId={nCmdID} openFolder={isOpenFolderWorkspace}");
 
-                // In Open Folder mode F5/F10/F11 must stay with Visual Studio's
-                // workspace launch pipeline so the selected .vscode/launch.json
-                // profile decides whether C#, JavaScript or Blazor is used.
-                // Ctrl+F5 remains local and reuses the current backend.
+                // In Open Folder mode F5/Ctrl+F5/F10/F11 must stay with Visual
+                // Studio's workspace launch pipeline. It supplies the selected
+                // launch.vs.json profile and adds noDebug=true for Ctrl+F5.
                 if (!ShouldHandleCommand(nCmdID, isOpenFolderWorkspace))
                 {
                     return this.ForwardExec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
@@ -168,15 +167,15 @@ namespace SmallBasic.Vsix.Commands
 
         private static bool ShouldHandleCommand(uint commandId, bool isOpenFolderWorkspace)
         {
-            if (commandId == (uint)VSConstants.VSStd97CmdID.StartNoDebug)
+            if (isOpenFolderWorkspace)
             {
-                return true;
+                return false;
             }
 
-            return !isOpenFolderWorkspace
-                && (commandId == (uint)VSConstants.VSStd97CmdID.Start
+            return commandId == (uint)VSConstants.VSStd97CmdID.Start
+                    || commandId == (uint)VSConstants.VSStd97CmdID.StartNoDebug
                     || commandId == (uint)VSConstants.VSStd97CmdID.StepInto
-                    || commandId == (uint)VSConstants.VSStd97CmdID.StepOver);
+                    || commandId == (uint)VSConstants.VSStd97CmdID.StepOver;
         }
 
         private bool IsDebuggerActive()

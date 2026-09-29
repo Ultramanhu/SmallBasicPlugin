@@ -65,9 +65,9 @@ function versionInfoContent(version) {
     "namespace SmallBasic.Vsix",
     "{",
     "    /// <summary>Product version shared by the Visual Studio and VS Code extensions.</summary>",
-    "    internal static class SmallBasicVersion",
+    "    public static class SmallBasicVersion",
     "    {",
-    `        internal const string Value = "${version}";`,
+    `        public const string Value = "${version}";`,
     "    }",
     "}",
     "",
@@ -108,14 +108,22 @@ export function syncRepositoryVersion() {
     updated
   );
 
-  // Visual Studio in-product version shown in Help > About.
+  syncTextFile(
+    "visual_studio_plugin/src/SmallBasic.Ext/source.extension.vsixmanifest",
+    (content) => content.replace(/(<Identity\b[^>]*?\bVersion=")[^"]*(")/, `$1${version}$2`),
+    updated
+  );
+
+  // Visual Studio in-product version shown in Help > About. It lives in the shared
+  // Visual Studio integration library so both the classic and the Extensibility
+  // package read the very same constant.
   if (
     writeIfChanged(
-      path.join(repositoryRoot, "visual_studio_plugin/src/SmallBasic.Vsix/VersionInfo.g.cs"),
+      path.join(repositoryRoot, "visual_studio_plugin/src/SmallBasic.VsCommon/VersionInfo.g.cs"),
       versionInfoContent(version)
     )
   ) {
-    updated.push("visual_studio_plugin/src/SmallBasic.Vsix/VersionInfo.g.cs");
+    updated.push("visual_studio_plugin/src/SmallBasic.VsCommon/VersionInfo.g.cs");
   }
 
   // README documents the packaged VSIX file names.
@@ -124,7 +132,8 @@ export function syncRepositoryVersion() {
     (content) =>
       content
         .replace(/SmallBasic\.VSCode-\d+\.\d+\.\d+\.vsix/g, `SmallBasic.VSCode-${version}.vsix`)
-        .replace(/SmallBasic\.Vsix\.\d+\.\d+\.\d+\.vsix/g, `SmallBasic.Vsix.${version}.vsix`),
+        .replace(/SmallBasic\.Vsix\.\d+\.\d+\.\d+\.vsix/g, `SmallBasic.Vsix.${version}.vsix`)
+        .replace(/SmallBasic\.Ext\.\d+\.\d+\.\d+\.vsix/g, `SmallBasic.Ext.${version}.vsix`),
     updated
   );
 

@@ -55,6 +55,9 @@ namespace SmallBasic.Vsix.Commands
 
         public static void Run(string filePath, SmallBasicBackend backend)
         {
+            // Preserve the exact backend the user requested even if validation
+            // rejects this program. A later classic-mode Ctrl+F5 must retry that
+            // backend and report the same error, never fall back to an older one.
             SelectedBackend = backend;
             RememberSmallBasicDocument(filePath);
 
@@ -91,6 +94,7 @@ namespace SmallBasic.Vsix.Commands
 
         public static void Debug(string filePath, SmallBasicBackend backend, bool stopOnEntry)
         {
+            // See Run: selection records user intent, not last successful launch.
             SelectedBackend = backend;
             RememberSmallBasicDocument(filePath);
 
@@ -192,10 +196,10 @@ namespace SmallBasic.Vsix.Commands
             }
 
             MessageBox.Show(
-                "JavaScript 后端不支持 GraphicsWindow、Shapes、Turtle 或其他图形库。请改用 C# 后端。",
+                "JavaScript 后端不支持 GraphicsWindow、Shapes、Turtle 或其他图形库。已取消启动，不会自动切换到其他后端。请明确选择 C# 或 Blazor 后端后再试。",
                 "Small Basic",
                 MessageBoxButton.OK,
-                MessageBoxImage.Information);
+                MessageBoxImage.Error);
             return false;
         }
 

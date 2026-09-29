@@ -11,12 +11,12 @@ namespace SmallBasic.Vsix.Workspace
 
     /// <summary>
     /// Registers the "smallbasic" launch type with the Open Folder machinery so
-    /// .vscode/launch.json configurations of that type become launchable debug
+    /// launch.vs.json configurations of that type become launchable debug
     /// targets (mirrors Python Tools' two-provider pattern).
     /// </summary>
     [ExportLaunchConfigurationProvider(
         ConfigurationProviderType,
-        new[] { ".sb", ".json" },
+        new[] { ".sb" },
         "smallbasic",
         SchemaJson,
         false,
@@ -34,6 +34,7 @@ namespace SmallBasic.Vsix.Workspace
         ""program"": { ""type"": ""string"" },
         ""target"": { ""type"": ""string"" },
         ""backend"": { ""type"": ""string"", ""enum"": [ ""csharp"", ""javascript"", ""blazor"" ] },
+        ""noDebug"": { ""type"": ""boolean"" },
         ""stopOnEntry"": { ""type"": ""boolean"" }
       }
     },
@@ -54,16 +55,18 @@ namespace SmallBasic.Vsix.Workspace
 
         public void CustomizeLaunchConfiguration(DebugLaunchActionContext debugLaunchActionContext, IPropertySettings launchSettings)
         {
-            if (launchSettings.GetValue("backend", string.Empty).Length == 0)
-            {
-                ((IDictionary<string, object>)launchSettings)["backend"] = "csharp";
-            }
+            // Do not silently inject a backend here. Visual Studio can call this
+            // method for a named launch.vs.json profile after dropping some of
+            // its custom fields. Injecting C# in that case turns an invalid or
+            // incomplete JavaScript/Blazor profile into a different platform.
+            // The target provider resolves known profile names and reports every
+            // other missing/invalid backend explicitly.
         }
     }
 
     /// <summary>
     /// Handles Open Folder debug targets for Small Basic. Launch configurations
-    /// whose type is "smallbasic" (.vscode/launch.json) carry the backend to use;
+    /// whose type is "smallbasic" (launch.vs.json) carry the backend to use;
     /// the auto-generated "current document" target for .sb files falls back to
     /// the C# backend. Launching reuses the shared per-backend adapter launcher.
     /// </summary>
@@ -109,13 +112,18 @@ namespace SmallBasic.Vsix.Workspace
             IPropertySettings launchConfiguration = debugLaunchActionContext.LaunchConfiguration;
             string program = launchConfiguration.GetValue("program", string.Empty);
             string target = launchConfiguration.GetValue("target", string.Empty);
-            Services.SmallBasicDiagnostics.Write($"[launch provider] LaunchDebugTarget backend='{launchConfiguration.GetValue("backend", string.Empty)}' program='{program}' name='{launchConfiguration.GetValue("name", string.Empty)}'");
+            bool noDebug = launchConfiguration.GetValue("noDebug", false);
+            Services.SmallBasicDiagnostics.Write($"[launch provider] LaunchDebugTarget backend='{launchConfiguration.GetValue("backend", string.Empty)}' program='{program}' name='{launchConfiguration.GetValue("name", string.Empty)}' noDebug={noDebug}");
 
             string configurationName = launchConfiguration.GetValue("name", string.Empty);
-            SmallBasicBackend backend = ResolveBackend(
+            bool backendResolved = TryResolveBackend(
                 launchConfiguration.GetValue("backend", string.Empty),
-                configurationName);
+                configurationName,
+                out SmallBasicBackend backend,
+                out string backendError);
             bool stopOnEntry = launchConfiguration.GetValue("stopOnEntry", false);
+            bool usesCurrentDocument = program.IndexOf("${file}", StringComparison.OrdinalIgnoreCase) >= 0
+                || IsCurrentDocumentProfileName(configurationName);
 
             // The workspace machinery may invoke this on a background thread;
             // DTE access and the launch itself require the main thread.
@@ -123,11 +131,21 @@ namespace SmallBasic.Vsix.Workspace
             {
                 await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync();
 
-                string resolvedProgram = ResolveProgramPath(workspaceContext, program, target);
+                if (!backendResolved)
+                {
+                    System.Windows.MessageBox.Show(
+                        backendError,
+                        "Small Basic",
+                        System.Windows.MessageBoxButton.OK,
+                        System.Windows.MessageBoxImage.Error);
+                    return;
+                }
+
+                string resolvedProgram = ResolveProgramPath(workspaceContext, program, target, usesCurrentDocument);
                 if (string.IsNullOrEmpty(resolvedProgram))
                 {
                     System.Windows.MessageBox.Show(
-                        "无法确定要调试的 Small Basic 程序文件。请先激活一个 .sb 文件，或在 .vscode/launch.json 的该配置中把 program 设为 ${file} 或具体的 .sb 路径。",
+                        "无法确定要调试的 Small Basic 程序文件。请先激活一个 .sb 文件，或在 launch.vs.json 的该配置中把 program 设为 ${file} 或具体的 .sb 路径。",
                         "Small Basic",
                         System.Windows.MessageBoxButton.OK,
                         System.Windows.MessageBoxImage.Information);
@@ -154,44 +172,107 @@ namespace SmallBasic.Vsix.Workspace
                     return;
                 }
 
-                SmallBasicCommandService.Debug(Path.GetFullPath(resolvedProgram), backend, stopOnEntry);
+                string fullProgramPath = Path.GetFullPath(resolvedProgram);
+                if (noDebug)
+                {
+                    SmallBasicCommandService.Run(fullProgramPath, backend);
+                }
+                else
+                {
+                    SmallBasicCommandService.Debug(fullProgramPath, backend, stopOnEntry);
+                }
             });
         }
 
-        private static SmallBasicBackend ResolveBackend(string backend, string configurationName)
+        private static bool TryResolveBackend(
+            string backend,
+            string configurationName,
+            out SmallBasicBackend resolvedBackend,
+            out string error)
         {
+            error = string.Empty;
+
+            if (string.Equals(backend, "csharp", StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedBackend = SmallBasicBackend.CSharp;
+                return true;
+            }
+
             if (string.Equals(backend, "javascript", StringComparison.OrdinalIgnoreCase))
             {
-                return SmallBasicBackend.JavaScript;
+                resolvedBackend = SmallBasicBackend.JavaScript;
+                return true;
             }
 
             if (string.Equals(backend, "blazor", StringComparison.OrdinalIgnoreCase))
             {
-                return SmallBasicBackend.Blazor;
+                resolvedBackend = SmallBasicBackend.Blazor;
+                return true;
             }
 
+            if (!string.IsNullOrWhiteSpace(backend))
+            {
+                resolvedBackend = default;
+                error = $"Small Basic 调试配置中的 backend 值“{backend}”无效。仅支持 csharp、javascript 或 blazor；已取消启动，不会自动切换到其他后端。";
+                return false;
+            }
+
+            // Visual Studio's Open Folder pipeline can omit custom properties
+            // when it materializes a named launch.vs.json profile. Recover only
+            // an unambiguous backend encoded by one of our standard profile
+            // names; never consult mutable global selection state as fallback.
             if (configurationName.IndexOf("javascript", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return SmallBasicBackend.JavaScript;
+                resolvedBackend = SmallBasicBackend.JavaScript;
+                return true;
             }
 
             if (configurationName.IndexOf("blazor", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return SmallBasicBackend.Blazor;
+                resolvedBackend = SmallBasicBackend.Blazor;
+                return true;
             }
 
             if (configurationName.IndexOf("c#", StringComparison.OrdinalIgnoreCase) >= 0
                 || configurationName.IndexOf("csharp", StringComparison.OrdinalIgnoreCase) >= 0)
             {
-                return SmallBasicBackend.CSharp;
+                resolvedBackend = SmallBasicBackend.CSharp;
+                return true;
             }
 
-            return SmallBasicCommandService.SelectedBackend;
+            if (IsSmallBasicProfileName(configurationName))
+            {
+                resolvedBackend = default;
+                error = $"Small Basic 调试配置“{configurationName}”没有指定有效的 backend。请设置为 csharp、javascript 或 blazor；已取消启动，不会自动选择其他后端。";
+                return false;
+            }
+
+            // Visual Studio's generated "Current Document" target has no named
+            // Small Basic profile or backend field. Its documented fixed default
+            // is C#, independent of whichever backend ran previously.
+            resolvedBackend = SmallBasicBackend.CSharp;
+            return true;
         }
 
-        private static string ResolveProgramPath(IWorkspace workspaceContext, string program, string target)
+        private static string ResolveProgramPath(
+            IWorkspace workspaceContext,
+            string program,
+            string target,
+            bool usesCurrentDocument)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+
+            // Visual Studio requires "project" to resolve to an existing file or
+            // directory before it exposes a launch.vs.json profile. Our checked-in
+            // profiles use "." as a portable workspace anchor; it must never replace
+            // the active Small Basic document selected by program="${file}".
+            // VS can omit custom fields such as program/backend when launching a
+            // profile, so the profile name is also used to preserve this behavior.
+            if (usesCurrentDocument)
+            {
+                return GetPreferredSmallBasicDocument();
+            }
+
             string resolvedTarget = ResolvePathCandidate(workspaceContext, target);
 
             if (string.IsNullOrWhiteSpace(program))
@@ -202,33 +283,6 @@ namespace SmallBasic.Vsix.Workspace
                 }
 
                 string activeDocument = GetPreferredSmallBasicDocument();
-                if (!string.IsNullOrEmpty(activeDocument))
-                {
-                    return activeDocument;
-                }
-
-                return resolvedTarget;
-            }
-
-            // "${file}" is a VS Code variable that Visual Studio's launch
-            // configuration pipeline does not evaluate; resolve it against the
-            // active Small Basic document (or the only open .sb document),
-            // matching what the configs in .vscode/launch.json express.
-            if (program.IndexOf("${file}", StringComparison.OrdinalIgnoreCase) >= 0)
-            {
-                string activeDocument = GetPreferredSmallBasicDocument();
-                string resolvedProgram = program.Replace("${file}", activeDocument ?? string.Empty);
-                resolvedProgram = ResolvePathCandidate(workspaceContext, resolvedProgram);
-                if (HasSmallBasicProgramExtension(resolvedProgram))
-                {
-                    return resolvedProgram;
-                }
-
-                if (HasSmallBasicProgramExtension(resolvedTarget))
-                {
-                    return resolvedTarget;
-                }
-
                 if (!string.IsNullOrEmpty(activeDocument))
                 {
                     return activeDocument;
@@ -288,7 +342,12 @@ namespace SmallBasic.Vsix.Workspace
         }
 
         private static bool IsSmallBasicProfileName(string configurationName)
-            => configurationName.StartsWith("SmallBasic:", StringComparison.OrdinalIgnoreCase);
+            => configurationName.StartsWith("SmallBasic:", StringComparison.OrdinalIgnoreCase)
+                || configurationName.StartsWith("SmallBasic [", StringComparison.OrdinalIgnoreCase);
+
+        private static bool IsCurrentDocumentProfileName(string configurationName)
+            => IsSmallBasicProfileName(configurationName)
+                && configurationName.IndexOf("current file", StringComparison.OrdinalIgnoreCase) >= 0;
 
         private static bool HasSmallBasicProgramExtension(string filePath)
             => string.Equals(Path.GetExtension(filePath), ".sb", StringComparison.OrdinalIgnoreCase);
@@ -300,7 +359,13 @@ namespace SmallBasic.Vsix.Workspace
                 return false;
             }
 
-            return string.Equals(Path.GetFileName(targetFilePath), "launch.json", StringComparison.OrdinalIgnoreCase)
+            string fileName = Path.GetFileName(targetFilePath);
+            if (string.Equals(fileName, "launch.vs.json", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            return string.Equals(fileName, "launch.json", StringComparison.OrdinalIgnoreCase)
                 && string.Equals(Path.GetFileName(Path.GetDirectoryName(targetFilePath)), ".vscode", StringComparison.OrdinalIgnoreCase);
         }
 

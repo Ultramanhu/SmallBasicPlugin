@@ -16,6 +16,7 @@ type ExtensionManifest = {
         launch?: {
           properties?: {
             backend?: { default?: string; enum?: string[] };
+            mode?: { default?: string; enum?: string[] };
             stopOnEntry?: { default?: boolean };
           };
         };
@@ -52,6 +53,13 @@ describe("VS Code extension manifest", () => {
     expect(
       debuggerContribution?.configurationAttributes?.launch?.properties?.backend?.default
     ).toBeUndefined();
+  });
+
+  it("offers cli and web launch modes with cli as the desktop default", () => {
+    const mode = manifest.contributes?.debuggers?.[0]
+      ?.configurationAttributes?.launch?.properties?.mode;
+    expect(mode?.enum).toEqual(["cli", "web"]);
+    expect(mode?.default).toBe("cli");
   });
 
   it("publishes a browser entry point for VS Code for the Web", () => {

@@ -3,7 +3,7 @@
   "displayName": "SmallBasic for Visual Studio Code",
   "icon": "media/icon.png",
   "description": "Microsoft SmallBasic Support for Visual Studio Code",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "publisher": "ultramanhu",
   "private": true,
   "license": "MIT",
@@ -145,7 +145,16 @@
                   "csharp",
                   "blazor"
                 ],
-                "description": "Backend to launch. Blazor runs text-only programs in the terminal and opens a browser only for GraphicsWindow/Shapes/Turtle programs. In VS Code for the Web, Blazor runs (no debugging) inside a webview."
+                "description": "Backend to launch. JavaScript and Blazor support both cli and web modes; C# supports cli mode only."
+              },
+              "mode": {
+                "type": "string",
+                "enum": [
+                  "cli",
+                  "web"
+                ],
+                "default": "cli",
+                "description": "Execution surface. cli uses the local command-line/debug host; web runs without debugging in the browser Webview. VS Code for the Web always uses web mode."
               },
               "stopOnEntry": {
                 "type": "boolean",
@@ -164,7 +173,8 @@
               "name": "SmallBasic: Debug current file with JavaScript backend",
               "program": "${file}",
               "backend": "javascript",
-              "stopOnEntry": false
+              "mode": "cli",
+              "stopOnEntry": true
             }
           },
           {
@@ -175,7 +185,8 @@
               "name": "SmallBasic: Debug current file with C# backend",
               "program": "${file}",
               "backend": "csharp",
-              "stopOnEntry": false
+              "mode": "cli",
+              "stopOnEntry": true
             }
           },
           {
@@ -186,7 +197,32 @@
               "name": "SmallBasic: Debug current file with Blazor backend",
               "program": "${file}",
               "backend": "blazor",
-              "stopOnEntry": false
+              "mode": "cli",
+              "stopOnEntry": true
+            }
+          },
+          {
+            "label": "SmallBasic: Run current file in Webview with JavaScript backend",
+            "body": {
+              "type": "smallbasic",
+              "request": "launch",
+              "name": "SmallBasic: Run current file in Webview with JavaScript backend",
+              "program": "${file}",
+              "backend": "javascript",
+              "mode": "web",
+              "stopOnEntry": true
+            }
+          },
+          {
+            "label": "SmallBasic: Run current file in Webview with Blazor backend",
+            "body": {
+              "type": "smallbasic",
+              "request": "launch",
+              "name": "SmallBasic: Run current file in Webview with Blazor backend",
+              "program": "${file}",
+              "backend": "blazor",
+              "mode": "web",
+              "stopOnEntry": true
             }
           }
         ]

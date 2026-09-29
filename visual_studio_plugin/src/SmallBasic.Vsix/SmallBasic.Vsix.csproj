@@ -11,7 +11,8 @@
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <UseCodebase>true</UseCodebase>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
-    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer Condition="'$(Configuration)' == 'Debug'">true</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer Condition="'$(Configuration)' != 'Debug'">false</IncludeDebugSymbolsInVSIXContainer>
     <!-- Let VSSDK BuildTools create the complete VSIX v3 package, including
          manifest.json, catalog.json, extensionDir, hashes and dependencies. -->
     <CreateVsixContainer>true</CreateVsixContainer>
@@ -23,10 +24,15 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
-    <StartAction>Program</StartAction>
-    <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
-    <StartArguments>/RootSuffix Exp</StartArguments>
+    <!-- Use the VSIX debugger supplied by VSSDK BuildTools.  It builds and
+         deploys the current VSIX to the experimental instance before starting
+         that instance, then attaches the managed debugger to its devenv.exe.
+         A generic Program launch only starts /RootSuffix Exp and can therefore
+         load a previously installed VSIX instead of the one just built. -->
+    <DebuggerFlavor>VsixDebugger</DebuggerFlavor>
+    <VsixDeployOnDebug>true</VsixDeployOnDebug>
+    <VSSDKTargetPlatformRegRootSuffix>Exp</VSSDKTargetPlatformRegRootSuffix>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>true</IncludeDebugSymbolsInLocalVSIXDeployment>
   </PropertyGroup>
 
   <PropertyGroup>
@@ -55,6 +61,9 @@
   <ItemGroup>
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+    <!-- Shared VS integration layer (commands / debug launcher / MEF editor parts)
+         with the VisualStudio.Extensibility package. -->
+    <ProjectReference Include="..\SmallBasic.VsCommon\SmallBasic.VsCommon.csproj" />
   </ItemGroup>
 
   <ItemGroup>

@@ -1,6 +1,6 @@
 /**
- * HTML document that hosts the Blazor WebAssembly backend inside a VS Code
- * webview (used by src/web/blazor-webview.ts).
+ * HTML document that hosts the JavaScript and Blazor WebAssembly backends inside
+ * a VS Code webview (used by src/web/blazor-webview.ts).
  *
  * Kept free of the `vscode` module on purpose: the document is a pure function of
  * the CSP source and the base URI, which keeps it unit-testable and lets the same
@@ -31,6 +31,9 @@ export interface WebviewHtmlOptions {
    * visual_studio_plugin/src/SmallBasic.Blazor.Client/wwwroot/vscode-webview.js.
    */
   payloadUri: string;
+
+  /** Absolute webview URI of the bundled browser JavaScript runtime. */
+  javascriptUri: string;
 
   title?: string;
 }
@@ -64,7 +67,7 @@ export function buildContentSecurityPolicy(cspSource: string): string {
 }
 
 export function buildWebviewHtml(options: WebviewHtmlOptions): string {
-  const title = options.title ?? "Small Basic (Blazor WASM)";
+  const title = options.title ?? "Small Basic (Web)";
   const payload = options.payloadUri.endsWith("/") ? options.payloadUri.slice(0, -1) : options.payloadUri;
 
   // No inline script or style anywhere: the CSP above only allows the webview's
@@ -83,17 +86,25 @@ export function buildWebviewHtml(options: WebviewHtmlOptions): string {
 <section class="web-pane web-output-pane" id="output-pane">
 <div class="web-pane-header">
 <span class="web-pane-title">Small Basic</span>
-<span class="web-pane-note" id="output-note">Blazor WASM 后端：GraphicsWindow 绘制在下方，TextWindow 输出同时写入“输出”面板与 webview 控制台。</span>
+<span class="web-pane-note" id="output-note"></span>
 </div>
+<pre class="web-console" id="console" hidden></pre>
+<form class="web-input-row" hidden id="input-row">
+<span id="input-prompt">Read</span>
+<input autocomplete="off" id="input-field" type="text" />
+<button type="submit">Send</button>
+</form>
 <div class="web-blazor-host" id="blazor-host">
 <div id="app"></div>
 </div>
+<div class="web-diagnostics" hidden id="diagnostics"></div>
 </section>
 </div>
 <div id="blazor-error-ui">
 运行 Small Basic Blazor WASM 后端时发生未处理的错误。
 <span class="dismiss">🗙</span>
 </div>
+<script src="${options.javascriptUri}"></script>
 <script src="${payload}/_framework/blazor.webassembly.js" autostart="false"></script>
 <script src="${payload}/vscode-webview.js"></script>
 </body>

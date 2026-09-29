@@ -5,10 +5,17 @@
 > **2026-09-28 现状校准**
 >
 > - 已落地 **经典 VSIX + MEF 编辑器扩展 + AsyncPackage/VSCT 命令**，并通过 Visual Studio Debug Adapter Host 接入 **C#、JavaScript、Blazor 三套 DAP**。
-> - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，只收录 `src/SmallBasic.Vsix`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Vsix 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
+> - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，收录 `src/SmallBasic.Vsix`、`src/SmallBasic.Ext`、`src/SmallBasic.VsCommon`、`src/SmallBasic.LanguageServices`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests`、`tests/SmallBasic.Ext.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Vsix/Ext 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
 > - VSIX 主项目只有 `Commands/`、`Services/`、`Editor/` 三类代码；`Editor/` 内含分类、补全、QuickInfo、Squiggle（错误列表）、大纲折叠、文档大纲工具窗、原生导航栏与调试内联值。**没有** `Templates/`、`Resources/`（无项模板），`Editor/Breadcrumb/` 为空目录。
-> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（`.vscode/launch.json` 的 `smallbasic` 配置按其 `backend` 生效）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口（共 7 项，含 Show Document Outline）。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
+> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（仓库根 `launch.vs.json` 的 `smallbasic` 配置按其 `backend` 生效；`.vscode/launch.json` 仅供 VS Code 使用）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口（共 6 项；文档大纲工具窗只在新框架路线 `SmallBasic.Ext` 里提供，经典包没有该命令）。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
 > - C# 运行/调试用随 VSIX 分发的 `net48` 宿主，支持图形；JS 路径只捆 `runhost/javascript` bundle 并依赖外部 Node.js 20+，不支持图形；Blazor 路径用 `dotnet ...SmallBasic.Blazor.RunHost.dll`，跨平台提供图形。
+>
+> **2026-09-30 补充（与新框架路线共用代码）**
+>
+> - Visual Studio 侧新增了第二条路线 `src/SmallBasic.Ext`（VisualStudio.Extensibility in-proc + 内置 LSP server），详见 [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md)。
+> - 本文描述的命令/调试/分类器/折叠/导航栏/内联值等实现已**物理移动到公共库 `src/SmallBasic.VsCommon`（net48）**，由 `SmallBasic.Vsix` 与 `SmallBasic.Ext` 共同引用；两个包都把该程序集声明为 MEF 组件。命名空间仍是 `SmallBasic.Vsix.*`，因此本文其余章节的路径描述需要按“`src/SmallBasic.Vsix/...` → `src/SmallBasic.VsCommon/...`”理解。
+> - 唯一例外：`SmallBasicLanguageService.cs` 必须留在包程序集（`ProvideObject` + `RegistrationMethod.CodeBase` 会把 CLSID 指向包程序集），详见 11 文档 6.3。
+> - 补全 / QuickInfo / Squiggle 仍只属于经典路线，位于 `src/SmallBasic.Vsix/Editor/{Completion,QuickInfo,Squiggles}`；新框架路线改用 LSP 提供同等能力。
 
 ## 1. 技术路线选择
 
@@ -28,26 +35,37 @@ visual_studio_plugin/
 ├── SmallBasic.VisualStudio.slnx           # 新格式解决方案（收录 Vsix / RunHost / Compiler.Tests / vendor Compiler+Utilities）
 ├── Directory.Build.props                  # LangVersion=latest；Nullable=enable；抑制部分告警
 ├── src/
-│   ├── SmallBasic.Vsix/                   # VSIX 主项目（net48，VS SDK）
-│   │   ├── source.extension.vsixmanifest
-│   │   ├── SmallBasicPackage.cs           # AsyncPackage 入口 + ProvideMenuResource/ProvideToolWindow/ProvideLanguageService
-│   │   ├── Menus.vsct                     # Tools → Small Basic 子菜单（7 个命令）
-│   │   ├── Commands/
-│   │   │   ├── SmallBasicBackend.cs       # 后端枚举 CSharp / JavaScript / Blazor
-│   │   │   ├── SmallBasicCommandService.cs# 三后端“运行”实现
-│   │   │   ├── SmallBasicDebugLauncher.cs # DebugAdapterHost.Launch + 生成临时 launch.json
-│   │   │   └── SmallBasicRunCommandFilter.cs # F5 / Ctrl+F5 / F10 / F11 转发
-│   │   ├── Services/SmallBasicCompilationService.cs  # 编译缓存（ITextBuffer → SmallBasicCompilation）
+│   ├── SmallBasic.VsCommon/               # 公共库（net48）：两条 VS 路线共享的 VS 集成层
+│   │   ├── Commands/                      # SmallBasicBackend / CommandService / DebugLauncher / RunCommandFilter
+│   │   ├── Services/                      # 编译缓存（ITextBuffer → SmallBasicCompilation）、输出窗口诊断
+│   │   ├── Workspace/                     # SmallBasicLaunchDebugTargetProvider（Open Folder 调试目标）
+│   │   ├── Editor/
+│   │   │   ├── ContentType.cs             # "smallbasic" content type，.sb 关联
+│   │   │   ├── Classification/            # SmallBasicClassifier / SimpleLexer / Formats / Provider
+│   │   │   ├── Outlining/                 # OutliningTagger + Provider（折叠）
+│   │   │   ├── NavigationBar/             # 原生导航栏（IVsDropdownBarClient，不含 SmallBasicLanguageService）
+│   │   │   └── Debugging/                 # SmallBasicInlineValuesAdornment（调试内联值）
+│   │   ├── Properties/AssemblyInfo.cs     # InternalsVisibleTo(SmallBasic.Vsix / SmallBasic.Ext)
+│   │   └── VersionInfo.g.cs               # 由 version.json 生成
+│   ├── SmallBasic.LanguageServices/       # 公共库（netstandard2.0）：LSP 与大纲语言层
+│   │   ├── Lsp/                           # LSP 模型 / 编译语义映射 / Content-Length 帧 / 内置 server
+│   │   └── Outline/                       # SmallBasicOutlineBuilder（编译器大纲 → 工具窗树形数据）
+│   ├── SmallBasic.Vsix/                   # 经典 VSIX 主项目（net48，VS SDK）
+│   │   ├── source.extension.vsixmanifest   # MefComponent: SmallBasic.Vsix.dll + SmallBasic.VsCommon.dll
+│   │   ├── SmallBasicPackage.cs           # AsyncPackage 入口 + ProvideMenuResource/ProvideLanguageService
+│   │   ├── Menus.vsct                     # Tools → Small Basic 子菜单（运行/调试 6 个命令）
 │   │   └── Editor/
-│   │       ├── ContentType.cs             # "smallbasic" content type，.sb 关联
-│   │       ├── Classification/            # SmallBasicClassifier / SimpleLexer / Formats / Provider
 │   │       ├── Completion/                # CompletionSource / Snippet / CommitManager / Provider
 │   │       ├── QuickInfo/                 # IAsyncQuickInfoSource（悬停）
 │   │       ├── Squiggles/                 # ITagger<IErrorTag>（错误列表）
-│   │       ├── Outlining/                 # OutliningTagger + StructureTagger（折叠 + 结构）
-│   │       ├── Outline/                   # 文档大纲工具窗（TreeView + 跳转）
-│   │       ├── NavigationBar/             # 原生导航栏（极简语言服务 + IVsDropdownBarClient）
-│   │       └── Debugging/                 # SmallBasicInlineValuesAdornment（调试内联值）
+│   │       └── NavigationBar/SmallBasicLanguageService.cs   # 必须留在包程序集，见 11 文档 6.3
+│   ├── SmallBasic.Ext/                    # VisualStudio.Extensibility 替代实现（net48）
+│   │   ├── source.extension.vsixmanifest   # ExtensionType=VSSDK+VisualStudio.Extensibility
+│   │   ├── SmallBasicExtension.cs         # Extension 入口 + DI
+│   │   ├── SmallBasicExtPackage.cs        # 最小兼容 AsyncPackage（语言服务注册链）
+│   │   ├── Commands/                      # MenuConfiguration + 六个运行/调试命令 + Show Document Outline
+│   │   ├── LanguageServer/                # SmallBasicLanguageServerProvider（LSP 客户端接线）
+│   │   └── ToolWindows/Outline/           # Remote UI 大纲工具窗（Control/XAML/ViewModel）
 │   ├── SmallBasic.RunHost/                # 运行/调试宿主，多目标 net48;net8.0;net8.0-windows
 │   │   ├── Program.cs                     # run --file <f.sb> [--pause] / debug
 │   │   ├── Libraries/                     # GraphicsWindow/Shapes/Turtle/TextWindow/... + UnsupportedLibraries
@@ -56,8 +74,10 @@ visual_studio_plugin/
 │   ├── SmallBasic.Blazor.Client/          # WASM：引擎会话、图形库、SVG/Canvas 渲染
 │   └── SmallBasic.Blazor.RunHost/         # Kestrel 宿主 + 会话 API + WebSocket 桥 + DAP
 ├── tests/SmallBasic.Compiler.Tests/       # net8.0-windows，xunit 2.9.2 + FluentAssertions 7.0.0
+├── tests/SmallBasic.Ext.Tests/            # net8.0，直接引用 SmallBasic.LanguageServices 做单元与 LSP 协议测试
 ├── vendor/SmallBasicEditor/Source/        # 拷贝升级的编译器/引擎/分析器（netstandard2.0）+ UPSTREAM.md
-└── build/Package-Vsix.ps1                 # 打包脚本（含载荷校验）
+├── build/Package-Vsix.ps1                 # 经典包打包脚本（含载荷与 MEF 资产校验）
+└── build/Package-Ext-Vsix.ps1             # 新框架包打包脚本
 ```
 
 > `SmallBasic.Blazor.*` 三件套未列入 `.slnx`，由 Vsix 项目的 `PrepareRunHostForVsix` Target 通过 `dotnet publish -f net8.0` 发布到 `runhost/blazor` 后再收入 VSIX。
@@ -137,9 +157,9 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 
 ## 6. 调试接入
 
-- `SmallBasicDebugLauncher` 通过 DTE 执行 `DebugAdapterHost.Launch /LaunchJson:"<path>"`，并在 `%TEMP%\SmallBasicPlugin\Debug\` 生成 `launch-csharp.json` / `launch-javascript.json` / `launch-blazor.json`（键：`$adapter`、`$adapterArgs`、`name`、`type="smallbasic"`、`request="launch"`、`program`、`stopOnEntry`）。
+- `SmallBasicDebugLauncher` 通过 DTE 执行 `DebugAdapterHost.Launch /LaunchJson:"<path>" /ConfigurationName:"<name>"`，并在 `%TEMP%\SmallBasicPlugin\Debug\` 生成 `launch-csharp.json` / `launch-javascript.json` / `launch-blazor.json`；文件采用标准 `launch.vs.json` 形状（`version` / `defaults` / `configurations[]`），其中配置项包含 `$adapter`、`$adapterArgs`、`name`、`type="smallbasic"`、`request="launch"`、`program`、`stopOnEntry`，JS/Blazor 额外使用 `$adapterRuntime` 指向 `node.exe` / `dotnet.exe`。
 - 适配器：C# → `runhost\csharp\SmallBasic.RunHost.exe debug`；Blazor → `dotnet "<...>runhost\blazor\SmallBasic.Blazor.RunHost.dll" debug`；JS → `node "<...>debugadapter\adapter.js"`（外部 Node 20+）。
-- **打开文件夹**模式下由 `SmallBasicLaunchDebugTargetProvider`（`ILaunchDebugTargetProvider2`，MEF 导出，`Microsoft.VisualStudio.Workspace` 包编译期引用）接管调试目标：`.vscode/launch.json` 中 `type="smallbasic"` 的配置按其 `backend` 字段路由到对应适配器，`${file}` 解析为活动 .sb 文档；无 launch.json 时"当前文档"目标按扩展名 `.sb` 匹配并默认 C# 后端。此时命令过滤器放行 `F5`/`F10`/`F11`，仅拦截 `Ctrl+F5`。
+- **打开文件夹**模式下由 `SmallBasicLaunchDebugTargetProvider`（`ILaunchDebugTargetProvider2`，MEF 导出，`Microsoft.VisualStudio.Workspace` 包编译期引用）接管调试目标：`launch.vs.json` 中 `type="smallbasic"` 的配置按其 `backend` 字段路由到对应适配器，`${file}` 解析为活动 .sb 文档；无 `launch.vs.json` 时"当前文档"目标按扩展名 `.sb` 匹配并默认 C# 后端。此时命令过滤器放行 `F5`/`F10`/`F11`，仅拦截 `Ctrl+F5`。
 - 快捷键：解决方案/无工作区时 `F5` 默认 C# 调试（`stopOnEntry=false`）；设计态 `F10`/`F11` 以 `stopOnEntry=true` 启动；调试会话激活期间 `F5/F10/F11` 全部转发给 Debug Adapter Host。
 - net48 C# 调试适配器运行在名为 `Debuggee` 的子 AppDomain 中：官方 `SmallBasicLibrary` 在该域名下跳过 `Process.GetCurrentProcess().Kill()`（原 Small Basic IDE 的宿主约定），关闭图形窗口只会关闭 WPF 调度器；适配器轮询 `GraphicsWindowLibrary.HasShutdown`（反射访问库的内部属性）后会话以退出码 0 正常结束，VS 不再弹"调试适配器已意外退出"。net8.0-windows 宿主（VS Code C# 后端）无 AppDomain 机制，关窗仍会强杀进程。
 - 编辑器当前行高亮、断点 glyph、局部变量/调用栈窗口全部来自 VS 标准调试 UI，零自研 UI；断点吸附由适配器用 `GetExecutableLines()` 实现（见 05）。

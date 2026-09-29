@@ -17,8 +17,8 @@
     ["\"", "\""]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "(?i)^\\s*(if\\b.*\\bthen|for\\b.*\\bto|while\\b|sub\\b).*?$",
-    "decreaseIndentPattern": "(?i)^\\s*(endif|endfor|endwhile|endsub|else|elseif)\\b.*?$"
+    "increaseIndentPattern": "^\\s*([iI][fF]\\b.*\\b[tT][hH][eE][nN]|[fF][oO][rR]\\b.*\\b[tT][oO]|[wW][hH][iI][lL][eE]\\b|[sS][uU][bB]\\b).*?$",
+    "decreaseIndentPattern": "^\\s*([eE][nN][dD][iI][fF]|[eE][nN][dD][fF][oO][rR]|[eE][nN][dD][wW][hH][iI][lL][eE]|[eE][nN][dD][sS][uU][bB]|[eE][lL][sS][eE]|[eE][lL][sS][eE][iI][fF])\\b.*?$"
   },
-  "wordPattern": "[^\\s\\(\\)\\[\\],.:+\-*/=<>']+"
+  "wordPattern": "[^\\s()\\[\\],.:+\\-*/=<>']+"
 }

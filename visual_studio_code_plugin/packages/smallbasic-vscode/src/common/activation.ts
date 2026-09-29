@@ -1,13 +1,14 @@
 import * as vscode from "vscode";
-import { Compilation, resolveDocumentationLocale, setDocumentationLocale } from "smallbasic-lang-core";
+import { resolveDocumentationLocale, setDocumentationLocale } from "smallbasic-lang-core";
 import { registerSmallBasicInlineValues } from "../debug/inline-values";
 import { CompilationCache } from "../language/compilation-cache";
 import { isSmallBasicDocument, publishDiagnostics, registerLanguageFeatures } from "../language/providers";
-import { SmallBasicTerminalSession } from "../run/terminal-session";
+import { runJavaScriptCompilation } from "../run/javascript-runner";
 
 export interface PlatformActivation {
   debugAdapterFactory: vscode.DebugAdapterDescriptorFactory;
   debugConfigurationProvider: vscode.DebugConfigurationProvider;
+  runJavaScript?: () => Promise<void>;
   runCSharp?: () => Promise<void>;
   runBlazor?: () => Promise<void>;
 }
@@ -81,7 +82,11 @@ export function activateCommon(context: vscode.ExtensionContext, platform: Platf
       await createNewFile(resource);
     }),
     vscode.commands.registerCommand("smallbasic.runJavaScript", async () => {
-      await runActiveDocument(cache, diagnostics);
+      if (platform.runJavaScript) {
+        await platform.runJavaScript();
+      } else {
+        await runActiveDocument(cache, diagnostics);
+      }
     })
   ];
 
@@ -163,29 +168,7 @@ async function runActiveDocument(
 
   publishDiagnostics(editor.document, cache, diagnostics);
   const compilation = cache.get(editor.document);
-  if (!compilation.isReadyToRun) {
-    void vscode.window.showErrorMessage("当前程序存在编译错误，请先修复后再运行。");
-    return;
-  }
-
-  if (compilation.kind.drawsShapes()) {
-    void vscode.window.showErrorMessage("当前 JS 后端尚不支持 GraphicsWindow/Shapes/Turtle/Controls 图形宿主。Windows 桌面版请使用 “SmallBasic: Run with C# Backend”。");
-    return;
-  }
-
-  const session = new SmallBasicTerminalSession();
-  const terminal = vscode.window.createTerminal({
-    name: `SmallBasic: ${documentName(editor.document)}`,
-    pty: session
-  });
-
-  terminal.show(true);
-  session.run(compilation as Compilation);
-}
-
-function documentName(document: vscode.TextDocument): string {
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || "program.sb";
+  runJavaScriptCompilation(editor.document, compilation);
 }
 
 function shouldTriggerSuggest(event: vscode.TextDocumentChangeEvent): boolean {

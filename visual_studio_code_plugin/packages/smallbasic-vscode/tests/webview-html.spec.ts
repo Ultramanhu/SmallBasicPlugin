@@ -3,6 +3,7 @@ import { buildContentSecurityPolicy, buildWebviewHtml } from "../src/web/webview
 
 const CSP_SOURCE = "https://file+.vscode-resource.vscode-cdn.net";
 const PAYLOAD = `${CSP_SOURCE}/extensions/ultramanhu.smallbasic-tools-vsc-0.1.3/runhost/blazor/wwwroot`;
+const JAVASCRIPT = `${CSP_SOURCE}/extensions/ultramanhu.smallbasic-tools-vsc-0.1.3/dist/web-runhost.js`;
 
 describe("Blazor webview document", () => {
   it("allows wasm instantiation, the boot fetches and Blazor's inline styles", () => {
@@ -15,8 +16,9 @@ describe("Blazor webview document", () => {
   });
 
   it("references the payload with absolute URLs and leaves document.baseURI alone", () => {
-    const html = buildWebviewHtml({ cspSource: CSP_SOURCE, payloadUri: PAYLOAD });
+    const html = buildWebviewHtml({ cspSource: CSP_SOURCE, payloadUri: PAYLOAD, javascriptUri: JAVASCRIPT });
     expect(html).toContain(`<link rel="stylesheet" href="${PAYLOAD}/app.css" />`);
+    expect(html).toContain(`<script src="${JAVASCRIPT}"></script>`);
     expect(html).toContain(`<script src="${PAYLOAD}/_framework/blazor.webassembly.js" autostart="false"></script>`);
     expect(html).toContain(`<script src="${PAYLOAD}/vscode-webview.js"></script>`);
     expect(html).toContain('<div id="app"></div>');
@@ -28,13 +30,17 @@ describe("Blazor webview document", () => {
   });
 
   it("tolerates a trailing slash on the payload URI", () => {
-    const html = buildWebviewHtml({ cspSource: CSP_SOURCE, payloadUri: `${PAYLOAD}/` });
+    const html = buildWebviewHtml({
+      cspSource: CSP_SOURCE,
+      payloadUri: `${PAYLOAD}/`,
+      javascriptUri: JAVASCRIPT
+    });
     expect(html).toContain(`<script src="${PAYLOAD}/_framework/blazor.webassembly.js"`);
     expect(html).not.toContain(`${PAYLOAD}//`);
   });
 
   it("contains no inline script, so script-src can stay strict", () => {
-    const html = buildWebviewHtml({ cspSource: CSP_SOURCE, payloadUri: PAYLOAD });
+    const html = buildWebviewHtml({ cspSource: CSP_SOURCE, payloadUri: PAYLOAD, javascriptUri: JAVASCRIPT });
     expect(/<script(?![^>]*\bsrc=)/i.test(html)).toBe(false);
   });
 });

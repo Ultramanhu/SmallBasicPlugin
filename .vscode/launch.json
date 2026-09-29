@@ -7,25 +7,46 @@
         {
             "type": "smallbasic",
             "request": "launch",
-            "name": "SmallBasic: Debug current file with Blazor backend",
-            "program": "${file}",   
-            "backend": "blazor",
-            "stopOnEntry": false
-        },
-        {
-            "type": "smallbasic",
-            "request": "launch",
-            "name": "SmallBasic: Debug current file with C# backend",
-            "program": "${file}",
-            "backend": "csharp",
-            "stopOnEntry": false
-        },
-        {
-            "type": "smallbasic",
-            "request": "launch",
-            "name": "SmallBasic: Debug current file with JavaScript backend",
+            "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
             "program": "${file}",
             "backend": "javascript",
+            "mode": "cli",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [CLI]: Debug current file with C# backend",
+            "program": "${file}",
+            "backend": "csharp",
+            "mode": "cli",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+            "program": "${file}",
+            "backend": "blazor",
+            "mode": "cli",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [Web]: Run current file with JavaScript backend",
+            "program": "${file}",
+            "backend": "javascript",
+            "mode": "web",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [Web]: Run current file with Blazor backend",
+            "program": "${file}",
+            "backend": "blazor",
+            "mode": "web",
             "stopOnEntry": false
         },
         {

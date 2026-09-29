@@ -164,27 +164,29 @@ node serve.mjs                 # 等价直接调用：--no-open / --port 9000 / 
 
 ### 结论与做法
 
-VS Code for the Web 的扩展宿主是浏览器 Web Worker，不能启动本机进程，但**可以开 Webview**。因此把「独立 Web RunHost」的这一套搬到 Webview 里，就得到浏览器内的 Blazor 图形后端：
+VS Code for the Web 的扩展宿主是浏览器 Web Worker，不能启动本机进程，但**可以开 Webview**。因此把「独立 Web RunHost」的双后端搬到 Webview 里，JavaScript 与 Blazor 都能在浏览器内运行：
 
 ```text
 Web Worker（web extension host）
-  smallbasic.runBlazor → 取 activeTextEditor 文本 → postMessage({type:"run",name,source})
+  run / Ctrl+F5 → 取程序文本 → postMessage({type:"run",backend,name,source})
         │  postMessage                              ▲ { type:"ready" | "output" | "notify" | "failed" }
         ▼                                           │
 WebviewPanel（扩展生成的 HTML，载荷来自扩展目录 runhost/blazor/wwwroot）
-  Blazor.start({ loadBootResource }) → Runner 组件 → GraphicsWindow(SVG) / TextWindow 控制台
+  javascript → dist/web-runhost.js → TextWindow 控制台
+  blazor     → Blazor.start({ loadBootResource }) → resource-request/response → workspace.fs
+                                             └→ Runner → GraphicsWindow(SVG) / TextWindow
 ```
 
-- **复用现有载荷**：`runhost/blazor/wwwroot`（含 `_framework`）本来就在 VSIX 里（`files: ["runhost/**"]`，`stage-runhost.mjs` 暂存），Webview 直接经 `webview.asWebviewUri()` 指向它；`vscode-webview.js` 也放在同一个 wwwroot 里随载荷分发，不额外增加打包步骤。
+- **复用现有载荷**：JavaScript 直接加载随扩展构建的 `dist/web-runhost.js`；Blazor 使用 `runhost/blazor/wwwroot`（含 `_framework`）。两者都经 `webview.asWebviewUri()` 映射，不启动本机服务器。
 - **复用现有契约**：`SetSession` / `Stop`（`[JSInvokable]`）与 `SmallBasicWebHost.write/notify`（`isWebRunHost()` 返回 true 即"由外壳驱动"模式），与独立站点的 `shell.js` 完全一致，只是外壳从 `shell.js` 换成了扩展。
 - Webview 侧代码：`src/web/webview-html.ts`（文档 + CSP 生成，纯函数、可单测）、`src/web/blazor-webview.ts`（panel 生命周期、载荷定位、消息协议、OutputChannel 镜像）；页面侧胶水 `SmallBasic.Blazor.Client/wwwroot/vscode-webview.js`。
 
-### 实测踩过的三个坑（都已修复）
+### 实测踩过的资源加载问题（都已修复）
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | 启动即抛 `The URI 'https://…/index.html' is not contained by the base URI 'https://…cdn/…/wwwroot/'` | Webview 文档在 `vscode-webview://<id>`，把 `<base href>` 指向扩展资源域后 `document.baseURI` 与当前地址不同源；Router（以及 `NavigationManager.ToBaseRelativePath`）在启动时校验"当前地址必须被 base 包含" | Webview 文档**不放 `<base>`**：三个入口（`app.css`、`_framework/blazor.webassembly.js`、`vscode-webview.js`）都用绝对 URL；`document.baseURI` 于是等于文档地址，校验通过，Router 仍能匹配 `/` |
-| 取 `blazor.boot.json` 报 `Access-Control-Allow-Origin` 为 `*` 时不允许带凭据 | `dotnet.js` 对 boot 配置文件的 fetch 硬编码 `credentials:"include"`，浏览器要求资源域回显 webview 源并允许凭据 | 胶水用 `Blazor.start({ loadBootResource })` 接管该资源：`type === "manifest"` 时返回自己 `credentials:"omit"` 的 fetch（其余资源返回 `defaultUri`，走默认的免凭据路径）→ 只要资源域支持普通 CORS 即可 |
+| 真实 vscode.dev 中 `icudt_CJK.dat` 报 `No 'Access-Control-Allow-Origin' header`，随后 `Failed to start platform` | 市场扩展载荷位于 `*.vscode-unpkg.net`，Webview 位于隔离的 `*.vscode-cdn.net` 源；脚本标签可以执行扩展脚本，但 `dotnet.js` 对 boot 配置、ICU、WASM 和程序集的 `fetch` 受 CORS 限制。只改 `blazor.boot.json` 的凭据模式仍会在下一个二进制资源处失败 | `loadBootResource` 对全部非 JS boot 资源发 `resource-request`；扩展宿主用 `workspace.fs.readFile` 从扩展 URI 读取，校验路径必须留在 `wwwroot` 内，再把 `ArrayBuffer` 通过 `postMessage` 回传为合成 `Response`。资源加载不再依赖 Marketplace CDN 的 CORS 响应头 |
 | 修改后仍不启动、无任何报错 | `loadBootResource` 的 `"dotnetjs"` 类型同时覆盖 `dotnet.js`、`dotnet.native.js`、`dotnet.runtime.js`，若统一重定向会把三个模块指向同一文件 | 只在 `type === "dotnetjs" && name === "dotnet.js"` 时重定向到 `<payload>/_framework/dotnet.js`，其余保持默认（相对 `dotnet.js` 模块 URL 解析） |
 
 CSP 要求（`webview-html.ts` 中集中定义）：
@@ -193,18 +195,19 @@ CSP 要求（`webview-html.ts` 中集中定义）：
 |---|---|
 | `default-src 'none'` | VS Code 推荐的基线，其余能力显式开放 |
 | `script-src ${cspSource} 'wasm-unsafe-eval' 'unsafe-eval'` | 加载脚本 + 实例化 WASM；`'unsafe-eval'` 是 Safari 等不支持 `wasm-unsafe-eval` 的兜底 |
-| `connect-src ${cspSource}` | `dotnet.js` 用 `fetch` 取 boot 配置、`*.wasm`、`*.dll`、`icu*.dat` |
+| `connect-src ${cspSource}` | 保留给运行时/未来资源连接；当前 boot 配置、`*.wasm`、程序集和 `icu*.dat` 经扩展宿主消息桥读取，不再跨源 `fetch` |
 | `style-src ${cspSource} 'unsafe-inline'` | Runner 的 SVG 用 `style` 属性做显隐/变换，Blazor 也会输出动态内联样式；**`script-src` 仍不含 `'unsafe-inline'`** |
 | `img-src ${cspSource} data: https:` | `GraphicsWindow.DrawImage` 可加载网络图片 |
 | `worker-src ${cspSource} blob:` | 为将来可能的多线程运行时留出空间 |
 
 ### 运行与调试的路由（`src/web/run-routing.ts`）
 
-Web 端只有 JavaScript 后端能逐行调试，但 Blazor 后端可以在 Webview 里**运行**。`smallbasic.blazor` 的调试请求因此按「跑」还是「调」分流，判定表如下（`Ctrl+F5` = 运行但不调试，VS Code 会在配置上置 `noDebug: true`）：
+Web 端只有 JavaScript 后端能逐行调试，但 JavaScript 与 Blazor 都可以在 Webview 里**运行**。调试请求因此按「跑」还是「调」分流（`Ctrl+F5` = 运行但不调试，VS Code 会在配置上置 `noDebug: true`）：
 
 | 请求的后端 | `noDebug`（Ctrl+F5） | 程序使用 GraphicsWindow/Shapes/Turtle | 结果 |
 |---|---|---|---|
-| `javascript` / 未指定 | 任意 | 否 | JavaScript 调试适配器（F5 逐行调试，Ctrl+F5 直接运行） |
+| `javascript` / 未指定 | 否（F5） | 否 | JavaScript 调试适配器，支持逐行调试 |
+| `javascript` / 未指定 | 是 | 否 | JavaScript 后端在 Webview 内运行 |
 | `blazor` | 是 | 任意 | 在 Webview 内运行，不创建调试会话 |
 | `blazor` | 否（F5） | 否 | 拒绝并提示改用 Ctrl+F5 或 `SmallBasic: Run with Blazor Backend` |
 | 未指定 | 是 | 是 | 自动视为 Blazor：在 Webview 内运行 |
@@ -216,12 +219,27 @@ Web 端只有 JavaScript 后端能逐行调试，但 Blazor 后端可以在 Webv
 
 真正的 Blazor **逐行调试**仍未支持。要把调试搬到 Web，需要新增两块：C# 侧一个 `postMessage` 版 `IRunHostTransport`（替换 `BrowserBridge` 的 WebSocket），以及扩展宿主里一个把 DAP ↔ `HostMessage`/`BrowserMessage` 互相翻译的代理适配器（把 `SmallBasic.Blazor.RunHost/Hosting/BlazorHostSession.cs` 的语义移植到 TS，可复用 `DebugAdapterInlineImplementation`，与 Web 端 JS 调试同一条路）。
 
+### VS Code `launch.json` 的运行模式
+
+桌面扩展支持与 `backend` 正交的 `mode` 参数：`"cli"`（默认）使用原有本机命令行/调试宿主，`"web"` 在 Webview 中运行。Web 模式支持 `javascript` 与 `blazor`，不支持 `csharp`；VS Code for the Web 会忽略配置中的 `cli` 并强制使用 `web`。Webview 本身不是调试器，因此用 Ctrl+F5 启动；JavaScript 的 F5 仍交给内嵌 DAP，Blazor Web 模式的 F5 会提示改用 Ctrl+F5。
+
+```jsonc
+{
+  "type": "smallbasic",
+  "request": "launch",
+  "name": "SmallBasic: Web",
+  "program": "${file}",
+  "backend": "javascript", // 或 "blazor"
+  "mode": "web"
+}
+```
+
 ### 本地安装与调试
 
 | 方式 | 命令 / 配置 | 说明 |
 |---|---|---|
 | VS Code 桌面 + Web 扩展宿主（推荐） | `.vscode/launch.json` 里的 `SmallBasic Web Extension (VS Code Web host)`（`pwa-extensionHost` + `debugWebWorkerHost` + `--extensionDevelopmentKind=web`） | 最接近 vscode.dev 的本地回路：扩展跑在 Web Worker 里，Webview 的 CSP/资源域限制与线上一致；`npm run build` 默认带 sourcemap，断点直接落在 `src/**/*.ts`。**必须用 F5（启动调试）**：`debugWebWorkerHost` 让 Worker 宿主停在第一行等调试器，用 Ctrl+F5 / 运行（不调试）启动时没人去继续它，10 秒后会提示「扩展主机在 10 秒内没有启动…需要调试器继续」；只想跑起来请用同名的 `…, no worker debugging` 配置 |
-| Playwright 页面级用例（推荐，可断点） | `cd visual_studio_code_plugin; npm run test:web`（`-- --headed --debug` 逐步调试；`SB_WEB_BROWSER=msedge` 复用系统浏览器） | `tests/webview/webview-document.spec.ts` 用真实浏览器加载 **真实 `buildWebviewHtml()` 生成的文档** 与暂存的 Blazor 载荷，且页面与载荷刻意分处两个源，覆盖 CSP、`connect-src`、`loadBootResource` 引导、SVG 渲染、输出镜像与 Stop；截图落在 `tests/webview/artifacts/` |
+| Playwright 页面级用例（推荐，可断点） | `cd visual_studio_code_plugin; npm run test:web`（`-- --headed --debug` 逐步调试；`SB_WEB_BROWSER=msedge` 复用系统浏览器） | `tests/webview/webview-document.spec.ts` 用真实浏览器加载 **真实 `buildWebviewHtml()` 生成的文档** 与暂存的 Blazor 载荷，且页面与载荷刻意分处两个源；测试服务器只允许 JS/CSS 跨源，明确禁止 boot JSON、ICU、WASM 与程序集 CORS，从而覆盖真实 Marketplace 的宿主资源桥、SVG 渲染、输出镜像与 Stop；截图落在 `tests/webview/artifacts/` |
 | Playwright 工作台级用例（默认跳过） | `SB_WEB_WORKBENCH=1 npm run test:web -- --grep workbench` | 用本机 `code serve-web` 起真实 Web 工作台并运行图形程序。**需要干净的工作台环境**：工作区信任（受限模式会让扩展不激活）且不能有抢焦点的聊天/Agent 扩展——本机 VS Code 1.139 的 Web 工作台同时满足这两点时才能自动化，因此默认不参与 `npm run test:web` |
 | 真实 vscode.dev | `mkcert` 生成证书 → `npx serve --cors --ssl-cert …` → 浏览器打开 vscode.dev → `Developer: Install Extension From Location…` 指向本地打包目录 | 最终验收用；需要 HTTPS 服务扩展目录 |
 

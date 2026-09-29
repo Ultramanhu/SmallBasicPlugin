@@ -1,6 +1,14 @@
 import { expect, test, type Page } from "@playwright/test";
+import fs from "node:fs";
+import path from "node:path";
 import { buildWebviewHtml } from "../../packages/smallbasic-vscode/src/web/webview-html";
-import { requireStagedPayload, serveDirectory, serveDocument, type StaticServer } from "./support/servers";
+import {
+  extensionPackageRoot,
+  requireStagedPayload,
+  serveDirectory,
+  serveDocument,
+  type StaticServer
+} from "./support/servers";
 
 /**
  * Runs the exact document the VS Code extension hands to the webview
@@ -17,6 +25,8 @@ interface HostMessage {
   type: string;
   text?: string;
   json?: string;
+  requestId?: string;
+  path?: string;
 }
 
 const graphicsProgram = [
@@ -32,13 +42,23 @@ const graphicsProgram = [
 test.describe("Blazor webview document", () => {
   let payload: StaticServer;
   let pageHost: StaticServer;
+  let payloadRoot: string;
   let errors: string[];
 
   test.beforeAll(async () => {
-    const payloadRoot = requireStagedPayload();
-    payload = await serveDirectory(payloadRoot, "/payload");
+    payloadRoot = requireStagedPayload();
+    // Marketplace-hosted extension binaries do not grant the isolated webview
+    // origin CORS access. Keep CORS only for the runtime JS modules: boot JSON,
+    // ICU, WASM and assemblies must succeed exclusively through the host bridge.
+    payload = await serveDirectory(extensionPackageRoot, "/extension", {
+      cors: (file) => [".css", ".js"].includes(path.extname(file).toLowerCase())
+    });
     pageHost = await serveDocument(
-      buildWebviewHtml({ cspSource: payload.origin, payloadUri: `${payload.origin}/payload` })
+      buildWebviewHtml({
+        cspSource: payload.origin,
+        payloadUri: `${payload.origin}/extension/runhost/blazor/wwwroot`,
+        javascriptUri: `${payload.origin}/extension/dist/web-runhost.js`
+      })
     );
   });
 
@@ -49,6 +69,14 @@ test.describe("Blazor webview document", () => {
 
   test.beforeEach(async ({ page }) => {
     errors = [];
+    await page.exposeFunction("__smallBasicReadResource", async (relativePath: string) => {
+      const segments = relativePath.split("/");
+      if (segments.some((segment) => !segment || segment === "." || segment === "..")) {
+        throw new Error(`Invalid test resource path: ${relativePath}`);
+      }
+
+      return fs.readFileSync(path.join(payloadRoot, ...segments)).toString("base64");
+    });
     page.on("console", (message) => {
       if (message.type() === "error") {
         errors.push(message.text());
@@ -57,12 +85,45 @@ test.describe("Blazor webview document", () => {
     page.on("pageerror", (error) => errors.push(String(error)));
 
     // The webview host API is injected by VS Code; emulate it and keep the
-    // messages the page posts back for assertions.
+    // messages the page posts back for assertions. Resource reads deliberately
+    // happen outside the page origin, just like workspace.fs in the extension.
     await page.addInitScript(() => {
-      (window as unknown as { __hostMessages: HostMessage[] }).__hostMessages = [];
-      (window as unknown as { acquireVsCodeApi: unknown }).acquireVsCodeApi = () => ({
+      const testWindow = window as unknown as {
+        __hostMessages: HostMessage[];
+        __smallBasicReadResource(path: string): Promise<string>;
+        acquireVsCodeApi: unknown;
+      };
+      testWindow.__hostMessages = [];
+      testWindow.acquireVsCodeApi = () => ({
         postMessage: (message: HostMessage) => {
-          (window as unknown as { __hostMessages: HostMessage[] }).__hostMessages.push(message);
+          testWindow.__hostMessages.push(message);
+          if (message.type !== "resource-request") {
+            return;
+          }
+
+          const request = message as HostMessage & { requestId: string; path: string };
+          void testWindow.__smallBasicReadResource(request.path).then(
+            (base64) => {
+              const binary = atob(base64);
+              const bytes = new Uint8Array(binary.length);
+              for (let index = 0; index < binary.length; index += 1) {
+                bytes[index] = binary.charCodeAt(index);
+              }
+
+              window.postMessage({
+                type: "resource-response",
+                requestId: request.requestId,
+                ok: true,
+                data: bytes.buffer
+              }, "*");
+            },
+            (error) => window.postMessage({
+              type: "resource-response",
+              requestId: request.requestId,
+              ok: false,
+              error: String(error)
+            }, "*")
+          );
         }
       });
     });
@@ -71,7 +132,7 @@ test.describe("Blazor webview document", () => {
   });
 
   test("runs a graphics program and mirrors its output", async ({ page }) => {
-    await startRun(page, "graphics.sb", graphicsProgram);
+    await startRun(page, "blazor", "graphics.sb", graphicsProgram);
 
     const messages = await hostMessages(page);
     expect(messages.map((message) => message.type)).toContain("ready");
@@ -91,9 +152,22 @@ test.describe("Blazor webview document", () => {
     await page.screenshot({ path: "tests/webview/artifacts/webview-document.png", fullPage: true });
   });
 
+  test("runs a JavaScript TextWindow program in the same webview", async ({ page }) => {
+    await startRun(page, "javascript", "hello.sb", 'TextWindow.WriteLine("hello from js")');
+
+    const messages = await hostMessages(page);
+    expect(notifies(messages)).toEqual(["ready", "terminated"]);
+    expect(messages.filter((message) => message.type === "output").map((message) => message.text).join(""))
+      .toBe("hello from js\n");
+    await expect(page.locator("#console")).toContainText("hello from js");
+    await expect(page.locator("#blazor-host")).toBeHidden();
+    expect(errors).toEqual([]);
+  });
+
   test("stops a running program on request", async ({ page }) => {
     await startRun(
       page,
+      "blazor",
       "loop.sb",
       ["For i = 1 To 200", "  Program.Delay(200)", "  TextWindow.WriteLine(i)", "EndFor"].join("\n"),
       { waitForCompletion: false }
@@ -115,13 +189,19 @@ test.describe("Blazor webview document", () => {
 
 async function startRun(
   page: Page,
+  backend: "javascript" | "blazor",
   name: string,
   source: string,
   options: { waitForCompletion?: boolean } = {}
 ): Promise<void> {
   await page.evaluate(
-    (payload) => window.postMessage({ type: "run", name: payload.name, source: payload.source }, "*"),
-    { name, source }
+    (payload) => window.postMessage({
+      type: "run",
+      backend: payload.backend,
+      name: payload.name,
+      source: payload.source
+    }, "*"),
+    { backend, name, source }
   );
 
   if (options.waitForCompletion === false) {

@@ -33,6 +33,11 @@ export interface StaticServer {
   close(): Promise<void>;
 }
 
+export interface StaticServerOptions {
+  /** Enables CORS globally or selectively for a resolved file path. */
+  cors?: boolean | ((file: string) => boolean);
+}
+
 /** Fails with setup instructions when the Blazor payload was never staged. */
 export function requireStagedPayload(): string {
   const entry = path.join(stagedPayloadRoot, "_framework", "blazor.webassembly.js");
@@ -49,24 +54,28 @@ export function requireStagedPayload(): string {
 }
 
 /** Serves a folder over HTTP with CORS, mounting it below `mountPath`. */
-export async function serveDirectory(root: string, mountPath = ""): Promise<StaticServer> {
+export async function serveDirectory(
+  root: string,
+  mountPath = "",
+  options: StaticServerOptions = {}
+): Promise<StaticServer> {
   const prefix = mountPath.replace(/\/$/, "");
 
   const server = http.createServer((request, response) => {
     const url = decodeURIComponent((request.url ?? "/").split("?")[0]);
     if (prefix && !url.startsWith(prefix)) {
-      response.writeHead(404, { "Access-Control-Allow-Origin": "*" }).end("not found");
+      response.writeHead(404, corsHeaders(undefined, options)).end("not found");
       return;
     }
 
     const file = path.resolve(root, url.slice(prefix.length).replace(/^\/+/, ""));
     if (!file.startsWith(path.resolve(root)) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) {
-      response.writeHead(404, { "Access-Control-Allow-Origin": "*" }).end("not found");
+      response.writeHead(404, corsHeaders(file, options)).end("not found");
       return;
     }
 
     response.writeHead(200, {
-      "Access-Control-Allow-Origin": "*",
+      ...corsHeaders(file, options),
       "Cache-Control": "no-store",
       "Content-Length": String(fs.statSync(file).size),
       "Content-Type": MIME[path.extname(file).toLowerCase()] ?? "application/octet-stream"
@@ -75,6 +84,13 @@ export async function serveDirectory(root: string, mountPath = ""): Promise<Stat
   });
 
   return listen(server);
+}
+
+function corsHeaders(file: string | undefined, options: StaticServerOptions): Record<string, string> {
+  const enabled = typeof options.cors === "function"
+    ? !!file && options.cors(file)
+    : options.cors !== false;
+  return enabled ? { "Access-Control-Allow-Origin": "*" } : {};
 }
 
 /** Serves one fixed HTML document (the webview page). */

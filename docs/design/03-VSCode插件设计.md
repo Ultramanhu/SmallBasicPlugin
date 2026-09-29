@@ -11,7 +11,7 @@
 >   - `smallbasic.runJavaScript` —— 内置 JS 引擎，跨平台（含 VS Code for the Web），无图形能力；
 >   - `smallbasic.runCSharp` —— 内置 .NET 宿主：Windows 为 `net8.0-windows` 图形宿主，其它平台为 `net8.0` 便携文本宿主；
 >   - `smallbasic.runBlazor` —— 跨平台；文本程序留在终端，图形程序才打开浏览器 WASM 页面。
-> - 调试在 `launch.json` 用 `backend = "javascript" | "csharp" | "blazor"` 选择；缺省规则为「Windows 且有 C# 宿主 → `csharp`，否则 `javascript`」，Blazor 仅支持显式指定。设置项为 `smallbasic.diagnostics.debounceMs`、`smallbasic.csharp.runHostPath`、`smallbasic.blazor.runHostPath`。
+> - `launch.json` 用 `backend = "javascript" | "csharp" | "blazor"` 选择后端，用 `mode = "cli" | "web"` 选择命令行或浏览器模式。`mode` 默认 `cli`；Web 模式支持 JavaScript/Blazor，C# 仅支持 CLI；VS Code for Web 强制使用 Web 模式。未指定 `backend` 时按「Windows 且有 C# 宿主 → `csharp`，否则 `javascript`」选择，Blazor 仅支持显式指定。设置项为 `smallbasic.diagnostics.debounceMs`、`smallbasic.csharp.runHostPath`、`smallbasic.blazor.runHostPath`。
 > - 未实现：定义跳转、引用、重命名、签名帮助、折叠等（原方案的若干“二期”项）。
 
 ## 1. 工程结构
@@ -215,17 +215,23 @@ class CompilationCache {
 
 ## 9. 调试接入
 
-`contributes.debuggers` 声明 `type: "smallbasic"`，`languages: ["smallbasic"]`；`launch` 配置含 `program`（默认 `${file}`）、`backend`（枚举 `javascript|csharp|blazor`，**无默认值**）、`stopOnEntry`（默认 `true`）。三个 `configurationSnippets` 预置对应后端的启动项：
+`contributes.debuggers` 声明 `type: "smallbasic"`，`languages: ["smallbasic"]`；`launch` 配置含 `program`（默认 `${file}`）、`backend`（枚举 `javascript|csharp|blazor`，**无默认值**）、`mode`（枚举 `cli|web`，默认 `cli`）、`stopOnEntry`（默认 `true`）。五个 `configurationSnippets` 按运行模式展开：CLI 提供 JavaScript/C#/Blazor，Web 提供 JavaScript/Blazor；VS Code for Web 强制使用 Web 模式。
 
 ```jsonc
-{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Launch current file (JS debugger)",
-  "program": "${file}", "backend": "javascript", "stopOnEntry": false }
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: CLI / JavaScript",
+  "program": "${file}", "backend": "javascript", "mode": "cli", "stopOnEntry": true }
 
-{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Debug current file with C# backend",
-  "program": "${file}", "backend": "csharp", "stopOnEntry": false }
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: CLI / C#",
+  "program": "${file}", "backend": "csharp", "mode": "cli", "stopOnEntry": true }
 
-{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Debug current file with Blazor backend",
-  "program": "${file}", "backend": "blazor", "stopOnEntry": false }
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: CLI / Blazor",
+  "program": "${file}", "backend": "blazor", "mode": "cli", "stopOnEntry": true }
+
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Web / JavaScript",
+  "program": "${file}", "backend": "javascript", "mode": "web", "stopOnEntry": true }
+
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic: Web / Blazor",
+  "program": "${file}", "backend": "blazor", "mode": "web", "stopOnEntry": true }
 ```
 
 **适配器分流**（`src/debug/factory.ts`）：
