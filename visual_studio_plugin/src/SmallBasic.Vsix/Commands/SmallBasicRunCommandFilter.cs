@@ -2,6 +2,7 @@ namespace SmallBasic.Vsix.Commands
 {
     using System;
     using System.ComponentModel.Composition;
+    using System.IO;
     using System.Linq;
     using Microsoft.VisualStudio;
     using Microsoft.VisualStudio.Editor;
@@ -80,6 +81,8 @@ namespace SmallBasic.Vsix.Commands
                 && !this.IsDebuggerActive()
                 && this.TryGetSmallBasicDocument(out ITextDocument? document))
             {
+                Services.SmallBasicDiagnostics.Write($"[command filter] exec cmdId={nCmdID} openFolder={IsOpenFolderWorkspace()}");
+
                 if (nCmdID == (uint)VSConstants.VSStd97CmdID.Start)
                 {
                     this.Debug(document!, stopOnEntry: false);
@@ -141,6 +144,30 @@ namespace SmallBasic.Vsix.Commands
             catch
             {
                 // DTE not available yet (early startup): assume design mode.
+            }
+
+            return false;
+        }
+
+        private static bool IsOpenFolderWorkspace()
+        {
+            try
+            {
+                // In Open Folder mode the "solution file" is the folder itself
+                // (or empty); a real .sln/.slnx keeps the classic behavior where
+                // this filter owns F5 for .sb files.
+                if (Package.GetGlobalService(typeof(SVsSolution)) is IVsSolution solution
+                    && solution.GetSolutionInfo(out string directory, out string solutionFile, out _) == VSConstants.S_OK)
+                {
+                    return !string.IsNullOrEmpty(directory)
+                        && (string.IsNullOrEmpty(solutionFile)
+                            || Directory.Exists(solutionFile)
+                            || string.Equals(solutionFile.TrimEnd('\\'), directory.TrimEnd('\\'), StringComparison.OrdinalIgnoreCase));
+                }
+            }
+            catch
+            {
+                // Solution service unavailable (early startup): classic behavior.
             }
 
             return false;

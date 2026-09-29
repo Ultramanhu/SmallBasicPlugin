@@ -57,12 +57,6 @@
           <ButtonText>Debug with Blazor Backend</ButtonText>
         </Strings>
       </Button>
-      <Button guid="guidSmallBasicCommandSet" id="ShowOutlineCommand" priority="0x0200" type="Button">
-        <Parent guid="guidSmallBasicCommandSet" id="SmallBasicToolsGroup" />
-        <Strings>
-          <ButtonText>Show Document Outline</ButtonText>
-        </Strings>
-      </Button>
     </Buttons>
   </Commands>
 
@@ -75,7 +69,6 @@
       <IDSymbol name="DebugCSharpCommand" value="0x0101" />
       <IDSymbol name="RunJavaScriptCommand" value="0x0102" />
       <IDSymbol name="DebugJavaScriptCommand" value="0x0103" />
-      <IDSymbol name="ShowOutlineCommand" value="0x0104" />
       <IDSymbol name="RunBlazorCommand" value="0x0105" />
       <IDSymbol name="DebugBlazorCommand" value="0x0106" />
     </GuidSymbol>

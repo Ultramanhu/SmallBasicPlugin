@@ -1,3 +1,4 @@
+using System.Reflection;
 using Microsoft.SmallBasic.Library;
 using Microsoft.SmallBasic.Library.Internal;
 using SmallBasic.Compiler.Runtime;
@@ -20,6 +21,16 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary, IDisposable
     private readonly SmallBasicCallback mouseUpHandler;
     private readonly SmallBasicCallback textInputHandler;
     private bool disposed;
+
+    private static readonly Func<bool>? HasShutdownAccessor = CreateHasShutdownAccessor();
+
+    /// <summary>
+    /// True once the official library has shut its WPF dispatcher down, e.g. the
+    /// user closed the graphics window. The debug adapter polls this to end the
+    /// session gracefully instead of crashing on the next graphics call. The
+    /// library only exposes this state internally, hence the reflection.
+    /// </summary>
+    public static bool HasShutdown => HasShutdownAccessor?.Invoke() == true;
 
     public GraphicsWindowLibrary()
     {
@@ -183,4 +194,11 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary, IDisposable
     internal static Primitive ToPrimitive(decimal value) => new(value);
 
     internal static decimal ToDecimal(Primitive value) => Convert.ToDecimal((double)value);
+
+    private static Func<bool>? CreateHasShutdownAccessor()
+    {
+        PropertyInfo? property = typeof(SmallBasicApplication).GetProperty("HasShutdown", BindingFlags.Static | BindingFlags.NonPublic);
+        System.Reflection.MethodInfo? getter = property?.GetGetMethod(nonPublic: true);
+        return getter is null ? null : (Func<bool>)Delegate.CreateDelegate(typeof(Func<bool>), getter);
+    }
 }

@@ -18,8 +18,8 @@ origin repository: https://github.com/sb
 | 悬停 Quick Info | 有 | 有 |
 | 实时诊断 | 波浪线 + 问题 | 波浪线 |
 | 代码片段 + 新建文件 | 有 | 仅代码片段 |
-| 文档大纲 + 导航栏 | 有 | 存在问题 |
-| 运行程序 | 三后端（JS / C# / Blazor） | 三后端（C# / JS / Blazor，存在问题，实际都走C#） |
+| 文档大纲 + 导航栏 | 有 | 仅支持导航栏 |
+| 运行程序 | 三后端（JS / C# / Blazor） | C#，其他后端有问题 |
 | 图形程序（GraphicsWindow/Shapes/Turtle） | C#（Windows）或跨平台 Blazor | C# 桌面窗口或 Blazor 浏览器窗口 |
 | 调试（断点/单步/变量/调用栈） | 三后端；Blazor 支持跨平台图形调试 | 三后端；Blazor 支持图形调试 |
 | 多语言 | 支持 | 支持 |

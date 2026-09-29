@@ -30,6 +30,9 @@ public sealed class DebugAdapter
     private bool runLoopStarted;
     private bool pauseRequested;
     private bool endSent;
+#if GRAPHICS_HOST
+    private bool usesGraphics;
+#endif
     private int waitingForInput; // 0 = not waiting, 1 = string, 2 = number
 
     private string activeControl = "continue";
@@ -89,7 +92,18 @@ public sealed class DebugAdapter
 
             if ((string?)message["type"] == "request")
             {
-                await this.DispatchRequestAsync(message).ConfigureAwait(false);
+                try
+                {
+                    await this.DispatchRequestAsync(message).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    // A failing handler must not tear the adapter down; report the
+                    // failure so the host does not treat a silent exit as a crash.
+                    int failedSeq = (int?)message["seq"] ?? 0;
+                    string failedCommand = (string?)message["command"] ?? string.Empty;
+                    this.SendErrorResponse(failedSeq, failedCommand, $"SmallBasic debugger failed to handle '{failedCommand}': {ex.Message}");
+                }
             }
         }
     }
@@ -205,10 +219,17 @@ public sealed class DebugAdapter
                 this.HandleEvaluate(seq, command, arguments);
                 break;
 
+            case "terminate":
+                this.SendResponse(seq, command);
+                this.EndSession(0);
+                break;
+
             case "disconnect":
                 this.SendResponse(seq, command);
-                this.DisposeLibraries();
-                this.SendTerminated();
+                // EndSession is guarded by endSent: after a natural program end
+                // this only disposes nothing and sends nothing, avoiding the
+                // duplicate terminated event. Mid-session it reports the end.
+                this.EndSession(0);
                 Environment.Exit(0);
                 break;
 
@@ -260,6 +281,9 @@ public sealed class DebugAdapter
         }
 #endif
 
+#if GRAPHICS_HOST
+        this.usesGraphics = compilation.Analysis.UsesGraphicsWindow;
+#endif
         this.libraries = new RuntimeLibrariesCollection(
             TextReader.Null,
             new DapTextWriter(this),
@@ -519,6 +543,16 @@ public sealed class DebugAdapter
 
         while (true)
         {
+#if GRAPHICS_HOST
+            if (this.usesGraphics && GraphicsWindowLibrary.HasShutdown)
+            {
+                // The user closed the graphics window: end the session gracefully
+                // instead of failing the next graphics call on a dead dispatcher.
+                this.EndSession(0);
+                return;
+            }
+#endif
+
             try
             {
                 await engine.Execute().ConfigureAwait(false);
@@ -655,9 +689,9 @@ public sealed class DebugAdapter
         }
 
         this.endSent = true;
-        this.DisposeLibraries();
         this.SendEvent("exited", new JsonObject { ["exitCode"] = exitCode });
         this.SendTerminated();
+        this.DisposeLibraries();
     }
 
     private void DisposeLibraries()

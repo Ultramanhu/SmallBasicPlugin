@@ -9,19 +9,21 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 ## Features
 
 - `.sb` file association with syntax highlighting (TextMate grammar + semantic tokens)
-- IntelliSense completions and hover quick info
+- IntelliSense completions, hover quick info and code outlining (collapsible regions)
 - Live diagnostics in the Problems panel
+- Navigation bar and outline view for procedures and variables
 - Run programs with three backends:
   - `SmallBasic: Run with JavaScript Backend` — built-in JavaScript engine, cross-platform (including VS Code for the Web), supports `TextWindow` text programs
   - `SmallBasic: Run with C# Backend` — bundled .NET run host; the Windows host supports graphics programs (`GraphicsWindow` / `Shapes` / `Turtle`), Linux/macOS use a portable command-line host
   - `SmallBasic: Run with Blazor Backend` — cross-platform hybrid host; text programs stay in the terminal and only graphics programs open the Blazor WebAssembly SVG window
 - Debugging: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack, shared DAP semantics across backends
 - `SmallBasic: New File` command and Explorer context-menu template
-- Localized UI
+- Localized Document
 
 ## Usage
 
-- **New file**: run `SmallBasic: New File` from the command palette, or right-click a folder in the Explorer.
+- **New file/Open**: run `SmallBasic: New File` from the command palette, or open any `.sb` file — no project system required, "Open Folder" works.
+- **Edit**: Syntax highlighting, completions, hover info, the Error List and code outlining are enabled automatically.
 - **Run**: use the play button in the editor title bar, or the command palette.
 - **Debug**: set breakpoints in a `.sb` file and press F5. You can pick a backend explicitly in `launch.json`:
 

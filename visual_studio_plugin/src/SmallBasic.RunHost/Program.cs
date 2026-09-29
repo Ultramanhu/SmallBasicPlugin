@@ -10,8 +10,22 @@ if (args.Length >= 1 && string.Equals(args[0], "debug", StringComparison.Ordinal
 {
     // DAP debug adapter mode: stdin/stdout carry the protocol, so all program
     // I/O is bridged through DAP events (see DebugAdapter).
+#if NET48
+    // The official SmallBasicLibrary kills its host process (Process.Kill) when
+    // a graphics program ends, unless the code runs inside an AppDomain named
+    // "Debuggee" (the host domain of the original Small Basic IDE). Running the
+    // adapter inside such a domain lets a closed GraphicsWindow shut the session
+    // down gracefully instead of tearing the adapter down mid-stream.
+    AppDomain.CreateDomain("Debuggee").DoCallBack(static () =>
+    {
+        CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
+        DebugAdapter.RunAsync().ConfigureAwait(false).GetAwaiter().GetResult();
+    });
+    return;
+#else
     await DebugAdapter.RunAsync().ConfigureAwait(false);
     return;
+#endif
 }
 
 if (!TryParseArguments(args, out var filePath, out var pauseOnExit, out var errorMessage))

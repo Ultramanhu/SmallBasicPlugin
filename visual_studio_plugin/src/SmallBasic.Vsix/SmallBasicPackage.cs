@@ -5,10 +5,8 @@ namespace SmallBasic.Vsix
     using System.Runtime.InteropServices;
     using System.Threading;
     using Microsoft.VisualStudio.Shell;
-    using Microsoft.VisualStudio.Threading;
     using SmallBasic.Vsix.Commands;
     using SmallBasic.Vsix.Editor.NavigationBar;
-    using SmallBasic.Vsix.Editor.Outline;
     using SmallBasic.Vsix.Services;
     using Task = System.Threading.Tasks.Task;
 
@@ -20,8 +18,8 @@ namespace SmallBasic.Vsix
     [InstalledProductRegistration("SmallBasic for Visual Studio", "SmallBasic language support", SmallBasicVersion.Value)]
     // Increment this version whenever Menus.vsct changes so Visual Studio does
     // not reuse a stale command-table cache after an extension update.
-    [ProvideMenuResource("Menus.ctmenu", 4)]
-    [ProvideToolWindow(typeof(SmallBasicOutlineToolWindow))]
+    [ProvideMenuResource("Menus.ctmenu", 7)]
+    [ProvideService(typeof(SmallBasicLanguageService), IsAsyncQueryable = true)]
     [ProvideLanguageService(typeof(SmallBasicLanguageService), "SmallBasic", 100, ShowDropDownOptions = true)]
     [ProvideLanguageExtension(typeof(SmallBasicLanguageService), ".sb")]
     [ProvideObject(typeof(SmallBasicLanguageService), RegisterUsing = RegistrationMethod.CodeBase)]
@@ -37,6 +35,17 @@ namespace SmallBasic.Vsix
             CancellationToken cancellationToken,
             IProgress<ServiceProgressData> progress)
         {
+            await base.InitializeAsync(cancellationToken, progress).ConfigureAwait(false);
+
+            // ProvideLanguageService only writes the language-service registry
+            // entries. The package must also proffer the service instance or VS
+            // cannot ask it for an IVsCodeWindowManager, and AddAdornments (the
+            // native navigation-bar hook) is never reached.
+            this.AddService(
+                typeof(SmallBasicLanguageService),
+                CreateLanguageServiceAsync,
+                promote: true);
+
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             SmallBasicDiagnostics.Write(
                 $"extension {SmallBasicVersion.Value} initialized from {typeof(SmallBasicPackage).Assembly.Location}");
@@ -46,41 +55,24 @@ namespace SmallBasic.Vsix
                 AddCommand(commandService, 0x0101, () => SmallBasicCommandService.DebugActiveDocument(SmallBasicBackend.CSharp));
                 AddCommand(commandService, 0x0102, () => SmallBasicCommandService.RunActiveDocument(SmallBasicBackend.JavaScript));
                 AddCommand(commandService, 0x0103, () => SmallBasicCommandService.DebugActiveDocument(SmallBasicBackend.JavaScript));
-                AddCommand(commandService, 0x0104, () => this.ShowOutline());
                 AddCommand(commandService, 0x0105, () => SmallBasicCommandService.RunActiveDocument(SmallBasicBackend.Blazor));
                 AddCommand(commandService, 0x0106, () => SmallBasicCommandService.DebugActiveDocument(SmallBasicBackend.Blazor));
             }
+        }
+
+        private static System.Threading.Tasks.Task<object?> CreateLanguageServiceAsync(
+            IAsyncServiceContainer container,
+            CancellationToken cancellationToken,
+            Type serviceType)
+        {
+            SmallBasicDiagnostics.Write("language service created");
+            return System.Threading.Tasks.Task.FromResult<object?>(new SmallBasicLanguageService());
         }
 
         private static void AddCommand(OleMenuCommandService commandService, int commandId, Action execute)
         {
             var menuCommandId = new CommandID(CommandSet, commandId);
             commandService.AddCommand(new MenuCommand((_, _) => execute(), menuCommandId));
-        }
-
-        private void ShowOutline()
-        {
-            ThreadHelper.ThrowIfNotOnUIThread();
-            this.JoinableTaskFactory.RunAsync(async () =>
-                {
-                    try
-                    {
-                        ToolWindowPane? window = await this.ShowToolWindowAsync(
-                            typeof(SmallBasicOutlineToolWindow),
-                            0,
-                            create: true,
-                            cancellationToken: this.DisposalToken).ConfigureAwait(true);
-                        if (window?.Content is SmallBasicOutlineControl control)
-                        {
-                            control.Refresh();
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        // The outline is a convenience surface; never fail the command.
-                    }
-                })
-                .FileAndForget("SmallBasic/ShowOutline");
         }
     }
 }

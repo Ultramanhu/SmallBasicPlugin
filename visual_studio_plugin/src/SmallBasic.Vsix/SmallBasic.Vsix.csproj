@@ -28,6 +28,10 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
     <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" PrivateAssets="all" />
+    <!-- Open Folder launch-target extensibility. The assembly keeps a stable
+         17.0.0.0 version and Visual Studio ships it in every installation, so
+         the reference is compile-only (runtime assets excluded). -->
+    <PackageReference Include="Microsoft.VisualStudio.Workspace" Version="17.12.19" ExcludeAssets="runtime" />
   </ItemGroup>
 
   <ItemGroup>
@@ -43,7 +47,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <VSCTCompile Include="Menus.vsct" />
+    <VSCTCompile Include="Menus.vsct">
+      <ResourceName>Menus.ctmenu</ResourceName>
+    </VSCTCompile>
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>

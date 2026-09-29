@@ -7,14 +7,15 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 ## Features
 
 - `.sb` file association with syntax highlighting (MEF classifier)
-- IntelliSense completions and hover quick info
+- IntelliSense completions, hover quick info and code outlining (collapsible regions)
 - Live diagnostics in the Error List
-- Code outlining (collapsible regions)
+- Native Visual Studio navigation bar for procedures and variables
 - Run programs with three backends:
   - `Run with C# Backend` — bundled .NET run host; supports graphics programs (`GraphicsWindow` / `Shapes` / `Turtle`) on Windows
   - `Run with JavaScript Backend` — external Node.js 20+, text-only programs
   - `Run with Blazor Backend` — bundled ASP.NET Core/Blazor WebAssembly run host; graphics programs run in the browser
 - Debugging with the C#, JavaScript, or Blazor backend: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack
+- Localized Document
 
 ## Requirements
 
@@ -27,7 +28,8 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
 
 ## Usage
 
-- **Editing**: open any `.sb` file — no project system required, "Open Folder" works. Syntax highlighting, completions, hover info, the Error List and code outlining are enabled automatically.
+- **Open**: open any `.sb` file — no project system required, "Open Folder" works. 
+- **Edit**: Syntax highlighting, completions, hover info, the Error List and code outlining are enabled automatically.
 - **Choose a backend**: use `Tools > Small Basic` to run or debug explicitly with C#, JavaScript, or Blazor. The chosen backend remains active for subsequent standard run/debug commands in the current Visual Studio session; C# is the initial default.
 - **Run**: press `Ctrl+F5` to run the current `.sb` with the active backend.
 - **Debug**: set breakpoints in a `.sb` file and press `F5`. `F10`/`F11` at design time start with stop-on-entry; during a debug session `F5`/`F10`/`F11`/`Shift+F5` are forwarded to the debugger.

@@ -7,7 +7,7 @@
 > - 已落地 **经典 VSIX + MEF 编辑器扩展 + AsyncPackage/VSCT 命令**，并通过 Visual Studio Debug Adapter Host 接入 **C#、JavaScript、Blazor 三套 DAP**。
 > - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，只收录 `src/SmallBasic.Vsix`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Vsix 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
 > - VSIX 主项目只有 `Commands/`、`Services/`、`Editor/` 三类代码；`Editor/` 内含分类、补全、QuickInfo、Squiggle（错误列表）、大纲折叠、文档大纲工具窗、原生导航栏与调试内联值。**没有** `Templates/`、`Resources/`（无项模板），`Editor/Breadcrumb/` 为空目录。
-> - `F5` 默认纯 C# DAP 调试、`Ctrl+F5` 默认 C# 运行；设计态 `F10`/`F11` 以“入口即断”启动；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口（共 7 项，含 Show Document Outline）。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
+> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（`.vscode/launch.json` 的 `smallbasic` 配置按其 `backend` 生效）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口（共 7 项，含 Show Document Outline）。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
 > - C# 运行/调试用随 VSIX 分发的 `net48` 宿主，支持图形；JS 路径只捆 `runhost/javascript` bundle 并依赖外部 Node.js 20+，不支持图形；Blazor 路径用 `dotnet ...SmallBasic.Blazor.RunHost.dll`，跨平台提供图形。
 
 ## 1. 技术路线选择
@@ -139,7 +139,9 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 
 - `SmallBasicDebugLauncher` 通过 DTE 执行 `DebugAdapterHost.Launch /LaunchJson:"<path>"`，并在 `%TEMP%\SmallBasicPlugin\Debug\` 生成 `launch-csharp.json` / `launch-javascript.json` / `launch-blazor.json`（键：`$adapter`、`$adapterArgs`、`name`、`type="smallbasic"`、`request="launch"`、`program`、`stopOnEntry`）。
 - 适配器：C# → `runhost\csharp\SmallBasic.RunHost.exe debug`；Blazor → `dotnet "<...>runhost\blazor\SmallBasic.Blazor.RunHost.dll" debug`；JS → `node "<...>debugadapter\adapter.js"`（外部 Node 20+）。
-- 快捷键：`F5` 默认 C# 调试（`stopOnEntry=false`）；设计态 `F10`/`F11` 以 `stopOnEntry=true` 启动；调试会话激活期间 `F5/F10/F11` 全部转发给 Debug Adapter Host。
+- **打开文件夹**模式下由 `SmallBasicLaunchDebugTargetProvider`（`ILaunchDebugTargetProvider2`，MEF 导出，`Microsoft.VisualStudio.Workspace` 包编译期引用）接管调试目标：`.vscode/launch.json` 中 `type="smallbasic"` 的配置按其 `backend` 字段路由到对应适配器，`${file}` 解析为活动 .sb 文档；无 launch.json 时"当前文档"目标按扩展名 `.sb` 匹配并默认 C# 后端。此时命令过滤器放行 `F5`/`F10`/`F11`，仅拦截 `Ctrl+F5`。
+- 快捷键：解决方案/无工作区时 `F5` 默认 C# 调试（`stopOnEntry=false`）；设计态 `F10`/`F11` 以 `stopOnEntry=true` 启动；调试会话激活期间 `F5/F10/F11` 全部转发给 Debug Adapter Host。
+- net48 C# 调试适配器运行在名为 `Debuggee` 的子 AppDomain 中：官方 `SmallBasicLibrary` 在该域名下跳过 `Process.GetCurrentProcess().Kill()`（原 Small Basic IDE 的宿主约定），关闭图形窗口只会关闭 WPF 调度器；适配器轮询 `GraphicsWindowLibrary.HasShutdown`（反射访问库的内部属性）后会话以退出码 0 正常结束，VS 不再弹"调试适配器已意外退出"。net8.0-windows 宿主（VS Code C# 后端）无 AppDomain 机制，关窗仍会强杀进程。
 - 编辑器当前行高亮、断点 glyph、局部变量/调用栈窗口全部来自 VS 标准调试 UI，零自研 UI；断点吸附由适配器用 `GetExecutableLines()` 实现（见 05）。
 - **无 `vsdconfig`**：VS 侧调试完全走上述 `DebugAdapterHost.Launch` 机制。
 
