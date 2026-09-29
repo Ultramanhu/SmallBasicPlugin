@@ -1,20 +1,32 @@
 # VS files
 .vs/
-.vscode/
+.vscode/*
+!.vscode/launch.json
 *.csproj.user
 .artifacts
 .vscode-test-web/
 
 # ai file
+.playwright-cli
 .tmp
 .kilo
+
+# debug
 *.log
+.trace
+.network
+visual_studio_code_plugin/tests/webview/artifacts
 
 # Output files
 bin
 obj
 node_modules
 wwwroot
+# The Blazor client's source wwwroot holds the shell page of the web RunHost
+# (index.html, app.css, shell.js, serve.mjs), so it is tracked despite the
+# generated-site rule above. Everything published below wwwroot stays ignored.
+!visual_studio_plugin/src/SmallBasic.Blazor.Client/wwwroot
+!visual_studio_plugin/src/SmallBasic.Blazor.Client/wwwroot/**
 out
 visual_studio_code_plugin/packages/smallbasic-vscode/runhost/
 .gitignore

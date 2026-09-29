@@ -30,6 +30,7 @@
 | [07-测试与性能方案.md](./07-测试与性能方案.md) | 测试现状（vendor 既有测试 + 扩展测试）、性能预算与优化手段 |
 | [08-实施路线图.md](./08-实施路线图.md) | 里程碑划分、验收标准与当前完成度 |
 | [09-Blazor后端与RunHost.md](./09-Blazor后端与RunHost.md) | Blazor WASM 图形运行时、按需浏览器 RunHost 与 DAP/WebSocket 调试桥 |
+| [10-WebRunHost.md](./10-WebRunHost.md) | 浏览器内静态 Web RunHost：JS / Blazor WASM 双后端、宿主通道抽象与页面复用 |
 
 ## 方案摘要（TL;DR）
 

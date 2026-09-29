@@ -3,7 +3,6 @@ namespace SmallBasic.Vsix.Commands
     using System;
     using System.ComponentModel.Composition;
     using System.IO;
-    using System.Linq;
     using Microsoft.VisualStudio;
     using Microsoft.VisualStudio.Editor;
     using Microsoft.VisualStudio.OLE.Interop;
@@ -15,8 +14,10 @@ namespace SmallBasic.Vsix.Commands
     using Microsoft.VisualStudio.Utilities;
 
     /// <summary>
-    /// Installs a command filter on every Small Basic text view so that F5 / Ctrl+F5
-    /// run the active .sb file. This is MEF-only and requires no package or VSCT.
+    /// Installs a command filter on every Small Basic text view so that Ctrl+F5,
+    /// plus classic solution-mode F5 / F10 / F11, run the active .sb file. Open
+    /// Folder debugging must flow to the workspace launch pipeline so the chosen
+    /// .vscode/launch.json profile can select the backend.
     /// </summary>
     [Export(typeof(ITextViewCreationListener))]
     [Name("SmallBasic Run Command Filter")]
@@ -29,12 +30,28 @@ namespace SmallBasic.Vsix.Commands
 
         public void TextViewCreated(ITextView textView)
         {
+            RememberDocumentIfAvailable(textView);
+
+            EventHandler gotAggregateFocus = (_, _) => RememberDocumentIfAvailable(textView);
+            textView.GotAggregateFocus += gotAggregateFocus;
+            textView.Closed += (_, _) => textView.GotAggregateFocus -= gotAggregateFocus;
+
             IVsTextView? viewAdapter = this.EditorAdaptersFactoryService.GetViewAdapter(textView);
             if (viewAdapter != null)
             {
                 var filter = new SmallBasicRunCommandFilter(textView);
                 viewAdapter.AddCommandFilter(filter, out IOleCommandTarget? next);
                 filter.SetNext(next);
+            }
+        }
+
+        private static void RememberDocumentIfAvailable(ITextView textView)
+        {
+            if (textView.TextBuffer.Properties.TryGetProperty(typeof(ITextDocument), out ITextDocument document)
+                && document != null
+                && !string.IsNullOrWhiteSpace(document.FilePath))
+            {
+                SmallBasicCommandService.RememberSmallBasicDocument(document.FilePath);
             }
         }
     }
@@ -56,20 +73,31 @@ namespace SmallBasic.Vsix.Commands
 
         public int QueryStatus(ref Guid pguidCmdGroup, uint cCmds, OLECMD[] prgCmds, IntPtr pCmdText)
         {
+            bool isOpenFolderWorkspace = IsOpenFolderWorkspace();
+            int result = this.ForwardQueryStatus(ref pguidCmdGroup, cCmds, prgCmds, pCmdText);
             if (pguidCmdGroup == VSConstants.GUID_VSStandardCommandSet97
                 && !this.IsDebuggerActive()
-                && this.IsRunCommand(prgCmds)
                 && this.TryGetSmallBasicDocument(out _))
             {
+                bool handledAny = false;
                 for (int i = 0; i < prgCmds.Length; i++)
                 {
+                    if (!ShouldHandleCommand(prgCmds[i].cmdID, isOpenFolderWorkspace))
+                    {
+                        continue;
+                    }
+
                     prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_ENABLED);
+                    handledAny = true;
                 }
 
-                return VSConstants.S_OK;
+                if (handledAny)
+                {
+                    return VSConstants.S_OK;
+                }
             }
 
-            return this.ForwardQueryStatus(ref pguidCmdGroup, cCmds, prgCmds, pCmdText);
+            return result;
         }
 
         public int Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
@@ -77,11 +105,21 @@ namespace SmallBasic.Vsix.Commands
             // While a debug session is active (break/run mode), every debug key
             // (F5 continue, F10/F11 stepping, Shift+F5 stop) must reach the Debug
             // Adapter Host. Claiming them here would launch a second session.
+            bool isOpenFolderWorkspace = IsOpenFolderWorkspace();
             if (pguidCmdGroup == VSConstants.GUID_VSStandardCommandSet97
                 && !this.IsDebuggerActive()
                 && this.TryGetSmallBasicDocument(out ITextDocument? document))
             {
-                Services.SmallBasicDiagnostics.Write($"[command filter] exec cmdId={nCmdID} openFolder={IsOpenFolderWorkspace()}");
+                Services.SmallBasicDiagnostics.Write($"[command filter] exec cmdId={nCmdID} openFolder={isOpenFolderWorkspace}");
+
+                // In Open Folder mode F5/F10/F11 must stay with Visual Studio's
+                // workspace launch pipeline so the selected .vscode/launch.json
+                // profile decides whether C#, JavaScript or Blazor is used.
+                // Ctrl+F5 remains local and reuses the current backend.
+                if (!ShouldHandleCommand(nCmdID, isOpenFolderWorkspace))
+                {
+                    return this.ForwardExec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
+                }
 
                 if (nCmdID == (uint)VSConstants.VSStd97CmdID.Start)
                 {
@@ -105,6 +143,11 @@ namespace SmallBasic.Vsix.Commands
                 }
             }
 
+            return this.ForwardExec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
+        }
+
+        private int ForwardExec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
+        {
             if (this.next != null)
             {
                 return this.next.Exec(ref pguidCmdGroup, nCmdID, nCmdexecopt, pvaIn, pvaOut);
@@ -123,13 +166,17 @@ namespace SmallBasic.Vsix.Commands
             return (int)Microsoft.VisualStudio.OLE.Interop.Constants.OLECMDERR_E_NOTSUPPORTED;
         }
 
-        private bool IsRunCommand(OLECMD[] prgCmds)
+        private static bool ShouldHandleCommand(uint commandId, bool isOpenFolderWorkspace)
         {
-            return prgCmds.Any(cmd =>
-                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.Start ||
-                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StartNoDebug ||
-                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StepInto ||
-                cmd.cmdID == (uint)VSConstants.VSStd97CmdID.StepOver);
+            if (commandId == (uint)VSConstants.VSStd97CmdID.StartNoDebug)
+            {
+                return true;
+            }
+
+            return !isOpenFolderWorkspace
+                && (commandId == (uint)VSConstants.VSStd97CmdID.Start
+                    || commandId == (uint)VSConstants.VSStd97CmdID.StepInto
+                    || commandId == (uint)VSConstants.VSStd97CmdID.StepOver);
         }
 
         private bool IsDebuggerActive()
@@ -155,7 +202,7 @@ namespace SmallBasic.Vsix.Commands
             {
                 // In Open Folder mode the "solution file" is the folder itself
                 // (or empty); a real .sln/.slnx keeps the classic behavior where
-                // this filter owns F5 for .sb files.
+                // this filter owns F5/F10/F11 for .sb files.
                 if (Package.GetGlobalService(typeof(SVsSolution)) is IVsSolution solution
                     && solution.GetSolutionInfo(out string directory, out string solutionFile, out _) == VSConstants.S_OK)
                 {
@@ -182,9 +229,15 @@ namespace SmallBasic.Vsix.Commands
                 return false;
             }
 
-            return buffer.Properties.TryGetProperty(typeof(ITextDocument), out document)
+            if (buffer.Properties.TryGetProperty(typeof(ITextDocument), out document)
                 && document != null
-                && !string.IsNullOrEmpty(document.FilePath);
+                && !string.IsNullOrEmpty(document.FilePath))
+            {
+                SmallBasicCommandService.RememberSmallBasicDocument(document.FilePath);
+                return true;
+            }
+
+            return false;
         }
 
         private void Run(ITextDocument document)

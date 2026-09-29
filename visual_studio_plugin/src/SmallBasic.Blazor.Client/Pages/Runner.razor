@@ -1,9 +1,11 @@
 @page "/"
+@page "/{*path}"
 @implements IAsyncDisposable
 @inject HttpClient Http
 @inject NavigationManager Navigation
+@inject IJSRuntime JS
 
-<PageTitle>@(descriptor is null ? "Small Basic Blazor RunHost" : descriptor.ProgramName)</PageTitle>
+<PageTitle>@(descriptor is null ? "Small Basic Web RunHost" : descriptor.ProgramName)</PageTitle>
 
 @if (error is not null)
 {
@@ -14,7 +16,9 @@
 }
 else if (descriptor is null || session is null)
 {
-    <main class="status-card">Starting the Small Basic WebAssembly runtime…</main>
+    <main class="status-card">
+        @(webShell ? "Small Basic WebAssembly runtime is ready." : "Starting the Small Basic WebAssembly runtime…")
+    </main>
 }
 else
 {
@@ -26,7 +30,7 @@ else
             <span class="runtime-badge">Blazor WASM</span>
         </header>
         <main class="workspace">
-            @if (descriptor.UsesGraphics)
+            @if (session.UsesGraphics)
             {
                 <section class="graphics-card">
                     <GraphicsSurface Scene="view.Graphics"
@@ -49,32 +53,38 @@ else
 }
 
 @code {
+    /// <summary>
+    /// Filled by the catch-all route above. The runner is the only component in
+    /// the app, so a static copy served from a sub path (for example
+    /// <c>/runhost/web/index.html</c>) renders the same UI as the session URL.
+    /// </summary>
+    [Parameter]
+    public string? Path { get; set; }
+
     private readonly RuntimeViewModel view = new();
     private SessionDescriptor? descriptor;
-    private BrowserBridge? bridge;
     private BrowserEngineSession? session;
+    private Task? runTask;
+    private Task? webShellLoop;
     private string? error;
     private string inputText = string.Empty;
+    private bool webShell;
+    private bool disposed;
 
     protected override async Task OnInitializedAsync()
     {
         this.view.Changed += this.OnViewChanged;
         try
         {
-            string sessionId = GetQueryValue(new Uri(this.Navigation.Uri).Query, "session")
-                ?? throw new InvalidOperationException("The RunHost session id is missing.");
-            this.descriptor = await this.Http.GetFromJsonAsync<SessionDescriptor>($"api/sessions/{Uri.EscapeDataString(sessionId)}")
-                ?? throw new InvalidOperationException("The RunHost session no longer exists.");
-
-            this.bridge = new BrowserBridge();
-            Uri httpBase = this.Navigation.ToAbsoluteUri($"ws/{Uri.EscapeDataString(sessionId)}");
-            var socketUri = new UriBuilder(httpBase)
+            this.webShell = await WebRunHost.IsEmbeddedAsync(this.JS);
+            if (this.webShell)
             {
-                Scheme = httpBase.Scheme == "https" ? "wss" : "ws",
-            }.Uri;
-            await this.bridge.ConnectAsync(socketUri);
-            this.session = new BrowserEngineSession(this.descriptor, this.view, this.bridge);
-            _ = this.session.RunAsync();
+                this.webShellLoop = this.RunWebShellLoopAsync();
+            }
+            else
+            {
+                await this.StartCliSessionAsync();
+            }
         }
         catch (Exception ex)
         {
@@ -84,15 +94,9 @@ else
 
     public async ValueTask DisposeAsync()
     {
+        this.disposed = true;
         this.view.Changed -= this.OnViewChanged;
-        if (this.session is not null)
-        {
-            await this.session.DisposeAsync();
-        }
-        else if (this.bridge is not null)
-        {
-            await this.bridge.DisposeAsync();
-        }
+        await this.StopSessionAsync();
     }
 
     private void OnViewChanged() => _ = this.InvokeAsync(this.StateHasChanged);
@@ -101,6 +105,125 @@ else
     {
         this.session?.SubmitInput(this.inputText);
         this.inputText = string.Empty;
+    }
+
+    /// <summary>
+    /// CLI hosting mode: the RunHost served this page for one session. The
+    /// descriptor comes from the session API and messages flow over WebSocket.
+    /// </summary>
+    private async Task StartCliSessionAsync()
+    {
+        string sessionId = GetQueryValue(new Uri(this.Navigation.Uri).Query, "session")
+            ?? throw new InvalidOperationException("The RunHost session id is missing.");
+        this.descriptor = await this.Http.GetFromJsonAsync<SessionDescriptor>($"api/sessions/{Uri.EscapeDataString(sessionId)}")
+            ?? throw new InvalidOperationException("The RunHost session no longer exists.");
+
+        var bridge = new BrowserBridge();
+        Uri httpBase = this.Navigation.ToAbsoluteUri($"ws/{Uri.EscapeDataString(sessionId)}");
+        var socketUri = new UriBuilder(httpBase)
+        {
+            Scheme = httpBase.Scheme == "https" ? "wss" : "ws",
+        }.Uri;
+        await bridge.ConnectAsync(socketUri);
+
+        try
+        {
+            this.session = new BrowserEngineSession(this.descriptor, this.view, bridge);
+        }
+        catch
+        {
+            await bridge.DisposeAsync();
+            throw;
+        }
+
+        this.runTask = this.session.RunAsync();
+    }
+
+    /// <summary>
+    /// Web hosting mode: the page is the standalone web RunHost. Every run the
+    /// shell starts arrives on the <see cref="WebRunHost"/> channel, so one page
+    /// can run program after program without reloading.
+    /// </summary>
+    private async Task RunWebShellLoopAsync()
+    {
+        while (!this.disposed)
+        {
+            WebRunRequest request = await WebRunHost.NextRequestAsync(CancellationToken.None);
+            if (this.disposed)
+            {
+                return;
+            }
+
+            await this.StartWebSessionAsync(request);
+        }
+    }
+
+    private async Task StartWebSessionAsync(WebRunRequest request)
+    {
+        await this.StopSessionAsync();
+        this.view.Reset();
+        this.error = null;
+
+        var transport = new WebShellTransport(this.JS);
+        try
+        {
+            var descriptor = new SessionDescriptor
+            {
+                Id = "web",
+                ProgramName = request.Name,
+                Source = request.Source,
+            };
+            var session = new BrowserEngineSession(descriptor, this.view, transport);
+            this.descriptor = descriptor;
+            this.session = session;
+            WebRunHost.SetActive(session);
+            this.runTask = session.RunAsync();
+        }
+        catch (Exception ex)
+        {
+            // Compilation failures are the common case and are already formatted.
+            this.descriptor = null;
+            this.session = null;
+            this.error = ex is InvalidOperationException ? ex.Message : ex.ToString();
+
+            // The shell started this run, so it still believes the Run button is
+            // held; a terminated notification releases it.
+            await transport.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 2 });
+            await transport.DisposeAsync();
+        }
+
+        this.StateHasChanged();
+    }
+
+    private async Task StopSessionAsync()
+    {
+        BrowserEngineSession? current = this.session;
+        Task? currentRun = this.runTask;
+        this.descriptor = null;
+        this.session = null;
+        this.runTask = null;
+        WebRunHost.SetActive(null);
+        if (current is null)
+        {
+            return;
+        }
+
+        current.Terminate();
+        if (currentRun is not null)
+        {
+            // Event driven programs never terminate on their own, so the disposal
+            // below only waits for a terminated loop to report back.
+            await Task.WhenAny(currentRun, Task.Delay(500));
+        }
+
+        try
+        {
+            await current.DisposeAsync();
+        }
+        catch (Exception)
+        {
+            // A session that was torn down mid-run can fail while cleaning up.
+        }
     }
 
     private static string? GetQueryValue(string query, string name)

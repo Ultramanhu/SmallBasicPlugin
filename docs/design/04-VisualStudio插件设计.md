@@ -150,6 +150,7 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 - `source.extension.vsixmanifest`：`InstallationTarget` 为 `Microsoft.VisualStudio.Community [17.0,)`（amd64）与 `[17.4,)`（arm64）；`Dependencies` 要求 .NET Framework `[4.7.2,)`。
 - 携带载荷：`SmallBasic.Vsix.dll/.pkgdef`、vendor 的 `SmallBasic.Compiler.dll`/`SmallBasic.Utilities.dll`/`SmallBasic.Analyzers.dll` 及依赖、`debugadapter/adapter.js`（JS DAP bundle）、`runhost/csharp/SmallBasic.RunHost.exe`（net48）、`runhost/blazor/**`（net8.0 发布输出）、`runhost/javascript/smallbasic-runhost.js`。
 - `build/Package-Vsix.ps1` 在打包后校验 VSIX v3 必需条目（`extension.vsixmanifest`/`manifest.json`/`catalog.json`/`[Content_Types].xml`）与必需载荷，并**拒绝内置 node.exe/node_modules**（不得内置 Node 运行时）。
+- `build/Package-Vsix.ps1` 依赖 `runhost/Build-RunHost.ps1` 的输出（VSIX 携带其中的 RunHost、Blazor 与 JavaScript 载荷），因此默认先构建 RunHost 分发再 `dotnet build`；`Build-All.ps1` 已构建过该分发，故传入 `-SkipRunHost` 避免重复构建。VSIX 工程自身的 `PrepareRunHostForVsix` target 仍会按需构建 net48 宿主并发布 Blazor 宿主。
 - 版本单一来源为仓库根 `version.json`（当前 `0.1.2`），由 `tools/sync-version.mjs` 同步到 manifest 与 `VersionInfo.g.cs`。
 - 当前 VSIX 产物约 17 MB。
 

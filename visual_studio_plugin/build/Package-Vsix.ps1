@@ -1,7 +1,20 @@
+# Builds src\SmallBasic.Vsix and copies the VSSDK-generated VSIX v3 package into
+# this folder as SmallBasic.Vsix.<version>.vsix.
+#
+# The RunHost distribution (runhost\Build-RunHost.ps1) is built first, because the
+# VSIX bundles its payloads (C# RunHost, Blazor host, JavaScript run host and debug
+# adapter). Use -SkipRunHost when the distribution is already up to date
+# (Build-All.ps1 does) to avoid building it twice.
+#
+# Usage examples:
+#   .\Package-Vsix.ps1                     # Release package
+#   .\Package-Vsix.ps1 -Configuration Debug
+#   .\Package-Vsix.ps1 -SkipRunHost        # reuse the existing RunHost distribution
 param(
     [string]$Configuration = "Release",
     [string]$Framework = "net48",
-    [string]$PackageName
+    [string]$PackageName,
+    [switch]$SkipRunHost
 )
 
 $ErrorActionPreference = "Stop"
@@ -15,6 +28,24 @@ $projectRoot = Join-Path $repoRoot "src\SmallBasic.Vsix"
 & node (Join-Path $repositoryRoot "tools\sync-version.mjs")
 if ($LASTEXITCODE -ne 0) {
     throw "Version synchronization failed with exit code $LASTEXITCODE."
+}
+
+# The VSIX carries the C# RunHost, the Blazor host and the JavaScript run host /
+# debug adapter bundles, so the RunHost distribution must exist for the same
+# configuration first (the same prerequisite the VS Code packaging script has).
+# Build-All.ps1 already runs runhost\Build-RunHost.ps1 as its first step and
+# therefore passes -SkipRunHost so the payload is not built twice.
+if (-not $SkipRunHost) {
+    $runHostBuildScript = Join-Path $repositoryRoot "runhost\Build-RunHost.ps1"
+    if (-not (Test-Path -LiteralPath $runHostBuildScript)) {
+        throw "RunHost build script not found: $runHostBuildScript"
+    }
+
+    Write-Host "Building RunHost distribution ($Configuration)..." -ForegroundColor Yellow
+    & $runHostBuildScript -Configuration $Configuration
+    if ($LASTEXITCODE -ne 0) {
+        throw "RunHost build failed with exit code $LASTEXITCODE."
+    }
 }
 
 $version = [string]((Get-Content -LiteralPath (Join-Path $repositoryRoot "version.json") -Raw | ConvertFrom-Json).version)

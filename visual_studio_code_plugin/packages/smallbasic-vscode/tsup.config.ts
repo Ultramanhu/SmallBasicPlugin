@@ -1,6 +1,13 @@
 import path from "node:path";
 import { defineConfig } from "tsup";
 
+// Extension-host bundles (desktop and Web Worker) ship source maps so that F5
+// breakpoints bind to src/**/*.ts instead of the generated single file - without
+// them debugging the extension itself needs a step through dist/*.js.
+// SMALLBASIC_NO_SOURCEMAPS=1 builds without them (smaller VSIX payload, since
+// package.json ships dist/**).
+const sourcemap = process.env.SMALLBASIC_NO_SOURCEMAPS !== "1";
+
 export default defineConfig([
   {
     // "debug/adapter" keeps the historical dist/debug/adapter.js layout: both the
@@ -15,6 +22,7 @@ export default defineConfig([
     target: "node20",
     platform: "node",
     clean: true,
+    sourcemap,
     external: ["vscode"],
     noExternal: ["smallbasic-lang-core"]
   },
@@ -28,6 +36,7 @@ export default defineConfig([
     target: "es2022",
     platform: "browser",
     clean: false,
+    sourcemap,
     external: ["vscode"],
     noExternal: [
       "smallbasic-lang-core",
@@ -41,5 +50,19 @@ export default defineConfig([
     esbuildOptions(options) {
       options.inject = [path.resolve(__dirname, "src", "web", "polyfills.ts")];
     }
+  },
+  {
+    // JavaScript backend of the standalone web RunHost (runhost/web): one classic
+    // script that defines window.SmallBasicWeb for the shell page, so the browser
+    // needs neither Node.js nor a server to run TextWindow programs.
+    entry: {
+      "web-runhost": "src/runhost/web.ts"
+    },
+    format: "iife",
+    target: "es2022",
+    platform: "browser",
+    clean: false,
+    outExtension: () => ({ js: ".js" }),
+    noExternal: ["smallbasic-lang-core"]
   }
 ]);

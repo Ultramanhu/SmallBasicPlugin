@@ -1,0 +1,14 @@
+{
+  // Type-checks the Playwright harness (root config + tests/webview). Without a
+  // config here the editor falls back to an inferred project that has no Node.js
+  // types, even though the tests themselves run fine through Playwright.
+  // The workspace packages keep their own tsconfigs and `npm run typecheck`.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    // The specs run in Node but their page.evaluate/addInitScript callbacks are
+    // typed against the browser, so both libraries are needed.
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "noEmit": true
+  },
+  "include": ["playwright.config.ts", "tests/**/*.ts"]
+}

@@ -6,7 +6,7 @@ using SmallBasic.Blazor.Shared;
 
 namespace SmallBasic.Blazor.Client.Runtime;
 
-public sealed class BrowserBridge : IAsyncDisposable
+public sealed class BrowserBridge : IRunHostTransport
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private readonly ClientWebSocket socket = new();

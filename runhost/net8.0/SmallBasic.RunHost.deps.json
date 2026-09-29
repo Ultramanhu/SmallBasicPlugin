@@ -73,21 +73,9 @@
           }
         }
       },
-      "SmallBasic.Analyzers/1.0.0": {
-        "dependencies": {
-          "Microsoft.Extensions.Localization": "2.1.1"
-        },
-        "runtime": {
-          "SmallBasic.Analyzers.dll": {
-            "assemblyVersion": "2.0.0.0",
-            "fileVersion": "2.0.0.0"
-          }
-        }
-      },
       "SmallBasic.Compiler/1.0.0": {
         "dependencies": {
           "Microsoft.Extensions.Localization": "2.1.1",
-          "SmallBasic.Analyzers": "1.0.0",
           "SmallBasic.Utilities": "1.0.0"
         },
         "runtime": {
@@ -99,8 +87,7 @@
       },
       "SmallBasic.Utilities/1.0.0": {
         "dependencies": {
-          "Microsoft.Extensions.Localization": "2.1.1",
-          "SmallBasic.Analyzers": "1.0.0"
+          "Microsoft.Extensions.Localization": "2.1.1"
         },
         "runtime": {
           "SmallBasic.Utilities.dll": {
@@ -158,11 +145,6 @@
       "sha512": "sha512-scJ1GZNIxMmjpENh0UZ8XCQ6vzr/LzeF9WvEA51Ix2OQGAs9WPgPu8ABVUdvpKPLuor/t05gm6menJK3PwqOXg==",
       "path": "microsoft.extensions.primitives/2.1.1",
       "hashPath": "microsoft.extensions.primitives.2.1.1.nupkg.sha512"
-    },
-    "SmallBasic.Analyzers/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
     },
     "SmallBasic.Compiler/1.0.0": {
       "type": "project",

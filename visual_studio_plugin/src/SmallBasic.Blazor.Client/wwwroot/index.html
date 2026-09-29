@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Small Basic Web RunHost</title>
+    <!-- Relative so that the same page works at the root of the CLI RunHost
+         (http://127.0.0.1:port/) and inside a statically served copy of the
+         runhost/web distribution, including a sub directory deployment. -->
+    <base href="./" />
+    <link rel="stylesheet" href="app.css" />
+</head>
+<body>
+    <div class="web-runhost" id="web-runhost">
+        <header class="web-header">
+            <span class="brand">Small Basic</span>
+            <span class="web-subtitle">Web RunHost</span>
+            <label class="web-field" id="program-field">
+                <span>Program</span>
+                <select class="web-select" id="program-select"></select>
+            </label>
+            <label class="web-file-button" id="file-field" title="选择本地 .sb 文件，也可以直接把文件拖到页面上">
+                选择 .sb 文件…
+                <input accept=".sb,.txt,text/plain" id="file-input" type="file" />
+            </label>
+            <label class="web-field" id="backend-field">
+                <span>Backend</span>
+                <select class="web-select" id="backend-select">
+                    <option value="javascript">JavaScript (TextWindow)</option>
+                    <option value="blazor">Blazor WASM (GraphicsWindow)</option>
+                </select>
+            </label>
+            <button class="web-button primary" id="run-button" type="button">Run</button>
+            <button class="web-button" id="stop-button" type="button" disabled>Stop</button>
+            <span class="web-status" id="status">Ready</span>
+        </header>
+
+        <section class="web-pane web-output-pane" id="output-pane">
+            <div class="web-pane-header">
+                <span class="web-pane-title">Output</span>
+                <span class="web-pane-note" id="output-note">TextWindow 输出同时写入浏览器控制台（F12 / Console）。</span>
+            </div>
+            <pre class="web-console" id="console" hidden></pre>
+            <form class="web-input-row" hidden id="input-row">
+                <span id="input-prompt">Read</span>
+                <input autocomplete="off" id="input-field" type="text" />
+                <button type="submit">Send</button>
+            </form>
+            <div class="web-blazor-host" id="blazor-host">
+                <div id="app"></div>
+            </div>
+            <div class="web-diagnostics" hidden id="diagnostics"></div>
+        </section>
+    </div>
+
+    <div id="blazor-error-ui">
+        运行 Small Basic Blazor WASM 后端时发生未处理的错误。
+        <a class="reload" href="">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <script src="shell.js"></script>
+</body>
+</html>

@@ -10,7 +10,13 @@ const hostRoot = path.join(repositoryRoot, "visual_studio_plugin", "src", "Small
 // The requested configuration is forwarded by package-vsix.mjs so the staged
 // binaries match the rest of the build. Without it any existing build is
 // accepted, preferring Release.
-const requestedConfiguration = (process.argv[2] ?? "").trim() || undefined;
+//
+// --blazor-only stages just runhost/blazor (plus its wwwroot), which is all the
+// web extension needs: the Blazor WebAssembly backend runs inside a webview, so
+// the desktop hosts are not required. Used by "npm run stage:blazor".
+const arguments_ = process.argv.slice(2);
+const blazorOnly = arguments_.includes("--blazor-only");
+const requestedConfiguration = arguments_.find((argument) => !argument.startsWith("--"))?.trim() || undefined;
 const configurations = requestedConfiguration ? [requestedConfiguration] : ["Release", "Debug"];
 
 // Managed debug symbols are only staged for an explicit Debug request. Every
@@ -36,33 +42,43 @@ function findHost(targetFramework, fileName) {
   );
 }
 
-const windowsSource = findHost("net8.0-windows", "SmallBasic.RunHost.exe");
-const portableSource = findHost("net8.0", "SmallBasic.RunHost.dll");
 const blazorSource = path.join(repositoryRoot, "runhost", "blazor");
 if (!fs.existsSync(path.join(blazorSource, "SmallBasic.Blazor.RunHost.dll"))) {
   throw new Error("runhost/blazor/SmallBasic.Blazor.RunHost.dll was not found. Run runhost/Build-RunHost.ps1 first.");
 }
 
 const destinationDirectory = path.join(extensionDirectory, "runhost");
-fs.rmSync(destinationDirectory, { recursive: true, force: true });
-const windowsDestination = path.join(destinationDirectory, "windows");
-const portableDestination = path.join(destinationDirectory, "portable");
 const blazorDestination = path.join(destinationDirectory, "blazor");
-fs.mkdirSync(windowsDestination, { recursive: true });
-fs.mkdirSync(portableDestination, { recursive: true });
-fs.mkdirSync(blazorDestination, { recursive: true });
 const copyOptions = {
   recursive: true,
   force: true,
   filter: (source) => keepDebugSymbols || path.extname(source).toLowerCase() !== ".pdb"
 };
 
-fs.cpSync(windowsSource, windowsDestination, copyOptions);
-fs.cpSync(portableSource, portableDestination, copyOptions);
-fs.cpSync(blazorSource, blazorDestination, copyOptions);
-console.log(`Staged Windows C# run host from ${windowsSource}`);
-console.log(`Staged portable C# run host from ${portableSource}`);
-console.log(`Staged Blazor run host from ${blazorSource}`);
+if (blazorOnly) {
+  fs.rmSync(blazorDestination, { recursive: true, force: true });
+  fs.mkdirSync(blazorDestination, { recursive: true });
+  fs.cpSync(blazorSource, blazorDestination, copyOptions);
+  console.log(`Staged Blazor run host from ${blazorSource}`);
+  console.log("Staged the Blazor payload only (--blazor-only): the web extension runs it inside a webview.");
+} else {
+  const windowsSource = findHost("net8.0-windows", "SmallBasic.RunHost.exe");
+  const portableSource = findHost("net8.0", "SmallBasic.RunHost.dll");
+  fs.rmSync(destinationDirectory, { recursive: true, force: true });
+  const windowsDestination = path.join(destinationDirectory, "windows");
+  const portableDestination = path.join(destinationDirectory, "portable");
+  fs.mkdirSync(windowsDestination, { recursive: true });
+  fs.mkdirSync(portableDestination, { recursive: true });
+  fs.mkdirSync(blazorDestination, { recursive: true });
+
+  fs.cpSync(windowsSource, windowsDestination, copyOptions);
+  fs.cpSync(portableSource, portableDestination, copyOptions);
+  fs.cpSync(blazorSource, blazorDestination, copyOptions);
+  console.log(`Staged Windows C# run host from ${windowsSource}`);
+  console.log(`Staged portable C# run host from ${portableSource}`);
+  console.log(`Staged Blazor run host from ${blazorSource}`);
+}
+
 if (!keepDebugSymbols) {
   console.log("Skipped PDB files (release packaging).");
 }

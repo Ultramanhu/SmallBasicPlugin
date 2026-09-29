@@ -86,7 +86,8 @@
       {
         "command": "smallbasic.runCSharp",
         "title": "SmallBasic: Run with C# Backend",
-        "icon": "$(play)"
+        "icon": "$(play)",
+        "enablement": "!isWeb"
       },
       {
         "command": "smallbasic.runBlazor",
@@ -108,7 +109,7 @@
         },
         {
           "command": "smallbasic.runBlazor",
-          "when": "resourceLangId == smallbasic && !isWeb",
+          "when": "resourceLangId == smallbasic",
           "group": "navigation"
         }
       ],
@@ -144,7 +145,7 @@
                   "csharp",
                   "blazor"
                 ],
-                "description": "Backend to launch. Blazor runs text-only programs in the terminal and opens a browser only for GraphicsWindow/Shapes/Turtle programs."
+                "description": "Backend to launch. Blazor runs text-only programs in the terminal and opens a browser only for GraphicsWindow/Shapes/Turtle programs. In VS Code for the Web, Blazor runs (no debugging) inside a webview."
               },
               "stopOnEntry": {
                 "type": "boolean",
@@ -216,7 +217,8 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "package": "node ./scripts/package-vsix.mjs"
+    "package": "node ./scripts/package-vsix.mjs",
+    "stage:blazor": "node ./scripts/stage-runhost.mjs --blazor-only"
   },
   "devDependencies": {
     "smallbasic-lang-core": "0.1.0"

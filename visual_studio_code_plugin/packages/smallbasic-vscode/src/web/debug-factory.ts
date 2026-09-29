@@ -8,7 +8,13 @@ export class SmallBasicWebDebugAdapterFactory implements vscode.DebugAdapterDesc
     session: vscode.DebugSession
   ): Promise<vscode.DebugAdapterDescriptor | undefined> {
     if (session.configuration.backend === "csharp" || session.configuration.backend === "blazor") {
-      void vscode.window.showErrorMessage("VS Code for the Web 不支持启动本机 C#/Blazor RunHost，请使用 JavaScript 后端。");
+      // Ctrl+F5 already runs the Blazor backend in a webview from the configuration
+      // provider, so reaching this point means a debug session was requested for a
+      // backend that cannot be stepped in the browser.
+      void vscode.window.showErrorMessage(
+        "VS Code for the Web 目前只支持 JavaScript 后端的逐行调试。" +
+        "图形程序请按 Ctrl+F5（运行但不调试）或执行 “SmallBasic: Run with Blazor Backend”。"
+      );
       return undefined;
     }
 

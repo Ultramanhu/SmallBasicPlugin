@@ -10,7 +10,7 @@ type ExtensionManifest = {
   };
   contributes?: {
     breakpoints?: Array<{ language?: string }>;
-    commands?: Array<{ command?: string; icon?: string }>;
+    commands?: Array<{ command?: string; icon?: string; enablement?: string }>;
     debuggers?: Array<{
       configurationAttributes?: {
         launch?: {
@@ -63,6 +63,9 @@ describe("VS Code extension manifest", () => {
   it("hides the native C# run command in web workspaces", () => {
     const runMenu = manifest.contributes?.menus?.["editor/title/run"];
     expect(runMenu?.find((item) => item.command === "smallbasic.runCSharp")?.when).toContain("!isWeb");
+    expect(
+      manifest.contributes?.commands?.find((item) => item.command === "smallbasic.runCSharp")?.enablement
+    ).toBe("!isWeb");
   });
 
   it("names backend run commands explicitly and unifies their icons", () => {
@@ -77,12 +80,17 @@ describe("VS Code extension manifest", () => {
     expect(runCommands.every((item) => item.icon === "$(play)")).toBe(true);
   });
 
-  it("contributes the desktop Blazor backend and hides its run command on the web", () => {
+  it("contributes the Blazor backend on the desktop and in the browser", () => {
     const debuggerContribution = manifest.contributes?.debuggers?.[0];
     expect(
       debuggerContribution?.configurationAttributes?.launch?.properties?.backend?.enum
     ).toContain("blazor");
     const runMenu = manifest.contributes?.menus?.["editor/title/run"];
-    expect(runMenu?.find((item) => item.command === "smallbasic.runBlazor")?.when).toContain("!isWeb");
+    // The web extension runs the Blazor client inside a webview (the desktop
+    // RunHost keeps its own on-demand browser behaviour), so the run command is
+    // no longer restricted to desktop workspaces.
+    expect(runMenu?.find((item) => item.command === "smallbasic.runBlazor")?.when).toBe(
+      "resourceLangId == smallbasic"
+    );
   });
 });

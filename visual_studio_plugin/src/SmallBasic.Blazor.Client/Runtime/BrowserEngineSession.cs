@@ -1,4 +1,3 @@
-using System.Net.WebSockets;
 using SmallBasic.Blazor.Shared;
 using SmallBasic.Compiler;
 using SmallBasic.Compiler.Runtime;
@@ -9,14 +8,15 @@ public sealed class BrowserEngineSession : IAsyncDisposable
 {
     private readonly SessionDescriptor descriptor;
     private readonly RuntimeViewModel view;
-    private readonly BrowserBridge bridge;
+    private readonly IRunHostTransport bridge;
     private readonly BrowserLibraries libraries;
     private readonly SmallBasicCompilation compilation;
     private readonly SmallBasicEngine engine;
     private HashSet<int> breakpoints = new();
     private bool waitingForDebugInput;
+    private bool terminationRequested;
 
-    public BrowserEngineSession(SessionDescriptor descriptor, RuntimeViewModel view, BrowserBridge bridge)
+    public BrowserEngineSession(SessionDescriptor descriptor, RuntimeViewModel view, IRunHostTransport bridge)
     {
         this.descriptor = descriptor;
         this.view = view;
@@ -36,6 +36,20 @@ public sealed class BrowserEngineSession : IAsyncDisposable
     }
 
     public GraphicsWindowLibrary GraphicsWindow => this.libraries.GraphicsWindow;
+
+    /// <summary>
+    /// Whether the program touches GraphicsWindow/Shapes/Turtle. The runner uses
+    /// this instead of the descriptor so that the web shell does not have to
+    /// analyze the source before handing it over.
+    /// </summary>
+    public bool UsesGraphics => this.compilation.Analysis.UsesGraphicsWindow;
+
+    /// <summary>Requests program termination; the run loop reports it when it observes the state change.</summary>
+    public void Terminate()
+    {
+        this.terminationRequested = true;
+        this.engine.Terminate();
+    }
 
     public void SubmitInput(string value)
     {
@@ -107,7 +121,9 @@ public sealed class BrowserEngineSession : IAsyncDisposable
                     this.engine.Continue();
                     break;
                 case ExecutionState.Terminated:
-                    this.view.SetStatus("Completed");
+                    // The web shell's Stop button terminates through the same path,
+                    // so it must not read as a normal completion.
+                    this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
                     await this.bridge.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
                     return;
             }

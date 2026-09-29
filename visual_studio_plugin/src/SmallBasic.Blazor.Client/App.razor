@@ -1,3 +1,14 @@
+@*
+    The runner is the only page, but routing is kept on purpose: it resolves both
+    "/" (the CLI RunHost session URL and the standalone site root) and the
+    catch-all route of Runner.razor, which covers a statically served index.html.
+
+    Note for the VS Code webview hosting mode: the document must not point
+    <base href> at the extension resource host, because the router converts the
+    current location with NavigationManager.ToBaseRelativePath and throws when the
+    location is not contained by document.baseURI. See the remarks on
+    buildWebviewHtml in visual_studio_code_plugin/packages/smallbasic-vscode.
+*@
 <Router AppAssembly="@typeof(App).Assembly">
     <Found Context="routeData">
         <RouteView RouteData="@routeData" />

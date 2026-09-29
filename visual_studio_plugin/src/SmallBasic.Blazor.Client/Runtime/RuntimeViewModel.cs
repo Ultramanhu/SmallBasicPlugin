@@ -2,7 +2,7 @@ namespace SmallBasic.Blazor.Client.Runtime;
 
 public sealed class RuntimeViewModel
 {
-    private readonly TaskCompletionSource<string> input = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private TaskCompletionSource<string> input = NewInput();
 
     public event Action? Changed;
 
@@ -54,7 +54,34 @@ public sealed class RuntimeViewModel
         this.input.TrySetResult(value);
     }
 
+    /// <summary>
+    /// Drops console text, graphics and pending input so that the view can host a
+    /// fresh session. Used by the web shell, which reuses one page for every run.
+    /// </summary>
+    public void Reset()
+    {
+        TaskCompletionSource<string> pending = this.input;
+        this.input = NewInput();
+        this.WaitingForInput = false;
+        this.WaitingForNumber = false;
+        this.ConsoleText = string.Empty;
+        this.Status = "Ready";
+        this.Graphics.Elements.Clear();
+        this.Graphics.Visible = false;
+        this.Graphics.Width = 640;
+        this.Graphics.Height = 480;
+        this.Graphics.Title = "Small Basic GraphicsWindow";
+        this.Graphics.BackgroundColor = "#ffffff";
+
+        // Releases a previous run that is still blocked on Read/ReadNumber.
+        pending.TrySetResult(string.Empty);
+        this.NotifyChanged();
+    }
+
     public void NotifyChanged() => this.Changed?.Invoke();
+
+    private static TaskCompletionSource<string> NewInput()
+        => new(TaskCreationOptions.RunContinuationsAsynchronously);
 }
 
 public sealed class GraphicsScene

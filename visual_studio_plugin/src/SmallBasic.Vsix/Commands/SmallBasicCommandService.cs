@@ -15,11 +15,25 @@ namespace SmallBasic.Vsix.Commands
     /// </summary>
     internal static class SmallBasicCommandService
     {
-        // Visual Studio's standard F5/Ctrl+F5 commands arrive through the editor
-        // command filter without a backend argument. Remember the backend chosen
-        // by the most recent explicit Tools > Small Basic command so those
-        // standard commands do not silently fall back to C#.
+        // Visual Studio's standard F5/Ctrl+F5 commands and Open Folder launch
+        // profiles can both reach this shared service. Remember the most recent
+        // backend request so subsequent Ctrl+F5 runs, plus classic solution-mode
+        // F5/F10/F11 launches, keep using the same runtime instead of silently
+        // falling back to C#.
         public static SmallBasicBackend SelectedBackend { get; private set; } = SmallBasicBackend.CSharp;
+
+        public static string LastFocusedSmallBasicDocumentPath { get; private set; } = string.Empty;
+
+        public static void RememberSmallBasicDocument(string? filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath)
+                || !string.Equals(Path.GetExtension(filePath), ".sb", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            LastFocusedSmallBasicDocumentPath = Path.GetFullPath(filePath);
+        }
 
         public static void RunActiveDocument(SmallBasicBackend backend)
         {
@@ -41,6 +55,9 @@ namespace SmallBasic.Vsix.Commands
 
         public static void Run(string filePath, SmallBasicBackend backend)
         {
+            SelectedBackend = backend;
+            RememberSmallBasicDocument(filePath);
+
             try
             {
                 if (!TryCompile(filePath, out SmallBasicCompilation? compilation)
@@ -74,6 +91,9 @@ namespace SmallBasic.Vsix.Commands
 
         public static void Debug(string filePath, SmallBasicBackend backend, bool stopOnEntry)
         {
+            SelectedBackend = backend;
+            RememberSmallBasicDocument(filePath);
+
             try
             {
                 if (!TryCompile(filePath, out SmallBasicCompilation? compilation)
@@ -198,6 +218,7 @@ namespace SmallBasic.Vsix.Commands
 
             dte.ActiveDocument.Save();
             filePath = Path.GetFullPath(dte.ActiveDocument.FullName);
+            RememberSmallBasicDocument(filePath);
             return true;
         }
 

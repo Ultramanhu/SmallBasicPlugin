@@ -11,9 +11,11 @@
     "lint": "npm run typecheck --workspaces --if-present",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:web": "playwright test",
     "package:vsix": "npm --workspace smallbasic-tools-vsc run package"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@types/jasmine": "^5.1.9",
     "@types/node": "^22.10.2",
     "@types/pubsub-js": "^1.8.5",

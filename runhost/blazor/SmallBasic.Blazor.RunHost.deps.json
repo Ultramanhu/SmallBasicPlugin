@@ -197,14 +197,6 @@
           }
         }
       },
-      "SmallBasic.Analyzers/1.0.0": {
-        "runtime": {
-          "SmallBasic.Analyzers.dll": {
-            "assemblyVersion": "2.0.0.0",
-            "fileVersion": "2.0.0.0"
-          }
-        }
-      },
       "SmallBasic.Blazor.Client/1.0.0": {
         "dependencies": {
           "Microsoft.AspNetCore.Components.WebAssembly": "8.0.22",
@@ -229,7 +221,6 @@
       },
       "SmallBasic.Compiler/1.0.0": {
         "dependencies": {
-          "SmallBasic.Analyzers": "1.0.0",
           "SmallBasic.Utilities": "1.0.0"
         },
         "runtime": {
@@ -240,9 +231,6 @@
         }
       },
       "SmallBasic.Utilities/1.0.0": {
-        "dependencies": {
-          "SmallBasic.Analyzers": "1.0.0"
-        },
         "runtime": {
           "SmallBasic.Utilities.dll": {
             "assemblyVersion": "2.0.0.0",
@@ -376,11 +364,6 @@
       "sha512": "sha512-gcn+OdIF4UwNR8dgJstr8RrOLGjD1LGAOkrwj72KLevDxNy0bZFYecimozlwUx5epxnuLXxRfZ1lkOu9MeuKHA==",
       "path": "microsoft.jsinterop.webassembly/8.0.22",
       "hashPath": "microsoft.jsinterop.webassembly.8.0.22.nupkg.sha512"
-    },
-    "SmallBasic.Analyzers/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
     },
     "SmallBasic.Blazor.Client/1.0.0": {
       "type": "project",

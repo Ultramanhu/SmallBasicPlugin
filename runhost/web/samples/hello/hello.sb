@@ -1,0 +1,15 @@
+TextWindow.WriteLine("Hello, World!")
+
+a1 = 1
+a2 = a1 + ""
+TextWindow.WriteLine(a2)
+
+s1 = "3"
+s2 = s1 * 1
+TextWindow.WriteLine(s2)
+
+Sub MySub
+	TextWindow.WriteLine("Hello")
+EndSub
+
+MySub()

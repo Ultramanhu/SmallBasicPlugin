@@ -4,6 +4,8 @@
 > - `run` 支持可选 `--no-open`（不自动打开浏览器，仅打印会话 URL）。
 > - VS Code 桌面与 Visual Studio 都随扩展分发 `runhost/blazor` 载荷，并以 `dotnet ...SmallBasic.Blazor.RunHost.dll run|debug` 调用；VS Code Web 无法启动本机进程，因此仍只有 JavaScript 后端。
 > - 项目位于 `visual_studio_plugin/src/SmallBasic.Blazor.{Shared,Client,RunHost}`，由 Vsix 项目发布到 `runhost/blazor`。
+>
+> **2026-09-29 补充**：`SmallBasic.Blazor.Client/wwwroot` 现在提供仓库跟踪的页面外壳（`index.html`、`app.css`、`shell.js`、`serve.mjs`）。它既服务 CLI 会话（`?session=<id>`，自动隐藏编辑器），也是独立静态站点 `runhost/web` 的入口——该站点在本机浏览器内同时提供 JavaScript 与 Blazor WASM 两个后端，不连接任何服务器。宿主通道已抽象为 `IRunHostTransport`（`BrowserBridge` = WebSocket / `WebShellTransport` = JS 互操作）。详见 [10-WebRunHost.md](./10-WebRunHost.md)。
 
 ## 目标
 

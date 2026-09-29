@@ -72,6 +72,9 @@ syncRepositoryVersion();
 
 // Bundle the extension (dist/extension.js, dist/debug/adapter.js, dist/runhost.js).
 // The Visual Studio VSIX packaging consumes the same adapter/runhost bundles.
+// Source maps are meant for local debugging (F5 breakpoints in src/**/*.ts) and
+// would add ~7 MB to the package, so the shipped VSIX is built without them.
+process.env.SMALLBASIC_NO_SOURCEMAPS = "1";
 runShell("npm run build");
 
 console.log(`Staging RunHost payload from the ${configuration} build.`);

@@ -1,6 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
+    <Platform Condition="'$(Platform)' == '' or '$(Platform)' == 'x86'">AnyCPU</Platform>
+    <Platforms>AnyCPU</Platforms>
     <TargetFramework>net48</TargetFramework>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <Prefer32Bit>false</Prefer32Bit>
     <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
@@ -16,6 +20,13 @@
     <CopyVsixManifestToOutput>true</CopyVsixManifestToOutput>
     <DebugAdapterSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\debug\adapter.js</DebugAdapterSource>
     <JavaScriptRunHostSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\runhost.js</JavaScriptRunHostSource>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
+    <StartAction>Program</StartAction>
+    <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/RootSuffix Exp</StartArguments>
   </PropertyGroup>
 
   <PropertyGroup>

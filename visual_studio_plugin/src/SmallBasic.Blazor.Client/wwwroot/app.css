@@ -1,0 +1,449 @@
+/* Small Basic Blazor RunHost styling.
+   Two layers share this sheet:
+     1. the browser shell (index.html + shell.js) of the standalone web RunHost,
+     2. the Runner component rendered inside #app, which is also used by the CLI
+        RunHost that opens the page with ?session=<id>. */
+
+[hidden] {
+    display: none !important;
+}
+
+:root {
+    --sb-bg: #0d1117;
+    --sb-panel: #151a23;
+    --sb-panel-strong: #1c2331;
+    --sb-border: #2a3140;
+    --sb-text: #e6e9ef;
+    --sb-muted: #9aa4b2;
+    --sb-accent: #2f6fed;
+    --sb-accent-soft: rgba(76, 141, 255, 0.16);
+    --sb-danger: #ff8f8f;
+    --sb-danger-border: #5c2b2b;
+    --sb-mono: Consolas, "Cascadia Mono", "Courier New", monospace;
+}
+
+body {
+    margin: 0;
+    padding: 12px;
+    background: var(--sb-bg);
+    color: var(--sb-text);
+    font-family: "Segoe UI", system-ui, -apple-system, "Microsoft YaHei", sans-serif;
+    font-size: 14px;
+}
+
+/* ---------------------------------------------------------------- shell ---- */
+
+.web-runhost {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-width: 1440px;
+    min-height: calc(100vh - 24px);
+    margin: 0 auto;
+}
+
+.web-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 10px 14px;
+    background: var(--sb-panel);
+    border: 1px solid var(--sb-border);
+    border-radius: 10px;
+}
+
+.web-subtitle {
+    color: var(--sb-muted);
+    font-size: 12px;
+    letter-spacing: 0.04em;
+}
+
+.web-field {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--sb-muted);
+    font-size: 12px;
+}
+
+#program-field {
+    margin-left: auto;
+}
+
+#program-select {
+    max-width: 340px;
+}
+
+.web-status {
+    color: var(--sb-muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    min-width: 96px;
+}
+
+.web-pane {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 10px;
+    background: var(--sb-panel);
+    border: 1px solid var(--sb-border);
+    border-radius: 10px;
+    min-width: 0;
+}
+
+/* The output pane is the whole page below the toolbar, so graphics and console
+   text get as much room as possible. */
+.web-output-pane {
+    flex: 1;
+}
+
+.web-pane-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.web-pane-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sb-muted);
+}
+
+.web-pane-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.web-pane-note {
+    margin-left: auto;
+    color: var(--sb-muted);
+    font-size: 11px;
+    text-align: right;
+}
+
+.web-select:focus,
+.web-input-row input:focus {
+    outline: 1px solid var(--sb-accent);
+    border-color: var(--sb-accent);
+}
+
+.web-console {
+    flex: 1;
+    margin: 0;
+    min-height: 240px;
+    max-height: 68vh;
+    overflow: auto;
+    padding: 10px;
+    background: #05070b;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    font-family: var(--sb-mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.web-input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.web-input-row span {
+    color: #8ab4ff;
+    font-family: var(--sb-mono);
+    font-size: 12px;
+}
+
+.web-input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    background: #0b0f16;
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    color: var(--sb-text);
+    font-family: var(--sb-mono);
+    font-size: 13px;
+}
+
+.web-diagnostics {
+    padding: 10px;
+    background: rgba(255, 70, 70, 0.08);
+    border: 1px solid var(--sb-danger-border);
+    border-radius: 8px;
+    color: var(--sb-danger);
+    font-family: var(--sb-mono);
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+.web-banner {
+    padding: 10px 14px;
+    background: rgba(255, 190, 70, 0.1);
+    border: 1px solid #6b5320;
+    border-radius: 10px;
+    color: #ffd591;
+    font-size: 13px;
+    line-height: 1.6;
+}
+
+.web-banner code {
+    color: #fff;
+}
+
+.web-blazor-host {
+    min-height: 120px;
+}
+
+/* CLI mode: the page was opened by SmallBasic.Blazor.RunHost with ?session=,
+   so only the WASM session is shown and it fills the whole page. */
+body.web-cli-mode #program-field,
+body.web-cli-mode #file-field,
+body.web-cli-mode #backend-field,
+body.web-cli-mode #run-button,
+body.web-cli-mode #stop-button,
+body.web-cli-mode #status,
+body.web-cli-mode .web-pane-header,
+body.web-cli-mode #diagnostics {
+    display: none;
+}
+
+/* Shown by the Blazor WebAssembly runtime when a component fails. */
+#blazor-error-ui {
+    display: none;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 1000;
+    padding: 10px 16px;
+    background: #5c2b2b;
+    box-shadow: 0 -1px 6px rgba(0, 0, 0, 0.45);
+    color: #ffd7d7;
+    font-size: 13px;
+}
+
+#blazor-error-ui .reload {
+    margin-left: 8px;
+    color: #fff;
+}
+
+#blazor-error-ui .dismiss {
+    position: absolute;
+    top: 6px;
+    right: 12px;
+    cursor: pointer;
+}
+
+/* --------------------------------------------------------------- inputs ---- */
+
+.web-button {
+    padding: 5px 14px;
+    background: var(--sb-panel-strong);
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    color: var(--sb-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.web-button:hover:not(:disabled) {
+    border-color: var(--sb-accent);
+}
+
+.web-button.primary {
+    background: var(--sb-accent);
+    border-color: var(--sb-accent);
+    color: #fff;
+    font-weight: 600;
+}
+
+.web-button:disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+}
+
+.web-select {
+    padding: 5px 8px;
+    background: var(--sb-panel-strong);
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    color: var(--sb-text);
+    font-size: 12px;
+}
+
+.web-file-button {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    padding: 5px 10px;
+    overflow: hidden;
+    background: var(--sb-panel-strong);
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    color: var(--sb-text);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.web-file-button input[type="file"] {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+}
+
+/* ------------------------------------------------------- Runner component ---- */
+
+.status-card {
+    padding: 16px;
+    background: var(--sb-panel);
+    border: 1px solid var(--sb-border);
+    border-radius: 10px;
+    color: var(--sb-muted);
+    font-size: 13px;
+}
+
+.status-card.error {
+    border-color: var(--sb-danger-border);
+    color: var(--sb-danger);
+}
+
+.status-card pre {
+    margin: 8px 0 0;
+    font-family: var(--sb-mono);
+    font-size: 12px;
+    white-space: pre-wrap;
+}
+
+.runner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    min-width: 0;
+}
+
+.toolbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 8px 10px;
+    background: #121722;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    color: var(--sb-muted);
+    font-size: 12px;
+}
+
+.brand {
+    color: var(--sb-text);
+    font-weight: 700;
+    letter-spacing: 0.02em;
+}
+
+.program-name {
+    font-family: var(--sb-mono);
+}
+
+.runtime-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    background: var(--sb-accent-soft);
+    border-radius: 999px;
+    color: #8ab4ff;
+    font-size: 11px;
+}
+
+.workspace {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+}
+
+.graphics-card {
+    padding: 8px;
+    background: #fff;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    overflow: auto;
+}
+
+.graphics-window {
+    display: block;
+    max-width: 100%;
+    height: auto;
+    background: #fff;
+    outline: none;
+}
+
+.graphics-window:focus {
+    outline: 2px solid var(--sb-accent);
+}
+
+.console-card {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+}
+
+.console-title {
+    color: var(--sb-muted);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.console-output {
+    margin: 0;
+    min-height: 96px;
+    max-height: 320px;
+    overflow: auto;
+    padding: 10px;
+    background: #05070b;
+    border: 1px solid var(--sb-border);
+    border-radius: 8px;
+    color: #d7e3f4;
+    font-family: var(--sb-mono);
+    font-size: 12.5px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.input-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.input-row input {
+    flex: 1;
+    min-width: 0;
+    padding: 6px 8px;
+    background: #0b0f16;
+    border: 1px solid var(--sb-border);
+    border-radius: 6px;
+    color: var(--sb-text);
+    font-family: var(--sb-mono);
+    font-size: 13px;
+}
+
+.input-row button {
+    padding: 6px 14px;
+    background: var(--sb-accent);
+    border: 1px solid var(--sb-accent);
+    border-radius: 6px;
+    color: #fff;
+    font-size: 12px;
+    cursor: pointer;
+}

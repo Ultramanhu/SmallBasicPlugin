@@ -5,7 +5,7 @@
 > **2026-09-28 现状校准**
 >
 > - monorepo 实际只有两个包：`packages/smallbasic-lang-core`（语言核心，仅再导出 `vendor/SmallBasicOnline` 并补充调试表达式求值）与 `packages/smallbasic-vscode`（扩展本体，调试适配器内嵌其中）。**没有**独立的 `sb-debug` 包，也**没有** `conformance/` 目录。
-> - 扩展同时提供桌面入口（`src/extension.ts`）与 Web 入口（`src/web/extension.ts`，清单 `browser` 字段）；Web 端只支持 JavaScript 后端。
+> - 扩展同时提供桌面入口（`src/extension.ts`）与 Web 入口（`src/web/extension.ts`，清单 `browser` 字段）；Web 端支持 JavaScript 后端，以及**在 Webview 内运行的 Blazor WASM 后端**（图形程序可用，见 [10-WebRunHost.md](./10-WebRunHost.md) §vscode.dev 集成），但 Blazor **逐行调试**仍只在桌面端提供：Web 端 `Ctrl+F5`（运行但不调试）经 `src/web/run-routing.ts` 分流为「在 Webview 内运行」，`F5` 的 Blazor/图形调试请求则被拒绝并提示改用运行命令。
 > - 已实现：`.sb` 关联、TextMate + 语义令牌双层着色、诊断、悬停、上下文补全、文档大纲（Sub 与变量首次使用）、调试内联值、`TextWindow` 文本运行，以及 **JS / C# / Blazor 三后端**的运行与调试。
 > - 运行是三个**显式命令**（不再有统一的 `smallbasic.run`，也没有 `smallbasic.backend` 设置）：
 >   - `smallbasic.runJavaScript` —— 内置 JS 引擎，跨平台（含 VS Code for the Web），无图形能力；
@@ -37,7 +37,9 @@ visual_studio_code_plugin/
 │       ├── src/
 │       │   ├── extension.ts      # 桌面入口（activate/deactivate）
 │       │   ├── common/activation.ts   # 跨平台公共激活与运行逻辑
-│       │   ├── web/extension.ts       # Web 入口（browser 字段，仅 JS 后端）
+│       │   ├── web/extension.ts       # Web 入口（browser 字段：JS 后端 + Webview 内的 Blazor 后端）
+│       │   ├── web/blazor-webview.ts  # 在 Webview 中托管 Blazor WASM（图形）
+│       │   ├── web/webview-html.ts    # Webview 文档与 CSP 生成
 │       │   ├── language/         # 补全/悬停/诊断/语义令牌/文档大纲
 │       │   ├── run/              # JS 终端会话 + C# / Blazor 运行后端
 │       │   ├── runhost/main.ts   # 独立 Node CLI 运行宿主（产物 dist/runhost.js）
@@ -84,7 +86,7 @@ visual_studio_code_plugin/
 ```jsonc
 {
   "main": "./dist/extension.js",
-  "browser": "./dist/web/extension.js",          // Web 入口（仅 JS 后端）
+  "browser": "./dist/web/extension.js",          // Web 入口（JS 后端 + Webview 内的 Blazor 后端）
   "engines": { "vscode": "^1.96.0" },
   "capabilities": { "virtualWorkspaces": true },
   "activationEvents": ["onLanguage:smallbasic"],
@@ -113,7 +115,7 @@ visual_studio_code_plugin/
       "editor/title/run": [
         { "command": "smallbasic.runJavaScript", "when": "resourceLangId == smallbasic" },
         { "command": "smallbasic.runCSharp",     "when": "resourceLangId == smallbasic && !isWeb" },
-        { "command": "smallbasic.runBlazor",     "when": "resourceLangId == smallbasic && !isWeb" }
+        { "command": "smallbasic.runBlazor",     "when": "resourceLangId == smallbasic" }   // 桌面：按需浏览器；Web：Webview
       ],
       "explorer/context": [{ "command": "smallbasic.newFile", "when": "explorerResourceIsFolder" }]
     },
@@ -238,6 +240,7 @@ class CompilationCache {
 
 - tsup 打包：Node 目标产出 `dist/extension.js`、`dist/debug/adapter.js`、`dist/runhost.js`（外部仅留 `vscode`，`smallbasic-lang-core` 内联）；另有 Web 目标产出 `dist/web/extension.js`（注入 Buffer/process polyfill）。
 - `@vscode/vsce package` 产出 vsix；打包脚本 `scripts/package-vsix.mjs` 会先构建，再由 `scripts/stage-runhost.mjs` 把 RunHost 的 windows/portable/blazor 载荷暂存进扩展 `runhost/`，最后打包。CI 流程：typecheck → vitest → 打包。
+- `build/Package-Vsix.ps1` 依赖 `runhost/Build-RunHost.ps1` 的输出：`stage-runhost.mjs` 从 `visual_studio_plugin/src/SmallBasic.RunHost/bin/<Configuration>` 取宿主，因此脚本会先构建 RunHost 分发（`-SkipJavaScript`，JS bundle 由 tsup 流程负责）；`Build-All.ps1` 已构建过该分发，故传入 `-SkipRunHost` 避免重复构建。
 - 体积：因为内置了 windows/portable/blazor 三份宿主，当前 vsix 约 18 MB（远大于仅扩展本体的体积）。
 
 ## 11. 与 VS 侧的差异说明
