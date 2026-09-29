@@ -2,8 +2,6 @@
 
 Microsoft Small Basic language support for Visual Studio Code (VS Code 1.96+).
 
-The Blazor backend requires the .NET 8 and ASP.NET Core 8 runtimes.
-
 repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 
 ## Features
@@ -19,6 +17,9 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 - Debugging: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack, shared DAP semantics across backends
 - `SmallBasic: New File` command and Explorer context-menu template
 - Localized Document
+
+## Requirements
+- The C# path requires the .NET 8 runtime and the Blazor path requires the .NET 8 and ASP.NET Core 8 runtimes.
 
 ## Usage
 
@@ -49,6 +50,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 ## Known limitations
 
 - The JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use the Windows C# backend or the cross-platform Blazor backend.
+- The Blazor backend for VS Code Web does not support Debugging, only Running.
 
 ## License
 

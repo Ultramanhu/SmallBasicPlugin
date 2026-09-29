@@ -11,16 +11,16 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 - Live diagnostics in the Error List
 - Native Visual Studio navigation bar for procedures and variables
 - Run programs with three backends:
-  - `Run with C# Backend` — bundled .NET run host; supports graphics programs (`GraphicsWindow` / `Shapes` / `Turtle`) on Windows
-  - `Run with JavaScript Backend` — external Node.js 20+, text-only programs
-  - `Run with Blazor Backend` — bundled ASP.NET Core/Blazor WebAssembly run host; graphics programs run in the browser
+  - `SmallBasic: Run with C# Backend` — bundled .NET run host; supports graphics programs (`GraphicsWindow` / `Shapes` / `Turtle`) on Windows
+  - `SmallBasic: Run with JavaScript Backend` — external Node.js 20+, text-only programs
+  - `SmallBasic: Run with Blazor Backend` — bundled ASP.NET Core/Blazor WebAssembly run host; graphics programs run in the browser
 - Debugging with the C#, JavaScript, or Blazor backend: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack
 - Localized Document
 
 ## Requirements
 
 - Visual Studio 2022 (17.0+ amd64; 17.4+ arm64) or Visual Studio 2026
-- The C# run/debug path does not require Node.js; the JavaScript path requires Node.js 20+; the Blazor path requires the .NET 8 runtime
+- The JavaScript path requires Node.js 20+; the Blazor path requires the .NET 8 runtime
 
 ## Installation
 
@@ -33,6 +33,10 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
 - **Choose a backend**: use `Tools > Small Basic` to run or debug explicitly with C#, JavaScript, or Blazor. The chosen backend remains active for subsequent standard run/debug commands in the current Visual Studio session; C# is the initial default.
 - **Run**: press `Ctrl+F5` to run the current `.sb` with the active backend.
 - **Debug**: set breakpoints in a `.sb` file and press `F5`. `F10`/`F11` at design time start with stop-on-entry; during a debug session `F5`/`F10`/`F11`/`Shift+F5` are forwarded to the debugger.
+
+## Known limitations
+
+- The JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use the Windows C# backend or the cross-platform Blazor backend.
 
 ## License
 
