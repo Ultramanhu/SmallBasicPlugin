@@ -8,6 +8,7 @@ import { CSharpRunner } from "./run/csharp-runner";
 import { BlazorRunner } from "./run/blazor-runner";
 import { runJavaScriptCompilation } from "./run/javascript-runner";
 import { runInWebview } from "./web/blazor-webview";
+import { documentBaseName } from "./web/inline-factory";
 import { routeWebDebugRequest } from "./web/run-routing";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -104,7 +105,7 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
           return undefined;
         }
 
-        if (routing.kind === "webview") {
+        if (routing.kind === "run-in-webview") {
           if (!document) {
             void vscode.window.showErrorMessage("无法打开要运行的 SmallBasic 文件。请检查 launch.json 中的 program。");
             return undefined;
@@ -116,14 +117,17 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
 
           await runInWebview(
             context,
-            documentName(document),
+            documentBaseName(document),
             document.getText(),
             routing.backend
           );
           return undefined;
         }
 
-        config.backend = "javascript";
+        // F5 in web mode: the factory detects mode === "web" and creates the
+        // shared inline adapter (JavaScript in the extension host, Blazor in the
+        // webview), so the configuration only has to carry the resolved backend.
+        config.backend = routing.backend;
         config.program = program;
         return config;
       }
@@ -211,9 +215,4 @@ function analyze(document: vscode.TextDocument): boolean {
   } catch {
     return false;
   }
-}
-
-function documentName(document: vscode.TextDocument): string {
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || document.fileName || "program.sb";
 }

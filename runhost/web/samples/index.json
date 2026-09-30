@@ -2,56 +2,6 @@
   "default": "test/hello/hello.sb",
   "items": [
     {
-      "name": "test/.kilo/worktrees/tangy-peony/runhost/web/samples/hello/hello.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/runhost/web/samples/hello/hello.sb",
-      "graphics": false
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/runhost/web/samples/tetris/tetris.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/runhost/web/samples/tetris/tetris.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/runhost/web/samples/tutorial/level1.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/runhost/web/samples/tutorial/level1.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/runhost/web/samples/tutorial/level2.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/runhost/web/samples/tutorial/level2.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/runhost/web/samples/tutorial/level3.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/runhost/web/samples/tutorial/level3.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/test/hello/hello.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/test/hello/hello.sb",
-      "graphics": false
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/test/tetris/tetris.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/test/tetris/tetris.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/test/tutorial/level1.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/test/tutorial/level1.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/test/tutorial/level2.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/test/tutorial/level2.sb",
-      "graphics": true
-    },
-    {
-      "name": "test/.kilo/worktrees/tangy-peony/test/tutorial/level3.sb",
-      "path": "samples/.kilo/worktrees/tangy-peony/test/tutorial/level3.sb",
-      "graphics": true
-    },
-    {
       "name": "test/hello/hello.sb",
       "path": "samples/hello/hello.sb",
       "graphics": false

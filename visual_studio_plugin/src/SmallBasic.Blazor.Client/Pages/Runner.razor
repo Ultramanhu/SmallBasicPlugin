@@ -169,9 +169,13 @@ else
         {
             var descriptor = new SessionDescriptor
             {
-                Id = "web",
+                // The webview debug flow supplies a session id so runtime messages
+                // can be isolated per session; the standalone shell leaves it empty.
+                Id = string.IsNullOrEmpty(request.SessionId) ? "web" : request.SessionId,
                 ProgramName = request.Name,
                 Source = request.Source,
+                Debug = request.Debug,
+                StopOnEntry = request.StopOnEntry,
             };
             var session = new BrowserEngineSession(descriptor, this.view, transport);
             this.descriptor = descriptor;

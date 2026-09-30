@@ -46,7 +46,6 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
   "program": "${file}",  "backend": "blazor",  "mode": "cli",  "stopOnEntry": false }
 ```
 
-
 - The JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use the Windows C# backend or the cross-platform Blazor backend.
 
 ## License

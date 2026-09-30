@@ -38,6 +38,13 @@ public sealed class BrowserEngineSession : IAsyncDisposable
     public GraphicsWindowLibrary GraphicsWindow => this.libraries.GraphicsWindow;
 
     /// <summary>
+    /// Session identifier of the web debug protocol. Every message the session
+    /// publishes carries it so the webview and the extension host can drop
+    /// messages that belong to a previous run.
+    /// </summary>
+    public string SessionId => this.descriptor.Id;
+
+    /// <summary>
     /// Whether the program touches GraphicsWindow/Shapes/Turtle. The runner uses
     /// this instead of the descriptor so that the web shell does not have to
     /// analyze the source before handing it over.
@@ -50,6 +57,13 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         this.terminationRequested = true;
         this.engine.Terminate();
     }
+
+    /// <summary>
+    /// Queues a host command (debug control, breakpoints, input) into the
+    /// transport channel. Used by <c>WebRunHost.DispatchDebugCommand</c> for the
+    /// webview channel; the CLI bridge writes into the channel itself.
+    /// </summary>
+    public void EnqueueCommand(HostMessage command) => this.bridge.EnqueueLocal(command);
 
     public void SubmitInput(string value)
     {
@@ -68,7 +82,7 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         try
         {
             this.view.SetStatus(this.descriptor.Debug ? "Debugger connected" : "Running");
-            await this.bridge.SendAsync(new BrowserMessage { Type = "ready" });
+            await this.SendAsync(new BrowserMessage { Type = "ready" });
             if (this.descriptor.Debug)
             {
                 await this.RunDebugAsync();
@@ -82,8 +96,8 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         {
             this.view.AppendText($"{Environment.NewLine}{ex}{Environment.NewLine}");
             this.view.SetStatus("Failed");
-            await this.bridge.SendAsync(new BrowserMessage { Type = "output", Text = ex + Environment.NewLine });
-            await this.bridge.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 4 });
+            await this.SendAsync(new BrowserMessage { Type = "output", Text = ex + Environment.NewLine });
+            await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 4 });
         }
     }
 
@@ -124,7 +138,7 @@ public sealed class BrowserEngineSession : IAsyncDisposable
                     // The web shell's Stop button terminates through the same path,
                     // so it must not read as a normal completion.
                     this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
-                    await this.bridge.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
+                    await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
                     return;
             }
         }
@@ -132,17 +146,8 @@ public sealed class BrowserEngineSession : IAsyncDisposable
 
     private async Task RunDebugAsync()
     {
-        HostMessage start;
-        do
+        if (!await this.WaitForStartAsync())
         {
-            start = await this.bridge.ReadAsync();
-            this.ApplyHostMessage(start);
-        }
-        while (start.Type != "start" && start.Type != "stop");
-
-        if (start.Type == "stop")
-        {
-            this.engine.Terminate();
             return;
         }
 
@@ -159,8 +164,7 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         while (this.engine.State != ExecutionState.Terminated)
         {
             HostMessage command = await this.bridge.ReadAsync();
-            this.ApplyHostMessage(command);
-            if (command.Type == "stop")
+            if (await this.ApplyHostCommandAsync(command))
             {
                 this.engine.Terminate();
                 break;
@@ -172,8 +176,33 @@ public sealed class BrowserEngineSession : IAsyncDisposable
             }
         }
 
-        this.view.SetStatus("Completed");
-        await this.bridge.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
+        this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
+        await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
+    }
+
+    /// <summary>
+    /// Applies breakpoint/control commands until the host sends <c>start</c>.
+    /// Returns false when the session was stopped before it ever started (the
+    /// caller reports <c>terminated</c> so the adapter cannot hang).
+    /// </summary>
+    private async Task<bool> WaitForStartAsync()
+    {
+        while (true)
+        {
+            HostMessage message = await this.bridge.ReadAsync();
+            if (await this.ApplyHostCommandAsync(message))
+            {
+                this.engine.Terminate();
+                this.view.SetStatus("Stopped");
+                await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
+                return false;
+            }
+
+            if (message.Type == "start")
+            {
+                return true;
+            }
+        }
     }
 
     private async Task ExecuteControlAsync(string control, int startingDepth)
@@ -188,8 +217,7 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         {
             while (this.bridge.TryRead(out HostMessage? pending) && pending is not null)
             {
-                this.ApplyHostMessage(pending);
-                if (pending.Type == "stop")
+                if (await this.ApplyHostCommandAsync(pending))
                 {
                     this.engine.Terminate();
                 }
@@ -240,12 +268,17 @@ public sealed class BrowserEngineSession : IAsyncDisposable
     {
         this.waitingForDebugInput = true;
         this.view.SetStatus(number ? "Debugger is waiting for a number" : "Debugger is waiting for input");
-        await this.bridge.SendAsync(this.CreateSnapshotMessage("input", numberInput: number));
+        await this.SendAsync(this.CreateSnapshotMessage("input", numberInput: number));
 
         while (true)
         {
             HostMessage command = await this.bridge.ReadAsync();
-            this.ApplyHostMessage(command);
+            if (await this.ApplyHostCommandAsync(command))
+            {
+                this.waitingForDebugInput = false;
+                return;
+            }
+
             if (command.Type == "input")
             {
                 string value = command.Text ?? string.Empty;
@@ -256,28 +289,77 @@ public sealed class BrowserEngineSession : IAsyncDisposable
                 this.view.SetStatus("Running under debugger");
                 return;
             }
-
-            if (command.Type == "stop")
-            {
-                this.engine.Terminate();
-                this.waitingForDebugInput = false;
-                return;
-            }
         }
     }
 
-    private void ApplyHostMessage(HostMessage message)
+    /// <summary>
+    /// Handles the commands that are valid in any state. Returns true when the
+    /// caller must terminate the engine (Stop/terminate).
+    /// </summary>
+    private async Task<bool> ApplyHostCommandAsync(HostMessage message)
     {
+        if (message.Type == "setBreakpoints")
+        {
+            // Web debug requests carry the raw (0-based) lines; the runtime is the
+            // only side that knows the executable lines, so it snaps them here and
+            // answers with the lines it actually accepted.
+            int[] validated = this.ValidateBreakpoints(message.Breakpoints);
+            this.breakpoints = validated.ToHashSet();
+            await this.SendAsync(new BrowserMessage
+            {
+                Type = "breakpointsValidated",
+                RequestId = message.RequestId,
+                Breakpoints = validated,
+            });
+            return false;
+        }
+
+        if (message.Type == "stop")
+        {
+            this.terminationRequested = true;
+            return true;
+        }
+
+        // The CLI bridge validates breakpoints in its adapter and sends the
+        // already-snapped lines with "breakpoints", "start" and with every
+        // "control" message; web commands carry no breakpoints on "control".
         if (message.Breakpoints.Length > 0 || message.Type == "breakpoints" || message.Type == "start")
         {
             this.breakpoints = message.Breakpoints.ToHashSet();
         }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Snaps each requested line to the next executable line, dropping requests
+    /// that fall past the end of the program (mirrors the JavaScript adapter's
+    /// breakpoint verification).
+    /// </summary>
+    private int[] ValidateBreakpoints(IEnumerable<int> requested)
+    {
+        int[] executable = this.compilation.GetExecutableLines().OrderBy(line => line).ToArray();
+        var validated = new SortedSet<int>();
+        foreach (int line in requested)
+        {
+            int zeroBased = Math.Max(0, line);
+            foreach (int candidate in executable)
+            {
+                if (candidate >= zeroBased)
+                {
+                    validated.Add(candidate);
+                    break;
+                }
+            }
+        }
+
+        return validated.ToArray();
     }
 
     private async Task SendStoppedAsync(string reason, int? lineOverride = null)
     {
         this.view.SetStatus($"Paused: {reason}");
-        await this.bridge.SendAsync(this.CreateSnapshotMessage("stopped", reason, lineOverride));
+        await this.SendAsync(this.CreateSnapshotMessage("stopped", reason, lineOverride));
     }
 
     private BrowserMessage CreateSnapshotMessage(string type, string? reason = null, int? lineOverride = null, bool numberInput = false)
@@ -310,5 +392,20 @@ public sealed class BrowserEngineSession : IAsyncDisposable
                 : Array.Empty<DebugVariable>(),
         };
 
-    private void ForwardOutput(string text) => _ = this.bridge.SendAsync(new BrowserMessage { Type = "output", Text = text });
+    private void ForwardOutput(string text) => _ = this.SendAsync(new BrowserMessage { Type = "output", Text = text });
+
+    /// <summary>
+    /// Stamps the web debug envelope (protocol version and session id) before the
+    /// transport publishes the message. The CLI bridge ignores both fields.
+    /// </summary>
+    private Task SendAsync(BrowserMessage message)
+    {
+        if (message.ProtocolVersion == 0)
+        {
+            message.ProtocolVersion = DebugProtocol.Version;
+        }
+
+        message.SessionId ??= this.SessionId;
+        return this.bridge.SendAsync(message);
+    }
 }

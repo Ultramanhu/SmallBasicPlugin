@@ -2,11 +2,19 @@ import path from "node:path";
 import * as vscode from "vscode";
 import { CSharpRunner } from "../run/csharp-runner";
 import { BlazorRunner } from "../run/blazor-runner";
+import { createWebInlineAdapter } from "../web/inline-factory";
 
 export class SmallBasicDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
   public constructor(private readonly context: vscode.ExtensionContext) {}
 
   public createDebugAdapterDescriptor(session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
+    // `mode: "web"` never falls back to a local process even when one is
+    // available: it must share the browser-compatible inline adapters with
+    // VS Code for the Web (see src/web/inline-factory.ts).
+    if (session.configuration.mode === "web") {
+      return createWebInlineAdapter(this.context, session);
+    }
+
     const backend = session.configuration.backend === "csharp"
       ? "csharp"
       : session.configuration.backend === "blazor" ? "blazor" : "javascript";

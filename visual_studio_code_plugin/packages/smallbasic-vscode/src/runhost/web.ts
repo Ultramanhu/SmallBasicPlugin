@@ -12,6 +12,7 @@ import {
   TextWindowColor,
   ValueKind
 } from "smallbasic-lang-core";
+import { BrowserDebugSession, type DebugEventSink } from "./web-debug";
 
 /**
  * Browser (no server, no Node.js) run host for SmallBasic programs.
@@ -260,12 +261,59 @@ export function stopJavaScript(): void {
   activeEngine?.terminate();
 }
 
+/* ------------------------------------------------------- web mode debugging */
+
+/**
+ * Runtime events and TextWindow output go through the page's
+ * `SmallBasicWebHost`, the exact same channel the Blazor backend uses
+ * (`WebShellTransport`), so the webview treats both backends identically.
+ */
+interface IWebHostBridge {
+  write?: (text: string) => void;
+  notify?: (json: string) => void;
+}
+
+function webHostBridge(): IWebHostBridge | undefined {
+  return (globalThis as unknown as { SmallBasicWebHost?: IWebHostBridge }).SmallBasicWebHost;
+}
+
+const debugSink: DebugEventSink = {
+  notify: (json) => webHostBridge()?.notify?.(json),
+  write: (text) => webHostBridge()?.write?.(text)
+};
+
+let activeDebugSession: BrowserDebugSession | undefined;
+
+/** Called by the webview with the `debug-launch` payload of a session. */
+export function debugStart(json: string): void {
+  activeDebugSession?.stop();
+  activeDebugSession = new BrowserDebugSession(debugSink);
+  activeDebugSession.start(json);
+}
+
+/** Called by the webview with one wire command of the active session. */
+export function debugCommand(json: string): void {
+  activeDebugSession?.dispatch(json);
+}
+
+/** Called when the panel is torn down without an explicit protocol `stop`. */
+export function debugStop(): void {
+  activeDebugSession?.stop();
+  activeDebugSession = undefined;
+}
+
 interface ISmallBasicWebHost {
   runJavaScript: typeof runJavaScript;
   stopJavaScript: typeof stopJavaScript;
+  debugStart: typeof debugStart;
+  debugCommand: typeof debugCommand;
+  debugStop: typeof debugStop;
 }
 
 (globalThis as unknown as { SmallBasicWeb?: ISmallBasicWebHost }).SmallBasicWeb = {
   runJavaScript,
-  stopJavaScript
+  stopJavaScript,
+  debugStart,
+  debugCommand,
+  debugStop
 };

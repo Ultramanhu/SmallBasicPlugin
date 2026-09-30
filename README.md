@@ -68,7 +68,7 @@ CLI 配置(默认，C#、JavaScript、Blazor 均可)：
   "program": "${file}", "backend": "blazor", "mode": "cli", "stopOnEntry": false }
 ```
 
-Web 配置(桌面 VS Code 按 Ctrl+F5 运行；JavaScript 仍可按 F5 逐行调试)：
+Web 配置(JavaScript、Blazor)：
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic [Web]: Run current file with JavaScript backend",
@@ -90,59 +90,11 @@ Web 配置(桌面 VS Code 按 Ctrl+F5 运行；JavaScript 仍可按 F5 逐行调
 
 ### VS Code for the Web(vscode.dev)
 
-浏览器里没有本机进程，因此：
-
-| 能力 | vscode.dev |
-|---|---|
-| 语法着色 / 补全 / 悬停 / 诊断 / 大纲 | 支持(在 Web Worker 扩展宿主内运行语言核心) |
-| Run with JavaScript Backend | 支持(Webview 内的 `TextWindow` 文本交互) |
-| **Run with Blazor Backend** | **支持**：Blazor WebAssembly 客户端在同页面 Webview 中运行，`GraphicsWindow`/`Shapes`/`Turtle` 绘制为 SVG，`TextWindow` 输出镜像到「输出」面板(渠道 `SmallBasic (Web)`) |
-| Debug(F5) | 仅 JavaScript 后端；Blazor 调试需要本机 RunHost，暂未支持 |
-
-Webview 使用随扩展分发的 `runhost/blazor/wwwroot` 和 `dist/web-runhost.js`，因此不需要额外的服务端或本机运行时。
-
-### 本地调试 Web 端功能
-
-```powershell
-.\runhost\Build-RunHost.ps1                    # 产出 runhost/blazor(含 wwwroot/_framework)
-cd visual_studio_code_plugin
-npm install
-npm run build                                  # dist/web/extension.js(浏览器单文件 bundle)
-npm run stage:blazor -w smallbasic-tools-vsc    # 只把 runhost/blazor 暂存进扩展目录(Web 端所需的最小载荷)
-```
-
-然后在 VS Code 里按 `F5` 选择 **“SmallBasic Web Extension (VS Code Web host)”**(已写入本仓库 `.vscode/launch.json`：`pwa-extensionHost` + `debugWebWorkerHost` + `--extensionDevelopmentKind=web`)：扩展会跑在 Web Worker 宿主里，Webview 的 CSP 与资源域限制和 vscode.dev 一致，可直接在扩展代码里下断点(`npm run build` 默认带 sourcemap，断点落在 `src/**/*.ts`)。打开 `test/` 下任意 `.sb`(如 `test/tutorial/level1.sb`)后执行 JavaScript 或 Blazor 运行命令；两个命令都会在 Webview 中运行。
-
-> **该配置必须用 `F5`(启动调试)启动。** `debugWebWorkerHost` 会让 Web Worker 扩展宿主停在第一行等调试器；若用 `Ctrl+F5` / 「运行(不调试)」启动，没有调试器去继续它，10 秒后会提示「扩展主机在 10 秒内没有启动…需要调试器继续」。只想跑起来看效果就用 **“SmallBasic Web Extension (VS Code Web host, no worker debugging)”**(同一份参数、不调试 Worker 宿主，F5 / Ctrl+F5 都能启动)。
-
-`.vscode/launch.json` 还提供 **“SmallBasic Extension (VS Code desktop host, non-Web)”**：同样走 `pwa-extensionHost` 但不加 `--extensionDevelopmentKind=web`，扩展按 `main` 入口加载进普通 Node 扩展宿主，用来调试语言服务、DAP 适配器与三个 RunHost 的启动流程。
-
-进入 Web 宿主**之后**，运行/调试 Small Basic 程序(`.sb`)会强制使用 `mode: "web"`：`Ctrl+F5`(运行但不调试)会把 JavaScript 或 Blazor 请求送进 Webview 执行；`F5` 的逐行调试只支持 JavaScript 后端，显式 `backend: "blazor"` 会给出提示(改用 `Ctrl+F5` 或上面的运行命令)。判定表在 `packages/smallbasic-vscode/src/web/run-routing.ts`，由 `tests/web-routing.spec.ts` 覆盖。
-
-### 用 Playwright 调试 Webview 页面
-
-Webview 里真正难调的是「CSP + 跨域载荷 + WebAssembly 启动」这一小段，`tests/webview` 里的 Playwright 用例把它变成可重复、可断点的本地测试(用真实浏览器、真实 `buildWebviewHtml()` 生成的文档、真实暂存的 Blazor 载荷，页面与载荷刻意分处两个源)：
-
-```powershell
-cd visual_studio_code_plugin
-npm run test:web                                    # 页面级用例(CSP/CORS/WASM/图形/Stop)
-npm run test:web -- --headed --debug                # 打开浏览器逐步调试
-$env:SB_WEB_BROWSER="msedge"; npm run test:web      # 复用已安装的 Edge，免下载 Chromium
-$env:SB_WEB_WORKBENCH="1"; npm run test:web -- --grep workbench   # 可选：真实 VS Code Web 工作台
-```
-
-- `tests/webview/webview-document.spec.ts`：断言 `ready → notify:ready → output → notify:terminated` 全部到达、SVG 图形渲染、输出镜像到宿主、**零 CSP/控制台错误**，并把截图写入 `tests/webview/artifacts/`。
-- `tests/webview/vscode-web.spec.ts`(默认跳过)：用本机 VS Code 的 `code serve-web` 起一个真实 Web 工作台，从位置安装扩展后运行图形程序。它依赖一个干净的工作台环境(工作区信任、没有抢焦点的聊天/Agent 扩展)，因此默认不参与 `npm run test:web`。
-- 首次运行需要 Chromium：`npx playwright install chromium`(国内网络较慢时可用上面的 `SB_WEB_BROWSER` 复用系统浏览器)。
-
-### 其他方式
-
-- **真机 vscode.dev**：用 `mkcert` 生成证书，`npx serve --cors --ssl-cert <cert> --ssl-key <key> .` 提供本地扩展目录，在 vscode.dev 执行 `Developer: Install Extension From Location…`。
-- **独立站点**：`runhost\web` 里的 `run.bat` / `run.ps1` 起本地静态服务器并自动打开浏览器，页面本身就是同一套 WASM 引擎，改 `shell.js` 即可快速验证(实现说明与验证记录见 [docs/design/10-WebRunHost.md](docs/design/10-WebRunHost.md))。
+浏览器里没有本机进程，因此：调试模式仅支持 Web (包括 JavaScript 和 Blazor 后端)。
 
 ## Visual Studio 扩展
 
-要求 VS 2022(17.14+，amd64 / arm64)或 VS 2026。默认的 C# 运行与调试路径不需要 Node.js；仅 JavaScript 路径要求系统安装 **Node.js 20+**。VSIX 只携带 JS 单文件 bundle，不内置 Node.js。
+要求 VS 2022(17.14+，amd64 / arm64) 或 VS 2026。默认的 C# 运行与调试路径不需要 Node.js；仅 JavaScript 路径要求系统安装 **Node.js 20+**。VSIX 只携带 JS 单文件 bundle，不内置 Node.js。
 
 ### 安装
 
@@ -159,43 +111,78 @@ $env:SB_WEB_WORKBENCH="1"; npm run test:web -- --grep workbench   # 可选：真
 | `F10` / `F11`(设计时) | 以「入口即断」方式启动调试 |
 | 调试会话中 `F5`/`F10`/`F11`/`Shift+F5` | 继续 / 单步 / 步入 / 停止，直接转发给调试器 |
 
-`工具 (Tools) > Small Basic` 子菜单还提供七个显式入口，可随时选择后端或打开大纲：
-
-- `Run with C# Backend`
-- `Debug with C# Backend`
-- `Run with JavaScript Backend`
-- `Debug with JavaScript Backend`
-- `Run with Blazor Backend`
-- `Debug with Blazor Backend`
-- `Show Document Outline` — 打开「Small Basic 大纲」工具窗口，列出当前文件的所有过程(`Sub`)及其内部首次使用的变量，双击条目可跳转
-
-> Visual Studio 自带的「文档大纲」窗口只服务于设计器视图(XAML/WinForms)与 HTML，不会连通任何文本编辑器扩展。编辑器顶部的**原生导航栏**(C#/TypeScript 使用的那一条)只能由传统语言服务提供 `IVsCodeWindow` 后挂接，因此本插件注册了一个不含着色器、不含编辑器工厂的极简语言服务，只用来拿到代码窗口，再把大纲作为 `IVsDropdownBarClient` 挂上去：左侧下拉 = `<主程序>` + 所有过程，右侧下拉 = 该作用域中首次使用的变量，光标移动时自动同步选中项。此外「工具 > Small Basic > Show Document Outline」还提供一个独立的大纲工具窗口。过程名(`Sub` 声明与调用)使用与方法名一致的着色，与 VS Code 端的 `function` 语义令牌对应。
-
 在「打开文件夹」模式中，Visual Studio 的「显示或隐藏调试目标」会按所选菜单项使用 C#、JavaScript 或 Blazor 的 Debug Adapter Host 启动描述。Blazor 目标指向 `dotnet SmallBasic.Blazor.RunHost.dll debug`；文本程序在宿主内调试，图形程序则通过 WebSocket 连接浏览器内的 WASM 解释器。
+
+可以手动添加 `launch.vs.json` 文件来配置调试选项。
+
+```jsonc
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
+  "program": "${file}", "backend": "javascript", "mode": "cli", "stopOnEntry": false }
+
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with C# backend",
+  "program": "${file}", "backend": "csharp", "mode": "cli", "stopOnEntry": false }
+
+{ "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+  "program": "${file}", "backend": "blazor", "mode": "cli", "stopOnEntry": false }
+```
 
 JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`、`Shapes`、`Turtle` 等图形库；选择 JS 路径运行图形程序时，插件会在启动前给出提示并停止。
 
-Visual Studio 扩展的实现分层：
+## RunHost
 
-- `SmallBasic.Vsix`：唯一的 VS 包(net48)。菜单/命令/大纲工具窗用新版扩展 SDK；补全/悬停/诊断/文档符号由 **LSP provider + 内置 Small Basic language server** 提供；分类着色、折叠、导航栏、调试内联值、F5/打开文件夹调试由包内兼容层(MEF / DTE / `ILaunchDebugTargetProvider4`)承担；
-- `SmallBasic.LanguageServices`：独立语言层(netstandard2.0)，LSP 模型、`SmallBasicCompilation` → LSP 语义映射、文档大纲构建、Content-Length 帧读写、内置 LSP server；`SmallBasic.LanguageServices.Tests` 直接引用同一程序集。
+### RunHostCLI
 
-## Web RunHost(浏览器内静态站点)
+`runhost\` 下按平台分发五套 CLI 运行宿主，统一用法：`run --file <program.sb>` 运行程序，`debug` 进入 DAP 调试适配器(stdin/stdout 承载协议)。各后端的平台与能力差异如下：
 
-`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面即可在本机浏览器里运行 `.sb` 程序。页面没有编辑器，只有一个工具栏：
+| 目录 | 入口 | 平台 | 图形支持 | 限制 |
+|---|---|---|---|---|
+| `net48\` | `SmallBasic.RunHost.exe` | Windows | 有(WPF 桌面窗口) | 仅 Windows；需 .NET Framework 4.8 |
+| `net8.0-windows\` | `SmallBasic.RunHost.exe` | Windows | 有(WPF 桌面窗口) | 仅 Windows；需 .NET 8 桌面运行时 |
+| `net8.0\` | `SmallBasic.RunHost.dll` | Windows / Linux / macOS | 无 | 纯文本；图形库未编译进宿主 |
+| `javascript\` | `smallbasic-runhost.js` | 任意(Node.js 20+) | 无 | 纯文本；调用图形库以退出码 3 终止；`Program.Delay` 有已知缺陷 |
+| `blazor\` | `SmallBasic.Blazor.RunHost.dll` | Windows / Linux / macOS | 有(浏览器 SVG) | 图形程序需打开浏览器；需 .NET 8 运行时 |
 
-- **程序列表**：构建时把仓库 `test\` 下的 `.sb` 示例打包到 `samples\`(并生成 `samples/index.json`)，默认选中 `test/hello/hello.sb`；选择图形程序(`GraphicsWindow`/`Shapes`/`Turtle`)时后端会自动切到 Blazor。
-- **选择/拖入本地文件**：`选择 .sb 文件…` 或直接把文件拖到页面上。
-- **后端**：`JavaScript`(TextWindow)或 `Blazor WASM`(含图形)；Run / Stop 与状态栏。
+**C# 宿主**(`net48` / `net8.0-windows` / `net8.0`，共享同一 `SmallBasic.RunHost`)：
 
-输出同时写入页面与浏览器控制台(F12 → Console)；输入(`TextWindow.Read`/`ReadNumber`)在页面内输入框完成。
+```powershell
+# 运行(--pause 在程序结束后等待按键再退出)
+.\runhost\net48\SmallBasic.RunHost.exe run --file test\hello\hello.sb
+.\runhost\net8.0-windows\SmallBasic.RunHost.exe run --file test\tetris\tetris.sb
+dotnet .\runhost\net8.0\SmallBasic.RunHost.dll run --file test\hello\hello.sb
 
-| 后端 | 执行位置 | 能力 |
-|---|---|---|
-| JavaScript | 浏览器内的 TS 编译器与解释器(`smallbasic-js.js`) | `TextWindow` 文本输入输出与前景/背景色 |
-| Blazor WASM | 浏览器内的 .NET WebAssembly(按需加载 `_framework`) | `TextWindow`，以及 `GraphicsWindow`/`Shapes`/`Turtle` 的 SVG 图形 |
+# 调试(DAP 适配器)
+.\runhost\net48\SmallBasic.RunHost.exe debug
+dotnet .\runhost\net8.0\SmallBasic.RunHost.dll debug
+```
 
-浏览器不允许从 `file://` 加载 WebAssembly，因此需要一个 HTTP 静态服务器(`runhost\web` 自带一个零依赖的，并会顺带打开默认浏览器)：
+Windows 图形宿主(`net48` / `net8.0-windows`)直接在桌面 WPF 窗口内渲染 `GraphicsWindow`/`Shapes`/`Turtle`；便携文本宿主(`net8.0`)在编译时排除了图形库，仅支持 `TextWindow`。退出码：0 成功、1 用法/编译错误、3 不支持的库、4 运行时异常。
+
+**JavaScript 宿主**(`javascript\`)：
+
+```powershell
+node .\runhost\javascript\smallbasic-runhost.js run --file test\hello\hello.sb
+```
+
+仅支持 `TextWindow`(终端着色)；调用 `GraphicsWindow`/`Shapes` 会以退出码 3 终止。`Program.Delay` 沿用共享 TS 运行时的缺陷(以 `Evaluation stack empty` 终止程序)，含延时的程序建议改用 C# 或 Blazor 后端。
+
+**Blazor 宿主**(`blazor\`)：
+
+```powershell
+# 纯文本程序在当前终端执行，不启动浏览器
+dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file test\hello\hello.sb
+
+# 图形程序启动随机 localhost 端口并打开浏览器(SVG 渲染)；--no-open 仅打印会话 URL 不自动打开
+dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file test\tetris\tetris.sb --no-open
+
+# DAP 调试(文本程序直接调试；图形程序经 WebSocket 桥接浏览器内 WASM 解释器)
+dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll debug
+```
+
+Blazor 宿主先用 `UsesGraphicsWindow` 分析程序：纯文本程序在终端内执行，图形程序才启动浏览器会话。实现细节见 [docs/design/09-Blazor后端与RunHost.md](docs/design/09-Blazor后端与RunHost.md)。
+
+### RunHostWeb
+
+`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 即可在本机浏览器里运行 `.sb` 程序。页面没有编辑器，只有一个工具栏：
 
 ```powershell
 cd runhost\web

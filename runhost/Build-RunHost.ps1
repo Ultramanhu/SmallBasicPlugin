@@ -143,7 +143,15 @@ if (-not $SkipWeb) {
     $sampleEntries = @()
     $defaultSample = "test/hello/hello.sb"
     if (Test-Path $testRoot) {
-        foreach ($sample in Get-ChildItem $testRoot -Recurse -File -Filter "*.sb" | Sort-Object FullName) {
+        # Skip samples inside dot-prefixed folders (.git, .vs, .kilo, ...), which
+        # are tooling/worktree artifacts rather than real samples.
+        foreach ($sample in Get-ChildItem $testRoot -Recurse -File -Filter "*.sb" |
+            Where-Object {
+                $relative = [System.IO.Path]::GetRelativePath($testRoot, $_.FullName)
+                $directory = Split-Path -Path $relative -Parent
+                -not ($directory -and ($directory -split '[\\/]' | Where-Object { $_ -like '.*' }))
+            } |
+            Sort-Object FullName) {
             $relativePath = [System.IO.Path]::GetRelativePath($testRoot, $sample.FullName).Replace("\", "/")
             $target = Join-Path $samplesRoot $relativePath
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null

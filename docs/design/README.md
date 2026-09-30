@@ -22,6 +22,11 @@
 > - Visual Studio 侧已收敛为**唯一包** `SmallBasic.Vsix`，详见 [11](./11-VisualStudio.Extensibility迁移设计.md)：命令/工具窗走新版扩展 SDK，补全/悬停/诊断/文档符号走**内置 LSP server**，调试与编辑器深能力走包内 MEF 兼容层。
 > - 过渡期的双包结构（`SmallBasic.Vsix` 经典包 + `SmallBasic.Ext` 新框架包 + `SmallBasic.VsCommon` 共享库）已取消，实现全部合并回 `SmallBasic.Vsix`；保留的公共库只有 `SmallBasic.LanguageServices`（netstandard2.0，LSP/大纲语言层，与测试工程共享同一程序集）。
 > - 因此“不用 LSP 通吃两端”这一结论仍然成立，但要补一句：LSP 只在**同进程内**服务于 VS 包，VS Code 侧继续使用扩展进程内的原生 Provider API。
+>
+> **2026-09-30 补充（Web 模式调试落地）**
+>
+> - VS Code 的 `mode: "web"` 已支持 `javascript` 与 `blazor` 的 F5 调试：**两个后端都在 Webview 内运行**（JavaScript 引擎在页面里，Blazor 是页面的 WASM），共用同一份 Inline DAP 适配器，F5 都会弹出页面并由 VS Code 原生调试 UI 驱动；`csharp` 仍只支持 `mode: "cli"`。详见 [10](./10-WebRunHost.md)。
+> - Web 调试协议集中在 `src/web/debug-protocol.ts`（`protocolVersion` = 1），C# 侧在 `SmallBasic.Blazor.Shared/Protocol.cs` 镜像；断点吸附、条件断点、单步与终止语义集中在宿主无关的 `src/debug/engine-driver.ts`（CLI JavaScript DAP 与页面内 JavaScript 运行时共用），Blazor 侧复用 `BrowserEngineSession`。CLI 各后端体验不变。
 
 ## 文档索引
 
@@ -36,7 +41,7 @@
 | [07-测试与性能方案.md](./07-测试与性能方案.md) | 测试现状（vendor 既有测试 + 扩展测试）、性能预算与优化手段 |
 | [08-实施路线图.md](./08-实施路线图.md) | 里程碑划分、验收标准与当前完成度 |
 | [09-Blazor后端与RunHost.md](./09-Blazor后端与RunHost.md) | Blazor WASM 图形运行时、按需浏览器 RunHost 与 DAP/WebSocket 调试桥 |
-| [10-WebRunHost.md](./10-WebRunHost.md) | 浏览器内静态 Web RunHost：JS / Blazor WASM 双后端、宿主通道抽象与页面复用 |
+| [10-WebRunHost.md](./10-WebRunHost.md) | 浏览器内静态 Web RunHost：JS / Blazor WASM 双后端、宿主通道抽象与页面复用；VS Code `mode: "web"` 的 JavaScript/Blazor Webview Inline DAP 调试（共用适配器与协议、宿主无关的 `DebugEngineDriver`、条件断点与页面级 E2E 已实施） |
 | [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md) | `SmallBasic.Vsix` 的最终态设计：VisualStudio.Extensibility in-proc 混合托管 + LSP 语言能力 + VSSDK/MEF 兼容层的功能映射，`SmallBasic.Vsix`/`SmallBasic.VsCommon` 退役与共享层收敛方案 |
 
 ## 方案摘要（TL;DR）

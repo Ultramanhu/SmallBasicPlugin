@@ -1,19 +1,22 @@
 /**
- * Routing for the run/debug requests that reach the web entry
- * (`src/web/extension.ts`, VS Code for the Web and vscode.dev).
+ * Routing for the run/debug requests that reach web mode
+ * (`src/web/extension.ts` for VS Code for the Web, and `src/extension.ts` for the
+ * desktop host when `mode: "web"` is configured).
  *
- * The web host has two backends with different capabilities:
+ * Web mode has three backends with different capabilities:
  *
- *   - `javascript` runs *and* debugs inside the web extension host;
+ *   - `javascript` runs *and* debugs inside the extension host (Node or Web
+ *     Worker); graphics are not available;
  *   - `blazor` runs inside a webview (the same SmallBasic.Blazor.Client
- *     WebAssembly build the desktop RunHost serves, see ./blazor-webview.ts) but
- *     cannot be stepped, so only "Run Without Debugging" - Ctrl+F5, which VS Code
- *     marks with `noDebug: true` on the resolved configuration - can be honoured.
+ *     WebAssembly build the desktop RunHost serves, see ./webview-panel.ts) and
+ *     debugs through the inline DAP adapter + webview broker, graphics included;
+ *   - `csharp` needs a local process and is therefore not available in web mode.
  *
- * Programs that draw (GraphicsWindow/Shapes/Turtle) can *only* run on the Blazor
- * backend, so a request without an explicit backend is resolved by analysing the
- * program. The table lives here - free of the `vscode` module - so that it can be
- * unit-tested; the provider keeps only the I/O around it.
+ * `Ctrl+F5` (`noDebug: true`) runs in the webview; `F5` creates a real VS Code
+ * debug session. Programs that draw (GraphicsWindow/Shapes/Turtle) can only run
+ * on Blazor, so a request without an explicit backend is resolved by analysing
+ * the program. The table lives here - free of the `vscode` module - so that it
+ * can be unit-tested; the providers keep only the I/O around it.
  */
 
 export type WebBackend = "javascript" | "csharp" | "blazor";
@@ -26,26 +29,23 @@ export interface WebDebugRequest {
 }
 
 export type WebDebugRouting =
-  /** Let the built-in JavaScript run/debug adapter handle the request. */
-  | { kind: "javascript" }
   /** Run the program in the browser webview; no debug session is started. */
-  | { kind: "webview"; backend: "javascript" | "blazor"; note?: string }
+  | { kind: "run-in-webview"; backend: "javascript" | "blazor"; note?: string }
+  /** Create an inline DAP session (JavaScript in the extension host, Blazor via the webview). */
+  | { kind: "inline-debug"; backend: "javascript" | "blazor" }
   /** Refuse the request with an explanation of what to use instead. */
   | { kind: "reject"; message: string };
 
 const RUN_WITH_BLAZOR = "“SmallBasic: Run with Blazor Backend”";
 
 const C_SHARP_MESSAGE =
-  "Web 模式无法启动本机 C# RunHost：请用 JavaScript 后端运行 TextWindow 程序，" +
+  "Web 模式无法启动本机 C# RunHost（VS Code for the Web 没有本机进程，桌面请改用 mode: \"cli\"）。" +
+  "TextWindow 程序请用 JavaScript 后端运行，" +
   `图形程序请按 Ctrl+F5（运行但不调试）或执行 ${RUN_WITH_BLAZOR}。`;
 
-const BLAZOR_DEBUG_MESSAGE =
-  "Web 模式不支持 Blazor 后端的逐行调试。" +
-  `请按 Ctrl+F5（运行但不调试）或执行 ${RUN_WITH_BLAZOR}，两者都在 Webview 内运行同一份 Blazor WASM 后端。`;
-
 const GRAPHICS_DEBUG_MESSAGE =
-  "图形程序（GraphicsWindow/Shapes/Turtle）在 Web 上由 Blazor 后端运行，而该后端不支持逐行调试。" +
-  `请按 Ctrl+F5（运行但不调试）或执行 ${RUN_WITH_BLAZOR}。`;
+  "图形程序（GraphicsWindow/Shapes/Turtle）在 Web 上只能由 Blazor 后端运行，" +
+  "而你显式选择了 JavaScript 后端。请改用 Blazor 后端，或按 Ctrl+F5（运行但不调试）。";
 
 const GRAPHICS_FALLBACK_NOTE =
   "该程序使用 GraphicsWindow/Shapes/Turtle，JavaScript 后端无法运行，已在 Blazor Webview 中运行。";
@@ -64,9 +64,10 @@ export function routeWebDebugRequest(request: WebDebugRequest, programDrawsShape
   // Only Blazor can draw here, so a program that draws needs it whether the user
   // picked the JavaScript backend or did not pick one at all.
   const selectedBackend = backend === "blazor" || programDrawsShapes ? "blazor" : "javascript";
+
   if (request.noDebug === true) {
     return {
-      kind: "webview",
+      kind: "run-in-webview",
       backend: selectedBackend,
       // The user explicitly asked for JavaScript, which cannot run this program
       // at all, so explain the substitution instead of silently changing backends.
@@ -74,16 +75,13 @@ export function routeWebDebugRequest(request: WebDebugRequest, programDrawsShape
     };
   }
 
-  // JavaScript remains debuggable in the web extension host. A webview is an
-  // execution surface rather than a DAP client, so F5 keeps using the adapter.
-  if (selectedBackend === "javascript") {
-    return { kind: "javascript" };
+  // F5: an explicit JavaScript request for a graphics program is refused rather
+  // than silently changing execution semantics during a debug session.
+  if (backend === "javascript" && programDrawsShapes) {
+    return { kind: "reject", message: GRAPHICS_DEBUG_MESSAGE };
   }
 
-  return {
-    kind: "reject",
-    message: backend === "blazor" && !programDrawsShapes ? BLAZOR_DEBUG_MESSAGE : GRAPHICS_DEBUG_MESSAGE
-  };
+  return { kind: "inline-debug", backend: selectedBackend };
 }
 
 function normalizeBackend(value: unknown): WebBackend | undefined {

@@ -154,7 +154,7 @@
                   "web"
                 ],
                 "default": "cli",
-                "description": "Execution surface. cli uses the local command-line/debug host; web runs without debugging in the browser Webview. VS Code for the Web always uses web mode."
+                "description": "Execution surface. cli uses the local command-line/debug host; web runs and debugs in the browser without any local process (JavaScript runs in the extension host, Blazor in a Webview). VS Code for the Web always uses web mode."
               },
               "stopOnEntry": {
                 "type": "boolean",
@@ -202,11 +202,11 @@
             }
           },
           {
-            "label": "SmallBasic: Run current file in Webview with JavaScript backend",
+            "label": "SmallBasic: Debug current file in Web mode with JavaScript backend",
             "body": {
               "type": "smallbasic",
               "request": "launch",
-              "name": "SmallBasic: Run current file in Webview with JavaScript backend",
+              "name": "SmallBasic: Debug current file in Web mode with JavaScript backend",
               "program": "${file}",
               "backend": "javascript",
               "mode": "web",
@@ -214,11 +214,11 @@
             }
           },
           {
-            "label": "SmallBasic: Run current file in Webview with Blazor backend",
+            "label": "SmallBasic: Debug current file in Web mode with Blazor backend",
             "body": {
               "type": "smallbasic",
               "request": "launch",
-              "name": "SmallBasic: Run current file in Webview with Blazor backend",
+              "name": "SmallBasic: Debug current file in Web mode with Blazor backend",
               "program": "${file}",
               "backend": "blazor",
               "mode": "web",

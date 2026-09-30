@@ -1,7 +1,7 @@
 {
   "mainAssemblyName": "SmallBasic.Blazor.Client",
   "resources": {
-    "hash": "sha256-LuqnwHjFeLZ5wrYMYNuLhGFCBGgJ9Y0vhhUOCM8WQKo=",
+    "hash": "sha256-Um/SSk2y0Wd9X0dA+owv2DWjcBERU7iTl5dRGYwIMAs=",
     "jsModuleNative": {
       "dotnet.native.js": "sha256-ed7NX2WV1F8VNG6uuGMZb+cx7r2qA9Ks1CqklmKvXW4="
     },
@@ -34,13 +34,13 @@
       "Microsoft.Extensions.Primitives.wasm": "sha256-Bi1hyBMWneH/ByWbqT/pNe0B7I/NQFklzD2g3Whdqlk=",
       "Microsoft.JSInterop.WebAssembly.wasm": "sha256-jY5jCfGtvxvrCqIe6qLo82M6eF/a19pO3pO7KbeBzSg=",
       "Microsoft.JSInterop.wasm": "sha256-cz8E10F+WMBZECZcB1Uu6jPj/xmHtTxV0WubZ8XmYR4=",
-      "SmallBasic.Blazor.Client.wasm": "sha256-oPawNk7GRnXheIilXx13afgqOfsH99TipwUGyoIB1Vw=",
-      "SmallBasic.Blazor.Shared.wasm": "sha256-rNycSd/iS+IvRGGnPatDEdoGaCrxx5aqX0UVhdVEHnc=",
-      "SmallBasic.Compiler.wasm": "sha256-DNmah0dWdNjnhanmQPbcyLIpg33JoJkU09uACqch4G0=",
-      "SmallBasic.Utilities.wasm": "sha256-+aLc5Yw3NwUGNm89XTex2GlF2bGxg2Y65GYBr//RlHM=",
+      "SmallBasic.Blazor.Client.wasm": "sha256-paMwHqiIP4SYZ3UZanV27FokWTX5AcIp0w3PzTxvCEQ=",
+      "SmallBasic.Blazor.Shared.wasm": "sha256-gb+yAB7ARpCnTrvxCd70HNmO+bTfniwEdHqNvqdSYUo=",
+      "SmallBasic.Compiler.wasm": "sha256-JSiEVOk9L5GL/UTrZDnePUlAA1435UtgBIAJrs1wf+o=",
+      "SmallBasic.Utilities.wasm": "sha256-ie8AcElYgk2Lfj4QHzYeie0udxj6ZD/YzByLXahzKF4=",
       "System.Collections.Concurrent.wasm": "sha256-ygNnWaDuQ66lqQqjSwl2GOITYBwnD16FyqCO9eP++ts=",
       "System.Collections.NonGeneric.wasm": "sha256-6yUfTg/RU+lJvYpje07jW5WuZ7fUyr0LopXTrRK4tvE=",
-      "System.Collections.wasm": "sha256-hBGoXfIyVQ7OEIdRS1pzTK78ppGMMILF1gPeGxQHuFY=",
+      "System.Collections.wasm": "sha256-l4hJvtB2LZxkl/FTvRl7tnz9OWioQEvmIdLU8L7OWeE=",
       "System.ComponentModel.wasm": "sha256-PsFt2WhF4EluopSKxqrMexySPGfDxERH8Ejn7UJa8T8=",
       "System.Console.wasm": "sha256-hSHw7+ja1mnWIxv5APjDDrpMDdxBaFjbkemT8XnFo1I=",
       "System.Diagnostics.DiagnosticSource.wasm": "sha256-if+j9kS6RD1AVrz0T+I5P38Nb8uT9pPTKKp0uSpxSEE=",

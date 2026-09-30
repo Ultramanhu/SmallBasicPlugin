@@ -15258,9 +15258,619 @@
     }
   })(HoverService || (HoverService = {}));
 
+  // ../smallbasic-lang-core/src/debug-expression.ts
+  var RESULT_VARIABLE = "__SmallBasicDebugExpression";
+  var MAX_EVALUATION_STEPS = 1e5;
+  function compileDebugExpression(text) {
+    const normalized = text.replace(/\r?\n/g, " ").trim();
+    if (!normalized) {
+      return void 0;
+    }
+    const compilation = new Compilation(`${RESULT_VARIABLE} = (${normalized})`);
+    if (!compilation.isReadyToRun) {
+      return void 0;
+    }
+    const instructions = compilation.emit()[ModulesBinder.MainModuleName];
+    if (!instructions || instructions.length === 0) {
+      return void 0;
+    }
+    if (instructions.some((instruction) => instruction.kind === 5 /* InvokeSubModule */)) {
+      return void 0;
+    }
+    return { instructions, resultVariable: RESULT_VARIABLE };
+  }
+  function evaluateDebugExpression(engine, expression) {
+    const savedState = engine.state;
+    const previous = engine.memory.getValue(expression.resultVariable);
+    const hadPrevious = previous !== void 0;
+    const frame = { moduleName: "<debug-expression>", instructionIndex: 0 };
+    try {
+      let steps = 0;
+      while (frame.instructionIndex < expression.instructions.length) {
+        if (steps >= MAX_EVALUATION_STEPS) {
+          return void 0;
+        }
+        steps += 1;
+        expression.instructions[frame.instructionIndex].execute(engine, 1 /* Debug */, frame);
+      }
+      return engine.memory.getValue(expression.resultVariable);
+    } finally {
+      while (engine.evaluationStack.length > 0) {
+        engine.popEvaluationStack();
+      }
+      if (hadPrevious && previous) {
+        engine.memory.setIndex(expression.resultVariable, previous);
+      } else {
+        engine.memory.deleteIndex(expression.resultVariable);
+      }
+      engine.state = savedState;
+    }
+  }
+  function evaluateDebugCondition(engine, expression) {
+    return evaluateDebugExpression(engine, expression)?.toBoolean();
+  }
+
+  // src/debug/engine-driver.ts
+  var DebugEngineDriver = class {
+    constructor(callbacks, reader, options = {}) {
+      this.callbacks = callbacks;
+      this.reader = reader;
+      this.sliceMs = options.sliceMs ?? 5;
+      this.sliceSteps = options.sliceSteps ?? 128;
+    }
+    callbacks;
+    reader;
+    breakpointsByFile = /* @__PURE__ */ new Map();
+    textWindow = new DriverTextWindow(this);
+    sliceMs;
+    sliceSteps;
+    compilation;
+    engine;
+    loadedPath = "";
+    executionStarted = false;
+    running = false;
+    pauseRequested = false;
+    initialLocationChecked = false;
+    ended = false;
+    activeControl = { kind: "continue" };
+    get programPath() {
+      return this.loadedPath;
+    }
+    get isLoaded() {
+      return this.engine !== void 0;
+    }
+    get isEnded() {
+      return this.ended;
+    }
+    get isRunning() {
+      return this.running;
+    }
+    get isWaitingForInput() {
+      return this.textWindow.isWaitingForInput();
+    }
+    /**
+     * Compiles `programPath` and prepares the engine. Throws with the compiler
+     * diagnostics (or the unsupported-graphics message) when it cannot run.
+     */
+    load(programPath) {
+      const compilation = this.compile(programPath);
+      this.loadedPath = programPath;
+      this.compilation = compilation;
+      this.engine = new ExecutionEngine4(compilation);
+      this.engine.libraries.TextWindow.plugin = this.textWindow;
+    }
+    /** Verifies breakpoints against `sourcePath` and stores them for the run. */
+    setBreakpoints(sourcePath, requests) {
+      const verified = this.verifyBreakpoints(sourcePath, requests);
+      this.breakpointsByFile.set(normalizePath(sourcePath), verified);
+      return verified;
+    }
+    /**
+     * Re-verifies the breakpoints already configured for `sourcePath`. The DAP
+     * client is allowed to set breakpoints before `launch`, so they are verified
+     * again once the program is known.
+     */
+    reverifyBreakpoints(sourcePath) {
+      const current = this.breakpointsByFile.get(normalizePath(sourcePath)) ?? [];
+      if (current.length === 0) {
+        return [];
+      }
+      const verified = this.verifyBreakpoints(
+        sourcePath,
+        current.map((breakpoint) => ({ line: breakpoint.line, condition: breakpoint.condition }))
+      );
+      this.breakpointsByFile.set(normalizePath(sourcePath), verified);
+      return verified;
+    }
+    /** Starts execution; reports `entry` instead when stopping on entry. */
+    begin(stopOnEntry) {
+      if (!this.engine || this.executionStarted || this.ended) {
+        return;
+      }
+      this.executionStarted = true;
+      this.activeControl = { kind: "continue" };
+      if (stopOnEntry) {
+        this.initialLocationChecked = true;
+        this.callbacks.onStopped("entry", this.snapshot());
+        return;
+      }
+      this.resume();
+    }
+    continueExecution() {
+      this.activeControl = { kind: "continue" };
+      this.pauseRequested = false;
+      this.resume();
+    }
+    step(depth, kind) {
+      this.activeControl = { kind, depth };
+      this.pauseRequested = false;
+      this.resume();
+    }
+    pause() {
+      this.pauseRequested = true;
+    }
+    /** Feeds a `TextWindow.Read`/`ReadNumber` line and resumes the program. */
+    submitInput(raw) {
+      if (!this.textWindow.isWaitingForInput()) {
+        return;
+      }
+      this.textWindow.pushInput(raw);
+      this.activeControl = { kind: "continue" };
+      this.pauseRequested = false;
+      this.resume();
+    }
+    /** Forced termination; reports `terminated` even when the loop is idle. */
+    terminate() {
+      if (this.ended) {
+        return;
+      }
+      this.engine?.terminate();
+      if (!this.running) {
+        this.finish(0);
+      }
+    }
+    frames() {
+      if (!this.engine) {
+        return [];
+      }
+      return [...this.engine.executionStack].reverse().map((frame) => {
+        const instruction = this.instructionFor(frame.moduleName, frame.instructionIndex);
+        return {
+          name: frame.moduleName,
+          line: instruction?.sourceRange.start.line ?? 0,
+          column: instruction?.sourceRange.start.column ?? 0
+        };
+      });
+    }
+    variables() {
+      const memory = this.engine?.memory.values ?? {};
+      return Object.keys(memory).sort((left, right) => left.localeCompare(right)).map((name) => this.toVariableValue(name, memory[name]));
+    }
+    snapshot() {
+      return { frames: this.frames(), variables: this.variables() };
+    }
+    /** Children of an array variable; empty for scalars. */
+    expand(variable) {
+      if (!variable.array) {
+        return [];
+      }
+      return Object.entries(variable.array.values).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => this.toVariableValue(name, value));
+    }
+    /** Fully expands a variable into the recursive shape of the web protocol. */
+    toVariableTree(variable) {
+      return {
+        name: variable.name,
+        value: variable.value,
+        children: this.expand(variable).map((child) => this.toVariableTree(child))
+      };
+    }
+    findVariable(name) {
+      const variables = this.variables();
+      return variables.find((variable) => variable.name === name) ?? variables.find((variable) => variable.name.toLowerCase() === name.toLowerCase());
+    }
+    /** Called by the TextWindow plugin; keeps the driver the only emitter. */
+    notifyInputNeeded(kind) {
+      this.callbacks.onInputRequested(kind, this.snapshot());
+    }
+    emitOutput(text) {
+      this.callbacks.onOutput(text);
+    }
+    compile(sourcePath) {
+      let text;
+      try {
+        text = this.reader.readFile(sourcePath);
+      } catch {
+        throw new Error(`\u627E\u4E0D\u5230\u7A0B\u5E8F\u6587\u4EF6: ${sourcePath}`);
+      }
+      const compilation = new Compilation(text);
+      if (!compilation.isReadyToRun) {
+        const message = compilation.diagnostics.map((item) => item.toString()).join("\n");
+        throw new Error(message || "Program contains compilation errors.");
+      }
+      if (compilation.kind.drawsShapes()) {
+        throw new Error("\u5F53\u524D\u5185\u7F6E SmallBasic \u8C03\u8BD5\u5668\u6682\u4E0D\u652F\u6301 GraphicsWindow/Shapes/Turtle/Controls \u56FE\u5F62\u5BBF\u4E3B\u3002\u8BF7\u5148\u8C03\u8BD5\u6587\u672C\u6A21\u5F0F\u7A0B\u5E8F\uFF0C\u6216\u6539\u7528\u540E\u7EED\u56FE\u5F62\u540E\u7AEF\u3002");
+      }
+      return compilation;
+    }
+    verifyBreakpoints(sourcePath, requests) {
+      let compilation;
+      try {
+        compilation = this.compile(sourcePath);
+      } catch {
+        return requests.map((breakpoint) => ({ ...breakpoint, verified: false }));
+      }
+      const lines = executableLines(compilation);
+      return requests.map((breakpoint) => {
+        const actualLine = lines.find((line) => line >= breakpoint.line);
+        if (actualLine === void 0) {
+          return { ...breakpoint, actualLine, verified: false };
+        }
+        if (breakpoint.condition) {
+          const compiledCondition = compileDebugExpression(breakpoint.condition);
+          if (!compiledCondition) {
+            return { ...breakpoint, actualLine, verified: false, compiledCondition: void 0 };
+          }
+          return { ...breakpoint, actualLine, verified: true, compiledCondition };
+        }
+        return { ...breakpoint, actualLine, verified: true };
+      });
+    }
+    resume() {
+      if (!this.engine || this.running || this.ended) {
+        return;
+      }
+      if (!this.initialLocationChecked) {
+        this.initialLocationChecked = true;
+        void this.checkInitialBreakpoint();
+        return;
+      }
+      this.running = true;
+      setTimeout(() => void this.executionLoop(), 0);
+    }
+    async checkInitialBreakpoint() {
+      if (!this.engine) {
+        return;
+      }
+      if (this.activeControl.kind === "continue" && await this.shouldStopAtLine(this.currentLine())) {
+        this.callbacks.onStopped("breakpoint", this.snapshot());
+        return;
+      }
+      this.running = true;
+      setTimeout(() => void this.executionLoop(), 0);
+    }
+    async executionLoop() {
+      if (!this.engine) {
+        this.running = false;
+        return;
+      }
+      const startedAt = Date.now();
+      let steps = 0;
+      while (this.engine && Date.now() - startedAt < this.sliceMs && steps < this.sliceSteps) {
+        this.engine.execute(2 /* NextStatement */);
+        steps += 1;
+        if (this.engine.state === 3 /* Terminated */) {
+          this.running = false;
+          if (this.engine.exception) {
+            this.callbacks.onOutput(`
+[Runtime Error] ${this.engine.exception.toString()}
+`);
+            this.finish(1);
+          } else {
+            this.finish(0);
+          }
+          return;
+        }
+        if (this.engine.state === 2 /* BlockedOnInput */) {
+          this.running = false;
+          return;
+        }
+        if (this.engine.state === 1 /* Paused */) {
+          const stopReason = await this.getStopReason();
+          if (stopReason) {
+            this.running = false;
+            this.callbacks.onStopped(stopReason, this.snapshot());
+            return;
+          }
+        }
+      }
+      this.running = false;
+      if (this.engine && this.engine.state !== 3 /* Terminated */) {
+        this.resume();
+      }
+    }
+    async getStopReason() {
+      if (!this.engine) {
+        return void 0;
+      }
+      if (this.pauseRequested) {
+        this.pauseRequested = false;
+        return "pause";
+      }
+      const depth = this.engine.executionStack.length;
+      switch (this.activeControl.kind) {
+        case "stepIn":
+          return "step";
+        case "next":
+          return depth <= this.activeControl.depth ? "step" : void 0;
+        case "stepOut":
+          return depth < this.activeControl.depth ? "step" : void 0;
+        case "continue":
+          return await this.shouldStopAtLine(this.currentLine()) ? "breakpoint" : void 0;
+        default:
+          return void 0;
+      }
+    }
+    // A line stops execution when it has a verified unconditional breakpoint, or a
+    // conditional breakpoint whose condition evaluates to true. Conditions are
+    // evaluated against the live program memory; failures simply fall through so
+    // the program keeps running.
+    async shouldStopAtLine(line) {
+      if (line === void 0 || !this.engine) {
+        return false;
+      }
+      const fileBreakpoints = this.breakpointsByFile.get(normalizePath(this.loadedPath)) ?? [];
+      for (const breakpoint of fileBreakpoints) {
+        if (!breakpoint.verified || breakpoint.actualLine !== line) {
+          continue;
+        }
+        if (!breakpoint.compiledCondition) {
+          return true;
+        }
+        if (evaluateDebugCondition(this.engine, breakpoint.compiledCondition)) {
+          return true;
+        }
+      }
+      return false;
+    }
+    currentLine() {
+      const stack = this.engine?.executionStack ?? [];
+      if (stack.length === 0) {
+        return void 0;
+      }
+      const top = stack[stack.length - 1];
+      return this.instructionFor(top.moduleName, top.instructionIndex)?.sourceRange.start.line;
+    }
+    instructionFor(moduleName, instructionIndex) {
+      const instructions = this.engine?.modules[moduleName];
+      if (!instructions || instructionIndex < 0 || instructionIndex >= instructions.length) {
+        return void 0;
+      }
+      return instructions[instructionIndex];
+    }
+    toVariableValue(name, value) {
+      return {
+        name,
+        value: value.toDebuggerString(),
+        kind: value.kind,
+        array: value.kind === 2 /* Array */ ? value : void 0
+      };
+    }
+    finish(exitCode) {
+      if (this.ended) {
+        return;
+      }
+      this.ended = true;
+      this.running = false;
+      this.callbacks.onTerminated(exitCode);
+    }
+  };
+  function executableLines(compilation) {
+    const lines = /* @__PURE__ */ new Set();
+    for (const instructions of Object.values(compilation.emit())) {
+      for (const instruction of instructions) {
+        lines.add(instruction.sourceRange.start.line);
+      }
+    }
+    return [...lines].sort((left, right) => left - right);
+  }
+  function normalizePath(filePath) {
+    return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+  }
+  var DriverTextWindow = class {
+    constructor(driver) {
+      this.driver = driver;
+    }
+    driver;
+    inputBuffer = [];
+    foreground = 15 /* White */;
+    background = 0 /* Black */;
+    requestedInputKind;
+    inputIsNeeded(kind) {
+      this.requestedInputKind = kind;
+      this.driver.notifyInputNeeded(kind);
+    }
+    checkInputBuffer() {
+      return this.inputBuffer.shift();
+    }
+    writeText(value, appendNewLine) {
+      this.driver.emitOutput(value + (appendNewLine ? "\n" : ""));
+    }
+    getForegroundColor() {
+      return this.foreground;
+    }
+    setForegroundColor(color) {
+      this.foreground = color;
+    }
+    getBackgroundColor() {
+      return this.background;
+    }
+    setBackgroundColor(color) {
+      this.background = color;
+    }
+    pushInput(raw) {
+      if (this.requestedInputKind === 1 /* Number */) {
+        const parsed = Number(raw);
+        this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
+      } else {
+        this.inputBuffer.push(new StringValue(raw));
+      }
+      this.requestedInputKind = void 0;
+    }
+    isWaitingForInput() {
+      return this.requestedInputKind !== void 0;
+    }
+  };
+
+  // src/runhost/web-debug.ts
+  var EXIT_COMPILE_ERROR = 2;
+  var PROTOCOL_VERSION = 1;
+  var PROGRAM_PATH = "program.sb";
+  var BrowserDebugSession = class {
+    constructor(sink) {
+      this.sink = sink;
+    }
+    sink;
+    driver;
+    sessionId = "";
+    stopOnEntry = false;
+    ended = false;
+    /** True once the client configured breakpoints, so `start` must not clobber them. */
+    breakpointsConfigured = false;
+    /** Boots a session from the `debug-launch` payload; emits `ready` when it can run. */
+    start(json) {
+      const request = parseJson(json);
+      if (!request || typeof request.source !== "string") {
+        this.emit({ type: "error", message: "\u65E0\u6548\u7684\u8C03\u8BD5\u542F\u52A8\u8BF7\u6C42\u3002" });
+        this.emit({ type: "terminated", exitCode: EXIT_COMPILE_ERROR });
+        return;
+      }
+      this.sessionId = typeof request.sessionId === "string" ? request.sessionId : "";
+      this.stopOnEntry = request.stopOnEntry === true;
+      const source = request.source;
+      this.driver = new DebugEngineDriver(
+        {
+          onOutput: (text) => this.sink.write(text),
+          onStopped: (reason, snapshot) => this.emit({ type: "stopped", reason, ...this.snapshotFields(snapshot) }),
+          onInputRequested: (kind, snapshot) => this.emit({
+            type: "input",
+            numberInput: kind === 1 /* Number */,
+            ...this.snapshotFields(snapshot)
+          }),
+          onTerminated: (exitCode) => {
+            this.ended = true;
+            this.emit({ type: "terminated", exitCode });
+          }
+        },
+        {
+          readFile: (filePath) => {
+            if (filePath !== PROGRAM_PATH) {
+              throw new Error(`Unknown program: ${filePath}`);
+            }
+            return source;
+          }
+        }
+      );
+      try {
+        this.driver.load(PROGRAM_PATH);
+      } catch (error) {
+        this.emit({ type: "error", message: error instanceof Error ? error.message : String(error) });
+        this.emit({ type: "terminated", exitCode: EXIT_COMPILE_ERROR });
+        return;
+      }
+      this.emit({ type: "ready" });
+    }
+    /** Applies one web debug command; unknown/foreign/malformed commands are dropped. */
+    dispatch(json) {
+      const command = parseJson(json);
+      const driver = this.driver;
+      if (!command || !driver || this.ended) {
+        return;
+      }
+      if (command.protocolVersion !== void 0 && command.protocolVersion !== PROTOCOL_VERSION) {
+        return;
+      }
+      if (command.sessionId && this.sessionId && command.sessionId !== this.sessionId) {
+        return;
+      }
+      switch (command.type) {
+        case "setBreakpoints": {
+          this.breakpointsConfigured = true;
+          const lines = toLines(command.breakpoints);
+          const conditions = Array.isArray(command.conditions) ? command.conditions : [];
+          const verified = driver.setBreakpoints(
+            PROGRAM_PATH,
+            lines.map((line, index) => {
+              const condition = typeof conditions[index] === "string" ? conditions[index].trim() : "";
+              return condition ? { line, condition } : { line };
+            })
+          );
+          this.emit({
+            type: "breakpointsValidated",
+            requestId: command.requestId,
+            breakpoints: verified.filter((breakpoint) => breakpoint.verified && breakpoint.actualLine !== void 0).map((breakpoint) => breakpoint.actualLine)
+          });
+          return;
+        }
+        case "start": {
+          const lines = toLines(command.breakpoints);
+          if (!this.breakpointsConfigured && lines.length > 0) {
+            driver.setBreakpoints(PROGRAM_PATH, lines.map((line) => ({ line })));
+          }
+          driver.begin(this.stopOnEntry);
+          return;
+        }
+        case "control": {
+          const depth = typeof command.depth === "number" ? command.depth : 0;
+          switch (command.control) {
+            case "pause":
+              driver.pause();
+              return;
+            case "next":
+              driver.step(depth, "next");
+              return;
+            case "stepIn":
+              driver.step(depth, "stepIn");
+              return;
+            case "stepOut":
+              driver.step(depth, "stepOut");
+              return;
+            default:
+              driver.continueExecution();
+              return;
+          }
+        }
+        case "input":
+          driver.submitInput(typeof command.text === "string" ? command.text : "");
+          return;
+        case "stop":
+          driver.terminate();
+          return;
+        default:
+          return;
+      }
+    }
+    /** Ends the session (page closed or the extension disposed the broker). */
+    stop() {
+      this.driver?.terminate();
+    }
+    snapshotFields(snapshot) {
+      return {
+        line: snapshot.frames[0]?.line ?? 0,
+        frames: snapshot.frames.map((frame) => ({ name: frame.name, line: frame.line })),
+        variables: this.driver ? snapshot.variables.map((variable) => this.driver.toVariableTree(variable)) : []
+      };
+    }
+    emit(message) {
+      this.sink.notify(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, sessionId: this.sessionId, ...message }));
+    }
+  };
+  function toLines(value) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value.filter((entry) => typeof entry === "number" && Number.isFinite(entry)).map((entry) => Math.max(0, Math.trunc(entry)));
+  }
+  function parseJson(json) {
+    try {
+      return JSON.parse(json);
+    } catch {
+      return void 0;
+    }
+  }
+
   // src/runhost/web.ts
   var EXIT_SUCCESS = 0;
-  var EXIT_COMPILE_ERROR = 1;
+  var EXIT_COMPILE_ERROR2 = 1;
   var EXIT_UNSUPPORTED_LIBRARY = 3;
   var EXIT_RUNTIME_ERROR = 4;
   var UnsupportedLibraryError = class extends Error {
@@ -15359,7 +15969,7 @@
     const compilation = new Compilation(source);
     if (!compilation.isReadyToRun) {
       bridge.writeError(compilation.diagnostics.map((item) => item.toString()).join("\n"));
-      return EXIT_COMPILE_ERROR;
+      return EXIT_COMPILE_ERROR2;
     }
     if (compilation.kind.drawsShapes()) {
       bridge.writeError('\u8BE5\u7A0B\u5E8F\u4F7F\u7528\u4E86 GraphicsWindow / Shapes / Turtle\uFF0CJavaScript \u540E\u7AEF\u53EA\u652F\u6301 TextWindow\u3002\n\u8BF7\u628A Backend \u5207\u6362\u4E3A "Blazor WASM (GraphicsWindow)" \u540E\u91CD\u65B0\u8FD0\u884C\u3002');
@@ -15435,8 +16045,31 @@
     activePlugin?.cancelPendingInput();
     activeEngine?.terminate();
   }
+  function webHostBridge() {
+    return globalThis.SmallBasicWebHost;
+  }
+  var debugSink = {
+    notify: (json) => webHostBridge()?.notify?.(json),
+    write: (text) => webHostBridge()?.write?.(text)
+  };
+  var activeDebugSession;
+  function debugStart(json) {
+    activeDebugSession?.stop();
+    activeDebugSession = new BrowserDebugSession(debugSink);
+    activeDebugSession.start(json);
+  }
+  function debugCommand(json) {
+    activeDebugSession?.dispatch(json);
+  }
+  function debugStop() {
+    activeDebugSession?.stop();
+    activeDebugSession = void 0;
+  }
   globalThis.SmallBasicWeb = {
     runJavaScript,
-    stopJavaScript
+    stopJavaScript,
+    debugStart,
+    debugCommand,
+    debugStop
   };
 })();

@@ -6339,7 +6339,7 @@ var require_debugSession = __commonJS({
       }
     };
     exports.CompletionItem = CompletionItem2;
-    var StoppedEvent2 = class extends messages_1.Event {
+    var StoppedEvent = class extends messages_1.Event {
       constructor(reason, threadId, exceptionText) {
         super("stopped");
         this.body = {
@@ -6353,7 +6353,7 @@ var require_debugSession = __commonJS({
         }
       }
     };
-    exports.StoppedEvent = StoppedEvent2;
+    exports.StoppedEvent = StoppedEvent;
     var ContinuedEvent = class extends messages_1.Event {
       constructor(threadId, allThreadsContinued) {
         super("continued");
@@ -7270,7 +7270,7 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 init_polyfills();
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // ../smallbasic-lang-core/src/index.ts
 init_polyfills();
@@ -22383,56 +22383,6 @@ var HoverService;
 
 // ../smallbasic-lang-core/src/debug-expression.ts
 init_polyfills();
-var RESULT_VARIABLE = "__SmallBasicDebugExpression";
-var MAX_EVALUATION_STEPS = 1e5;
-function compileDebugExpression(text) {
-  const normalized = text.replace(/\r?\n/g, " ").trim();
-  if (!normalized) {
-    return void 0;
-  }
-  const compilation = new Compilation(`${RESULT_VARIABLE} = (${normalized})`);
-  if (!compilation.isReadyToRun) {
-    return void 0;
-  }
-  const instructions = compilation.emit()[ModulesBinder.MainModuleName];
-  if (!instructions || instructions.length === 0) {
-    return void 0;
-  }
-  if (instructions.some((instruction) => instruction.kind === 5 /* InvokeSubModule */)) {
-    return void 0;
-  }
-  return { instructions, resultVariable: RESULT_VARIABLE };
-}
-function evaluateDebugExpression(engine, expression) {
-  const savedState = engine.state;
-  const previous = engine.memory.getValue(expression.resultVariable);
-  const hadPrevious = previous !== void 0;
-  const frame = { moduleName: "<debug-expression>", instructionIndex: 0 };
-  try {
-    let steps = 0;
-    while (frame.instructionIndex < expression.instructions.length) {
-      if (steps >= MAX_EVALUATION_STEPS) {
-        return void 0;
-      }
-      steps += 1;
-      expression.instructions[frame.instructionIndex].execute(engine, 1 /* Debug */, frame);
-    }
-    return engine.memory.getValue(expression.resultVariable);
-  } finally {
-    while (engine.evaluationStack.length > 0) {
-      engine.popEvaluationStack();
-    }
-    if (hadPrevious && previous) {
-      engine.memory.setIndex(expression.resultVariable, previous);
-    } else {
-      engine.memory.deleteIndex(expression.resultVariable);
-    }
-    engine.state = savedState;
-  }
-}
-function evaluateDebugCondition(engine, expression) {
-  return evaluateDebugExpression(engine, expression)?.toBoolean();
-}
 
 // ../../vendor/SmallBasicOnline/src/strings/locale.ts
 init_polyfills();
@@ -23349,6 +23299,10 @@ function shouldTriggerSuggest(event) {
 
 // src/web/blazor-webview.ts
 init_polyfills();
+var vscode8 = __toESM(require("vscode"));
+
+// src/web/webview-panel.ts
+init_polyfills();
 var vscode7 = __toESM(require("vscode"));
 
 // src/web/webview-html.ts
@@ -23407,38 +23361,16 @@ function buildWebviewHtml(options) {
 `;
 }
 
-// src/web/blazor-webview.ts
+// src/web/webview-panel.ts
 var PAYLOAD_SEGMENTS = ["runhost", "blazor", "wwwroot"];
 var ENTRY_SEGMENTS = ["_framework", "blazor.webassembly.js"];
-var JAVASCRIPT_SEGMENTS = ["dist", "web-runhost.js"];
-var OUTPUT_CHANNEL = "SmallBasic (Web)";
-var panel;
-var output;
-var pageReady = false;
-var pendingRun;
-async function runInWebview(context, name, source, backend) {
-  const root = await resolveBlazorPayload(context);
-  if (!root) {
-    const expected = vscode7.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS, ...ENTRY_SEGMENTS);
-    void vscode7.window.showErrorMessage(
-      `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${expected.toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_code_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
-    );
-    return;
-  }
-  const javascript = vscode7.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
-  try {
-    await vscode7.workspace.fs.stat(javascript);
-  } catch {
-    void vscode7.window.showErrorMessage(
-      `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF1A${javascript.toString()}\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002`
-    );
-    return;
-  }
-  const webviewPanel = ensurePanel(context, root, javascript);
-  webviewPanel.reveal(webviewPanel.viewColumn, true);
-  output?.appendLine(`[run:${backend}] ${name}`);
-  pendingRun = { backend, name, source };
-  flushPendingRun();
+var DIST_SEGMENTS = ["dist"];
+var JAVASCRIPT_SEGMENTS = [...DIST_SEGMENTS, "web-runhost.js"];
+function blazorPayloadEntry(context) {
+  return vscode7.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS, ...ENTRY_SEGMENTS);
+}
+function javascriptPayloadEntry(context) {
+  return vscode7.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
 }
 async function resolveBlazorPayload(context) {
   const root = vscode7.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS);
@@ -23449,51 +23381,232 @@ async function resolveBlazorPayload(context) {
     return void 0;
   }
 }
+async function resolveJavaScriptPayload(context) {
+  const javascript = vscode7.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
+  try {
+    await vscode7.workspace.fs.stat(javascript);
+    return javascript;
+  } catch {
+    return void 0;
+  }
+}
+var BlazorWebviewHost = class {
+  panel;
+  payloadRoot;
+  handlers = /* @__PURE__ */ new Set();
+  disposeHandlers = /* @__PURE__ */ new Set();
+  readyWaiters = [];
+  logSink;
+  ready = false;
+  disposed = false;
+  constructor(context, options) {
+    this.payloadRoot = options.payloadRoot;
+    this.logSink = options.log;
+    this.panel = vscode7.window.createWebviewPanel(
+      options.viewType,
+      options.title,
+      vscode7.ViewColumn.Beside,
+      {
+        enableScripts: true,
+        localResourceRoots: [options.payloadRoot, vscode7.Uri.joinPath(context.extensionUri, ...DIST_SEGMENTS)],
+        // Keeps the WebAssembly runtime (and therefore the graphics scene) alive
+        // while the user switches between editors.
+        retainContextWhenHidden: true
+      }
+    );
+    this.panel.webview.html = buildWebviewHtml({
+      cspSource: this.panel.webview.cspSource,
+      payloadUri: this.panel.webview.asWebviewUri(options.payloadRoot).toString(),
+      javascriptUri: this.panel.webview.asWebviewUri(options.javascriptUri).toString()
+    });
+    this.panel.webview.onDidReceiveMessage(
+      (message) => this.handleMessage(message),
+      void 0,
+      context.subscriptions
+    );
+    this.panel.onDidDispose(
+      () => this.handleDispose(),
+      void 0,
+      context.subscriptions
+    );
+  }
+  get webview() {
+    return this.panel.webview;
+  }
+  get isDisposed() {
+    return this.disposed;
+  }
+  onMessage(handler) {
+    this.handlers.add(handler);
+    return new vscode7.Disposable(() => this.handlers.delete(handler));
+  }
+  onDispose(handler) {
+    this.disposeHandlers.add(handler);
+    return new vscode7.Disposable(() => this.disposeHandlers.delete(handler));
+  }
+  post(message) {
+    if (!this.disposed) {
+      void this.panel.webview.postMessage(message);
+    }
+  }
+  reveal() {
+    if (!this.disposed) {
+      this.panel.reveal(this.panel.viewColumn, true);
+    }
+  }
+  /** Resolves true once the page signalled `ready`, false when it never did. */
+  whenReady(timeoutMs) {
+    if (this.ready) {
+      return Promise.resolve(true);
+    }
+    if (this.disposed) {
+      return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value) => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        clearTimeout(timer);
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(false), timeoutMs);
+      this.readyWaiters.push(finish);
+    });
+  }
+  dispose() {
+    this.panel.dispose();
+  }
+  log(line) {
+    this.logSink?.(line);
+  }
+  handleMessage(message) {
+    if (!message || typeof message.type !== "string") {
+      return;
+    }
+    if (message.type === "resource-request") {
+      void this.provideResource(message);
+      return;
+    }
+    if (message.type === "ready") {
+      this.ready = true;
+      for (const waiter of this.readyWaiters.splice(0)) {
+        waiter(true);
+      }
+    }
+    for (const handler of [...this.handlers]) {
+      handler(message);
+    }
+  }
+  handleDispose() {
+    this.disposed = true;
+    for (const waiter of this.readyWaiters.splice(0)) {
+      waiter(false);
+    }
+    for (const handler of [...this.disposeHandlers]) {
+      handler();
+    }
+    this.handlers.clear();
+    this.disposeHandlers.clear();
+    this.log("[webview] closed");
+  }
+  /**
+   * Reads a Blazor boot resource in the extension host and transfers it to the
+   * webview. Marketplace web extensions are served from vscode-unpkg.net, whose
+   * binary responses are not CORS-readable by the isolated vscode-cdn.net
+   * webview. `workspace.fs` is the supported extension-resource channel and does
+   * not depend on the marketplace CDN granting the webview cross-origin access.
+   */
+  async provideResource(message) {
+    const requestId = message.requestId;
+    if (typeof requestId !== "string" || requestId.length === 0) {
+      return;
+    }
+    try {
+      const resource = this.resolvePayloadResource(message.path);
+      if (!resource) {
+        throw new Error(`\u975E\u6CD5\u7684 Blazor \u8D44\u6E90\u8DEF\u5F84\uFF1A${String(message.path ?? "")}`);
+      }
+      const bytes = await vscode7.workspace.fs.readFile(resource);
+      const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
+      await this.panel.webview.postMessage({ type: "resource-response", requestId, ok: true, data });
+    } catch (error) {
+      const text = error instanceof Error ? error.message : String(error);
+      this.log(`[resource] ${message.path ?? "<missing>"}: ${text}`);
+      await this.panel.webview.postMessage({ type: "resource-response", requestId, ok: false, error: text });
+    }
+  }
+  /** Keeps webview resource requests inside runhost/blazor/wwwroot. */
+  resolvePayloadResource(requestedPath) {
+    if (typeof requestedPath !== "string" || requestedPath.length === 0 || requestedPath.length > 512) {
+      return void 0;
+    }
+    if (requestedPath.includes("\\") || requestedPath.startsWith("/")) {
+      return void 0;
+    }
+    const segments = requestedPath.split("/");
+    if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
+      return void 0;
+    }
+    return vscode7.Uri.joinPath(this.payloadRoot, ...segments);
+  }
+};
+
+// src/web/blazor-webview.ts
+var RUN_VIEW_TYPE = "smallbasic.web";
+var RUN_TITLE = "Small Basic (Web)";
+var OUTPUT_CHANNEL = "SmallBasic (Web)";
+var panel;
+var output;
+var pageReady = false;
+var pendingRun;
+async function runInWebview(context, name, source, backend) {
+  const root = await resolveBlazorPayload(context);
+  if (!root) {
+    void vscode8.window.showErrorMessage(
+      `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${blazorPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_code_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
+    );
+    return;
+  }
+  const javascript = await resolveJavaScriptPayload(context);
+  if (!javascript) {
+    void vscode8.window.showErrorMessage(
+      `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF1A${javascriptPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002`
+    );
+    return;
+  }
+  const host = ensurePanel(context, root, javascript);
+  host.reveal();
+  output?.appendLine(`[run:${backend}] ${name}`);
+  pendingRun = { backend, name, source };
+  flushPendingRun();
+}
 function ensurePanel(context, root, javascript) {
-  if (panel) {
+  if (panel && !panel.isDisposed) {
     return panel;
   }
-  output ??= vscode7.window.createOutputChannel(OUTPUT_CHANNEL);
-  const webviewPanel = vscode7.window.createWebviewPanel(
-    "smallbasic.web",
-    "Small Basic (Web)",
-    vscode7.ViewColumn.Beside,
-    {
-      enableScripts: true,
-      localResourceRoots: [root, vscode7.Uri.joinPath(context.extensionUri, "dist")],
-      // Keeps the WebAssembly runtime (and therefore the graphics scene) alive
-      // while the user switches between editors.
-      retainContextWhenHidden: true
-    }
-  );
-  webviewPanel.webview.html = buildWebviewHtml({
-    cspSource: webviewPanel.webview.cspSource,
-    payloadUri: webviewPanel.webview.asWebviewUri(root).toString(),
-    javascriptUri: webviewPanel.webview.asWebviewUri(javascript).toString()
+  output ??= vscode8.window.createOutputChannel(OUTPUT_CHANNEL);
+  const host = new BlazorWebviewHost(context, {
+    viewType: RUN_VIEW_TYPE,
+    title: RUN_TITLE,
+    payloadRoot: root,
+    javascriptUri: javascript,
+    log: (line) => output?.appendLine(line)
   });
-  webviewPanel.webview.onDidReceiveMessage(
-    (message) => {
-      void handleMessage(message, root, webviewPanel.webview);
-    },
-    void 0,
-    context.subscriptions
-  );
-  webviewPanel.onDidDispose(
-    () => {
-      panel = void 0;
-      pageReady = false;
-      pendingRun = void 0;
-      output?.appendLine("[webview] closed");
-    },
-    void 0,
-    context.subscriptions
-  );
-  panel = webviewPanel;
+  host.onMessage((message) => handleRunMessage(message));
+  host.onDispose(() => {
+    panel = void 0;
+    pageReady = false;
+    pendingRun = void 0;
+  });
+  panel = host;
   output.appendLine("[webview] browser runtime requested");
-  return webviewPanel;
+  return host;
 }
-async function handleMessage(message, root, webview) {
-  switch (message?.type) {
+function handleRunMessage(message) {
+  switch (message.type) {
     case "ready":
       pageReady = true;
       flushPendingRun();
@@ -23507,48 +23620,13 @@ async function handleMessage(message, root, webview) {
     case "failed":
       output?.appendLine(message.text ?? "[webview] unknown failure");
       output?.show(true);
-      void vscode7.window.showErrorMessage(
+      void vscode8.window.showErrorMessage(
         `Small Basic Web \u6A21\u5F0F\u8FD0\u884C\u5931\u8D25\uFF0C\u8BE6\u60C5\u89C1\u8F93\u51FA\u9762\u677F\u201C${OUTPUT_CHANNEL}\u201D\u3002`
       );
-      return;
-    case "resource-request":
-      await providePayloadResource(message, root, webview);
       return;
     default:
       return;
   }
-}
-async function providePayloadResource(message, root, webview) {
-  const requestId = message.requestId;
-  if (typeof requestId !== "string" || requestId.length === 0) {
-    return;
-  }
-  try {
-    const resource = resolvePayloadResource(root, message.path);
-    if (!resource) {
-      throw new Error(`\u975E\u6CD5\u7684 Blazor \u8D44\u6E90\u8DEF\u5F84\uFF1A${String(message.path ?? "")}`);
-    }
-    const bytes = await vscode7.workspace.fs.readFile(resource);
-    const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
-    await webview.postMessage({ type: "resource-response", requestId, ok: true, data });
-  } catch (error) {
-    const text = error instanceof Error ? error.message : String(error);
-    output?.appendLine(`[resource] ${message.path ?? "<missing>"}: ${text}`);
-    await webview.postMessage({ type: "resource-response", requestId, ok: false, error: text });
-  }
-}
-function resolvePayloadResource(root, requestedPath) {
-  if (typeof requestedPath !== "string" || requestedPath.length === 0 || requestedPath.length > 512) {
-    return void 0;
-  }
-  if (requestedPath.includes("\\") || requestedPath.startsWith("/")) {
-    return void 0;
-  }
-  const segments = requestedPath.split("/");
-  if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
-    return void 0;
-  }
-  return vscode7.Uri.joinPath(root, ...segments);
 }
 function handleNotify(json) {
   if (!json) {
@@ -23567,7 +23645,7 @@ function handleNotify(json) {
   if (notify.type === "terminated") {
     const exitCode = notify.exitCode ?? 0;
     output?.appendLine(exitCode === 0 ? "[state] completed" : `[state] exited with code ${exitCode}`);
-    vscode7.window.setStatusBarMessage(
+    vscode8.window.setStatusBarMessage(
       exitCode === 0 ? "Small Basic: \u8FD0\u884C\u5B8C\u6210" : `Small Basic: \u9000\u51FA\u7801 ${exitCode}`,
       5e3
     );
@@ -23579,7 +23657,7 @@ function flushPendingRun() {
   }
   const run = pendingRun;
   pendingRun = void 0;
-  void panel.webview.postMessage({
+  panel.post({
     type: "run",
     backend: run.backend,
     name: run.name,
@@ -23589,461 +23667,353 @@ function flushPendingRun() {
 
 // src/web/debug-factory.ts
 init_polyfills();
-var vscode8 = __toESM(require("vscode"));
 
-// src/debug/session.ts
+// src/web/inline-factory.ts
 init_polyfills();
-var import_debugadapter = __toESM(require_main());
-var THREAD_ID = 1;
-var DebugTextWindow = class {
-  constructor(session) {
-    this.session = session;
-  }
-  session;
-  inputBuffer = [];
-  foreground = 15 /* White */;
-  background = 0 /* Black */;
-  requestedInputKind;
-  inputIsNeeded(kind) {
-    this.requestedInputKind = kind;
-    this.session.onInputRequested(kind);
-  }
-  checkInputBuffer() {
-    return this.inputBuffer.shift();
-  }
-  writeText(value, appendNewLine) {
-    this.session.emitOutput(value + (appendNewLine ? "\n" : ""));
-  }
-  getForegroundColor() {
-    return this.foreground;
-  }
-  setForegroundColor(color) {
-    this.foreground = color;
-  }
-  getBackgroundColor() {
-    return this.background;
-  }
-  setBackgroundColor(color) {
-    this.background = color;
-  }
-  pushInput(raw) {
-    if (this.requestedInputKind === 1 /* Number */) {
-      const parsed = Number(raw);
-      this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
-    } else {
-      this.inputBuffer.push(new StringValue(raw));
-    }
-    this.requestedInputKind = void 0;
-  }
-  isWaitingForInput() {
-    return this.requestedInputKind !== void 0;
-  }
-};
-var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSession {
-  constructor(sources) {
-    super("smallbasic-debug.log");
-    this.sources = sources;
-    this.setDebuggerLinesStartAt1(true);
-    this.setDebuggerColumnsStartAt1(true);
-  }
-  sources;
-  programPath = "";
-  compilation;
-  engine;
-  breakpointMap = /* @__PURE__ */ new Map();
-  variableHandles = new import_debugadapter.Handles();
-  textWindow = new DebugTextWindow(this);
-  configurationDone = false;
-  executionStarted = false;
-  stopOnEntry = false;
-  running = false;
-  pauseRequested = false;
-  initialLocationChecked = false;
-  terminated = false;
-  activeControl = { kind: "continue" };
-  initializeRequest(response, _args) {
-    this.configurationDone = false;
-    this.executionStarted = false;
-    response.body = {
-      supportsConfigurationDoneRequest: true,
-      supportsConditionalBreakpoints: true,
-      supportsEvaluateForHovers: false,
-      supportsStepBack: false,
-      supportsRestartRequest: false
-    };
-    this.sendResponse(response);
-    this.sendEvent(new import_debugadapter.InitializedEvent());
-  }
-  async launchRequest(response, args) {
-    this.programPath = this.sources.resolvePath(String(args.program));
-    this.stopOnEntry = !!args.stopOnEntry;
-    this.executionStarted = false;
-    this.initialLocationChecked = false;
-    this.terminated = false;
-    try {
-      this.compilation = this.loadCompilation(this.programPath);
-      this.engine = new ExecutionEngine4(this.compilation);
-      this.engine.libraries.TextWindow.plugin = this.textWindow;
-      this.breakpointMap.set(this.normalizePath(this.programPath), this.verifyBreakpoints(this.programPath, this.breakpointMap.get(this.normalizePath(this.programPath)) ?? []));
-      this.sendResponse(response);
-      this.startExecutionAfterConfiguration();
-    } catch (error) {
-      this.sendErrorResponse(response, 2001, error instanceof Error ? error.message : String(error));
-    }
-  }
-  configurationDoneRequest(response, _args) {
-    this.configurationDone = true;
-    this.sendResponse(response);
-    this.startExecutionAfterConfiguration();
-  }
-  setBreakPointsRequest(response, args) {
-    const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
-    const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
-      requestedLine: breakpoint.line - 1,
-      verified: false,
-      condition: breakpoint.condition?.trim() || void 0
-    })) : (args.lines ?? []).map((line) => ({ requestedLine: line - 1, verified: false }));
-    const verified = sourcePath ? this.verifyBreakpoints(sourcePath, requested) : requested;
-    if (sourcePath) {
-      this.breakpointMap.set(this.normalizePath(sourcePath), verified);
-    }
-    response.body = {
-      breakpoints: verified.map((breakpoint) => {
-        const result = {
-          verified: breakpoint.verified,
-          line: (breakpoint.actualLine ?? breakpoint.requestedLine) + 1
-        };
-        if (!breakpoint.verified && breakpoint.condition) {
-          result.message = `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${breakpoint.condition}`;
-        }
-        return result;
-      })
-    };
-    this.sendResponse(response);
-  }
-  threadsRequest(response) {
-    response.body = {
-      threads: [new import_debugadapter.Thread(THREAD_ID, "Main")]
-    };
-    this.sendResponse(response);
-  }
-  stackTraceRequest(response, _args) {
-    const stackFrames = this.getExecutionFrames().map((frame, index) => {
-      const instruction = this.getInstructionForFrame(frame.moduleName, frame.instructionIndex);
-      const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new import_debugadapter.StackFrame(index + 1, frame.moduleName, source, (instruction?.sourceRange.start.line ?? 0) + 1, (instruction?.sourceRange.start.column ?? 0) + 1);
-    });
-    response.body = {
-      stackFrames,
-      totalFrames: stackFrames.length
-    };
-    this.sendResponse(response);
-  }
-  scopesRequest(response, _args) {
-    response.body = {
-      scopes: [new import_debugadapter.Scope("Globals", this.variableHandles.create({ kind: "globals" }), false)]
-    };
-    this.sendResponse(response);
-  }
-  variablesRequest(response, args) {
-    const container = this.variableHandles.get(args.variablesReference);
-    response.body = {
-      variables: container ? this.expandVariables(container) : []
-    };
-    this.sendResponse(response);
-  }
-  continueRequest(response, _args) {
-    this.activeControl = { kind: "continue" };
-    this.pauseRequested = false;
-    this.sendResponse(response);
-    this.resumeExecution();
-  }
-  nextRequest(response, _args) {
-    this.activeControl = { kind: "next", depth: this.getStackDepth() };
-    this.pauseRequested = false;
-    this.sendResponse(response);
-    this.resumeExecution();
-  }
-  stepInRequest(response, _args) {
-    this.activeControl = { kind: "stepIn", depth: this.getStackDepth() };
-    this.pauseRequested = false;
-    this.sendResponse(response);
-    this.resumeExecution();
-  }
-  stepOutRequest(response, _args) {
-    this.activeControl = { kind: "stepOut", depth: this.getStackDepth() };
-    this.pauseRequested = false;
-    this.sendResponse(response);
-    this.resumeExecution();
-  }
-  pauseRequest(response, _args) {
-    this.pauseRequested = true;
-    this.sendResponse(response);
-  }
-  disconnectRequest(response, _args) {
-    this.engine?.terminate();
-    this.sendResponse(response);
-    this.endSession(0);
-  }
-  evaluateRequest(response, args) {
-    const expression = args.expression.trim();
-    if (this.textWindow.isWaitingForInput()) {
-      this.textWindow.pushInput(expression);
-      response.body = {
-        result: expression,
-        variablesReference: 0
-      };
-      this.sendResponse(response);
-      this.activeControl = { kind: "continue" };
-      this.pauseRequested = false;
-      this.resumeExecution();
-      return;
-    }
-    const memory = this.engine?.memory.values;
-    const value = memory ? memory[expression] ?? memory[Object.keys(memory).find((name) => name.toLowerCase() === expression.toLowerCase()) ?? ""] : void 0;
-    if (value) {
-      response.body = {
-        result: value.toDebuggerString(),
-        variablesReference: value.kind === 2 /* Array */ ? this.variableHandles.create({ kind: "array", value }) : 0
-      };
-      this.sendResponse(response);
-      return;
-    }
-    this.sendErrorResponse(response, 2002, `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`);
-  }
-  emitOutput(text) {
-    this.sendEvent(new import_debugadapter.OutputEvent(text));
-  }
-  onInputRequested(kind) {
-    this.emitOutput(kind === 1 /* Number */ ? "\n[Input] \u8BF7\u8F93\u5165\u6570\u5B57\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u8F93\u5165\u6587\u672C\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n");
-    const stopped = {
-      seq: 0,
-      type: "event",
-      event: "stopped",
-      body: {
-        reason: "pause",
-        description: "Waiting for input",
-        threadId: THREAD_ID,
-        allThreadsStopped: true
+var vscode9 = __toESM(require("vscode"));
+
+// src/web/debug-broker.ts
+init_polyfills();
+
+// src/web/debug-protocol.ts
+init_polyfills();
+var DEBUG_PROTOCOL_VERSION = 1;
+var DEBUG_REQUEST_TIMEOUT_MS = 15e3;
+var DEBUG_LAUNCH_TIMEOUT_MS = 12e4;
+function encodeHostCommand(sessionId, command) {
+  const wire = {
+    protocolVersion: DEBUG_PROTOCOL_VERSION,
+    sessionId,
+    type: wireTypeOf(command)
+  };
+  switch (command.kind) {
+    case "start":
+      wire.breakpoints = [...command.breakpoints];
+      break;
+    case "setBreakpoints":
+      wire.requestId = command.requestId;
+      wire.breakpoints = [...command.lines];
+      if (command.conditions?.some((condition) => !!condition)) {
+        wire.conditions = command.lines.map((_line, index) => command.conditions?.[index] ?? "");
       }
-    };
-    this.sendEvent(stopped);
+      break;
+    case "control":
+      wire.control = command.control;
+      wire.depth = command.depth;
+      break;
+    case "input":
+      wire.text = command.text;
+      break;
+    case "terminate":
+      wire.requestId = command.requestId;
+      break;
   }
-  loadCompilation(programPath) {
-    let text;
-    try {
-      text = this.sources.readFile(programPath);
-    } catch {
-      throw new Error(`\u627E\u4E0D\u5230\u7A0B\u5E8F\u6587\u4EF6: ${programPath}`);
-    }
-    const compilation = new Compilation(text);
-    if (!compilation.isReadyToRun) {
-      const message = compilation.diagnostics.map((item) => item.toString()).join("\n");
-      throw new Error(message || "Program contains compilation errors.");
-    }
-    if (compilation.kind.drawsShapes()) {
-      throw new Error("\u5F53\u524D\u5185\u7F6E SmallBasic \u8C03\u8BD5\u5668\u6682\u4E0D\u652F\u6301 GraphicsWindow/Shapes/Turtle/Controls \u56FE\u5F62\u5BBF\u4E3B\u3002\u8BF7\u5148\u8C03\u8BD5\u6587\u672C\u6A21\u5F0F\u7A0B\u5E8F\uFF0C\u6216\u6539\u7528\u540E\u7EED\u56FE\u5F62\u540E\u7AEF\u3002");
-    }
-    return compilation;
+  return JSON.stringify(wire);
+}
+function wireTypeOf(command) {
+  switch (command.kind) {
+    case "start":
+      return "start";
+    case "setBreakpoints":
+      return "setBreakpoints";
+    case "control":
+      return "control";
+    case "input":
+      return "input";
+    case "terminate":
+      return "stop";
   }
-  verifyBreakpoints(sourcePath, breakpoints) {
-    let compilation;
-    try {
-      compilation = this.loadCompilation(sourcePath);
-    } catch {
-      return breakpoints.map((breakpoint) => ({ ...breakpoint, verified: false }));
-    }
-    const lines = this.getExecutableLines(compilation);
-    return breakpoints.map((breakpoint) => {
-      const actualLine = lines.find((line) => line >= breakpoint.requestedLine);
-      if (actualLine === void 0) {
-        return { ...breakpoint, actualLine, verified: false };
-      }
-      if (breakpoint.condition) {
-        const compiledCondition = compileDebugExpression(breakpoint.condition);
-        if (!compiledCondition) {
-          return { ...breakpoint, actualLine, verified: false, compiledCondition: void 0 };
-        }
-        return { ...breakpoint, actualLine, verified: true, compiledCondition };
-      }
-      return { ...breakpoint, actualLine, verified: true };
-    });
+}
+function decodeRuntimeEvent(json, sessionId) {
+  if (!json) {
+    return void 0;
   }
-  getExecutableLines(compilation) {
-    const executableLines = /* @__PURE__ */ new Set();
-    const modules = compilation.emit();
-    for (const instructions of Object.values(modules)) {
-      for (const instruction of instructions) {
-        executableLines.add(instruction.sourceRange.start.line);
-      }
-    }
-    return [...executableLines].sort((left, right) => left - right);
+  let wire;
+  try {
+    wire = JSON.parse(json);
+  } catch {
+    return void 0;
   }
-  startExecutionAfterConfiguration() {
-    if (!this.configurationDone || !this.engine || this.executionStarted) {
-      return;
-    }
-    this.executionStarted = true;
-    this.activeControl = { kind: "continue" };
-    if (this.stopOnEntry) {
-      this.initialLocationChecked = true;
-      this.sendEvent(new import_debugadapter.StoppedEvent("entry", THREAD_ID));
-      return;
-    }
-    this.resumeExecution();
+  if (!wire || typeof wire !== "object") {
+    return void 0;
   }
-  resumeExecution() {
-    if (!this.engine || this.running) {
-      return;
-    }
-    if (!this.initialLocationChecked) {
-      this.initialLocationChecked = true;
-      void this.checkInitialBreakpoint();
-      return;
-    }
-    this.running = true;
-    setTimeout(() => void this.executionLoop(), 0);
+  if (wire.protocolVersion !== void 0 && wire.protocolVersion !== DEBUG_PROTOCOL_VERSION) {
+    return void 0;
   }
-  async checkInitialBreakpoint() {
-    if (!this.engine) {
-      return;
-    }
-    if (this.activeControl.kind === "continue" && await this.shouldStopAtLine(this.getCurrentLine())) {
-      this.sendEvent(new import_debugadapter.StoppedEvent("breakpoint", THREAD_ID));
-      return;
-    }
-    this.running = true;
-    setTimeout(() => void this.executionLoop(), 0);
+  if (wire.type !== "ready" && wire.sessionId !== sessionId) {
+    return void 0;
   }
-  async executionLoop() {
-    if (!this.engine) {
-      this.running = false;
-      return;
-    }
-    const startedAt = Date.now();
-    let steps = 0;
-    while (this.engine && Date.now() - startedAt < 5 && steps < 128) {
-      this.engine.execute(2 /* NextStatement */);
-      steps += 1;
-      if (this.engine.state === 3 /* Terminated */) {
-        this.running = false;
-        if (this.engine.exception) {
-          this.emitOutput(`
-[Runtime Error] ${this.engine.exception.toString()}
-`);
-        }
-        this.endSession(this.engine.exception ? 1 : 0);
-        return;
-      }
-      if (this.engine.state === 2 /* BlockedOnInput */) {
-        this.running = false;
-        return;
-      }
-      if (this.engine.state === 1 /* Paused */) {
-        const stopReason = await this.getStopReason();
-        if (stopReason) {
-          this.running = false;
-          this.sendEvent(new import_debugadapter.StoppedEvent(stopReason, THREAD_ID));
-          return;
-        }
-      }
-    }
-    this.running = false;
-    if (this.engine && this.engine.state !== 3 /* Terminated */) {
-      this.resumeExecution();
-    }
-  }
-  async getStopReason() {
-    if (!this.engine) {
+  switch (wire.type) {
+    case "ready":
+      return { kind: "ready" };
+    case "breakpointsValidated":
+      return typeof wire.requestId === "string" ? { kind: "breakpointsValidated", requestId: wire.requestId, lines: toLines(wire.breakpoints) } : void 0;
+    case "output":
+      return typeof wire.text === "string" ? { kind: "output", text: wire.text } : void 0;
+    case "stopped":
+      return { kind: "stopped", reason: wire.reason ?? "pause", line: lineOf(wire.line), frames: toFrames(wire.frames), variables: toVariables(wire.variables) };
+    case "input":
+      return { kind: "input", numberInput: wire.numberInput === true, line: lineOf(wire.line), frames: toFrames(wire.frames), variables: toVariables(wire.variables) };
+    case "terminated":
+      return { kind: "terminated", exitCode: typeof wire.exitCode === "number" ? wire.exitCode : 0 };
+    case "error":
+      return typeof wire.message === "string" ? { kind: "error", message: wire.message } : void 0;
+    default:
       return void 0;
-    }
-    if (this.pauseRequested) {
-      this.pauseRequested = false;
-      return "pause";
-    }
-    const currentDepth = this.getStackDepth();
-    switch (this.activeControl.kind) {
-      case "stepIn":
-        return "step";
-      case "next":
-        return currentDepth <= this.activeControl.depth ? "step" : void 0;
-      case "stepOut":
-        return currentDepth < this.activeControl.depth ? "step" : void 0;
-      case "continue":
-        return await this.shouldStopAtLine(this.getCurrentLine()) ? "breakpoint" : void 0;
-      default:
-        return void 0;
-    }
   }
-  // A line stops execution when it has a verified unconditional breakpoint, or a
-  // conditional breakpoint whose condition evaluates to true. Conditions are
-  // evaluated against the live program memory; failures simply fall through so
-  // the program keeps running.
-  async shouldStopAtLine(line) {
-    if (line === void 0 || !this.engine) {
-      return false;
-    }
-    const fileBreakpoints = this.breakpointMap.get(this.normalizePath(this.programPath)) ?? [];
-    for (const breakpoint of fileBreakpoints) {
-      if (!breakpoint.verified || breakpoint.actualLine !== line) {
-        continue;
-      }
-      if (!breakpoint.compiledCondition) {
-        return true;
-      }
-      if (evaluateDebugCondition(this.engine, breakpoint.compiledCondition)) {
-        return true;
-      }
-    }
-    return false;
+}
+function lineOf(value) {
+  return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
+}
+function toLines(value) {
+  if (!Array.isArray(value)) {
+    return [];
   }
-  endSession(exitCode) {
+  return value.filter((entry) => typeof entry === "number" && Number.isFinite(entry)).map((entry) => Math.max(0, Math.trunc(entry)));
+}
+function toFrames(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry) => !!entry && typeof entry === "object").map((entry) => ({
+    name: typeof entry.name === "string" ? entry.name : "Program",
+    line: lineOf(entry.line)
+  }));
+}
+function toVariables(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((entry) => !!entry && typeof entry === "object").map((entry) => ({
+    name: typeof entry.name === "string" ? entry.name : "?",
+    value: typeof entry.value === "string" ? entry.value : String(entry.value ?? ""),
+    children: toVariables(entry.children)
+  }));
+}
+
+// src/web/debug-broker.ts
+var WebDebugSessionBroker = class {
+  sessionId;
+  channel;
+  launchTimeoutMs;
+  requestTimeoutMs;
+  subscribers = /* @__PURE__ */ new Set();
+  pending = /* @__PURE__ */ new Map();
+  channelSubscriptions = [];
+  readyPromise;
+  resolveReady;
+  rejectReady;
+  nextRequestId = 0;
+  ready = false;
+  terminated = false;
+  disposed = false;
+  launchSent = false;
+  constructor(sessionId, channel, options = {}) {
+    this.sessionId = sessionId;
+    this.channel = channel;
+    this.launchTimeoutMs = options.launchTimeoutMs ?? DEBUG_LAUNCH_TIMEOUT_MS;
+    this.requestTimeoutMs = options.requestTimeoutMs ?? DEBUG_REQUEST_TIMEOUT_MS;
+    this.readyPromise = new Promise((resolve, reject) => {
+      this.resolveReady = resolve;
+      this.rejectReady = reject;
+    });
+    this.readyPromise.catch(() => void 0);
+    this.channelSubscriptions.push(this.channel.onMessage((message) => this.handleMessage(message)));
+    this.channelSubscriptions.push(this.channel.onDispose(() => this.handleDispose()));
+  }
+  get id() {
+    return this.sessionId;
+  }
+  get isTerminated() {
+    return this.terminated;
+  }
+  onEvent(handler) {
+    this.subscribers.add(handler);
+    return { dispose: () => this.subscribers.delete(handler) };
+  }
+  /**
+   * Boots the runtime in the webview and resolves once it reports `ready`.
+   * Blazor (WASM download, ICU, assemblies) is slower than the JavaScript
+   * backend, hence the longer timeout.
+   */
+  async launch(request) {
+    if (this.launchSent) {
+      throw new Error("\u8C03\u8BD5\u4F1A\u8BDD\u5DF2\u7ECF\u542F\u52A8\uFF0C\u4E0D\u80FD\u91CD\u590D launch\u3002");
+    }
+    this.launchSent = true;
+    const pageReady2 = this.channel.whenReady(this.launchTimeoutMs);
+    this.channel.post({
+      type: "debug-launch",
+      sessionId: this.sessionId,
+      backend: request.backend,
+      name: request.name,
+      source: request.source,
+      stopOnEntry: request.stopOnEntry
+    });
+    if (!await pageReady2) {
+      throw new Error("Webview \u9875\u9762\u672A\u5C31\u7EEA\uFF08\u672A\u80FD\u52A0\u8F7D Blazor \u8F7D\u8377\uFF09\uFF0C\u8C03\u8BD5\u4F1A\u8BDD\u542F\u52A8\u5931\u8D25\u3002");
+    }
+    await this.withTimeout(this.readyPromise, this.launchTimeoutMs, "\u7B49\u5F85 Blazor WebAssembly \u8FD0\u884C\u65F6\u5C31\u7EEA\u8D85\u65F6\u3002");
+  }
+  /**
+   * Requests breakpoint validation and resolves with the actual executable
+   * lines. `conditions` is positionally aligned with `lines`; only the
+   * JavaScript runtime evaluates them.
+   */
+  async setBreakpoints(lines, conditions = []) {
+    const requestId = `bp-${++this.nextRequestId}`;
+    const event = await this.request(
+      requestId,
+      { kind: "setBreakpoints", requestId, lines: [...lines], conditions: [...conditions] },
+      (candidate) => candidate.kind === "breakpointsValidated" && candidate.requestId === requestId
+    );
+    return event.kind === "breakpointsValidated" ? [...event.lines] : [];
+  }
+  /** Tells the runtime to begin (or resume) execution under the debugger. */
+  start(breakpoints = []) {
+    this.post({ kind: "start", breakpoints: [...breakpoints] });
+  }
+  control(control, depth) {
+    this.post({ kind: "control", control, depth });
+  }
+  input(text) {
+    this.post({ kind: "input", text });
+  }
+  /**
+   * Terminates through the command channel (not `engine.Terminate()` directly)
+   * so a session blocked in `ReadAsync`/input is woken instead of leaking.
+   */
+  async terminate() {
     if (this.terminated) {
       return;
     }
+    const requestId = `term-${++this.nextRequestId}`;
+    try {
+      await this.request(requestId, { kind: "terminate", requestId }, (event) => event.kind === "terminated");
+    } catch {
+    }
+  }
+  dispose() {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
     this.terminated = true;
-    this.sendEvent(new import_debugadapter.ExitedEvent(exitCode));
-    this.sendEvent(new import_debugadapter.TerminatedEvent());
-  }
-  expandVariables(container) {
-    if (!this.engine) {
-      return [];
+    for (const subscription of this.channelSubscriptions.splice(0)) {
+      subscription.dispose();
     }
-    if (container.kind === "globals") {
-      return Object.entries(this.engine.memory.values).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => this.createVariable(name, value));
+    this.rejectPending(new Error("\u8C03\u8BD5\u4F1A\u8BDD\u5DF2\u91CA\u653E\u3002"));
+    this.subscribers.clear();
+    this.rejectReadyIfPending(new Error("\u8C03\u8BD5\u4F1A\u8BDD\u5DF2\u91CA\u653E\u3002"));
+  }
+  post(command) {
+    if (this.terminated || this.disposed) {
+      return;
     }
-    return Object.entries(container.value.values).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => this.createVariable(name, value));
-  }
-  createVariable(name, value) {
-    return {
-      name,
-      value: value.toDebuggerString(),
-      variablesReference: value.kind === 2 /* Array */ ? this.variableHandles.create({ kind: "array", value }) : 0
-    };
-  }
-  getExecutionFrames() {
-    return this.engine ? [...this.engine.executionStack].reverse() : [];
-  }
-  getStackDepth() {
-    return this.engine?.executionStack.length ?? 0;
-  }
-  getCurrentLine() {
-    if (!this.engine || this.engine.executionStack.length === 0) {
-      return void 0;
+    const json = encodeHostCommand(this.sessionId, command);
+    if (!this.launchSent) {
+      this.channel.post({ type: "debug-command", sessionId: this.sessionId, json });
+      return;
     }
-    const topFrame = this.engine.executionStack[this.engine.executionStack.length - 1];
-    const instruction = this.getInstructionForFrame(topFrame.moduleName, topFrame.instructionIndex);
-    return instruction?.sourceRange.start.line;
+    void this.readyPromise.then(() => this.channel.post({ type: "debug-command", sessionId: this.sessionId, json })).catch(() => void 0);
   }
-  getInstructionForFrame(moduleName, instructionIndex) {
-    const instructions = this.engine?.modules[moduleName];
-    if (!instructions || instructionIndex < 0 || instructionIndex >= instructions.length) {
-      return void 0;
+  request(requestId, command, accepts) {
+    if (this.terminated && command.kind !== "terminate") {
+      return Promise.reject(new Error("\u8C03\u8BD5\u4F1A\u8BDD\u5DF2\u7ECF\u7ED3\u675F\u3002"));
     }
-    return instructions[instructionIndex];
+    const promise = new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        this.pending.delete(requestId);
+        reject(new Error(`\u8C03\u8BD5\u547D\u4EE4\u8D85\u65F6\uFF1A${command.kind}`));
+      }, this.requestTimeoutMs);
+      this.pending.set(requestId, { resolve, reject, timer, accepts });
+      this.post(command);
+    });
+    return promise;
   }
-  normalizePath(filePath) {
-    return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+  handleMessage(message) {
+    if (this.disposed || !message || typeof message.type !== "string") {
+      return;
+    }
+    if (message.type === "debug-event") {
+      if (message.sessionId !== this.sessionId) {
+        return;
+      }
+      const event = decodeRuntimeEvent(message.json, this.sessionId);
+      if (event) {
+        this.deliver(event);
+      }
+      return;
+    }
+    if (message.type === "output" && message.sessionId === this.sessionId) {
+      this.deliver({ kind: "output", text: message.text ?? "" });
+      return;
+    }
+    if (message.type === "failed") {
+      this.deliver({ kind: "error", message: message.text ?? "Webview \u8FD0\u884C\u5931\u8D25\u3002" });
+    }
+  }
+  deliver(event) {
+    if (event.kind === "ready" && !this.ready) {
+      this.ready = true;
+      this.resolveReady();
+    }
+    if (event.kind === "terminated") {
+      this.terminated = true;
+    }
+    for (const [requestId, request] of [...this.pending]) {
+      if (request.accepts(event)) {
+        this.pending.delete(requestId);
+        clearTimeout(request.timer);
+        request.resolve(event);
+      }
+    }
+    if (event.kind === "error" && !this.ready) {
+      this.rejectReadyIfPending(new Error(event.message));
+    }
+    for (const subscriber of [...this.subscribers]) {
+      subscriber(event);
+    }
+  }
+  handleDispose() {
+    if (this.disposed) {
+      return;
+    }
+    this.disposed = true;
+    this.terminated = true;
+    this.rejectPending(new Error("Webview \u5DF2\u5173\u95ED\u3002"));
+    this.rejectReadyIfPending(new Error("Webview \u5DF2\u5173\u95ED\u3002"));
+    for (const subscriber of [...this.subscribers]) {
+      subscriber({ kind: "terminated", exitCode: 0 });
+    }
+    this.subscribers.clear();
+  }
+  rejectPending(error) {
+    for (const [requestId, request] of [...this.pending]) {
+      this.pending.delete(requestId);
+      clearTimeout(request.timer);
+      request.reject(error);
+    }
+  }
+  rejectReadyIfPending(error) {
+    if (!this.ready) {
+      this.rejectReady(error);
+    }
+  }
+  withTimeout(promise, timeoutMs, message) {
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => reject(new Error(message)), timeoutMs);
+      promise.then(
+        (value) => {
+          clearTimeout(timer);
+          resolve(value);
+        },
+        (error) => {
+          clearTimeout(timer);
+          reject(error instanceof Error ? error : new Error(String(error)));
+        }
+      );
+    });
   }
 };
 
@@ -24086,57 +24056,359 @@ var WebDebugSourceAccessor = class {
   }
 };
 
+// src/web/webview-debug-adapter.ts
+init_polyfills();
+var import_debugadapter = __toESM(require_main());
+var THREAD_ID = 1;
+var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession {
+  constructor(broker, sources, options) {
+    super("smallbasic-web-debug.log");
+    this.broker = broker;
+    this.sources = sources;
+    this.options = options;
+    this.setDebuggerLinesStartAt1(true);
+    this.setDebuggerColumnsStartAt1(true);
+    this.subscription = broker.onEvent((event) => this.onRuntimeEvent(event));
+  }
+  broker;
+  sources;
+  options;
+  programPath = "";
+  breakpoints = [];
+  snapshot;
+  variableHandles = new import_debugadapter.Handles();
+  subscription;
+  waitingForInput = false;
+  terminated = false;
+  initializeRequest(response, _args) {
+    response.body = {
+      supportsConfigurationDoneRequest: true,
+      // The JavaScript runtime evaluates conditions (`DebugEngineDriver`);
+      // the Blazor runtime aligns with SmallBasic.Blazor.RunHost, which has none.
+      supportsConditionalBreakpoints: this.options.backend === "javascript",
+      supportsEvaluateForHovers: false,
+      supportsStepBack: false,
+      supportsRestartRequest: false
+    };
+    this.sendResponse(response);
+    this.sendEvent(new import_debugadapter.InitializedEvent());
+  }
+  launchRequest(response, args) {
+    if (typeof args.program === "string" && args.program.length > 0) {
+      this.programPath = this.sources.resolvePath(args.program);
+    }
+    this.sendResponse(response);
+  }
+  async setBreakPointsRequest(response, args) {
+    const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
+      line: Math.max(0, breakpoint.line - 1),
+      condition: breakpoint.condition?.trim() || void 0
+    })) : (args.lines ?? []).map((line) => ({ line: Math.max(0, line - 1), condition: void 0 }));
+    try {
+      const validated = await this.broker.setBreakpoints(
+        requested.map((entry) => entry.line),
+        requested.map((entry) => entry.condition)
+      );
+      this.breakpoints = validated;
+      response.body = {
+        breakpoints: requested.map((entry) => {
+          const actual = validated.find((candidate) => candidate >= entry.line);
+          const result = {
+            verified: actual !== void 0,
+            line: (actual ?? entry.line) + 1
+          };
+          if (actual === void 0) {
+            result.message = entry.condition ? `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${entry.condition}` : "\u8BE5\u884C\u53CA\u4E4B\u540E\u6CA1\u6709\u53EF\u6267\u884C\u7684 Small Basic \u8BED\u53E5\u3002";
+          }
+          return result;
+        })
+      };
+    } catch (error) {
+      response.body = {
+        breakpoints: requested.map((entry) => ({ verified: false, line: entry.line + 1 }))
+      };
+      this.emitDiagnostic(error);
+    }
+    this.sendResponse(response);
+  }
+  configurationDoneRequest(response, _args) {
+    this.sendResponse(response);
+    this.broker.start(this.breakpoints);
+  }
+  threadsRequest(response) {
+    response.body = {
+      threads: [new import_debugadapter.Thread(THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
+    };
+    this.sendResponse(response);
+  }
+  stackTraceRequest(response, _args) {
+    const snapshot = this.snapshot;
+    const rawFrames = snapshot && snapshot.frames.length > 0 ? snapshot.frames : snapshot ? [{ name: "Program", line: snapshot.line }] : [];
+    const frames = rawFrames.map((frame, index) => {
+      const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
+      return new import_debugadapter.StackFrame(index + 1, frame.name || "Program", source, frame.line + 1, 1);
+    });
+    response.body = { stackFrames: frames, totalFrames: frames.length };
+    this.sendResponse(response);
+  }
+  scopesRequest(response, _args) {
+    response.body = {
+      scopes: [new import_debugadapter.Scope("Globals", this.variableHandles.create(this.snapshot?.variables ?? []), false)]
+    };
+    this.sendResponse(response);
+  }
+  variablesRequest(response, args) {
+    const container = this.variableHandles.get(args.variablesReference);
+    response.body = { variables: (container ?? []).map((variable) => this.toVariable(variable)) };
+    this.sendResponse(response);
+  }
+  continueRequest(response, _args) {
+    this.waitingForInput = false;
+    this.sendResponse(response);
+    this.broker.control("continue", this.currentDepth());
+  }
+  nextRequest(response, _args) {
+    this.waitingForInput = false;
+    this.sendResponse(response);
+    this.broker.control("next", this.currentDepth());
+  }
+  stepInRequest(response, _args) {
+    this.waitingForInput = false;
+    this.sendResponse(response);
+    this.broker.control("stepIn", this.currentDepth());
+  }
+  stepOutRequest(response, _args) {
+    this.waitingForInput = false;
+    this.sendResponse(response);
+    this.broker.control("stepOut", this.currentDepth());
+  }
+  pauseRequest(response, _args) {
+    this.sendResponse(response);
+    this.broker.control("pause", this.currentDepth());
+  }
+  evaluateRequest(response, args) {
+    const expression = (args.expression ?? "").trim();
+    if (this.waitingForInput) {
+      this.waitingForInput = false;
+      this.broker.input(expression);
+      response.body = { result: expression, variablesReference: 0 };
+      this.sendResponse(response);
+      return;
+    }
+    const value = this.findVariable(expression);
+    if (value) {
+      response.body = {
+        result: value.value,
+        variablesReference: value.children.length > 0 ? this.variableHandles.create(value.children) : 0
+      };
+      this.sendResponse(response);
+      return;
+    }
+    this.sendErrorResponse(response, 2002, `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`);
+  }
+  async disconnectRequest(response, _args) {
+    await this.broker.terminate().catch(() => void 0);
+    this.broker.dispose();
+    this.subscription.dispose();
+    this.options.close?.();
+    this.sendResponse(response);
+    this.endSession(0);
+  }
+  onRuntimeEvent(event) {
+    switch (event.kind) {
+      case "output":
+        this.sendEvent(new import_debugadapter.OutputEvent(event.text));
+        return;
+      case "stopped":
+        this.snapshot = { line: event.line, frames: event.frames, variables: event.variables };
+        this.resetVariableHandles();
+        this.sendStopped(event.reason || "pause");
+        return;
+      case "input":
+        this.snapshot = { line: event.line, frames: event.frames, variables: event.variables };
+        this.resetVariableHandles();
+        this.waitingForInput = true;
+        this.sendEvent(new import_debugadapter.OutputEvent(event.numberInput ? "\n[Input] \u8BF7\u5728 Debug Console \u8F93\u5165\u4E00\u4E2A\u6570\u5B57\u540E\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u5728 Debug Console \u8F93\u5165\u6587\u672C\u540E\u56DE\u8F66\u3002\n"));
+        this.sendStopped("pause", event.numberInput ? "Waiting for TextWindow number" : "Waiting for TextWindow input");
+        return;
+      case "terminated":
+        this.endSession(event.exitCode);
+        return;
+      case "error":
+        this.sendEvent(new import_debugadapter.OutputEvent(`[Webview] ${event.message}
+`, "stderr"));
+        return;
+      default:
+        return;
+    }
+  }
+  currentDepth() {
+    return this.snapshot?.frames.length ?? 0;
+  }
+  /**
+   * `@vscode/debugadapter`'s `StoppedEvent` cannot carry a description, but both
+   * the JavaScript adapter and the CLI Blazor adapter publish one for input
+   * waits. Sending the raw event keeps every adapter consistent.
+   */
+  sendStopped(reason, description) {
+    const stopped = {
+      seq: 0,
+      type: "event",
+      event: "stopped",
+      body: {
+        reason,
+        threadId: THREAD_ID,
+        allThreadsStopped: true,
+        ...description ? { description } : {}
+      }
+    };
+    this.sendEvent(stopped);
+  }
+  resetVariableHandles() {
+    this.variableHandles.reset();
+  }
+  toVariable(variable) {
+    return {
+      name: variable.name,
+      value: variable.value,
+      variablesReference: variable.children.length > 0 ? this.variableHandles.create(variable.children) : 0
+    };
+  }
+  findVariable(name) {
+    const variables = this.snapshot?.variables ?? [];
+    const exact = variables.find((variable) => variable.name === name);
+    if (exact) {
+      return exact;
+    }
+    const lower = name.toLowerCase();
+    return variables.find((variable) => variable.name.toLowerCase() === lower);
+  }
+  emitDiagnostic(error) {
+    const text = error instanceof Error ? error.message : String(error);
+    this.sendEvent(new import_debugadapter.OutputEvent(`[Debug] ${text}
+`, "stderr"));
+  }
+  endSession(exitCode) {
+    if (this.terminated) {
+      return;
+    }
+    this.terminated = true;
+    this.sendEvent(new import_debugadapter.ExitedEvent(exitCode));
+    this.sendEvent(new import_debugadapter.TerminatedEvent());
+  }
+};
+
+// src/web/inline-factory.ts
+var DEBUG_VIEW_TYPE = "smallbasic.web.debug";
+var DEBUG_TITLE = "Small Basic (Web Debug)";
+var DEBUG_OUTPUT_CHANNEL = "SmallBasic (Web Debug)";
+async function resolveDebugDocument(configuredProgram) {
+  const normalize = (value) => value.replace(/\\/g, "/").toLowerCase();
+  const wanted = normalize(configuredProgram);
+  const open = configuredProgram ? vscode9.workspace.textDocuments.find((document) => [
+    document.fileName,
+    document.uri.fsPath,
+    document.uri.path,
+    document.uri.toString()
+  ].some((value) => normalize(value) === wanted) && isSmallBasicDocument(document)) : void 0;
+  if (open) {
+    return open;
+  }
+  const active = vscode9.window.activeTextEditor?.document;
+  if (active && isSmallBasicDocument(active)) {
+    return active;
+  }
+  if (!configuredProgram) {
+    return void 0;
+  }
+  try {
+    const uri = /^[a-z][a-z0-9+.-]*:/i.test(configuredProgram) ? vscode9.Uri.parse(configuredProgram) : vscode9.Uri.file(configuredProgram);
+    const document = await vscode9.workspace.openTextDocument(uri);
+    return isSmallBasicDocument(document) ? document : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function documentBaseName(document) {
+  if (document.isUntitled) {
+    return "untitled.sb";
+  }
+  const segments = document.uri.path.split("/");
+  return segments[segments.length - 1] || document.fileName || "program.sb";
+}
+async function createWebInlineAdapter(context, session) {
+  const backend = session.configuration.backend;
+  if (backend === "csharp") {
+    void vscode9.window.showErrorMessage(
+      "Web \u6A21\u5F0F\u65E0\u6CD5\u542F\u52A8\u672C\u673A C# RunHost\uFF1ATextWindow \u7A0B\u5E8F\u8BF7\u7528 JavaScript \u540E\u7AEF\uFF0C\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u7528 Blazor \u540E\u7AEF\uFF08\u4E24\u8005\u90FD\u5728 Webview \u5185\u8FD0\u884C\uFF09\u3002"
+    );
+    return void 0;
+  }
+  const normalized = backend === "javascript" ? "javascript" : "blazor";
+  const configuredProgram = typeof session.configuration.program === "string" ? session.configuration.program : "";
+  const document = await resolveDebugDocument(configuredProgram);
+  if (!document) {
+    void vscode9.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
+    return void 0;
+  }
+  const sources = new WebDebugSourceAccessor(document, configuredProgram);
+  const root = await resolveBlazorPayload(context);
+  if (!root) {
+    void vscode9.window.showErrorMessage(
+      `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${blazorPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
+    );
+    return void 0;
+  }
+  const javascript = await resolveJavaScriptPayload(context);
+  if (!javascript) {
+    void vscode9.window.showErrorMessage("\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF08dist/web-runhost.js\uFF09\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002");
+    return void 0;
+  }
+  const output2 = vscode9.window.createOutputChannel(DEBUG_OUTPUT_CHANNEL);
+  const host = new BlazorWebviewHost(context, {
+    viewType: DEBUG_VIEW_TYPE,
+    title: DEBUG_TITLE,
+    payloadRoot: root,
+    javascriptUri: javascript,
+    log: (line) => output2.appendLine(line)
+  });
+  const broker = new WebDebugSessionBroker(
+    `web-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`,
+    host
+  );
+  host.onDispose(() => broker.dispose());
+  void broker.launch({
+    backend: normalized,
+    name: documentBaseName(document),
+    source: document.getText(),
+    stopOnEntry: session.configuration.stopOnEntry === true
+  }).catch((error) => output2.appendLine(`[launch] ${error instanceof Error ? error.message : String(error)}`));
+  const adapter = new WebviewDebugSession(broker, sources, {
+    backend: normalized,
+    close: () => {
+      host.dispose();
+      output2.dispose();
+    }
+  });
+  return new vscode9.DebugAdapterInlineImplementation(adapter);
+}
+
 // src/web/debug-factory.ts
 var SmallBasicWebDebugAdapterFactory = class {
-  async createDebugAdapterDescriptor(session) {
-    if (session.configuration.backend === "csharp" || session.configuration.backend === "blazor") {
-      void vscode8.window.showErrorMessage(
-        "VS Code for the Web \u76EE\u524D\u53EA\u652F\u6301 JavaScript \u540E\u7AEF\u7684\u9010\u884C\u8C03\u8BD5\u3002\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u6309 Ctrl+F5\uFF08\u8FD0\u884C\u4F46\u4E0D\u8C03\u8BD5\uFF09\u6216\u6267\u884C \u201CSmallBasic: Run with Blazor Backend\u201D\u3002"
-      );
-      return void 0;
-    }
-    const configuredProgram = typeof session.configuration.program === "string" ? session.configuration.program : "";
-    const document = await this.findDocument(configuredProgram);
-    if (!document || !isSmallBasicDocument(document)) {
-      void vscode8.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
-      return void 0;
-    }
-    const adapter = new SmallBasicDebugSession(new WebDebugSourceAccessor(document, configuredProgram));
-    return new vscode8.DebugAdapterInlineImplementation(adapter);
+  constructor(context) {
+    this.context = context;
   }
-  async findDocument(configuredProgram) {
-    const normalize = (value) => value.replace(/\\/g, "/").toLowerCase();
-    const wanted = normalize(configuredProgram);
-    const open = vscode8.workspace.textDocuments.find((document) => [
-      document.fileName,
-      document.uri.fsPath,
-      document.uri.path,
-      document.uri.toString()
-    ].some((value) => normalize(value) === wanted));
-    if (open) {
-      return open;
-    }
-    const active = vscode8.window.activeTextEditor?.document;
-    if (active && isSmallBasicDocument(active)) {
-      return active;
-    }
-    if (configuredProgram.includes(":")) {
-      try {
-        return await vscode8.workspace.openTextDocument(vscode8.Uri.parse(configuredProgram));
-      } catch {
-        return void 0;
-      }
-    }
-    return void 0;
+  context;
+  createDebugAdapterDescriptor(session) {
+    return createWebInlineAdapter(this.context, session);
   }
 };
 
 // src/web/run-routing.ts
 init_polyfills();
 var RUN_WITH_BLAZOR = "\u201CSmallBasic: Run with Blazor Backend\u201D";
-var C_SHARP_MESSAGE = `Web \u6A21\u5F0F\u65E0\u6CD5\u542F\u52A8\u672C\u673A C# RunHost\uFF1A\u8BF7\u7528 JavaScript \u540E\u7AEF\u8FD0\u884C TextWindow \u7A0B\u5E8F\uFF0C\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u6309 Ctrl+F5\uFF08\u8FD0\u884C\u4F46\u4E0D\u8C03\u8BD5\uFF09\u6216\u6267\u884C ${RUN_WITH_BLAZOR}\u3002`;
-var BLAZOR_DEBUG_MESSAGE = `Web \u6A21\u5F0F\u4E0D\u652F\u6301 Blazor \u540E\u7AEF\u7684\u9010\u884C\u8C03\u8BD5\u3002\u8BF7\u6309 Ctrl+F5\uFF08\u8FD0\u884C\u4F46\u4E0D\u8C03\u8BD5\uFF09\u6216\u6267\u884C ${RUN_WITH_BLAZOR}\uFF0C\u4E24\u8005\u90FD\u5728 Webview \u5185\u8FD0\u884C\u540C\u4E00\u4EFD Blazor WASM \u540E\u7AEF\u3002`;
-var GRAPHICS_DEBUG_MESSAGE = `\u56FE\u5F62\u7A0B\u5E8F\uFF08GraphicsWindow/Shapes/Turtle\uFF09\u5728 Web \u4E0A\u7531 Blazor \u540E\u7AEF\u8FD0\u884C\uFF0C\u800C\u8BE5\u540E\u7AEF\u4E0D\u652F\u6301\u9010\u884C\u8C03\u8BD5\u3002\u8BF7\u6309 Ctrl+F5\uFF08\u8FD0\u884C\u4F46\u4E0D\u8C03\u8BD5\uFF09\u6216\u6267\u884C ${RUN_WITH_BLAZOR}\u3002`;
+var C_SHARP_MESSAGE = `Web \u6A21\u5F0F\u65E0\u6CD5\u542F\u52A8\u672C\u673A C# RunHost\uFF08VS Code for the Web \u6CA1\u6709\u672C\u673A\u8FDB\u7A0B\uFF0C\u684C\u9762\u8BF7\u6539\u7528 mode: "cli"\uFF09\u3002TextWindow \u7A0B\u5E8F\u8BF7\u7528 JavaScript \u540E\u7AEF\u8FD0\u884C\uFF0C\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u6309 Ctrl+F5\uFF08\u8FD0\u884C\u4F46\u4E0D\u8C03\u8BD5\uFF09\u6216\u6267\u884C ${RUN_WITH_BLAZOR}\u3002`;
+var GRAPHICS_DEBUG_MESSAGE = "\u56FE\u5F62\u7A0B\u5E8F\uFF08GraphicsWindow/Shapes/Turtle\uFF09\u5728 Web \u4E0A\u53EA\u80FD\u7531 Blazor \u540E\u7AEF\u8FD0\u884C\uFF0C\u800C\u4F60\u663E\u5F0F\u9009\u62E9\u4E86 JavaScript \u540E\u7AEF\u3002\u8BF7\u6539\u7528 Blazor \u540E\u7AEF\uFF0C\u6216\u6309 Ctrl+F5\uFF08\u8FD0\u884C\u4F46\u4E0D\u8C03\u8BD5\uFF09\u3002";
 var GRAPHICS_FALLBACK_NOTE = "\u8BE5\u7A0B\u5E8F\u4F7F\u7528 GraphicsWindow/Shapes/Turtle\uFF0CJavaScript \u540E\u7AEF\u65E0\u6CD5\u8FD0\u884C\uFF0C\u5DF2\u5728 Blazor Webview \u4E2D\u8FD0\u884C\u3002";
 function routeWebDebugRequest(request, programDrawsShapes) {
   const backend = normalizeBackend(request.backend);
@@ -24146,20 +24418,17 @@ function routeWebDebugRequest(request, programDrawsShapes) {
   const selectedBackend = backend === "blazor" || programDrawsShapes ? "blazor" : "javascript";
   if (request.noDebug === true) {
     return {
-      kind: "webview",
+      kind: "run-in-webview",
       backend: selectedBackend,
       // The user explicitly asked for JavaScript, which cannot run this program
       // at all, so explain the substitution instead of silently changing backends.
       note: backend === "javascript" && programDrawsShapes ? GRAPHICS_FALLBACK_NOTE : void 0
     };
   }
-  if (selectedBackend === "javascript") {
-    return { kind: "javascript" };
+  if (backend === "javascript" && programDrawsShapes) {
+    return { kind: "reject", message: GRAPHICS_DEBUG_MESSAGE };
   }
-  return {
-    kind: "reject",
-    message: backend === "blazor" && !programDrawsShapes ? BLAZOR_DEBUG_MESSAGE : GRAPHICS_DEBUG_MESSAGE
-  };
+  return { kind: "inline-debug", backend: selectedBackend };
 }
 function normalizeBackend(value) {
   return value === "javascript" || value === "csharp" || value === "blazor" ? value : void 0;
@@ -24168,7 +24437,7 @@ function normalizeBackend(value) {
 // src/web/extension.ts
 function activate(context) {
   activateCommon(context, {
-    debugAdapterFactory: new SmallBasicWebDebugAdapterFactory(),
+    debugAdapterFactory: new SmallBasicWebDebugAdapterFactory(context),
     debugConfigurationProvider: createWebDebugConfigurationProvider(context),
     // The Blazor backend runs entirely inside a webview here: the same
     // SmallBasic.Blazor.Client WebAssembly build that the desktop RunHost serves
@@ -24180,37 +24449,30 @@ function activate(context) {
 function deactivate() {
 }
 async function runWebActiveDocument(context, backend) {
-  const editor = vscode9.window.activeTextEditor;
+  const editor = vscode10.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode9.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+    void vscode10.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
     return;
   }
   const document = editor.document;
   if (backend === "blazor") {
     warnWhenJavaScriptWouldDo(document);
   }
-  await runInWebview(context, documentName2(document), document.getText(), backend);
+  await runInWebview(context, documentBaseName(document), document.getText(), backend);
 }
 function warnWhenJavaScriptWouldDo(document) {
   const shape = analyze(document);
   if (!shape.ready || shape.drawsShapes) {
     return;
   }
-  void vscode9.window.setStatusBarMessage(
+  void vscode10.window.setStatusBarMessage(
     "Small Basic \u63D0\u793A\uFF1A\u8BE5\u7A0B\u5E8F\u53EA\u4F7F\u7528 TextWindow\uFF0CJavaScript \u540E\u7AEF\u542F\u52A8\u66F4\u5FEB\u3002",
     8e3
   );
 }
-function documentName2(document) {
-  if (document.isUntitled) {
-    return "untitled.sb";
-  }
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || document.fileName || "program.sb";
-}
 function createWebDebugConfigurationProvider(context) {
   const activeDocument = () => {
-    const document = vscode9.window.activeTextEditor?.document;
+    const document = vscode10.window.activeTextEditor?.document;
     return document && isSmallBasicDocument(document) ? document : void 0;
   };
   const createConfig = (document) => {
@@ -24242,7 +24504,7 @@ function createWebDebugConfigurationProvider(context) {
       const document = activeDocument();
       const program = (typeof config.program === "string" ? config.program.trim() : "") || document?.fileName || document?.uri.toString() || "";
       if (!program) {
-        void vscode9.window.showErrorMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
+        void vscode10.window.showErrorMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
         return void 0;
       }
       const target = document ?? await openProgram(program);
@@ -24252,21 +24514,21 @@ function createWebDebugConfigurationProvider(context) {
         shape.ready && shape.drawsShapes
       );
       if (routing.kind === "reject") {
-        void vscode9.window.showErrorMessage(routing.message);
+        void vscode10.window.showErrorMessage(routing.message);
         return void 0;
       }
-      if (routing.kind === "webview") {
+      if (routing.kind === "run-in-webview") {
         if (!target) {
-          void vscode9.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
+          void vscode10.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
           return void 0;
         }
         if (routing.note) {
-          void vscode9.window.setStatusBarMessage(routing.note, 8e3);
+          void vscode10.window.setStatusBarMessage(routing.note, 8e3);
         }
-        await runInWebview(context, documentName2(target), target.getText(), routing.backend);
+        await runInWebview(context, documentBaseName(target), target.getText(), routing.backend);
         return void 0;
       }
-      config.backend = "javascript";
+      config.backend = routing.backend;
       config.program = program;
       return config;
     }
@@ -24277,7 +24539,7 @@ async function openProgram(program) {
     return void 0;
   }
   try {
-    const document = await vscode9.workspace.openTextDocument(vscode9.Uri.parse(program));
+    const document = await vscode10.workspace.openTextDocument(vscode10.Uri.parse(program));
     return isSmallBasicDocument(document) ? document : void 0;
   } catch {
     return void 0;

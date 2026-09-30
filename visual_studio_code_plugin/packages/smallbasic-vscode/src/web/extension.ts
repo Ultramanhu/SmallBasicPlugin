@@ -4,11 +4,12 @@ import { activateCommon } from "../common/activation";
 import { isSmallBasicDocument } from "../language/providers";
 import { runInWebview, type WebviewBackend } from "./blazor-webview";
 import { SmallBasicWebDebugAdapterFactory } from "./debug-factory";
+import { documentBaseName } from "./inline-factory";
 import { routeWebDebugRequest } from "./run-routing";
 
 export function activate(context: vscode.ExtensionContext): void {
   activateCommon(context, {
-    debugAdapterFactory: new SmallBasicWebDebugAdapterFactory(),
+    debugAdapterFactory: new SmallBasicWebDebugAdapterFactory(context),
     debugConfigurationProvider: createWebDebugConfigurationProvider(context),
     // The Blazor backend runs entirely inside a webview here: the same
     // SmallBasic.Blazor.Client WebAssembly build that the desktop RunHost serves
@@ -37,7 +38,7 @@ async function runWebActiveDocument(
     warnWhenJavaScriptWouldDo(document);
   }
 
-  await runInWebview(context, documentName(document), document.getText(), backend);
+  await runInWebview(context, documentBaseName(document), document.getText(), backend);
 }
 
 function warnWhenJavaScriptWouldDo(document: vscode.TextDocument): void {
@@ -53,27 +54,18 @@ function warnWhenJavaScriptWouldDo(document: vscode.TextDocument): void {
   );
 }
 
-function documentName(document: vscode.TextDocument): string {
-  if (document.isUntitled) {
-    return "untitled.sb";
-  }
-
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || document.fileName || "program.sb";
-}
-
 /**
  * Resolves the launch configuration of the web entry.
  *
  * Both "Start Debugging" (F5) and "Run Without Debugging" (Ctrl+F5) arrive here,
- * the latter flagged by `noDebug` on the configuration, and only the JavaScript
- * backend can actually be debugged in this host. Blazor requests therefore act as
- * follows (see ./run-routing.ts for the table):
+ * the latter flagged by `noDebug` on the configuration. See `./run-routing.ts`
+ * for the full table:
  *
- *   - Ctrl+F5 runs the program in the Blazor webview and ends the request; the
- *     webview is not a debug session, so no session is started;
- *   - F5 is refused with a message pointing at Ctrl+F5 / the run command, instead
- *     of starting a session that would fail inside the adapter.
+ *   - Ctrl+F5 runs the program in the Blazor webview and ends the request;
+ *   - F5 for JavaScript or Blazor returns the configuration so the inline
+ *     adapter factory (`./inline-factory.ts`) can start a real debug session;
+ *   - `csharp` and an explicit JavaScript request for a graphics program are
+ *     refused with a message pointing at the supported alternative.
  */
 function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): vscode.DebugConfigurationProvider {
   const activeDocument = (): vscode.TextDocument | undefined => {
@@ -139,7 +131,7 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
         return undefined;
       }
 
-      if (routing.kind === "webview") {
+      if (routing.kind === "run-in-webview") {
         if (!target) {
           void vscode.window.showErrorMessage("无法打开要运行的 SmallBasic 文件。请先在编辑器中打开该文件。");
           return undefined;
@@ -149,12 +141,13 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
           void vscode.window.setStatusBarMessage(routing.note, 8000);
         }
 
-        await runInWebview(context, documentName(target), target.getText(), routing.backend);
+        await runInWebview(context, documentBaseName(target), target.getText(), routing.backend);
         // The program already ran in the webview, so this request is complete.
         return undefined;
       }
 
-      config.backend = "javascript";
+      // F5: let the inline adapter factory start the shared web debug session.
+      config.backend = routing.backend;
       config.program = program;
       return config;
     }

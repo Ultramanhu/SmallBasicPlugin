@@ -3,6 +3,8 @@
 > **2026-09-29 新增**：本文描述 `runhost/web` 静态站点 —— 一个不需要任何服务端进程、完全在本机浏览器内执行 `.sb` 程序的 RunHost，支持 JavaScript 与 Blazor WASM 两个后端。
 >
 > **2026-09-30 Web 模式调试规划**：独立静态站点 `runhost/web` 继续只提供 Run/Stop，不增加断点、单步、变量、调用栈等调试 UI。调试能力建设在 VS Code 插件的 `mode: "web"` 链路中，同时支持桌面 VS Code 与 VS Code for the Web，并覆盖 JavaScript、Blazor 两个后端；`csharp` 仍只支持 `mode: "cli"`。
+>
+> **2026-09-30 Web 模式调试实施结果**：规划已落地，并按"web 模式两个后端体验一致"收敛为**两个后端都在 Webview 内运行、共用一份 Inline DAP 适配器**（`src/web/webview-debug-adapter.ts` + `src/web/inline-factory.ts`）：JavaScript 引擎在页面内、Blazor 引擎是页面的 WASM，F5 都会弹出同一个页面并由 VS Code 原生调试 UI 驱动。`csharp` 与「显式 JavaScript + 图形程序」仍被拒绝。调试语义集中在宿主无关的 `src/debug/engine-driver.ts`，CLI 各后端保持既有体验不变。协议、Broker、断点（含条件断点）验证与页面胶水均已实现，并补齐单元测试与页面级 E2E。详见 [调试架构](#调试架构)、[实施结果](#实施结果与原当前实现差距的收敛情况) 与 [验收结果](#web-模式调试验收结果已实施)。
 
 ## 目标
 
@@ -66,7 +68,7 @@ runhost/web/
                                                     window.SmallBasicWebHost.write/notify → 浏览器控制台 + 状态
 ```
 
-页面外壳负责“谁来跑、跑什么、状态如何”，Blazor 侧只负责“怎么跑”。二者之间只有三个稳定的接口：
+页面外壳负责"谁来跑、跑什么、状态如何"，Blazor 侧只负责"怎么跑"。二者之间只有三个稳定的接口：
 
 | 方向 | 接口 | 说明 |
 |---|---|---|
@@ -76,7 +78,7 @@ runhost/web/
 
 ## Blazor 侧的复用与重构
 
-原有实现把“引擎 ↔ 宿主”写死成 WebSocket（`BrowserBridge`）。本次把这条通道抽象成接口，让同一条运行链路服务于两种宿主：
+原有实现把"引擎 ↔ 宿主"写死成 WebSocket（`BrowserBridge`）。本次把这条通道抽象成接口，让同一条运行链路服务于两种宿主：
 
 | 文件 | 变化 |
 |---|---|
@@ -118,12 +120,12 @@ interface IWebRunHostBridge {
 
 - 页面没有编辑器：工具栏只有程序列表、`选择 .sb 文件…`、后端下拉框、Run/Stop 与状态；输出面板占满其余空间。
 - 程序列表来自 `samples/index.json`（构建时由仓库 `test/**/*.sb` 生成），默认选中 `test/hello/hello.sb`；清单里 `graphics: true` 的程序（构建时按 `GraphicsWindow`/`Shapes`/`Turtle` 的出现判断）会自动把后端切到 Blazor。
-- 用户选择的本地文件（或拖入页面的文件）会成为列表里的“本地文件：xxx.sb”项，可直接运行。
+- 用户选择的本地文件（或拖入页面的文件）会成为列表里的"本地文件：xxx.sb"项，可直接运行。
 - `samples/index.json` 不可用时（例如 CLI 宿主不分发示例）回退到内置的 Hello World 程序，页面仍然可用。
 - 探测 `smallbasic-js.js` 是否存在（CLI 宿主不分发它）：缺失时移除 JS 选项并给出提示，仅保留 Blazor 后端。
-- 图形程序误选 JS 后端：诊断区给出“请切换到 Blazor WASM”的提示并以退出码 3 结束。
+- 图形程序误选 JS 后端：诊断区给出"请切换到 Blazor WASM"的提示并以退出码 3 结束。
 - Blazor 后端第一次运行才注入 `_framework/blazor.webassembly.js`（`autostart="false"` + 显式 `await Blazor.start()`），因此不跑图形程序时不会下载 WASM；此后同一页面可反复运行（每次 `SetSession` 会终止并重建会话）。
-- Stop：先请求终止并等待运行报告，再释放会话；外壳与 Blazor 工具条都会显示 `Stopped`。若 30 秒内没有任何生命周期消息（WASM 启动失败），状态栏会给出提示而不是一直卡在“Run 中”。
+- Stop：先请求终止并等待运行报告，再释放会话；外壳与 Blazor 工具条都会显示 `Stopped`。若 30 秒内没有任何生命周期消息（WASM 启动失败），状态栏会给出提示而不是一直卡在"Run 中"。
 - 页面底部提供 Blazor 标准 `#blazor-error-ui`，组件异常时可见。
 - 直接以 `file://` 打开时页面不尝试启动 Blazor，而是提示改用 `run.bat` / `run.ps1` / `serve.mjs`。
 
@@ -157,7 +159,7 @@ node serve.mjs                 # 等价直接调用：--no-open / --port 9000 / 
 
 - 浏览器不允许从 `file://` 加载 WebAssembly，因此必须经 HTTP 访问；`serve.mjs` 会按 `Accept-Encoding` 协商下发 `_framework` 的 `.br` 预压缩文件，任何静态服务器都可以替代它（此时自行用浏览器打开 `index.html`）。
 - `run.bat` 面向 Windows 双击，`run.ps1` 面向 PowerShell 7（含 macOS/Linux，`#!/usr/bin/env pwsh` 便于 `chmod +x` 后直接执行）；两者都只是 `serve.mjs` 的入口，Node 缺失时会给出各平台的安装提示。
-- `runhost/web` 的组装是“先删除再复制”。若此时仍有进程把该目录当作工作目录（例如正在运行的 `node serve.mjs`），Windows 会让复制落入已删除的旧目录，导致目录为空；`Build-RunHost.ps1` 会在组装后校验关键文件（含 `run.bat`/`run.ps1`/`samples\index.json`）并给出明确错误，重建前请先停止服务进程。
+- `runhost/web` 的组装是"先删除再复制"。若此时仍有进程把该目录当作工作目录（例如正在运行的 `node serve.mjs`），Windows 会让复制落入已删除的旧目录，导致目录为空；`Build-RunHost.ps1` 会在组装后校验关键文件（含 `run.bat`/`run.ps1`/`samples\index.json`）并给出明确错误，重建前请先停止服务进程。
 
 ## CLI 宿主复用
 
@@ -189,7 +191,7 @@ WebviewPanel（扩展生成的 HTML，载荷来自扩展目录 runhost/blazor/ww
 - **复用现有契约**：`SetSession` / `Stop`（`[JSInvokable]`）与 `SmallBasicWebHost.write/notify`（`isWebRunHost()` 返回 true 即"由外壳驱动"模式），与独立站点的 `shell.js` 完全一致，只是外壳从 `shell.js` 换成了扩展。
 - Webview 侧代码：`src/web/webview-html.ts`（文档 + CSP 生成，纯函数、可单测）、`src/web/blazor-webview.ts`（panel 生命周期、载荷定位、消息协议、OutputChannel 镜像）；页面侧胶水 `SmallBasic.Blazor.Client/wwwroot/vscode-webview.js`。
 
-这里的“复用独立 Web RunHost”指复用运行时、Blazor 组件和宿主协议，**不代表要在 `runhost/web/index.html` 中实现调试器 UI**。独立站点仍只有程序选择、后端选择、Run/Stop、输出与输入；断点编辑、当前行高亮、Variables、Call Stack、Debug Console 全部由 VS Code 原生界面提供。
+这里的"复用独立 Web RunHost"指复用运行时、Blazor 组件和宿主协议，**不代表要在 `runhost/web/index.html` 中实现调试器 UI**。独立站点仍只有程序选择、后端选择、Run/Stop、输出与输入；断点编辑、当前行高亮、Variables、Call Stack、Debug Console 全部由 VS Code 原生界面提供。
 
 ### 实测踩过的资源加载问题（都已修复）
 
@@ -210,46 +212,49 @@ CSP 要求（`webview-html.ts` 中集中定义）：
 | `img-src ${cspSource} data: https:` | `GraphicsWindow.DrawImage` 可加载网络图片 |
 | `worker-src ${cspSource} blob:` | 为将来可能的多线程运行时留出空间 |
 
-### Web 模式调试范围与能力矩阵（目标状态）
+### Web 模式调试范围与能力矩阵
 
-`mode: "web"` 的调试目标是“不依赖 Small Basic 本机进程”，而不是强制所有代码都进入同一个 Webview。JavaScript 引擎本身可在扩展宿主运行；Blazor 图形引擎必须在 Webview/WASM 中运行。两者最终都通过 `DebugAdapterInlineImplementation` 接入 VS Code 的 DAP UI。
+`mode: "web"` 的调试目标是"不依赖 Small Basic 本机进程"。**两个后端都在 Webview 内运行**（JavaScript 引擎在页面里，Blazor 在页面的 WASM 运行时里），因此"程序可见的执行面"和调试体验对两者一致：F5 会弹出同一个页面，断点、单步、变量、调用栈、Debug Console 输入都由 VS Code 原生调试 UI 承载。两者都通过 `DebugAdapterInlineImplementation` 接入 DAP。
 
 | VS Code 宿主 | `mode` | JavaScript | Blazor | C# |
 |---|---|---|---|---|
-| 桌面 VS Code | `cli` | 现有外部 Node DAP | 现有本机 Blazor RunHost DAP | 现有本机 C# RunHost DAP |
-| 桌面 VS Code | `web` | 浏览器兼容 Inline DAP；引擎在扩展宿主内 | Inline DAP 代理 Webview 中的 Blazor WASM 引擎 | 拒绝，提示改用 `mode: "cli"` |
+| 桌面 VS Code | `cli` | 现有外部 Node DAP（Debug Console） | 现有本机 Blazor RunHost DAP（浏览器页面） | 现有本机 C# RunHost DAP（宿主窗口） |
+| 桌面 VS Code | `web` | Webview Inline DAP，引擎在页面内 | Webview Inline DAP，引擎在页面的 WASM 内 | 拒绝，提示改用 `mode: "cli"` 或换后端 |
 | VS Code for the Web | 强制 `web` | 与桌面 `mode: "web"` 相同 | 与桌面 `mode: "web"` 相同 | 拒绝，本机进程不可用 |
 | 独立 `runhost/web` | 不适用 | 仅运行，不提供调试 UI | 仅运行，不提供调试 UI | 不提供 |
 
-功能目标为：断点及断点吸附、Continue、Pause、Step In、Step Over、Step Out、当前执行行、调用栈、全局变量/数组、程序输出、`TextWindow.Read/ReadNumber` 输入以及终止会话。JavaScript 继续保留已有条件断点能力；Blazor 第一阶段与现有 `SmallBasic.Blazor.RunHost` 对齐，不把条件断点列为阻塞项。
+功能目标为：断点及断点吸附、Continue、Pause、Step In、Step Over、Step Out、当前执行行、调用栈、全局变量/数组、程序输出、`TextWindow.Read/ReadNumber` 输入以及终止会话。JavaScript 保留条件断点（协议通过 `conditions` 透传，由页面内驱动编译求值）；Blazor 第一阶段与现有 `SmallBasic.Blazor.RunHost` 对齐，不把条件断点列为阻塞项。
 
-### 目标调试架构
+### 调试架构
 
 ```text
 VS Code 原生调试 UI（桌面 / Web）
         │ DAP
         ▼
-DebugAdapterInlineImplementation（扩展宿主）
-        │
-        ├─ javascript ─> SmallBasicDebugSession ─> TS ExecutionEngine
-        │                  （桌面 Node 扩展宿主 / Web Worker 扩展宿主）
-        │
-        └─ blazor ─────> BlazorWebDebugAdapter
-                           │ WebDebugSessionBroker
-                           ▼ postMessage
-                        Webview / vscode-webview.js
-                           ▼ JS interop
-                        WebRunHost / WebShellTransport
-                           ▼
-                        BrowserEngineSession（Blazor WASM）
+DebugAdapterInlineImplementation（扩展宿主，Node 或 Web Worker）
+        │  WebviewDebugSession（同一份适配器，两个后端）
+        ▼
+WebDebugSessionBroker ── debug-launch / debug-command / debug-event ──▶ Webview
+        （扩展宿主）                                                     │
+   ┌─────────────────────────────────────────────────────────────────────┘
+   │ vscode-webview.js 按 backend 分发
+   ├─ javascript ─▶ window.SmallBasicWeb.debugStart/debugCommand/debugStop
+   │                     ▼
+   │                 BrowserDebugSession（页面内 TS 运行时）
+   │                     ▼
+   │                 DebugEngineDriver  ◀── 与 CLI JavaScript 适配器共用同一个驱动
+   │
+   └─ blazor ─────▶ DotNet.invokeMethodAsync SetSession / DispatchDebugCommand
+                         ▼
+                     BrowserEngineSession（Blazor WASM：断点吸附、单步、快照、输入）
 ```
 
 关键约束：
 
-1. **DAP 只存在于扩展宿主**。Blazor WASM 不直接实现 DAP，只处理与运行时相关的强类型调试命令/事件；独立 `runhost/web` 因此不需要成为 DAP 客户端。
-2. **运行时调试语义只实现一次**。Blazor 的断点命中、单步、快照和输入继续复用 `BrowserEngineSession`；扩展侧 Adapter 只做 DAP 与运行时协议的转换。JavaScript 继续复用 `SmallBasicDebugSession`，不在 `src/runhost/web.ts` 中复制一套调试循环。
-3. **桌面/Web 共用同一份 Web 调试代码**。桌面入口与 Web 入口只负责取得 `TextDocument` 和创建会话；`mode: "web"` 的 backend 路由、Inline Adapter、协议类型和 Blazor Session Broker 必须放在浏览器兼容的共享模块中，不能引用 `node:fs`、`node:path`、`child_process` 或 `process.execPath`。
-4. **CLI 调试不受影响**。`mode: "cli"` 继续使用现有外部 JS Adapter、`SmallBasic.RunHost debug` 和 `SmallBasic.Blazor.RunHost debug`，避免 Web 改造影响 Visual Studio 或桌面 CLI 链路。
+1. **DAP 只存在于扩展宿主**。页面内的两个引擎都不实现 DAP，只处理与运行时相关的强类型调试命令/事件；独立 `runhost/web` 因此不需要成为 DAP 客户端。
+2. **调试语义只实现一次**。断点吸附、条件断点、单步、暂停/阻塞/终止状态机集中在宿主无关的 `src/debug/engine-driver.ts`：CLI 的 JavaScript DAP 适配器（`src/debug/session.ts`）与 Webview 内的 JavaScript 运行时（`src/runhost/web-debug.ts`）都只是它的薄翻译层（一个翻译成 DAP，一个翻译成 Web 调试协议）。Blazor 侧同理复用 `BrowserEngineSession`，不做第二套断点/单步实现。
+3. **桌面/Web 共用同一份 Web 调试代码**。桌面入口与 Web 入口只负责取得 `TextDocument` 和创建会话；`mode: "web"` 的 backend 路由、Inline Adapter、协议类型与会话 Broker 都放在浏览器兼容的共享模块中，不引用 `node:fs`、`node:path`、`child_process` 或 `process.execPath`。
+4. **CLI 调试不受影响**。`mode: "cli"` 继续使用现有外部 JS Adapter（Debug Console 输出）、`SmallBasic.RunHost debug` 与 `SmallBasic.Blazor.RunHost debug`，各后端保持各自既有体验。
 
 ### Web 调试协议与会话模型
 
@@ -273,31 +278,49 @@ DebugAdapterInlineImplementation（扩展宿主）
 
 建议把 C#/TypeScript 两侧协议定义集中到可核对的 schema/契约测试中，避免手写 DTO 随版本漂移。Webview 消息只接受已知 `sessionId`、已知消息类型和合法字段；Blazor 资源读取仍沿用现有目录边界校验，不因调试能力扩大 CSP 或文件访问范围。
 
-### 组件改造清单
+**实现说明（`src/web/debug-protocol.ts`，`protocolVersion` = 1）**：
 
-| 组件 | 规划改造 |
+- 编码采用单通道 + 类型字段，而不是每种控制单独一种消息：`{"protocolVersion":1,"sessionId":"…","type":"control","control":"next","depth":2}`。因此上表的 `continue/pause/next/stepIn/stepOut` 落在 `type: "control"` 的 `control` 字段，`terminate` 沿用既有 `type: "stop"`（可带 `requestId` 请求应答）。
+- `launch` 由扩展侧 Broker 发 `debug-launch`（携带 `backend`/`name`/`source`/`stopOnEntry`），页面按 `backend` 分发：`javascript` 调 `SmallBasicWeb.debugStart(json)`，`blazor` 调 `SetSession`（`WebRunRequest` 携带 `debug`/`stopOnEntry`/`sessionId`）。`start` 是随后投入命令 Channel 的正式 `HostMessage`。
+- 事件沿用 `BrowserMessage` 的 `type` 命名：`ready`/`breakpointsValidated`/`output`/`stopped`/`input`（对应 `inputRequested`）/`terminated`/`error`；`exited` 语义由 `terminated` 的 `exitCode` 承载。两个后端都经页面的 `SmallBasicWebHost.write/notify` 回传，所以 Webview 侧只有一条事件通路。
+- 行号：`HostMessage.Breakpoints` 与 `BrowserMessage.Breakpoints` 均为 0-based；`WebviewDebugSession` 在 DAP 边界做 ±1 转换。
+- 条件断点：`setBreakpoints` 带可选 `conditions`（与 `breakpoints` 位置对齐，无条件的位为空串；全无条件时不发该字段）。JavaScript 运行时把它交给 `DebugEngineDriver` 编译求值；Blazor 运行时忽略未知字段，行为与 `SmallBasic.Blazor.RunHost` 一致。
+- 契约测试 `tests/debug-protocol.spec.ts` 固定了上述 JSON 形状（camelCase 字段名与 C# 的 `JsonSerializerDefaults.Web` 对齐），任何一侧改动都会先让该测试失败。翻页要点：线协议里的 C# `HostMessage`/`BrowserMessage` 不认识 `conditions` 时会被 `System.Text.Json` 直接忽略，所以新增可选字段对老运行时是安全的。
+
+### 组件改造清单（已实施）
+
+| 组件 | 改造结果 |
 |---|---|
-| `SmallBasic.Blazor.Shared/Protocol.cs` | 补充协议版本、会话/请求标识、断点请求与验证结果、错误/生命周期事件 |
-| `SmallBasic.Blazor.Client/Runtime/WebRunHost.cs` | 调试 launch 与命令的 JS 互操作入口；持有活动会话/Transport；按 `sessionId` 分发 |
-| `WebShellTransport.cs` | 复用现有 Channel；接收 Webview 入站调试命令并保证终止可唤醒等待 |
-| `BrowserEngineSession.cs` | 复用现有调试循环；补断点验证响应、异常/终止语义和严格状态转换 |
-| `Runner.razor` | Webview 调试启动时把 `Debug`、`StopOnEntry`、会话标识写入 `SessionDescriptor`；独立站点普通运行保持不变 |
-| `vscode-webview.js` | `debug-launch` / `debug-command` / `debug-event` 消息桥；不增加可见调试 UI |
-| `src/web/blazor-webview.ts` | 从一次性 `runInWebview()` 扩展为可创建/释放的 `WebDebugSessionBroker`，负责 ready、关联请求、事件订阅、Webview 关闭与超时 |
-| 新增浏览器兼容 Blazor DAP Adapter | 将 DAP 请求转换为 Web 调试协议，把运行时快照映射为 stackTrace/scopes/variables；通过 `DebugAdapterInlineImplementation` 注册 |
-| `src/web/debug-factory.ts` 与桌面 `src/debug/factory.ts` | 按 `mode + backend` 选择 Adapter；两种宿主的 `mode: "web"` 都走共享 Inline 路径 |
-| `src/web/run-routing.ts` | F5 的 Blazor/图形程序不再拒绝，路由到 Blazor Inline Adapter；`csharp + web` 继续拒绝 |
-| `src/runhost/web.ts`、`shell.js`、`index.html` | 不增加独立调试实现或 UI；仅保持普通 Run/Stop 兼容共享运行时协议 |
+| `SmallBasic.Blazor.Shared/Protocol.cs` | 新增 `DebugProtocol.Version = 1`；`HostMessage`/`BrowserMessage` 增加 `ProtocolVersion`/`SessionId`/`RequestId`，`BrowserMessage` 增加 `Breakpoints`（已校验的行）与 `Message`（错误事件） |
+| `SmallBasic.Blazor.Client/Runtime/WebRunHost.cs` | 新增 `[JSInvokable] DispatchDebugCommand(json)`：校验协议版本与 `sessionId` 后投入活动会话；`WebRunRequest` 增加 `Debug`/`StopOnEntry`/`SessionId` |
+| `WebShellTransport.cs` | 未改动：已有命令 Channel、`TryRead`/`EnqueueLocal` 已满足入站调试命令与终止唤醒 |
+| `BrowserEngineSession.cs` | 新增 `SessionId`/`EnqueueCommand`；队列命令统一走 `ApplyHostCommandAsync`（`setBreakpoints` 吸附并回 `breakpointsValidated`、`stop` 置终止）；发往宿主的消息统一加盖协议版本与会话标识；`stop` 早于 `start` 时也会补发 `terminated`，不再让适配器等待超时 |
+| `Runner.razor` | Webview 调试启动时把 `request.SessionId`/`Debug`/`StopOnEntry` 写入 `SessionDescriptor`；独立站点普通运行路径不变 |
+| `vscode-webview.js` | 新增 `debug-launch`/`debug-command` 入站分支与 `debug-event` 出站通道；`output` 带 `sessionId`；普通 Run/Stop 与 `notify` 通道保持兼容 |
+| `SmallBasic.Blazor.Client/wwwroot/shell.js`、`runhost/web` | 未改动：仍然只有 Run/Stop，不引入调试 UI |
+| 新增 `src/web/debug-protocol.ts` | 冻结协议：`DEBUG_PROTOCOL_VERSION`、命令/事件联合类型、`encodeHostCommand`/`decodeRuntimeEvent`（版本、会话、类型与字段全部校验；行号 0-based；条件断点经 `conditions` 透传） |
+| 新增 `src/web/webview-panel.ts` | 抽出 `BlazorWebviewHost`（面板生命周期 + 资源桥 + ready 记账）与载荷定位；Run 与 Debug 共用，消除重复 |
+| 新增 `src/web/debug-broker.ts` | `WebDebugSessionBroker`：会话标识、`backend` 透传、ready 门控、`requestId` 关联、超时、事件订阅、经命令通道终止；不依赖 `vscode` |
+| 新增 `src/web/webview-debug-adapter.ts` | `WebviewDebugSession`：两个后端共用的单一 DAP 适配器（DAP ↔ 协议）；快照映射 stackTrace/scopes/variables；`evaluate` 兼作 TextWindow 输入；`disconnect` 终止并释放；JavaScript 声明条件断点能力 |
+| 新增 `src/web/inline-factory.ts` | 桌面与 Web 共用的 Inline Adapter 工厂；**两个 web 后端都创建 Webview + Broker**；同时集中 `resolveDebugDocument`/`documentBaseName` |
+| 新增 `src/debug/engine-driver.ts` | 宿主无关的调试引擎驱动：断点吸附、条件断点编译求值、stopOnEntry、单步、暂停/阻塞/终止状态机、快照与变量展开 |
+| `src/debug/session.ts` | 由"自带引擎循环"改写为 `DebugEngineDriver` 的薄 DAP 包装；CLI JavaScript（外部 Node Adapter）与扩展宿主行为不变，11 个既有 DAP 用例原样通过 |
+| 新增 `src/runhost/web-debug.ts` | 页面内 JavaScript 调试会话：复用 `DebugEngineDriver`，只做「Web 调试协议 ↔ 驱动」翻译；`ready`/`breakpointsValidated`/`stopped`/`input`/`terminated` 全部经 `SmallBasicWebHost.notify/write` 回传 |
+| `src/runhost/web.ts` | `SmallBasicWeb` 增加 `debugStart`/`debugCommand`/`debugStop`；普通 `runJavaScript`/`stopJavaScript` 不变 |
+| `src/web/blazor-webview.ts` | 保留 `runInWebview`/`stopBlazorWebview` 兼容 API，内部改为使用 `BlazorWebviewHost` |
+| `src/web/debug-factory.ts` | 精简为对 `createWebInlineAdapter` 的薄封装 |
+| `src/web/run-routing.ts` | 纯函数路由改为 `run-in-webview`/`inline-debug`/`reject` 三态；两个后端的 F5 都放开，`csharp` 与「显式 JavaScript + 图形程序」F5 继续拒绝 |
+| `src/debug/factory.ts` | `mode === "web"` 时改走共享 Inline 工厂，不再落到外部 Node Adapter |
 
 ### 目标运行与调试路由（`mode: "web"`）
 
-`Ctrl+F5` 表示运行但不调试，仍进入现有 Webview 运行链路；F5 创建真正的 VS Code 调试会话：
+`Ctrl+F5` 表示运行但不调试，仍进入现有 Webview 运行链路；F5 创建真正的 VS Code 调试会话（同样弹页面，但由调试会话驱动）：
 
 | 请求的后端 | `noDebug`（Ctrl+F5） | 程序使用 GraphicsWindow/Shapes/Turtle | 目标结果 |
 |---|---|---|---|
-| `javascript` / 未指定 | 否（F5） | 否 | JavaScript Inline DAP 调试 |
+| `javascript` / 未指定 | 否（F5） | 否 | Webview Inline DAP 调试，JavaScript 引擎在页面内（可见 `#console`） |
 | `javascript` / 未指定 | 是 | 否 | JavaScript 后端在 Webview 内运行，不创建调试会话 |
-| `blazor` | 否（F5） | 任意 | Blazor Inline DAP + Webview/WASM 调试 |
+| `blazor` | 否（F5） | 任意 | Webview Inline DAP 调试，Blazor WASM 引擎在页面内（可见 SVG 场景） |
 | `blazor` | 是 | 任意 | Blazor 在 Webview 内运行，不创建调试会话 |
 | 未指定 | 否（F5） | 是 | 自动选择 Blazor 并调试 |
 | 未指定 | 是 | 是 | 自动选择 Blazor 并运行 |
@@ -306,18 +329,37 @@ DebugAdapterInlineImplementation（扩展宿主）
 
 路由逻辑继续集中在不依赖 `vscode` 的纯函数中，并由桌面入口与 Web 入口共同调用。未指定 backend 时可以根据 `Compilation.kind.drawsShapes()` 自动选择 JavaScript 或 Blazor；显式选择 JavaScript 后发现图形能力不兼容时应给出错误，而不是在调试期间静默切换执行语义。
 
-### 当前实现差距（规划基线）
+### 实施结果与原「当前实现差距」的收敛情况
 
-截至本文本次更新，JavaScript 已能在 VS Code for the Web 中通过 Inline DAP 调试；Blazor Web 模式仍只支持运行，F5 会被 `run-routing.ts` / `debug-factory.ts` 拒绝。桌面 `mode: "web"` 的 JavaScript F5 仍可能落到外部 Node Adapter，而不是共享 Inline 路径。上述目标架构是待实施设计，不应把当前验证结果解读为 Blazor Web 调试已经完成。
+规划清单已落地，原先记录的三个差距全部消除；随后按"web 模式两个后端体验一致"的要求，将 JavaScript 调试也移入 Webview，并抽出共享驱动：
 
-### 推荐实施顺序
+| 原差距 / 追加要求 | 现状 |
+|---|---|
+| JavaScript 已能在 VS Code for the Web 中通过 Inline DAP 调试 | 现在两个后端共用 `WebviewDebugSession` + `WebDebugSessionBroker`，F5 都会弹出页面 |
+| Blazor Web 模式只支持运行，F5 被路由/工厂拒绝 | 已放开：Webview Inline DAP + 页面内 WASM 引擎 |
+| 桌面 `mode: "web"` 的 JavaScript F5 可能落到外部 Node Adapter | 已修正：`src/debug/factory.ts` 对 `mode === "web"` 直接返回共享 Inline 工厂 |
+| web/js 调试不弹页面（体验与 Blazor 不一致） | 已修正：JavaScript 引擎改为在页面内运行，页面 `#console` 与 Debug Console 同时可见 |
+| CLI 各后端体验不能被 Web 改造带偏 | `DebugEngineDriver` 抽取后 CLI JavaScript 行为零变化（11 个 DAP 用例原样通过）；C#/Blazor RunHost 未改 |
 
-1. 冻结 Web 调试协议、行号约定和会话状态机，先补 C#/TypeScript 契约测试。
-2. 打通 `vscode-webview.js → WebRunHost → WebShellTransport` 的入站命令，修正调试终止和输入等待生命周期。
-3. 在 Blazor WASM 内补断点验证响应并用页面级测试直接验证 `BrowserEngineSession`，此阶段仍不改 `runhost/web` UI。
-4. 实现浏览器兼容的 `BlazorWebDebugAdapter` 与 `WebDebugSessionBroker`，先接入 VS Code for the Web。
-5. 让桌面扩展的 `mode: "web"` 复用同一 Inline Adapter/路由；保留 `mode: "cli"` 的现有工厂和 RunHost。
-6. 放开 Blazor/图形程序的 F5 路由，完成桌面 Web extension host、Web 工作台和真实 vscode.dev 验收。
+为减少重复代码做的抽取（均在两处以上复用）：
+
+| 抽取项 | 复用于 |
+|---|---|
+| `engine-driver.ts` 的 `DebugEngineDriver` | CLI/扩展宿主的 `SmallBasicDebugSession`（DAP）与页面内的 `BrowserDebugSession`（Web 调试协议）——断点/条件断点/单步只实现一次 |
+| `webview-panel.ts` 的 `BlazorWebviewHost` | 普通运行 Webview 与调试 Webview（面板、CSP、资源桥、ready 只写一份） |
+| `inline-factory.ts` 的 `createWebInlineAdapter` | 桌面入口 `src/extension.ts` 与 Web 入口 `src/web/extension.ts`，且对两个后端是同一段代码 |
+| `inline-factory.ts` 的 `resolveDebugDocument` / `documentBaseName` | 两个入口与 Adapter 工厂 |
+| `webview-debug-adapter.ts` 的 `WebviewDebugSession` | JavaScript 与 Blazor 两个 web 后端共用同一份 DAP 适配器 |
+| `debug-protocol.ts` 的编解码/校验 | Broker（编码）、Adapter（解码）、单元测试与 C# 对端契约 |
+| `tests/support/dap-client.ts` | JavaScript DAP 回归与 Web DAP 单测（同一 DAP 线上驱动） |
+| `run-routing.ts` 的单一路由表 | 两个入口的 `resolveDebugConfigurationWithSubstitutedVariables` |
+
+### 会话与状态机（实现约定）
+
+- 会话状态：`creating → configuring → running/paused/waitingInput → terminated/disposed`；任一侧结束后进入 `terminated`，Broker 在 `terminated`/Webview 关闭后拒绝或忽略后续命令，不会把新命令投给已结束的会话（页面侧 `BrowserDebugSession`/`BrowserEngineSession` 也各自丢弃已结束会话的命令）。
+- 会话隔离在两处生效：`WebRunHost.DispatchDebugCommand`（Blazor）与 `BrowserDebugSession.dispatch`（JavaScript）都丢弃协议版本不符、`sessionId` 不符或字段非法的消息。
+- `setBreakpoints` 由运行时吸附：只有运行时知道可执行行，响应 `breakpointsValidated` 携带被接受的实际行（0-based）；DAP 边界转换为 1-based。条件断点经 `conditions` 透传，JavaScript 运行时用 `DebugEngineDriver` 编译求值，Blazor 忽略该字段。
+- Stop/终止走命令通道（`stop`），会唤醒阻塞在读取命令或输入等待上的会话；`stop` 早于 `start` 到达时也会补发 `terminated`（JavaScript 侧由驱动的 `finish()` 保证只报一次）。
 
 ### VS Code `launch.json` 的运行模式
 
@@ -355,20 +397,26 @@ npm run stage:blazor -w smallbasic-tools-vsc   # 只暂存 runhost/blazor（Web 
 
 `npm run stage:blazor` 是 `stage-runhost.mjs --blazor-only`：Web 扩展只需要 `runhost/blazor`（`wwwroot/_framework` 是 WASM 运行时本体），不必构建 net48 / net8.0-windows 宿主。
 
-### Web 模式调试验收计划（待实现）
+### Web 模式调试验收结果（已实施）
 
-| 层级 | 必须覆盖的场景 |
-|---|---|
-| 协议/状态机单测 | 协议版本与非法消息、`sessionId` 隔离、请求应答、配置完成前设置断点、Stop 唤醒控制/输入等待、Webview 关闭和重复启动 |
-| JavaScript DAP | 桌面 `mode: "web"` 与 VS Code for the Web 均能命中断点、逐步执行、查看调用栈/变量、完成输入并终止；两端使用同一 Inline Adapter |
-| Blazor DAP | 文本和 GraphicsWindow 程序在两种 VS Code 宿主中均能 stopOnEntry、断点吸附、Continue/Pause/Step In/Over/Out、查看递归变量并从 Debug Console 输入 |
-| Webview 页面级 E2E | `debug-launch → ready → setBreakpoints/start → stopped → control → terminated` 完整消息序列；跨域 WASM 资源桥、CSP、SVG 图形和输出镜像无回归 |
-| VS Code 工作台 E2E | 在桌面 Web 扩展宿主和真实 Web 工作台中用 F5 启动 JavaScript/Blazor，会话由原生 Debug UI 驱动，关闭 Webview/停止调试后无残留会话 |
-| 非目标回归 | `runhost/web` 页面仍只有 Run/Stop 且两后端运行正常；桌面 `mode: "cli"` 与 Visual Studio 的三后端调试行为不变 |
+| 层级 | 覆盖场景 | 结果 |
+|---|---|---|
+| 协议/状态机单测 | 协议版本与非法消息、`sessionId` 隔离、`requestId` 应答、配置完成前设置断点、条件断点编码、命令在 ready 前排队、Stop 唤醒、Webview 关闭与超时 | `tests/debug-protocol.spec.ts`(13) + `tests/debug-broker.spec.ts`(9) 全绿 |
+| Web DAP 单测（两个后端） | stopOnEntry、断点吸附与不可校验行、条件断点透传与能力声明、stackTrace/scopes/variables、next/stepOut、Debug Console 输入、disconnect 终止 | `tests/webview-debug-adapter.spec.ts`(7) 全绿（真实 DAP 线上驱动 + 模拟运行时） |
+| 页面内 JavaScript 调试（单测） | ready、编译错误、断点吸附、断点/单步/终止、输出镜像、输入桥接、等待输入时终止、会话与版本隔离 | `tests/browser-debug-session.spec.ts`(8) 全绿（直接驱动协议，无需浏览器） |
+| JavaScript DAP 回归 | 原有 11 个场景（断点、条件断点、吸附、输入、stopOnEntry、配置先于 launch、图形拒绝） | `tests/debug-session.spec.ts`(11) 全绿，驱动抽取后行为零变化 |
+| 路由单测 | `run-in-webview`/`inline-debug`/`reject` 三态与全部后端组合 | `tests/web-routing.spec.ts`(7) 全绿 |
+| Webview 页面级 E2E（两个后端） | Blazor：`debug-launch → ready → setBreakpoints（含越界行） → start → stopped → control(next) → output → terminated` 与「迟到命令不复活会话」；JavaScript：同一序列并断言 `#console` 可见且输出同时进入页面与扩展镜像 | `tests/webview/webview-document.spec.ts` 两个新增用例通过（真实 Edge/Chromium 加载真实文档 + 暂存载荷 + 真实的 `dist/web-runhost.js`） |
+| 非目标回归 | `runhost/web` 仍只有 Run/Stop；页面级图形运行、JS 文本运行、Stop 三个既有用例不变 | Playwright 全套 5 passed / 1 skipped（工作台用例保持 opt-in） |
 
-## 当前验证基线（Web 模式调试改造前）
+尚未在本机自动化的两项，需按 [本地安装与调试](#本地安装与调试) 手动验收：
 
-以下结果记录本次调试规划之前已经在 Chromium 中实测的运行能力（本地 `serve.mjs` 与 `SmallBasic.Blazor.RunHost` 两种服务方式），不表示目标中的 Blazor Web 调试已经完成：
+- **桌面 Web 扩展宿主 / 真实 vscode.dev 的 F5**：需要 `DebugAdapterInlineImplementation` 挂上真实的 VS Code 调试 UI（`pwa-extensionHost` 或 HTTPS 服务扩展目录），本仓库的自动化只到页面级协议与 DAP 单测这一层；两个后端走同一条代码路径，因此手工只需各验一次。
+- **Blazor 图形程序调试**：`GraphicsWindow`/`Shapes`/`Turtle` 在 Webview 中运行并调试的链路与文本程序共用同一 `BrowserEngineSession`，逻辑上等价；页面级 E2E 目前用文本程序驱动协议，图形渲染本身由既有「图形程序运行」用例覆盖。
+
+## 当前验证基线
+
+以下结果记录本次调试改造前已在 Chromium 中实测的运行能力（本地 `serve.mjs` 与 `SmallBasic.Blazor.RunHost` 两种服务方式）：
 
 | 场景 | 结果 |
 |---|---|
@@ -376,7 +424,7 @@ npm run stage:blazor -w smallbasic-tools-vsc   # 只暂存 runhost/blazor（Web 
 | 程序列表：`Run`（hello.sb） | 输出 `Hello, World! / 1 / 3 / Hello`，状态 `Completed` |
 | 程序列表：选择 `tetris.sb` | 后端自动切到 Blazor；运行后出现 231 个 SVG 元素（棋盘/方块/文本），Stop 后状态 `Stopped` |
 | 程序列表：选择 `tutorial/level1.sb` | Blazor 渲染背景图 + 海龟轨迹，状态 `Completed` |
-| 本地文件：`选择 .sb 文件…` | 列表新增“本地文件：xxx.sb”并运行成功（JS 与 Blazor 后端输出一致） |
+| 本地文件：`选择 .sb 文件…` | 列表新增"本地文件：xxx.sb"并运行成功（JS 与 Blazor 后端输出一致） |
 | JS 后端：`WriteLine` / `Read` / `ReadNumber` | 页面输出与浏览器控制台逐行一致；输入回显正确 |
 | JS 后端：图形程序 | 诊断区提示切换 Blazor 后端，退出码 3 |
 | JS 后端：Stop（等待输入时） | 状态变 `Stopped`，输入行收起，Run 恢复可用 |
@@ -387,6 +435,22 @@ npm run stage:blazor -w smallbasic-tools-vsc   # 只暂存 runhost/blazor（Web 
 | CLI 模式：`dotnet ... run --file test/tutorial/level1.sb` | 会话页面只显示图形（工具栏隐藏）；程序结束后宿主退出 |
 | Webview 文档（跨域载荷，资源域只回 `Access-Control-Allow-Origin: *`，同页跑一次同源对照） | `ready` → `notify:ready` → `output` → `notify:terminated` 全部到达，`#app` 渲染出 1 个 SVG / 3 个图形元素，文本输出镜像到扩展侧，**0 条 CSP 或控制台错误**（Chromium） |
 | Webview 文档 + 页面胶水的单元测试 | `tests/webview-html.spec.ts` 断言 CSP（wasm / connect / style-inline / 禁止 inline script）、绝对 URL、无 `<base>`、payload 尾斜杠容错 |
-| Playwright 页面级用例（`npm run test:web`） | 2 passed / 5.4s：图形程序跑到 `terminated`、`#app` 有 SVG 与矩形/直线、`output` 收到 `12345`、零控制台错误；Stop 后输出停止增长 |
+| Playwright 页面级用例（`npm run test:web`） | 图形程序跑到 `terminated`、`#app` 有 SVG 与矩形/直线、`output` 收到 `12345`、零控制台错误；Stop 后输出停止增长 |
 | Playwright 工作台级用例（`SB_WEB_WORKBENCH=1`） | 默认 skip。本机 VS Code 1.139 的 Web 工作台处于受限模式且装有抢焦点的聊天扩展，命令面板/安装位置流程无法稳定自动化；已保留用例并记录前置条件 |
-| Web 运行/调试分流 | `tests/web-routing.spec.ts` 7/7：Ctrl+F5 的 Blazor 请求走 Webview 运行，F5 的 Blazor 请求与图形调试请求给出明确提示，`javascript` 文本程序保持原路径，`csharp` 与未知后端不被误判 |
+| Web 运行/调试分流（改造前） | `tests/web-routing.spec.ts` 7/7：Ctrl+F5 的 Blazor 请求走 Webview 运行，F5 的 Blazor 请求与图形调试请求给出明确提示，`javascript` 文本程序保持原路径，`csharp` 与未知后端不被误判 |
+
+## Web 模式调试实施验证基线（2026-09-30）
+
+在本机（Windows + .NET SDK 10 构建 net8.0 载荷、Node 26、Edge 复用的 Chromium）实测：
+
+| 场景 | 命令 | 结果 |
+|---|---|---|
+| 单元/回归测试全套 | `cd visual_studio_code_plugin; npx vitest run` | **552 passed / 17 files**（含 `debug-protocol`(13)、`debug-broker`(9)、`webview-debug-adapter`(7)、`browser-debug-session`(8)，以及驱动抽取后原样通过的 `debug-session`(11) 回归） |
+| 类型检查 | `npm run typecheck` | 无错误 |
+| 扩展与载荷构建 | `npm run build -w smallbasic-tools-vsc`、`runhost\Build-RunHost.ps1 -Configuration Release -DotNetPlatforms net8.0` | `dist/web/extension.js`、`dist/web-runhost.js`（含 `debugStart/debugCommand/debugStop`）与 `runhost/blazor`（含 `wwwroot/vscode-webview.js`）生成成功 |
+| C# 编译 | `dotnet build src/SmallBasic.Blazor.Client`、`dotnet build src/SmallBasic.Blazor.RunHost` | 0 错误（共享 `Protocol.cs` 与 `BrowserEngineSession` 改动对 CLI Blazor 宿主无编译影响） |
+| 页面级 E2E | `SB_WEB_BROWSER=msedge npx playwright test` | **5 passed / 1 skipped**：图形运行、JS 文本运行、运行中 Stop 三个既有用例 + 「Blazor Web 调试协议」+「JavaScript Web 调试协议」 |
+| Blazor 页面级调试覆盖 | `npx playwright test --grep "Blazor debug session"` | 越界断点返回空列表 → 有效断点吸附为 `[1]` → `stopped(breakpoint)` 快照含局部变量 `i` → `next` 步进 → 第二步写出 `1` 并镜像到扩展 → `stop` 终止 → 迟到命令不复活会话；**0 条控制台/CSP 错误** |
+| JavaScript 页面级调试覆盖 | `npx playwright test --grep "JavaScript debug session"` | 同一协议序列，且断言 `#console` 在页面内可见、输出同时进入页面与扩展镜像；**0 条控制台/CSP 错误** |
+
+未自动化的部分（与上节一致）：桌面 Web 扩展宿主 / 真实 vscode.dev 的 F5 原生调试 UI，以及图形程序的调试链路；两者复用同一套协议与 Broker，只需在对应环境按下 F5 人工确认。

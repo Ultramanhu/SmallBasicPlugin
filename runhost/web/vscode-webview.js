@@ -6,10 +6,19 @@
  * protocol used by the standalone runhost/web shell:
  *
  *   host -> page : { type: "run", backend, name, source } | { type: "stop" }
+ *                  { type: "debug-launch", sessionId, name, source, stopOnEntry }
+ *                  { type: "debug-command", sessionId, json }
  *                  { type: "resource-response", requestId, ok, data/error }
- *   page -> host : { type: "ready" } | { type: "output", text }
- *                  { type: "notify", json } | { type: "failed", text }
+ *   page -> host : { type: "ready" } | { type: "output", text, sessionId? }
+ *                  { type: "notify", json }            // run mode
+ *                  { type: "debug-event", sessionId, json }  // debug mode
+ *                  { type: "failed", text }
  *                  { type: "resource-request", requestId, path }
+ *
+ * The debug protocol itself (`json` above) is defined in
+ * visual_studio_code_plugin/packages/smallbasic-vscode/src/web/debug-protocol.ts
+ * and mirrored by SmallBasic.Blazor.Shared/Protocol.cs; this file only forwards
+ * it, it does not interpret it.
  */
 (() => {
     "use strict";
@@ -41,6 +50,10 @@
 
     let activeBackend = BACKEND_BLAZOR;
     let pendingInput = null;
+    /** Non-null while the extension drives a debug session through this page. */
+    let debugSessionId = null;
+    /** Backend of the active debug session: the page drives it through `SmallBasicWeb` or Blazor. */
+    let debugBackend = BACKEND_BLAZOR;
 
     function showDiagnostics(text) {
         dom.diagnostics.hidden = !text;
@@ -61,7 +74,12 @@
             console.log(line);
         }
 
-        post({ type: "output", text: chunk });
+        const message = { type: "output", text: chunk };
+        if (debugSessionId) {
+            message.sessionId = debugSessionId;
+        }
+
+        post(message);
     }
 
     function appendConsole(text, foreground, background) {
@@ -233,10 +251,22 @@
     window.SmallBasicWebHost = {
         isWebRunHost: () => true,
         write(text) {
+            // Debug output of the JavaScript backend is rendered by this page
+            // (the Blazor backend renders it in its own component instead).
+            if (debugSessionId && activeBackend === BACKEND_JAVASCRIPT) {
+                appendConsole(text, DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
+            }
+
             mirrorOutput(text);
         },
         notify(json) {
-            post({ type: "notify", json });
+            // Debug events are routed through their own channel so the extension
+            // can isolate them by session; plain runs keep the legacy "notify".
+            if (debugSessionId) {
+                post({ type: "debug-event", sessionId: debugSessionId, json });
+            } else {
+                post({ type: "notify", json });
+            }
         }
     };
 
@@ -270,7 +300,79 @@
         }));
     }
 
+    /* --------------------------------------------------------- debug driving */
+
+    async function debugLaunch(message) {
+        debugSessionId = typeof message.sessionId === "string" ? message.sessionId : null;
+        debugBackend = message.backend === BACKEND_JAVASCRIPT ? BACKEND_JAVASCRIPT : BACKEND_BLAZOR;
+        selectBackend(debugBackend);
+        clearConsole();
+        showDiagnostics("");
+
+        if (debugBackend === BACKEND_JAVASCRIPT) {
+            // The JavaScript engine runs in this page, exactly like the Blazor
+            // engine runs in the Blazor component, so both backends are debugged
+            // through the same document.
+            const backend = window.SmallBasicWeb;
+            if (!backend || typeof backend.debugStart !== "function") {
+                throw new Error("web-runhost.js 未导出 SmallBasicWeb.debugStart");
+            }
+
+            backend.debugStart(JSON.stringify({
+                sessionId: debugSessionId,
+                name: message.name || "program.sb",
+                source: message.source || "",
+                stopOnEntry: message.stopOnEntry === true
+            }));
+            return;
+        }
+
+        await startBlazor();
+        await invoke("SetSession", JSON.stringify({
+            name: message.name || "program.sb",
+            source: message.source || "",
+            sessionId: debugSessionId,
+            debug: true,
+            stopOnEntry: message.stopOnEntry === true
+        }));
+    }
+
+    async function debugCommand(message) {
+        if (!debugSessionId || message.sessionId !== debugSessionId || typeof message.json !== "string") {
+            return;
+        }
+
+        if (debugBackend === BACKEND_JAVASCRIPT) {
+            const backend = window.SmallBasicWeb;
+            if (backend && typeof backend.debugCommand === "function") {
+                backend.debugCommand(message.json);
+            }
+            return;
+        }
+
+        await startBlazor();
+        await invoke("DispatchDebugCommand", message.json);
+    }
+
     async function stop() {
+        if (debugSessionId) {
+            // The DAP adapter owns the debug lifecycle; a Stop at the page level
+            // (for example when the panel is reused for a run) just terminates
+            // the active backend's session.
+            try {
+                if (debugBackend === BACKEND_JAVASCRIPT && window.SmallBasicWeb && typeof window.SmallBasicWeb.debugStop === "function") {
+                    window.SmallBasicWeb.debugStop();
+                } else {
+                    await invoke("Stop");
+                }
+            } catch (error) {
+                showDiagnostics(error && error.stack ? error.stack : String(error));
+            }
+
+            debugSessionId = null;
+            return;
+        }
+
         if (activeBackend === BACKEND_JAVASCRIPT) {
             if (window.SmallBasicWeb && typeof window.SmallBasicWeb.stopJavaScript === "function") {
                 window.SmallBasicWeb.stopJavaScript();
@@ -296,6 +398,7 @@
         void (async () => {
             try {
                 if (message.type === "run") {
+                    debugSessionId = null;
                     selectBackend(message.backend);
                     clearConsole();
                     showDiagnostics("");
@@ -304,6 +407,10 @@
                     } else {
                         await runBlazor(message);
                     }
+                } else if (message.type === "debug-launch") {
+                    await debugLaunch(message);
+                } else if (message.type === "debug-command") {
+                    await debugCommand(message);
                 } else if (message.type === "stop") {
                     await stop();
                 }

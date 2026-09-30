@@ -25,8 +25,22 @@ interface HostMessage {
   type: string;
   text?: string;
   json?: string;
+  sessionId?: string;
   requestId?: string;
   path?: string;
+}
+
+/** A decoded `debug-event` payload: the web debug protocol of debug-protocol.ts. */
+interface DebugEvent {
+  type: string;
+  reason?: string;
+  line?: number;
+  /** Raw wire field of `breakpointsValidated` (the adapter renames it to `lines`). */
+  breakpoints?: number[];
+  requestId?: string;
+  exitCode?: number;
+  frames?: Array<{ name: string; line: number }>;
+  variables?: Array<{ name: string; value: string }>;
 }
 
 const graphicsProgram = [
@@ -37,6 +51,13 @@ const graphicsProgram = [
   'GraphicsWindow.PenColor = "Navy"',
   "GraphicsWindow.DrawLine(0, 0, 480, 320)",
   "TextWindow.WriteLine(12345)"
+].join("\n");
+
+/** TextWindow-only loop used by the debug scenario. */
+const debugProgram = [
+  "For i = 1 To 3",
+  "TextWindow.WriteLine(i)",
+  "EndFor"
 ].join("\n");
 
 test.describe("Blazor webview document", () => {
@@ -185,6 +206,108 @@ test.describe("Blazor webview document", () => {
     expect((await hostMessages(page)).filter((message) => message.type === "output").length).toBe(after);
     expect(errors).toEqual([]);
   });
+
+  /**
+   * Drives the same wire protocol the extension's `WebDebugSessionBroker` uses,
+   * against the real Blazor WebAssembly runtime: debug-launch -> ready ->
+   * setBreakpoints/start -> stopped -> control -> terminated. This is the page
+   * level counterpart of the unit tests in
+   * packages/smallbasic-vscode/tests/blazor-debug-adapter.spec.ts.
+   */
+  test("drives a Blazor debug session through the web debug protocol", async ({ page }) => {
+    // Phase 1: breakpoint verification (with an out-of-range request) and a stop.
+    const sessionA = "e2e-debug-a";
+    await launchDebugSession(page, sessionA, "debug.sb", debugProgram, false);
+    expect((await waitForDebugEvent(page, sessionA, "ready")).type).toBe("ready");
+
+    await sendDebugCommand(page, sessionA, { type: "setBreakpoints", requestId: "bp-out", breakpoints: [99] });
+    expect((await waitForDebugEvent(page, sessionA, "breakpointsValidated", 1, "bp-out")).breakpoints).toEqual([]);
+
+    await sendDebugCommand(page, sessionA, { type: "setBreakpoints", requestId: "bp-1", breakpoints: [1] });
+    expect((await waitForDebugEvent(page, sessionA, "breakpointsValidated", 1, "bp-1")).breakpoints).toEqual([1]);
+
+    await sendDebugCommand(page, sessionA, { type: "start", breakpoints: [1] });
+    const stopped = await waitForDebugEvent(page, sessionA, "stopped");
+    expect(stopped.reason).toBe("breakpoint");
+    expect(stopped.line).toBe(1);
+    expect(stopped.frames?.length ?? 0).toBeGreaterThan(0);
+    expect(stopped.variables?.some((variable) => variable.name === "i")).toBe(true);
+
+    await sendDebugCommand(page, sessionA, { type: "stop", requestId: "term-a" });
+    expect((await waitForDebugEvent(page, sessionA, "terminated")).type).toBe("terminated");
+
+    // Phase 2: stop on entry, step twice and mirror TextWindow output.
+    const sessionB = "e2e-debug-b";
+    await launchDebugSession(page, sessionB, "debug.sb", debugProgram, true);
+    expect((await waitForDebugEvent(page, sessionB, "ready")).type).toBe("ready");
+    await sendDebugCommand(page, sessionB, { type: "start", breakpoints: [] });
+
+    const entry = await waitForDebugEvent(page, sessionB, "stopped");
+    expect(entry.reason).toBe("entry");
+
+    await sendDebugCommand(page, sessionB, { type: "control", control: "next", depth: entry.frames?.length ?? 0 });
+    const stepped = await waitForDebugEvent(page, sessionB, "stopped", 2);
+    expect(stepped.reason).toBe("step");
+
+    // The second step executes `TextWindow.WriteLine(i)`, so output must now be
+    // mirrored to the extension with this session id.
+    await sendDebugCommand(page, sessionB, { type: "control", control: "next", depth: stepped.frames?.length ?? 0 });
+    await waitForDebugEvent(page, sessionB, "stopped", 3);
+    const debugOutput = (await hostMessages(page))
+      .filter((message) => message.type === "output" && message.sessionId === sessionB)
+      .map((message) => message.text ?? "")
+      .join("");
+    expect(debugOutput).toContain("1");
+
+    await sendDebugCommand(page, sessionB, { type: "stop", requestId: "term-b" });
+    expect((await waitForDebugEvent(page, sessionB, "terminated")).type).toBe("terminated");
+
+    // A late command from the finished session must not revive it.
+    await sendDebugCommand(page, sessionB, { type: "control", control: "continue", depth: 0 });
+    await page.waitForTimeout(500);
+    expect((await debugEvents(page, sessionB)).filter((event) => event.type === "stopped")).toHaveLength(3);
+
+    expect(errors).toEqual([]);
+  });
+
+  /**
+   * The JavaScript backend is debugged in the page exactly like Blazor: same
+   * `debug-launch` / `debug-command` / `debug-event` protocol, same visible
+   * `#console` surface. This is what makes both web-mode backends feel the same.
+   */
+  test("drives a JavaScript debug session through the same web debug protocol", async ({ page }) => {
+    const sessionId = "e2e-js-debug";
+    await launchDebugSession(page, sessionId, "debug.sb", debugProgram, false, "javascript");
+    expect((await waitForDebugEvent(page, sessionId, "ready")).type).toBe("ready");
+    await expect(page.locator("#console")).toBeVisible();
+
+    await sendDebugCommand(page, sessionId, { type: "setBreakpoints", requestId: "bp-js", breakpoints: [1] });
+    expect((await waitForDebugEvent(page, sessionId, "breakpointsValidated", 1, "bp-js")).breakpoints).toEqual([1]);
+
+    await sendDebugCommand(page, sessionId, { type: "start", breakpoints: [1] });
+    const stopped = await waitForDebugEvent(page, sessionId, "stopped");
+    expect(stopped.reason).toBe("breakpoint");
+    expect(stopped.line).toBe(1);
+    expect(stopped.variables?.some((variable) => variable.name === "i")).toBe(true);
+
+    await sendDebugCommand(page, sessionId, { type: "control", control: "next", depth: stopped.frames?.length ?? 0 });
+    const stepped = await waitForDebugEvent(page, sessionId, "stopped", 2);
+    expect(stepped.reason).toBe("step");
+
+    // The step executed `TextWindow.WriteLine(i)`; the text must reach both the
+    // page console and the extension (mirrored with this session id).
+    await expect(page.locator("#console")).toContainText("1");
+    const output = (await hostMessages(page))
+      .filter((message) => message.type === "output" && message.sessionId === sessionId)
+      .map((message) => message.text ?? "")
+      .join("");
+    expect(output).toContain("1");
+
+    await sendDebugCommand(page, sessionId, { type: "stop", requestId: "term-js" });
+    expect((await waitForDebugEvent(page, sessionId, "terminated")).type).toBe("terminated");
+
+    expect(errors).toEqual([]);
+  });
 });
 
 async function startRun(
@@ -221,4 +344,61 @@ function notifies(messages: HostMessage[]): string[] {
   return messages
     .filter((message) => message.type === "notify" && message.json)
     .map((message) => (JSON.parse(message.json as string) as { type: string }).type);
+}
+
+interface DebugCommandPayload {
+  type: string;
+  requestId?: string;
+  breakpoints?: number[];
+  control?: string;
+  depth?: number;
+  text?: string;
+}
+
+async function launchDebugSession(
+  page: Page,
+  sessionId: string,
+  name: string,
+  source: string,
+  stopOnEntry: boolean,
+  backend: "javascript" | "blazor" = "blazor"
+): Promise<void> {
+  await page.evaluate(
+    (payload) => window.postMessage({ type: "debug-launch", ...payload }, "*"),
+    { sessionId, backend, name, source, stopOnEntry }
+  );
+}
+
+async function sendDebugCommand(page: Page, sessionId: string, command: DebugCommandPayload): Promise<void> {
+  await page.evaluate(
+    (payload) => window.postMessage({ type: "debug-command", sessionId: payload.sessionId, json: JSON.stringify(payload.command) }, "*"),
+    { sessionId, command }
+  );
+}
+
+async function debugEvents(page: Page, sessionId: string): Promise<DebugEvent[]> {
+  const messages = await hostMessages(page);
+  return messages
+    .filter((message) => message.type === "debug-event" && message.sessionId === sessionId && message.json)
+    .map((message) => JSON.parse(message.json as string) as DebugEvent);
+}
+
+async function waitForDebugEvent(
+  page: Page,
+  sessionId: string,
+  type: string,
+  occurrence = 1,
+  requestId?: string
+): Promise<DebugEvent> {
+  let found: DebugEvent | undefined;
+  await expect
+    .poll(async () => {
+      const matches = (await debugEvents(page, sessionId))
+        .filter((event) => event.type === type && (!requestId || event.requestId === requestId));
+      found = matches[occurrence - 1];
+      return matches.length >= occurrence;
+    }, { timeout: 150_000 })
+    .toBe(true);
+
+  return found!;
 }

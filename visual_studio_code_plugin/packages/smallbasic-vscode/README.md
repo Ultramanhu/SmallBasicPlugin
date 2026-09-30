@@ -28,7 +28,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 - **Run**: use the play button in the editor title bar, or the command palette.
 - **Debug**: set breakpoints in a `.sb` file and press F5. You can pick a backend explicitly in `launch.json`:
 
-CLI mode (the default; all three backends are available):
+CLI mode (the default; all three backends are available; only on desktop):
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
@@ -41,7 +41,7 @@ CLI mode (the default; all three backends are available):
   "program": "${file}", "backend": "blazor", "mode": "cli", "stopOnEntry": false }
 ```
 
-Web mode (JavaScript/Blazor; run with Ctrl+F5 on desktop):
+Web mode (JavaScript/Blazor; supported by desktop and VS Code for the Web):
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic [Web]: Run current file with JavaScript backend",
@@ -67,7 +67,7 @@ debugged with F5; Blazor Web mode currently supports running only.
 ## Known limitations
 
 - The CLI JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use Web mode with Blazor or the Windows C# backend.
-- Blazor Web mode does not support Debugging, only Running; JavaScript Web mode can still use the JavaScript DAP when started with F5.
+- The CLI debugging options are not supported in VSCode for Web.
 
 ## License
 
