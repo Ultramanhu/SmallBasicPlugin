@@ -4,30 +4,29 @@
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
     <Identity Language="en-US" Id="smallbasic-tools-vs" Version="0.1.4" Publisher="ultramanhu" />
-    <DisplayName>SmallBasic for Visual Studio (Classic)</DisplayName>
+    <DisplayName>SmallBasic for Visual Studio</DisplayName>
     <Description xml:space="preserve">SmallBasic editor support for Visual Studio.</Description>
     <License>LICENSE.txt</License>
     <Icon>icon.png</Icon>
     <Categories>Editor</Categories>
-    <ExtensionType>VSSDK</ExtensionType>
   </Metadata>
-  <Installation>
-    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.0,)">
+  <Installation ExtensionType="VSSDK+VisualStudio.Extensibility">
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14,)">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.0,)">
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.14,)">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.0,)">
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.14,)">
       <ProductArchitecture>amd64</ProductArchitecture>
     </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.4,)">
+    <InstallationTarget Id="Microsoft.VisualStudio.Community" Version="[17.14,)">
       <ProductArchitecture>arm64</ProductArchitecture>
     </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.4,)">
+    <InstallationTarget Id="Microsoft.VisualStudio.Pro" Version="[17.14,)">
       <ProductArchitecture>arm64</ProductArchitecture>
     </InstallationTarget>
-    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.4,)">
+    <InstallationTarget Id="Microsoft.VisualStudio.Enterprise" Version="[17.14,)">
       <ProductArchitecture>arm64</ProductArchitecture>
     </InstallationTarget>
   </Installation>
@@ -42,13 +41,6 @@
            d:Source="Project"
            d:ProjectName="%CurrentProject%"
            Path="|%CurrentProject%;BuiltProjectOutputGroup|" />
-    <!-- The classifier, outlining tagger, navigation bar, inline values adornment and
-         Open Folder debug target all live in the shared integration assembly, so it
-         must join this extension's MEF catalog as well. -->
-    <Asset Type="Microsoft.VisualStudio.MefComponent"
-           d:Source="Project"
-           d:ProjectName="SmallBasic.VsCommon"
-           Path="|SmallBasic.VsCommon;BuiltProjectOutputGroup|" />
     <Asset Type="Microsoft.VisualStudio.VsPackage"
            d:Source="Project"
            d:ProjectName="%CurrentProject%"

@@ -1,4 +1,4 @@
-namespace SmallBasic.Vsix.Editor.Outlining
+namespace SmallBasic.Tests.Editor
 {
     using System.Collections.Generic;
     using System.Linq;

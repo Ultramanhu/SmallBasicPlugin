@@ -89,7 +89,7 @@ Sub HandleKey
   EndIf
 
   ' Move piece left
-  If GraphicsWindow.LastKey = "Left" Then
+  If GraphicsWindow.LastKey = "Left" or GraphicsWindow.LastKey = "A" Then
     moveDirection = -1
     ValidateMove()  ' in: ypos, xpos, h, moveDirection  ret: invalidMove = 1 or -1 or 2 if move is invalid, otherwise 0
     If invalidMove = 0 Then
@@ -99,7 +99,7 @@ Sub HandleKey
   EndIf
 
   ' Move piece right
-  If GraphicsWindow.LastKey = "Right" Then
+  If GraphicsWindow.LastKey = "Right" or GraphicsWindow.LastKey = "D" Then
     moveDirection = 1
     ValidateMove()  ' in: ypos, xpos, h, moveDirection  ret: invalidMove = 1 or -1 or 2 if move is invalid, otherwise 0
     If invalidMove = 0 Then
@@ -109,12 +109,12 @@ Sub HandleKey
   EndIf
 
   ' Move piece down
-  If GraphicsWindow.LastKey = "Down" or GraphicsWindow.LastKey = "Space" Then
+  If GraphicsWindow.LastKey = "Down" or GraphicsWindow.LastKey = "S" or GraphicsWindow.LastKey = "Space" Then
     delay = 0
   EndIf
 
   ' Rotate piece
-  If GraphicsWindow.LastKey = "Up" Then
+  If GraphicsWindow.LastKey = "Up" or GraphicsWindow.LastKey = "W" Then
     basetemplate = Array.GetValue(h, -1)  ' Array.GetValue(h, -1) = the template name
     template = "temptemplate"
     rotation = "CW"

@@ -1,19 +1,14 @@
-# SmallBasic for Visual Studio (Classic) / SmallBasic for Visual Studio (Extensibility)
+# SmallBasic for Visual Studio
 
 Microsoft Small Basic language support for Visual Studio 2022/2026.
 
 repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 
-## Attension
-- **Visual Studio (Classic)**: the most feature-complete traditional integration, go through the classic VSSDK/MEF.
-- **Visual Studio (Ext / LSP)**: migrates commands and tool windows to VisualStudio.Extensibility, and re-implements via an in-process LSP server to validate the new framework migration path.
-- **Note: Do not install both Visual Studio plugins simultaneously, as they will conflict — choose one only.**
-
 ## Features
 
-- `.sb` file association with syntax highlighting (MEF classifier)
-- IntelliSense completions, hover quick info and code outlining (collapsible regions)
-- Live diagnostics in the Error List
+- `.sb` file association with syntax highlighting
+- IntelliSense completions, hover quick info, live diagnostics and document outline powered by a built-in language server (LSP)
+- Code outlining (collapsible regions)
 - Native Visual Studio navigation bar for procedures and variables
 - Run programs with three backends:
   - `SmallBasic: Run with C# Backend` — bundled .NET run host; supports graphics programs (`GraphicsWindow` / `Shapes` / `Turtle`) on Windows
@@ -24,7 +19,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 
 ## Requirements
 
-- Visual Studio 2022 (17.0+ amd64; 17.4+ arm64) or Visual Studio 2026
+- Visual Studio 2022 (17.14+, amd64 / arm64) or Visual Studio 2026
 - The JavaScript path requires Node.js 20+; the Blazor path requires the .NET 8 runtime
 
 ## Installation

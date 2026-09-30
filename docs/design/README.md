@@ -17,13 +17,11 @@
 > - 调试适配器不是两个独立包（`sb-debug` / `SB.DebugAdapter`），而是内嵌在扩展与 RunHost 中（见 [05](./05-调试架构设计.md)）。
 > - 设计文档中提及的 `conformance/` 目录与若干“二期”功能部分尚未落地，各文档已在对应位置标注真实状态。
 >
-> **2026-09-30 补充（Visual Studio 侧分流）**
+> **2026-09-30 补充（Visual Studio 侧收敛为单包）**
 >
-> - Visual Studio 侧现在有**两条并行的实现路线**，详见 [11](./11-VisualStudio.Extensibility迁移设计.md)：
->   - `SmallBasic.Vsix`：经典 VSSDK + MEF 实现，功能最完整；
->   - `SmallBasic.Ext`：VisualStudio.Extensibility in-proc 实现，命令/工具窗走新框架，补全/悬停/诊断/文档符号走**内置 LSP server**。
-> - 两条路线共用的实现已抽成两个普通类库，不再靠链接编译源码共享：`SmallBasic.VsCommon`（net48，VS 集成层）与 `SmallBasic.LanguageServices`（netstandard2.0，LSP/大纲语言层）。
-> - 因此“不用 LSP 通吃两端”这一结论仍然成立，但要补一句：LSP 只在**同进程内**服务于 VS 新框架路线，VS Code 侧继续使用扩展进程内的原生 Provider API。
+> - Visual Studio 侧已收敛为**唯一包** `SmallBasic.Vsix`，详见 [11](./11-VisualStudio.Extensibility迁移设计.md)：命令/工具窗走新版扩展 SDK，补全/悬停/诊断/文档符号走**内置 LSP server**，调试与编辑器深能力走包内 MEF 兼容层。
+> - 过渡期的双包结构（`SmallBasic.Vsix` 经典包 + `SmallBasic.Ext` 新框架包 + `SmallBasic.VsCommon` 共享库）已取消，实现全部合并回 `SmallBasic.Vsix`；保留的公共库只有 `SmallBasic.LanguageServices`（netstandard2.0，LSP/大纲语言层，与测试工程共享同一程序集）。
+> - 因此“不用 LSP 通吃两端”这一结论仍然成立，但要补一句：LSP 只在**同进程内**服务于 VS 包，VS Code 侧继续使用扩展进程内的原生 Provider API。
 
 ## 文档索引
 
@@ -39,7 +37,7 @@
 | [08-实施路线图.md](./08-实施路线图.md) | 里程碑划分、验收标准与当前完成度 |
 | [09-Blazor后端与RunHost.md](./09-Blazor后端与RunHost.md) | Blazor WASM 图形运行时、按需浏览器 RunHost 与 DAP/WebSocket 调试桥 |
 | [10-WebRunHost.md](./10-WebRunHost.md) | 浏览器内静态 Web RunHost：JS / Blazor WASM 双后端、宿主通道抽象与页面复用 |
-| [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md) | `SmallBasic.Ext` 的迁移与落地设计：VisualStudio.Extensibility in-proc + LSP 语言能力 + VSSDK/MEF 兼容层的功能映射与实施方案，含 `SmallBasic.VsCommon` / `SmallBasic.LanguageServices` 两个公共库的分层与去重复方案 |
+| [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md) | `SmallBasic.Vsix` 的最终态设计：VisualStudio.Extensibility in-proc 混合托管 + LSP 语言能力 + VSSDK/MEF 兼容层的功能映射，`SmallBasic.Vsix`/`SmallBasic.VsCommon` 退役与共享层收敛方案 |
 
 ## 方案摘要（TL;DR）
 

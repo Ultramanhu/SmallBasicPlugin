@@ -16,9 +16,10 @@
   <ItemGroup>
     <!-- The built-in language server speaks JSON-RPC. In-proc Visual Studio hosting
          provides System.Text.Json from the devenv installation (the VSSDK keeps it out
-         of the VSIX package), so this reference only has to compile against the same
-         version the Extensibility SDK resolves; the APIs used here exist since
-         System.Text.Json 6.0, and the net8.0 tests use this package directly. -->
-    <PackageReference Include="System.Text.Json" Version="9.0.0" />
+         of the VSIX package): VS 17.14 ships 8.0.x, VS 18 ships 10.0.x with a binding
+         redirect covering 0.0.0.0-10.0.0.10. Pinning 8.0.5 keeps the assembly
+         reference inside both ranges; the APIs used here exist since System.Text.Json
+         6.0, and the net8.0 tests use this package directly. -->
+    <PackageReference Include="System.Text.Json" Version="8.0.5" />
   </ItemGroup>
 </Project>

@@ -8,6 +8,7 @@
 
 # ai file
 .playwright-cli
+.playwright-mcp
 .tmp
 .kilo
 

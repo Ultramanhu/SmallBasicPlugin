@@ -4,36 +4,32 @@ Microsoft Small Basic 语言支持插件，适用于 **Visual Studio 2022/2026**
 
 | 宿主 | DisplayName | identify | 
 |---|---|---|
-| Visual Studio 2022/2026 | SmallBasic for Visual Studio (Classic) | smallbasic-tools-vs |
-| Visual Studio 2022/2026(Extensibility) | SmallBasic for Visual Studio (Extensibility) | smallbasic-tools-vsext |
+| Visual Studio 2022/2026 | SmallBasic for Visual Studio | smallbasic-tools-vs |
 | Visual Studio Code | SmallBasic for Visual Studio Code | smallbasic-tools-vsc |
 
 origin repository: https://github.com/sb
 
 ## 功能总览
 
-| 功能 | VS Code | VS Code for the Web | Visual Studio(Classic) | Visual Studio(Ext / LSP) |
-|---|---|---|---|---|
-| `.sb` 文件关联与语法着色 | 有(TextMate + 语义令牌双层着色) | 有(同VSCode，运行于 Web Worker) | 有(MEF 分类器着色) | 有(()兼容层 MEF 分类器着色) |
-| IntelliSense 补全 | 有 | 有 | 有 | 有 |
-| 悬停 Quick Info | 有 | 有 | 有 | 有 |
-| 实时诊断 | 波浪线 | 波浪线 | 波浪线 | 波浪线 |
-| 代码片段 + 新建文件 | 有 | 有 | 仅代码片段 | 仅代码片段 |
-| 文档大纲 + 导航栏 | 有 | 有 | 仅支持导航栏 | 有(LSP 文档符号 + 新框架大纲工具窗 + 兼容导航栏) |
-| 运行程序 | CLI 三后端(JS / C# / Blazor)+ Web 双后端(JS / Blazor) | Web 双后端(JS / Blazor) | CLI 三后端(JS / C# / Blazor) | CLI 三后端(JS / C# / Blazor) |
-| 图形程序(GraphicsWindow/Shapes/Turtle) | C#(Windows)或跨平台 Blazor | Blazor WASM 在 Webview 内渲染 SVG | C# 桌面窗口或 Blazor 浏览器窗口 | C# 桌面窗口或 Blazor 浏览器窗口 |
-| 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | 仅 JavaScript 后端(F5)；Blazor 调试需本机 RunHost，暂未支持 | 三后端；C#/Blazor 支持图形调试 | 三后端；C#/Blazor 支持图形调试 |
-| 多语言 | 支持 | 支持 | 支持 | 支持 |
+| 功能 | VS Code | VS Code for the Web | Visual Studio |
+|---|---|---|---|
+| `.sb` 文件关联与语法着色 | 有(TextMate + 语义令牌双层着色) | 有(同VSCode，运行于 Web Worker) | 有(MEF 分类器着色) |
+| IntelliSense 补全 | 有 | 有 | 有(LSP) |
+| 悬停 Quick Info | 有 | 有 | 有(LSP) |
+| 实时诊断 | 波浪线 | 波浪线 | 波浪线(LSP) |
+| 代码片段 + 新建文件 | 有 | 有 | 仅代码片段 |
+| 文档大纲 + 导航栏 | 有 | 有 | 有(LSP 文档符号 + 大纲工具窗 + 原生导航栏) |
+| 运行程序 | CLI 三后端(JS / C# / Blazor)+ Web 双后端(JS / Blazor) | Web 双后端(JS / Blazor) | CLI 三后端(JS / C# / Blazor) |
+| 图形程序(GraphicsWindow/Shapes/Turtle) | C#(Windows)或跨平台 Blazor | Blazor WASM 在 Webview 内渲染 SVG | C# 桌面窗口或 Blazor 浏览器窗口 |
+| 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | 仅 JavaScript 后端(F5)；Blazor 调试需本机 RunHost，暂未支持 | 三后端；C#/Blazor 支持图形调试 |
+| 多语言 | 支持 | 支持 | 支持 |
 
 各后端共享相同的 Small Basic 调试语义(断点吸附、单步、变量展开)；Blazor 图形调试由 RunHost 把 IDE 的 DAP 与浏览器内 WASM 解释器桥接起来。
 
-四个方案共用同一套语言与运行基线，差异只在宿主与接入方式：
+三个方案共用同一套语言与运行基线，差异只在宿主与接入方式：
 
 - **VS Code / VS Code for the Web**：同一个扩展，靠 `mode`(`cli` / `web`)选择运行面；Web 面没有本机进程，因此语言核心跑在 Web Worker 里，C# 后端不可用。
-- **Visual Studio(Classic)**：`SmallBasic.Vsix`，功能最完整的传统集成，编辑器深能力(分类器、补全、悬停、诊断、折叠、原生导航栏、F5 过滤器)全部走经典 VSSDK/MEF。
-- **Visual Studio(Ext / LSP)**：`SmallBasic.Ext`，把命令与工具窗迁到 VisualStudio.Extensibility，并把补全 / 悬停 / 诊断 / 文档符号改由**进程内 LSP server** 提供，用来验证新框架迁移路径；其余编辑器深能力复用经典实现。
-- 两条 Visual Studio 路线共用同一份实现，而不是各写一份：命令与调试启动、Open Folder 调试目标、分类器、折叠、原生导航栏、调试内联值位于公共库 `SmallBasic.VsCommon`；新框架路线的 LSP 模型、编译语义映射、大纲构建与内置 language server 位于公共库 `SmallBasic.LanguageServices`(`SmallBasic.Ext.Tests` 也直接引用后者)。详见 [docs/design/11-VisualStudio.Extensibility迁移设计.md](docs/design/11-VisualStudio.Extensibility迁移设计.md)。
-- **注意：两个Visual Studio插件不要同时安装，会冲突，选择一个即可。**
+- **Visual Studio**：`SmallBasic.Vsix` 包。菜单 / 命令 / 大纲工具窗走新版扩展 SDK，补全 / 悬停 / 诊断 / 文档符号由**进程内 LSP server** 提供；分类着色、折叠、原生导航栏、调试内联值、F5 过滤器、Open Folder 调试目标由包内兼容层(MEF / DTE)承担。语言层位于独立程序集 `SmallBasic.LanguageServices`(`SmallBasic.LanguageServices.Tests` 直接引用同一程序集)。详见 [docs/design/11-VisualStudio.Extensibility迁移设计.md](docs/design/11-VisualStudio.Extensibility迁移设计.md)。
 
 VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本机命令行/调试宿主，`"web"` 走浏览器 Webview。Web 模式支持 JavaScript 与 Blazor；C# 需要本机进程，只支持 CLI。VS Code for the Web 没有本机进程，会把启动配置强制按 Web 模式处理。
 
@@ -146,14 +142,11 @@ $env:SB_WEB_WORKBENCH="1"; npm run test:web -- --grep workbench   # 可选：真
 
 ## Visual Studio 扩展
 
-要求 VS 2022(17.0+，amd64；17.4+，arm64)或 VS 2026。默认的 C# 运行与调试路径不需要 Node.js；仅 JavaScript 路径要求系统安装 **Node.js 20+**。VSIX 只携带 JS 单文件 bundle，不内置 Node.js。
+要求 VS 2022(17.14+，amd64 / arm64)或 VS 2026。默认的 C# 运行与调试路径不需要 Node.js；仅 JavaScript 路径要求系统安装 **Node.js 20+**。VSIX 只携带 JS 单文件 bundle，不内置 Node.js。
 
 ### 安装
 
-Classic：双击 `build\SmallBasic.Vsix.0.1.4.vsix`，按 VSIX Installer 提示完成安装。
-Extensibility：双击 `build\SmallBasic.Ext.0.1.4.vsix`，按 VSIX Installer 提示完成安装。
-
-> `Extensibility` 基于 **VisualStudio.Extensibility in-proc + VSSDK 兼容层**，用于验证新框架迁移路径；它和 `Classic` 共享同一份运行/调试后端，但语言能力中的**补全 / 悬停 / 诊断 / 文档符号**已改由内置 LSP server 提供，**不建议与经典包长期共装**。
+双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.4.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
 
 ### 使用
 
@@ -182,19 +175,10 @@ Extensibility：双击 `build\SmallBasic.Ext.0.1.4.vsix`，按 VSIX Installer �
 
 JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`、`Shapes`、`Turtle` 等图形库；选择 JS 路径运行图形程序时，插件会在启动前给出提示并停止。
 
-其中两条 Visual Studio 路线的分工如下：
+Visual Studio 扩展的实现分层：
 
-- `SmallBasic.Vsix`：经典实现，语言能力由 **MEF / Async Completion / QuickInfo / ErrorTagger** 等原生编辑器扩展提供；
-- `SmallBasic.Ext`：迁移实现，命令/工具窗走 **VisualStudio.Extensibility**，语言能力中的 **补全 / 悬停 / 实时诊断 / 文档符号** 已改由 **LSP provider + 内置 Small Basic language server** 提供；分类着色、导航栏、F5/打开文件夹调试等暂保留兼容层。
-
-两者**不重复实现相同逻辑**，公共部分集中在两个普通类库(不是链接编译源码)：
-
-| 公共库 | 目标框架 | 内容 | 谁在用 |
-|---|---|---|---|
-| `SmallBasic.VsCommon` | `net48` | 命令与调试启动/运行过滤器、编译缓存与输出窗口诊断、Open Folder 调试目标、分类器、折叠、原生导航栏、调试内联值、`VersionInfo` | `SmallBasic.Vsix` + `SmallBasic.Ext`(都声明为 MEF 组件) |
-| `SmallBasic.LanguageServices` | `netstandard2.0` | LSP 模型、`SmallBasicCompilation` → LSP 语义映射、文档大纲构建、Content-Length 帧读写、内置 LSP server | `SmallBasic.Ext` + `SmallBasic.Ext.Tests` |
-
-例外只有一处：`SmallBasicLanguageService.cs` 必须留在包程序集内(`ProvideObject` 的 `RegistrationMethod.CodeBase` 会把 CLSID 指向 `$PackageFolder$` 下的包程序集)，因此 `SmallBasic.Ext` 仍链接编译这一个文件，其余全部通过程序集引用。原因见 [docs/design/11-VisualStudio.Extensibility迁移设计.md](docs/design/11-VisualStudio.Extensibility迁移设计.md) 第 6 节。
+- `SmallBasic.Vsix`：唯一的 VS 包(net48)。菜单/命令/大纲工具窗用新版扩展 SDK；补全/悬停/诊断/文档符号由 **LSP provider + 内置 Small Basic language server** 提供；分类着色、折叠、导航栏、调试内联值、F5/打开文件夹调试由包内兼容层(MEF / DTE / `ILaunchDebugTargetProvider4`)承担；
+- `SmallBasic.LanguageServices`：独立语言层(netstandard2.0)，LSP 模型、`SmallBasicCompilation` → LSP 语义映射、文档大纲构建、Content-Length 帧读写、内置 LSP server；`SmallBasic.LanguageServices.Tests` 直接引用同一程序集。
 
 ## Web RunHost(浏览器内静态站点)
 
@@ -247,9 +231,9 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 .\Build-All.ps1 -SkipJavaScript          # 跳过 JS 运行宿主打包
 ```
 
-`-Configuration` 会透传到全部子构建：`runhost\Build-RunHost.ps1`(各平台 `dotnet publish`)、VS Code 打包脚本(连同它暂存的 RunHost 载荷)、`SmallBasic.Vsix` / `SmallBasic.Ext` 两个 Visual Studio 项目，以及各自的 VSIX 打包脚本，保证所有产物来自同一配置。
+`-Configuration` 会透传到全部子构建：`runhost\Build-RunHost.ps1`(各平台 `dotnet publish`)、VS Code 打包脚本(连同它暂存的 RunHost 载荷)、Visual Studio 的 `SmallBasic.Vsix` 项目，以及各自的 VSIX 打包脚本，保证所有产物来自同一配置。
 
-三个打包脚本(`visual_studio_code_plugin\build\Package-Vsix.ps1`、`visual_studio_plugin\build\Package-Vsix.ps1` 与 `visual_studio_plugin\build\Package-Ext-Vsix.ps1`)都依赖 RunHost 分发：单独执行时会先调用 `runhost\Build-RunHost.ps1`，而 `Build-All.ps1` 已经把它作为第一步，因此对这些脚本传入 `-SkipRunHost`，避免同一份载荷被重复构建。
+两个打包脚本(`visual_studio_code_plugin\build\Package-Vsix.ps1` 与 `visual_studio_plugin\build\Package-Vsix.ps1`)都依赖 RunHost 分发：单独执行时会先调用 `runhost\Build-RunHost.ps1`，而 `Build-All.ps1` 已经把它作为第一步，因此对这些脚本传入 `-SkipRunHost`，避免同一份载荷被重复构建。
 
 构建产物：
 
@@ -259,7 +243,6 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 | Web RunHost 静态站点 | `runhost\web`(浏览器内 JS / Blazor WASM 双后端，含 `samples\` 示例与 `run.cmd` 一键启动) |
 | VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.4.vsix` |
 | Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.4.vsix` |
-| Visual Studio Extensibility 扩展包 | `visual_studio_plugin\build\SmallBasic.Ext.0.1.4.vsix` |
 
 单独构建：
 
@@ -278,17 +261,11 @@ npm test                   # vitest 测试
 # 只构建 VSIX 工程(RunHost net48 / Blazor 载荷由工程自身的 MSBuild target 暂存)
 dotnet build visual_studio_plugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj -c Release
 
-# Visual Studio Extensibility 扩展
-.\visual_studio_plugin\build\Package-Ext-Vsix.ps1 -Configuration Release
-.\visual_studio_plugin\build\Package-Ext-Vsix.ps1 -Configuration Release -SkipRunHost
-dotnet build visual_studio_plugin\src\SmallBasic.Ext\SmallBasic.Ext.csproj -c Release
-
-# 两个 VS 公共库(两个 VSIX 工程会作为项目引用自动带上它们，单独构建用于快速校验)
-dotnet build visual_studio_plugin\src\SmallBasic.VsCommon\SmallBasic.VsCommon.csproj -c Release
+# 语言层公共库(VSIX 工程会作为项目引用自动带上它，单独构建用于快速校验)
 dotnet build visual_studio_plugin\src\SmallBasic.LanguageServices\SmallBasic.LanguageServices.csproj -c Release
 
 # Visual Studio 侧测试(LSP 语义映射、LSP 协议端到端、文档大纲)
-dotnet test visual_studio_plugin\tests\SmallBasic.Ext.Tests\SmallBasic.Ext.Tests.csproj
+dotnet test visual_studio_plugin\tests\SmallBasic.LanguageServices.Tests\SmallBasic.LanguageServices.Tests.csproj
 # 或直接用解决方案构建全部工程
 dotnet build visual_studio_plugin\SmallBasic.VisualStudio.slnx -c Release
 ```
@@ -307,14 +284,12 @@ SmallBasicPlugin/
 │   └── packages/
 │       ├── smallbasic-lang-core/  # 语言核心(TS 编译器 + 执行引擎)
 │       └── smallbasic-vscode/     # 扩展本体(含 DAP 调试适配器)
-├── visual_studio_plugin/          # VS 扩展(经典 VSIX + VisualStudio.Extensibility 两条路线)
-│   ├── src/SmallBasic.VsCommon/   # 公共库(net48)：两条 VS 路线共享的命令/调试/MEF 编辑器深能力
+├── visual_studio_plugin/          # VS 扩展(单一 VSIX 包)
 │   ├── src/SmallBasic.LanguageServices/  # 公共库(netstandard2.0)：LSP 模型/语义映射/大纲/内置 server
-│   ├── src/SmallBasic.Vsix/       # 经典路线：AsyncPackage + VSCT + MEF 补全/悬停/诊断
-│   ├── src/SmallBasic.Ext/        # 新框架路线：Extensibility 命令/工具窗 + LSP provider
+│   ├── src/SmallBasic.Vsix/        # 唯一的 VS 包：菜单/命令/工具窗 + LSP 语言能力 + 包内兼容层(MEF/调试)
 │   ├── src/SmallBasic.RunHost/    # 运行宿主(net48/net8.0/net8.0-windows，含 DAP 调试)
 │   ├── src/SmallBasic.Blazor.*/   # WASM 客户端、共享协议与 Blazor RunHost
-│   ├── tests/SmallBasic.Ext.Tests/  # LSP 语义映射、LSP 协议端到端与文档大纲测试(net8.0)
+│   ├── tests/SmallBasic.LanguageServices.Tests/  # LSP 语义映射、LSP 协议端到端与文档大纲测试(net8.0)
 │   └── vendor/SmallBasicEditor/   # 拷贝升级的 Small Basic 编译器(C#)
 ├── test/                          # 示例程序
 ├── official_repo/                 # 官方源码子模块(editor / homesite / online)

@@ -2,20 +2,14 @@
 
 落地目录：`visual_studio_plugin/`。目标：发布 VSIX（支持 VS 2022 17.x 与 VS 2026 18.x），为 `*.sb` 提供文件创建、着色、IntelliSense、编译运行与调试。
 
-> **2026-09-28 现状校准**
+> **2026-09-30 最终态校准**
 >
-> - 已落地 **经典 VSIX + MEF 编辑器扩展 + AsyncPackage/VSCT 命令**，并通过 Visual Studio Debug Adapter Host 接入 **C#、JavaScript、Blazor 三套 DAP**。
-> - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，收录 `src/SmallBasic.Vsix`、`src/SmallBasic.Ext`、`src/SmallBasic.VsCommon`、`src/SmallBasic.LanguageServices`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests`、`tests/SmallBasic.Ext.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Vsix/Ext 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
-> - VSIX 主项目只有 `Commands/`、`Services/`、`Editor/` 三类代码；`Editor/` 内含分类、补全、QuickInfo、Squiggle（错误列表）、大纲折叠、文档大纲工具窗、原生导航栏与调试内联值。**没有** `Templates/`、`Resources/`（无项模板），`Editor/Breadcrumb/` 为空目录。
-> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（仓库根 `launch.vs.json` 的 `smallbasic` 配置按其 `backend` 生效；`.vscode/launch.json` 仅供 VS Code 使用）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口（共 6 项；文档大纲工具窗只在新框架路线 `SmallBasic.Ext` 里提供，经典包没有该命令）。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
+> - Visual Studio 侧已收敛为**单包**：`src/SmallBasic.Vsix`（新版扩展 SDK in-proc 混合托管 + 内置 LSP server）。过渡期的旧工程与公共库 `src/SmallBasic.VsCommon` 已删除，内容全部并入本工程（命名空间统一为 `SmallBasic.Vsix.*`），详见 [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md)。
+> - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，收录 `src/SmallBasic.Vsix`、`src/SmallBasic.LanguageServices`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests`、`tests/SmallBasic.LanguageServices.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Ext 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
+> - 包内代码分为新框架层（`Commands/` 的新 SDK 命令、`LanguageServer/`、`ToolWindows/`）与兼容层（`Commands/` 的调试启动与 F5 过滤器、`Services/`、`Workspace/`、`Editor/` 的分类/折叠/导航栏/调试内联值）。**没有** `Templates/`、`Resources/`（无项模板）。补全 / QuickInfo / Squiggle 的旧 MEF 实现已删除，同等能力由 LSP 提供。
+> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（仓库根 `launch.vs.json` 的 `smallbasic` 配置按其 `backend` 生效；`.vscode/launch.json` 仅供 VS Code 使用）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口及 Show Document Outline（共 7 项），仅当活动编辑器是 `.sb` 文件时启用。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
 > - C# 运行/调试用随 VSIX 分发的 `net48` 宿主，支持图形；JS 路径只捆 `runhost/javascript` bundle 并依赖外部 Node.js 20+，不支持图形；Blazor 路径用 `dotnet ...SmallBasic.Blazor.RunHost.dll`，跨平台提供图形。
->
-> **2026-09-30 补充（与新框架路线共用代码）**
->
-> - Visual Studio 侧新增了第二条路线 `src/SmallBasic.Ext`（VisualStudio.Extensibility in-proc + 内置 LSP server），详见 [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md)。
-> - 本文描述的命令/调试/分类器/折叠/导航栏/内联值等实现已**物理移动到公共库 `src/SmallBasic.VsCommon`（net48）**，由 `SmallBasic.Vsix` 与 `SmallBasic.Ext` 共同引用；两个包都把该程序集声明为 MEF 组件。命名空间仍是 `SmallBasic.Vsix.*`，因此本文其余章节的路径描述需要按“`src/SmallBasic.Vsix/...` → `src/SmallBasic.VsCommon/...`”理解。
-> - 唯一例外：`SmallBasicLanguageService.cs` 必须留在包程序集（`ProvideObject` + `RegistrationMethod.CodeBase` 会把 CLSID 指向包程序集），详见 11 文档 6.3。
-> - 补全 / QuickInfo / Squiggle 仍只属于经典路线，位于 `src/SmallBasic.Vsix/Editor/{Completion,QuickInfo,Squiggles}`；新框架路线改用 LSP 提供同等能力。
+> - 本文其余章节若出现 `src/SmallBasic.Vsix/...` 或 `src/SmallBasic.VsCommon/...` 路径，按“均已并入 `src/SmallBasic.Vsix/...`”理解。
 
 ## 1. 技术路线选择
 
@@ -23,8 +17,8 @@ VS 2026 有两代扩展模型：
 
 | 模型 | 说明 | 本方案采用度 |
 |---|---|---|
-| **经典 VSIX + MEF（进程内）** | 编辑器扩展（分类器/补全/错误列表）唯一成熟路径；.NET Framework 4.8 进程内 | **采用**（语言特性全部走这里） |
-| VisualStudio.Extensibility（进程外, .NET 8） | 微软新一代模型，编辑器深层扩展能力仍在补齐 | 不采用（跟踪，未来可迁移外围命令） |
+| VisualStudio.Extensibility（in-proc 混合托管） | 微软新一代模型；菜单/命令/工具窗/LSP 走新 SDK，深能力靠 in-proc 兼容层 | **采用**（唯一包形态） |
+| **VS SDK in-proc（MEF / VSCT 传统路径）** | 编辑器深层扩展（分类器/导航栏/内联值）与调试接线的成熟路径 | **采用**（作为包内兼容层，不再是独立包） |
 
 调试走 **Debug Adapter Host**（VS 2017 15.6+ 内置，`Microsoft.VisualStudio.Debugger.VSCodeDebuggerHost`），挂载自研 DAP 适配器，**不写 AD7 调试引擎**。详见 [05-调试架构设计.md](./05-调试架构设计.md)。
 
@@ -32,40 +26,28 @@ VS 2026 有两代扩展模型：
 
 ```
 visual_studio_plugin/
-├── SmallBasic.VisualStudio.slnx           # 新格式解决方案（收录 Vsix / RunHost / Compiler.Tests / vendor Compiler+Utilities）
+├── SmallBasic.VisualStudio.slnx           # 新格式解决方案（收录 Ext / LanguageServices / RunHost / 两个测试工程 / vendor Compiler+Utilities）
 ├── Directory.Build.props                  # LangVersion=latest；Nullable=enable；抑制部分告警
 ├── src/
-│   ├── SmallBasic.VsCommon/               # 公共库（net48）：两条 VS 路线共享的 VS 集成层
-│   │   ├── Commands/                      # SmallBasicBackend / CommandService / DebugLauncher / RunCommandFilter
-│   │   ├── Services/                      # 编译缓存（ITextBuffer → SmallBasicCompilation）、输出窗口诊断
-│   │   ├── Workspace/                     # SmallBasicLaunchDebugTargetProvider（Open Folder 调试目标）
-│   │   ├── Editor/
-│   │   │   ├── ContentType.cs             # "smallbasic" content type，.sb 关联
-│   │   │   ├── Classification/            # SmallBasicClassifier / SimpleLexer / Formats / Provider
-│   │   │   ├── Outlining/                 # OutliningTagger + Provider（折叠）
-│   │   │   ├── NavigationBar/             # 原生导航栏（IVsDropdownBarClient，不含 SmallBasicLanguageService）
-│   │   │   └── Debugging/                 # SmallBasicInlineValuesAdornment（调试内联值）
-│   │   ├── Properties/AssemblyInfo.cs     # InternalsVisibleTo(SmallBasic.Vsix / SmallBasic.Ext)
-│   │   └── VersionInfo.g.cs               # 由 version.json 生成
 │   ├── SmallBasic.LanguageServices/       # 公共库（netstandard2.0）：LSP 与大纲语言层
 │   │   ├── Lsp/                           # LSP 模型 / 编译语义映射 / Content-Length 帧 / 内置 server
 │   │   └── Outline/                       # SmallBasicOutlineBuilder（编译器大纲 → 工具窗树形数据）
-│   ├── SmallBasic.Vsix/                   # 经典 VSIX 主项目（net48，VS SDK）
-│   │   ├── source.extension.vsixmanifest   # MefComponent: SmallBasic.Vsix.dll + SmallBasic.VsCommon.dll
-│   │   ├── SmallBasicPackage.cs           # AsyncPackage 入口 + ProvideMenuResource/ProvideLanguageService
-│   │   ├── Menus.vsct                     # Tools → Small Basic 子菜单（运行/调试 6 个命令）
-│   │   └── Editor/
-│   │       ├── Completion/                # CompletionSource / Snippet / CommitManager / Provider
-│   │       ├── QuickInfo/                 # IAsyncQuickInfoSource（悬停）
-│   │       ├── Squiggles/                 # ITagger<IErrorTag>（错误列表）
-│   │       └── NavigationBar/SmallBasicLanguageService.cs   # 必须留在包程序集，见 11 文档 6.3
-│   ├── SmallBasic.Ext/                    # VisualStudio.Extensibility 替代实现（net48）
-│   │   ├── source.extension.vsixmanifest   # ExtensionType=VSSDK+VisualStudio.Extensibility
+│   ├── SmallBasic.Vsix/                    # 唯一的 VS 扩展包（net48，VisualStudio.Extensibility 混合托管）
+│   │   ├── source.extension.vsixmanifest   # ExtensionType=VSSDK+VisualStudio.Extensibility；MefComponent: SmallBasic.Vsix.dll
 │   │   ├── SmallBasicExtension.cs         # Extension 入口 + DI
-│   │   ├── SmallBasicExtPackage.cs        # 最小兼容 AsyncPackage（语言服务注册链）
-│   │   ├── Commands/                      # MenuConfiguration + 六个运行/调试命令 + Show Document Outline
+│   │   ├── SmallBasicPackage.cs        # 兼容 AsyncPackage（语言服务注册链）
+│   │   ├── VersionInfo.g.cs               # 由 version.json 生成（namespace SmallBasic.Vsix）
+│   │   ├── Commands/                      # 新 SDK 菜单/命令 + 兼容层 CommandService/DebugLauncher/RunCommandFilter
+│   │   ├── Services/                      # 编译缓存（ITextBuffer → SmallBasicCompilation）、输出窗口诊断
+│   │   ├── Workspace/                     # SmallBasicLaunchDebugTargetProvider（Open Folder 调试目标）
 │   │   ├── LanguageServer/                # SmallBasicLanguageServerProvider（LSP 客户端接线）
-│   │   └── ToolWindows/Outline/           # Remote UI 大纲工具窗（Control/XAML/ViewModel）
+│   │   ├── ToolWindows/Outline/           # Remote UI 大纲工具窗（Control/XAML/ViewModel）
+│   │   └── Editor/
+│   │       ├── ContentType.cs             # "smallbasic" content type，.sb 关联
+│   │       ├── Classification/            # SmallBasicClassifier / SimpleLexer / Formats / Provider
+│   │       ├── Outlining/                 # OutliningTagger + Provider（折叠）
+│   │       ├── NavigationBar/             # 原生导航栏 + SmallBasicLanguageService（必须在包程序集，CodeBase 注册）
+│   │       └── Debugging/                 # SmallBasicInlineValuesAdornment（调试内联值）
 │   ├── SmallBasic.RunHost/                # 运行/调试宿主，多目标 net48;net8.0;net8.0-windows
 │   │   ├── Program.cs                     # run --file <f.sb> [--pause] / debug
 │   │   ├── Libraries/                     # GraphicsWindow/Shapes/Turtle/TextWindow/... + UnsupportedLibraries
@@ -74,13 +56,12 @@ visual_studio_plugin/
 │   ├── SmallBasic.Blazor.Client/          # WASM：引擎会话、图形库、SVG/Canvas 渲染
 │   └── SmallBasic.Blazor.RunHost/         # Kestrel 宿主 + 会话 API + WebSocket 桥 + DAP
 ├── tests/SmallBasic.Compiler.Tests/       # net8.0-windows，xunit 2.9.2 + FluentAssertions 7.0.0
-├── tests/SmallBasic.Ext.Tests/            # net8.0，直接引用 SmallBasic.LanguageServices 做单元与 LSP 协议测试
+├── tests/SmallBasic.LanguageServices.Tests/            # net8.0，直接引用 SmallBasic.LanguageServices 做单元与 LSP 协议测试
 ├── vendor/SmallBasicEditor/Source/        # 拷贝升级的编译器/引擎/分析器（netstandard2.0）+ UPSTREAM.md
-├── build/Package-Vsix.ps1                 # 经典包打包脚本（含载荷与 MEF 资产校验）
-└── build/Package-Ext-Vsix.ps1             # 新框架包打包脚本
+└── build/Package-Vsix.ps1                 # 打包脚本（含载荷与 MEF 资产校验）
 ```
 
-> `SmallBasic.Blazor.*` 三件套未列入 `.slnx`，由 Vsix 项目的 `PrepareRunHostForVsix` Target 通过 `dotnet publish -f net8.0` 发布到 `runhost/blazor` 后再收入 VSIX。
+> `SmallBasic.Blazor.*` 三件套未列入 `.slnx`，由 Ext 项目的 `PrepareRunHostForVsix` Target 通过 `dotnet publish -f net8.0` 发布到 `runhost/blazor` 后再收入 VSIX。
 
 **源码消费方式：拷贝升级，不引用子模块**（ADR-4）。将 `official_repo/editor/Source` 下的 `SmallBasic.Compiler`、`SmallBasic.Utilities`、`SmallBasic.Tests`、`SmallBasic.Editor/Libraries`、`SmallBasic.Analyzers` 连同 `Directory.Build.props`、`stylecop.json` 拷贝到 `vendor/SmallBasicEditor/Source`（含 `UPSTREAM.md`），编译器/工具库保持 `netstandard2.0`：
 
@@ -168,7 +149,7 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 ## 7. 兼容性与打包
 
 - `source.extension.vsixmanifest`：`InstallationTarget` 为 `Microsoft.VisualStudio.Community [17.0,)`（amd64）与 `[17.4,)`（arm64）；`Dependencies` 要求 .NET Framework `[4.7.2,)`。
-- 携带载荷：`SmallBasic.Vsix.dll/.pkgdef`、vendor 的 `SmallBasic.Compiler.dll`/`SmallBasic.Utilities.dll`/`SmallBasic.Analyzers.dll` 及依赖、`debugadapter/adapter.js`（JS DAP bundle）、`runhost/csharp/SmallBasic.RunHost.exe`（net48）、`runhost/blazor/**`（net8.0 发布输出）、`runhost/javascript/smallbasic-runhost.js`。
+- 携带载荷：`SmallBasic.Vsix.dll/.pkgdef`、`SmallBasic.LanguageServices.dll`、vendor 的 `SmallBasic.Compiler.dll`/`SmallBasic.Utilities.dll` 及依赖、`debugadapter/adapter.js`（JS DAP bundle）、`runhost/csharp/SmallBasic.RunHost.exe`（net48）、`runhost/blazor/**`（net8.0 发布输出）、`runhost/javascript/smallbasic-runhost.js`。
 - `build/Package-Vsix.ps1` 在打包后校验 VSIX v3 必需条目（`extension.vsixmanifest`/`manifest.json`/`catalog.json`/`[Content_Types].xml`）与必需载荷，并**拒绝内置 node.exe/node_modules**（不得内置 Node 运行时）。
 - `build/Package-Vsix.ps1` 依赖 `runhost/Build-RunHost.ps1` 的输出（VSIX 携带其中的 RunHost、Blazor 与 JavaScript 载荷），因此默认先构建 RunHost 分发再 `dotnet build`；`Build-All.ps1` 已构建过该分发，故传入 `-SkipRunHost` 避免重复构建。VSIX 工程自身的 `PrepareRunHostForVsix` target 仍会按需构建 net48 宿主并发布 Blazor 宿主。
 - 版本单一来源为仓库根 `version.json`（当前 `0.1.2`），由 `tools/sync-version.mjs` 同步到 manifest 与 `VersionInfo.g.cs`。

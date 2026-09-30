@@ -4,10 +4,8 @@
 #   2. visual_studio_code_plugin\build\Package-Vsix.ps1
 #                                                -> visual_studio_code_plugin\build\SmallBasic.VSCode-<version>.vsix
 #                                                   (also refreshes dist\debug\adapter.js used by the VS side)
-#   3. visual_studio_plugin\src\SmallBasic.Vsix    -> VSIX project build (builds RunHost net48 automatically)
-#   4. visual_studio_plugin\build\Package-Vsix.ps1 -> visual_studio_plugin\build\SmallBasic.Vsix.<version>.vsix
-#   5. visual_studio_plugin\src\SmallBasic.Ext     -> VisualStudio.Extensibility project build
-#   6. visual_studio_plugin\build\Package-Ext-Vsix.ps1 -> visual_studio_plugin\build\SmallBasic.Ext.<version>.vsix
+#   3. visual_studio_plugin\build\Package-Vsix.ps1 -> builds src\SmallBasic.Vsix
+#                                                -> visual_studio_plugin\build\SmallBasic.Vsix.<version>.vsix
 #
 # Both packaging scripts depend on the RunHost distribution built in step 1 and
 # accept -SkipRunHost for exactly that reason: running them standalone builds the
@@ -77,43 +75,17 @@ Write-Host ""
 Write-Host "=== Package-Vsix: visual_studio_code_plugin ($Configuration) ===" -ForegroundColor Yellow
 & (Join-Path $repoRoot "visual_studio_code_plugin\build\Package-Vsix.ps1") -Configuration $Configuration -SkipRunHost
 
-# Visual Studio extension project. Its CopyRunHostOutput target builds
-# SmallBasic.RunHost (net48) and stages it next to the VSIX payload. The shared
-# SmallBasic.VsCommon library is pulled in through a project reference, so it does
-# not need a separate step here.
+# Visual Studio extension. SmallBasic.Vsix is the only Visual Studio package: a
+# VisualStudio.Extensibility hybrid extension whose in-proc compatibility layer
+# carries the MEF editor parts, the F5 command filter and the Open Folder debug
+# target provider. -SkipRunHost reuses the RunHost distribution built above; the
+# project itself still stages RunHost net48 / Blazor for the VSIX.
 Write-Host ""
-Write-Host "=== Build: SmallBasic.Vsix ($Configuration) ===" -ForegroundColor Yellow
-$vsixProject = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Vsix\SmallBasic.Vsix.csproj"
-dotnet build $vsixProject -c $Configuration --nologo
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet build failed for SmallBasic.Vsix"
-}
-
-# Visual Studio extension VSIX. -SkipRunHost reuses the RunHost distribution
-# built above; the project itself still stages RunHost net48 / Blazor for the VSIX.
-Write-Host ""
-Write-Host "=== Package-Vsix: visual_studio_plugin ===" -ForegroundColor Yellow
+Write-Host "=== Package-Vsix: visual_studio_plugin ($Configuration) ===" -ForegroundColor Yellow
 & (Join-Path $repoRoot "visual_studio_plugin\build\Package-Vsix.ps1") -Configuration $Configuration -SkipRunHost
-
-# VisualStudio.Extensibility-based Visual Studio extension. It shares the same
-# RunHost payloads but uses the new SDK for commands/tool windows. Its project
-# references pull in SmallBasic.VsCommon (shared VS integration) and
-# SmallBasic.LanguageServices (LSP + outline layer).
-Write-Host ""
-Write-Host "=== Build: SmallBasic.Ext ($Configuration) ===" -ForegroundColor Yellow
-$extProject = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Ext\SmallBasic.Ext.csproj"
-dotnet build $extProject -c $Configuration --nologo
-if ($LASTEXITCODE -ne 0) {
-    throw "dotnet build failed for SmallBasic.Ext"
-}
-
-Write-Host ""
-Write-Host "=== Package-Vsix: visual_studio_plugin (Extensibility) ===" -ForegroundColor Yellow
-& (Join-Path $repoRoot "visual_studio_plugin\build\Package-Ext-Vsix.ps1") -Configuration $Configuration -SkipRunHost
 
 Write-Host ""
 Write-Host "Build-All completed:" -ForegroundColor Green
 Write-Host "  runhost\net48, net8.0, net8.0-windows, javascript, blazor"
 Write-Host "  visual_studio_code_plugin\build\SmallBasic.VSCode-$version.vsix"
 Write-Host "  visual_studio_plugin\build\SmallBasic.Vsix.$version.vsix"
-Write-Host "  visual_studio_plugin\build\SmallBasic.Ext.$version.vsix"

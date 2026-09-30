@@ -5,50 +5,47 @@
     <TargetFramework>net48</TargetFramework>
     <PlatformTarget>AnyCPU</PlatformTarget>
     <Prefer32Bit>false</Prefer32Bit>
-    <VSSDKBuildToolsAutoSetup>true</VSSDKBuildToolsAutoSetup>
+    <VssdkCompatibleExtension>true</VssdkCompatibleExtension>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <UseCodebase>true</UseCodebase>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
-    <IncludeDebugSymbolsInVSIXContainer Condition="'$(Configuration)' == 'Debug'">true</IncludeDebugSymbolsInVSIXContainer>
-    <IncludeDebugSymbolsInVSIXContainer Condition="'$(Configuration)' != 'Debug'">false</IncludeDebugSymbolsInVSIXContainer>
-    <!-- Let VSSDK BuildTools create the complete VSIX v3 package, including
-         manifest.json, catalog.json, extensionDir, hashes and dependencies. -->
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
     <CreateVsixContainer>true</CreateVsixContainer>
     <TargetVsixContainerName>SmallBasic.Vsix.vsix</TargetVsixContainerName>
     <DeployExtension>false</DeployExtension>
     <CopyVsixManifestToOutput>true</CopyVsixManifestToOutput>
+    <RootNamespace>SmallBasic.Vsix</RootNamespace>
+    <AssemblyName>SmallBasic.Vsix</AssemblyName>
     <DebugAdapterSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\debug\adapter.js</DebugAdapterSource>
     <JavaScriptRunHostSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\runhost.js</JavaScriptRunHostSource>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
-    <!-- Use the VSIX debugger supplied by VSSDK BuildTools.  It builds and
-         deploys the current VSIX to the experimental instance before starting
-         that instance, then attaches the managed debugger to its devenv.exe.
-         A generic Program launch only starts /RootSuffix Exp and can therefore
-         load a previously installed VSIX instead of the one just built. -->
-    <DebuggerFlavor>VsixDebugger</DebuggerFlavor>
-    <VsixDeployOnDebug>true</VsixDeployOnDebug>
-    <VSSDKTargetPlatformRegRootSuffix>Exp</VSSDKTargetPlatformRegRootSuffix>
-    <IncludeDebugSymbolsInLocalVSIXDeployment>true</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
+    <StartAction>Program</StartAction>
+    <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
+    <StartArguments>/RootSuffix Exp</StartArguments>
   </PropertyGroup>
 
   <PropertyGroup>
-    <!-- The extension version is owned by <repo>/version.json and propagated by
-         tools/sync-version.mjs, which this project runs before every build. -->
     <RepoRootDirectory>$(MSBuildThisFileDirectory)..\..\..\</RepoRootDirectory>
     <VersionSyncScript>$(RepoRootDirectory)tools\sync-version.mjs</VersionSyncScript>
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility" Version="17.14.2098" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.40608" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" PrivateAssets="all" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
-    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" PrivateAssets="all" />
     <!-- Open Folder launch-target extensibility. The assembly keeps a stable
          17.0.0.0 version and Visual Studio ships it in every installation, so
          the reference is compile-only (runtime assets excluded). -->
     <PackageReference Include="Microsoft.VisualStudio.Workspace" Version="17.12.19" ExcludeAssets="runtime" />
+    <!-- Pin VSSDK BuildTools so the hybrid package produces complete VSIX v3
+         metadata (manifest.json, catalog.json, extensionDir, hashes). -->
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="18.9.820" PrivateAssets="all" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,20 +53,19 @@
     <Reference Include="System.Design" />
     <Reference Include="PresentationCore" />
     <Reference Include="PresentationFramework" />
+    <!-- System.Windows.Threading.DispatcherTimer used by the debug inline-values adornment. -->
+    <Reference Include="WindowsBase" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
-    <!-- Shared VS integration layer (commands / debug launcher / MEF editor parts)
-         with the VisualStudio.Extensibility package. -->
-    <ProjectReference Include="..\SmallBasic.VsCommon\SmallBasic.VsCommon.csproj" />
+    <!-- Framework agnostic language layer: LSP models, compiler semantic mapping,
+         document outline and the built-in Small Basic language server. -->
+    <ProjectReference Include="..\SmallBasic.LanguageServices\SmallBasic.LanguageServices.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <VSCTCompile Include="Menus.vsct">
-      <ResourceName>Menus.ctmenu</ResourceName>
-    </VSCTCompile>
     <None Include="source.extension.vsixmanifest">
       <SubType>Designer</SubType>
     </None>
@@ -89,49 +85,35 @@
     </Content>
   </ItemGroup>
 
-  <!-- Regenerate the VSIX manifest and VersionInfo.g.cs from version.json even
-       when the project is built directly (VS IDE or `dotnet build`). The step is
-       non-fatal so an offline build still succeeds using the committed values. -->
+  <ItemGroup>
+    <EmbeddedResource Include="ToolWindows\Outline\SmallBasicOutlineControl.xaml" LogicalName="SmallBasic.Vsix.ToolWindows.Outline.SmallBasicOutlineControl.xaml" />
+    <Page Remove="ToolWindows\Outline\SmallBasicOutlineControl.xaml" />
+  </ItemGroup>
+
   <Target Name="SyncSharedVersion" BeforeTargets="BeforeBuild" Condition="Exists('$(VersionSyncScript)')">
     <Exec Command="node &quot;$(VersionSyncScript)&quot;" ContinueOnError="WarnAndContinue" StandardOutputImportance="low" />
   </Target>
 
   <Target Name="ValidateDebugAdapterOutput" BeforeTargets="Build">
-    <Warning
-      Condition="!Exists('$(DebugAdapterSource)')"
-      Text="Small Basic debug adapter was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
-    <Warning
-      Condition="!Exists('$(JavaScriptRunHostSource)')"
-      Text="Small Basic JavaScript run host was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
+    <Warning Condition="!Exists('$(DebugAdapterSource)')" Text="Small Basic debug adapter was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
+    <Warning Condition="!Exists('$(JavaScriptRunHostSource)')" Text="Small Basic JavaScript run host was not found. Run npm run build in visual_studio_code_plugin before packaging the VSIX." />
   </Target>
 
   <Target Name="PrepareRunHostForVsix" BeforeTargets="GetVsixSourceItems">
-    <MSBuild
-      Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
-      Targets="Build"
-      Properties="Configuration=$(Configuration);TargetFramework=net48" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=net48" />
 
     <PropertyGroup>
       <BlazorRunHostStaging>$(MSBuildProjectDirectory)\obj\$(Configuration)\vsix\runhost\blazor\</BlazorRunHostStaging>
     </PropertyGroup>
     <RemoveDir Directories="$(BlazorRunHostStaging)" />
-    <MSBuild
-      Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
-      Targets="Publish"
-      Properties="Configuration=$(Configuration);TargetFramework=net8.0;PublishDir=$(BlazorRunHostStaging)" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj" Targets="Publish" Properties="Configuration=$(Configuration);TargetFramework=net8.0;PublishDir=$(BlazorRunHostStaging)" />
 
     <PropertyGroup>
       <JavaScriptRunHostStaging>$(IntermediateOutputPath)vsix\runhost\javascript\smallbasic-runhost.js</JavaScriptRunHostStaging>
     </PropertyGroup>
 
-    <MakeDir
-      Directories="$([System.IO.Path]::GetDirectoryName('$(JavaScriptRunHostStaging)'))"
-      Condition="Exists('$(JavaScriptRunHostSource)')" />
-    <Copy
-      SourceFiles="$(JavaScriptRunHostSource)"
-      DestinationFiles="$(JavaScriptRunHostStaging)"
-      SkipUnchangedFiles="true"
-      Condition="Exists('$(JavaScriptRunHostSource)')" />
+    <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(JavaScriptRunHostStaging)'))" Condition="Exists('$(JavaScriptRunHostSource)')" />
+    <Copy SourceFiles="$(JavaScriptRunHostSource)" DestinationFiles="$(JavaScriptRunHostStaging)" SkipUnchangedFiles="true" Condition="Exists('$(JavaScriptRunHostSource)')" />
 
     <ItemGroup>
       <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
@@ -151,18 +133,7 @@
     </ItemGroup>
   </Target>
 
-  <!-- A Release VSIX stays as small as possible and ships no managed debug
-       symbols. This drops every PDB collected into @(VSIXSourceItem): the
-       RunHost/Blazor payload PDBs (staged above as linked Content items) and the
-       PDBs that come along with the referenced compiler assemblies.
-       IncludeDebugSymbolsInVSIXContainer only covers this project's own assembly,
-       so the referenced ones need this explicit removal. The target runs after
-       @(VSIXSourceItem) is complete and before it is turned into files.json, so
-       the VSSDK-generated VSIX v3 manifest stays consistent. Debug builds keep
-       the symbols. -->
-  <Target Name="ExcludeDebugSymbolsFromVsix"
-          BeforeTargets="GenerateFileManifest"
-          Condition="'$(Configuration)' == 'Release'">
+  <Target Name="ExcludeDebugSymbolsFromVsix" BeforeTargets="GenerateFileManifest" Condition="'$(Configuration)' == 'Release'">
     <ItemGroup>
       <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="'%(VSIXSourceItem.Extension)' == '.pdb'" />
     </ItemGroup>

@@ -115,7 +115,7 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary
 
     public void HandleKeyDown(string key)
     {
-        this.lastKey = key;
+        this.lastKey = NormalizeKey(key);
         this.KeyDown?.Invoke();
         if (key.Length == 1)
         {
@@ -126,7 +126,7 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary
 
     public void HandleKeyUp(string key)
     {
-        this.lastKey = key;
+        this.lastKey = NormalizeKey(key);
         this.KeyUp?.Invoke();
     }
 
@@ -171,6 +171,26 @@ public sealed class GraphicsWindowLibrary : IGraphicsWindowLibrary
 
     private static string Points(params decimal[] values) => string.Join(" ", values.Chunk(2).Select(pair => string.Join(",", pair.Select(value => value.ToString(CultureInfo.InvariantCulture)))));
     private static int Clamp(decimal value) => (int)Math.Clamp(value, 0, 255);
+
+    private static string NormalizeKey(string key)
+    {
+        if (string.IsNullOrEmpty(key))
+        {
+            return string.Empty;
+        }
+
+        return key switch
+        {
+            "ArrowLeft" => "Left",
+            "ArrowRight" => "Right",
+            "ArrowUp" => "Up",
+            "ArrowDown" => "Down",
+            " " or "Spacebar" => "Space",
+            "Esc" => "Escape",
+            _ when key.Length == 1 && char.IsLetter(key[0]) => key.ToUpperInvariant(),
+            _ => key,
+        };
+    }
 
     private static string Color(string value)
     {

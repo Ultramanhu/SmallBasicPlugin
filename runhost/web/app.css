@@ -377,16 +377,23 @@ body.web-cli-mode #diagnostics {
     overflow: auto;
 }
 
+.graphics-window-host {
+    display: inline-block;
+    max-width: 100%;
+    outline: none;
+}
+
+.graphics-window-host:focus {
+    outline: 2px solid var(--sb-accent);
+    outline-offset: 2px;
+}
+
 .graphics-window {
     display: block;
     max-width: 100%;
     height: auto;
     background: #fff;
     outline: none;
-}
-
-.graphics-window:focus {
-    outline: 2px solid var(--sb-accent);
 }
 
 .console-card {
