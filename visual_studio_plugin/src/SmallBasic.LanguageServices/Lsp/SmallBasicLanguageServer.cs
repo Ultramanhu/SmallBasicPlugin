@@ -3,6 +3,7 @@ namespace SmallBasic.LanguageServices
     using System;
     using System.Collections.Generic;
     using System.IO;
+    using System.Text.Json;
     using System.Text.Json.Nodes;
     using System.Threading;
     using System.Threading.Tasks;
@@ -41,7 +42,19 @@ namespace SmallBasic.LanguageServices
             var protocol = new SmallBasicLspStream(input, output);
             while (!cancellationToken.IsCancellationRequested)
             {
-                JsonObject? message = await protocol.ReadMessageAsync(cancellationToken).ConfigureAwait(false);
+                JsonObject? message;
+                try
+                {
+                    message = await protocol.ReadMessageAsync(cancellationToken).ConfigureAwait(false);
+                }
+                catch (Exception exception) when (exception is JsonException)
+                {
+                    // A malformed frame must not end the session; skip it and
+                    // keep reading. Stream-level failures still propagate so the
+                    // loop ends when the host closes the pipe.
+                    continue;
+                }
+
                 if (message is null)
                 {
                     break;
@@ -53,62 +66,83 @@ namespace SmallBasic.LanguageServices
 
         private async Task DispatchAsync(SmallBasicLspStream protocol, JsonObject message, CancellationToken cancellationToken)
         {
-            string method = (string)message["method"];
-            JsonNode id = message["id"];
-            JsonObject parameters = message["params"] as JsonObject;
-
-            if (string.IsNullOrEmpty(method))
+            // A single failing message must never take the whole session down:
+            // the editor depends on this loop for completion, hover, diagnostics
+            // and symbols at once, so parsing and handling are both isolated and
+            // failures are reported per request while the loop keeps serving.
+            try
             {
-                return;
+                string method = (string)message["method"];
+                JsonNode id = message["id"];
+                JsonObject parameters = message["params"] as JsonObject;
+
+                if (string.IsNullOrEmpty(method))
+                {
+                    return;
+                }
+
+                switch (method)
+                {
+                    case "initialize":
+                        await this.SendResponseAsync(protocol, id, this.CreateInitializeResult(), cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "initialized":
+                        break;
+
+                    case "textDocument/didOpen":
+                        await this.HandleDidOpenAsync(protocol, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "textDocument/didChange":
+                        await this.HandleDidChangeAsync(protocol, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "textDocument/didClose":
+                        await this.HandleDidCloseAsync(protocol, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "textDocument/completion":
+                        await this.HandleCompletionAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "textDocument/hover":
+                        await this.HandleHoverAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "textDocument/signatureHelp":
+                        await this.HandleSignatureHelpAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "textDocument/documentSymbol":
+                        await this.HandleDocumentSymbolAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "shutdown":
+                        await this.SendResponseAsync(protocol, id, null, cancellationToken).ConfigureAwait(false);
+                        break;
+
+                    case "exit":
+                        break;
+
+                    default:
+                        if (id != null)
+                        {
+                            await this.SendErrorResponseAsync(protocol, id, -32601, $"Method '{method}' is not supported by the Small Basic language server.", cancellationToken).ConfigureAwait(false);
+                        }
+
+                        break;
+                }
             }
-
-            switch (method)
+            catch (Exception exception) when (exception is not OperationCanceledException)
             {
-                case "initialize":
-                    await this.SendResponseAsync(protocol, id, this.CreateInitializeResult(), cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "initialized":
-                    break;
-
-                case "textDocument/didOpen":
-                    await this.HandleDidOpenAsync(protocol, parameters, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "textDocument/didChange":
-                    await this.HandleDidChangeAsync(protocol, parameters, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "textDocument/didClose":
-                    await this.HandleDidCloseAsync(protocol, parameters, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "textDocument/completion":
-                    await this.HandleCompletionAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "textDocument/hover":
-                    await this.HandleHoverAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "textDocument/documentSymbol":
-                    await this.HandleDocumentSymbolAsync(protocol, id, parameters, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "shutdown":
-                    await this.SendResponseAsync(protocol, id, null, cancellationToken).ConfigureAwait(false);
-                    break;
-
-                case "exit":
-                    break;
-
-                default:
-                    if (id != null)
-                    {
-                        await this.SendErrorResponseAsync(protocol, id, -32601, $"Method '{method}' is not supported by the Small Basic language server.", cancellationToken).ConfigureAwait(false);
-                    }
-
-                    break;
+                if (message["id"] is JsonNode id)
+                {
+                    string method = message["method"] is JsonValue value && value.TryGetValue<string>(out var methodName)
+                        ? methodName
+                        : "unknown";
+                    await this.SendErrorResponseAsync(protocol, id, -32603, $"Small Basic language server failed to handle '{method}': {exception.Message}", cancellationToken).ConfigureAwait(false);
+                }
             }
         }
 
@@ -183,14 +217,21 @@ namespace SmallBasic.LanguageServices
             var array = new JsonArray();
             foreach (SmallBasicLspCompletionItem item in items)
             {
-                array.Add(new JsonObject
+                var entry = new JsonObject
                 {
                     ["label"] = item.Label,
                     ["detail"] = item.Detail,
                     ["kind"] = (int)item.Kind,
                     ["insertText"] = item.InsertText,
                     ["insertTextFormat"] = (int)item.InsertTextFormat,
-                });
+                };
+
+                if (!string.IsNullOrEmpty(item.Documentation))
+                {
+                    entry["documentation"] = item.Documentation;
+                }
+
+                array.Add(entry);
             }
 
             await this.SendResponseAsync(protocol, id, new JsonObject
@@ -223,6 +264,50 @@ namespace SmallBasic.LanguageServices
                     ["value"] = hover.Contents,
                 },
                 ["range"] = ToJsonRange(hover.Range),
+            }, cancellationToken).ConfigureAwait(false);
+        }
+
+        private async Task HandleSignatureHelpAsync(SmallBasicLspStream protocol, JsonNode id, JsonObject parameters, CancellationToken cancellationToken)
+        {
+            if (id == null || !this.TryGetDocumentAndPosition(parameters, out _, out string text, out int line, out int character))
+            {
+                await this.SendResponseAsync(protocol, id, null, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            SmallBasicLspSignatureHelp? help = this.analysisService.GetSignatureHelp(text, line, character);
+            if (help == null)
+            {
+                await this.SendResponseAsync(protocol, id, null, cancellationToken).ConfigureAwait(false);
+                return;
+            }
+
+            var signatures = new JsonArray();
+            foreach (SmallBasicLspSignatureInformation signature in help.Signatures)
+            {
+                var signatureParameters = new JsonArray();
+                foreach (SmallBasicLspParameterInformation parameter in signature.Parameters)
+                {
+                    signatureParameters.Add(new JsonObject
+                    {
+                        ["label"] = parameter.Label,
+                        ["documentation"] = parameter.Documentation,
+                    });
+                }
+
+                signatures.Add(new JsonObject
+                {
+                    ["label"] = signature.Label,
+                    ["documentation"] = signature.Documentation,
+                    ["parameters"] = signatureParameters,
+                });
+            }
+
+            await this.SendResponseAsync(protocol, id, new JsonObject
+            {
+                ["signatures"] = signatures,
+                ["activeSignature"] = help.ActiveSignature,
+                ["activeParameter"] = help.ActiveParameter,
             }, cancellationToken).ConfigureAwait(false);
         }
 
@@ -292,6 +377,10 @@ namespace SmallBasic.LanguageServices
                         ["triggerCharacters"] = new JsonArray("."),
                     },
                     ["hoverProvider"] = true,
+                    ["signatureHelpProvider"] = new JsonObject
+                    {
+                        ["triggerCharacters"] = new JsonArray("(", ","),
+                    },
                     ["documentSymbolProvider"] = true,
                 },
                 ["serverInfo"] = serverInfo,

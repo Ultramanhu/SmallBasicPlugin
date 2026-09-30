@@ -11,6 +11,7 @@ namespace SmallBasic.Tests.Services
     using SmallBasic.Compiler.Diagnostics;
     using SmallBasic.Compiler.Services;
     using SmallBasic.Utilities;
+    using SmallBasic.Utilities.Resources;
     using Xunit;
 
     public sealed class CompletionItemProviderTests : IClassFixture<CultureFixture>
@@ -42,10 +43,10 @@ namespace SmallBasic.Tests.Services
         public void CompletesAllMembersAfterDot()
         {
             TestForCompletionItemsWithInsertText("Program.$",
-                ("Delay", "Delay(${1:milliSeconds})"),
-                ("End", "End()"),
-                ("GetArgument", "GetArgument(${1:index})"),
-                ("Pause", "Pause()"),
+                ("Delay(milliSeconds)", "Delay(${1:milliSeconds})"),
+                ("End()", "End()"),
+                ("GetArgument(index)", "GetArgument(${1:index})"),
+                ("Pause()", "Pause()"),
                 ("ArgumentCount", "ArgumentCount"),
                 ("Directory", "Directory"));
         }
@@ -92,7 +93,7 @@ namespace SmallBasic.Tests.Services
         public void CompletesInACaseInsensitiveManner()
         {
             TestForCompletionItemsWithInsertText("Program.d$",
-                ("Delay", "Delay(${1:milliSeconds})"),
+                ("Delay(milliSeconds)", "Delay(${1:milliSeconds})"),
                 ("Directory", "Directory"));
         }
 
@@ -100,8 +101,19 @@ namespace SmallBasic.Tests.Services
         public void CompletesMembersStartingWithPrefix()
         {
             TestForCompletionItemsWithInsertText("TextWindow.Wri$",
-                ("Write", "Write(${1:data})"),
-                ("WriteLine", "WriteLine(${1:data})"));
+                ("Write(data)", "Write(${1:data})"),
+                ("WriteLine(data)", "WriteLine(${1:data})"));
+        }
+
+        [Fact]
+        public void CompletesMethodsWithParameterDocumentation()
+        {
+            var delay = GetItems("Program.D$").Single(item => item.label == "Delay(milliSeconds)");
+            delay.documentation.Should().Be($"milliSeconds: {LibrariesResources.Program_Delay_milliSeconds}");
+
+            // Parameterless methods carry no parameter docs.
+            var end = GetItems("Program.$").Single(item => item.label == "End()");
+            end.documentation.Should().BeEmpty();
         }
 
         [Fact]

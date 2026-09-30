@@ -43,15 +43,16 @@ x = TextWindow.Write${marker}Line()`, [
     it("provides library method name when hovered over - statement", () => {
         testHover(`
 TextWindow.Write${marker}Line("")`, [
-                "TextWindow.WriteLine",
-                DocumentationResources.TextWindow_WriteLine
+                "TextWindow.WriteLine(data)",
+                DocumentationResources.TextWindow_WriteLine,
+                `- **data**: ${DocumentationResources.TextWindow_WriteLine_Data}`
             ]);
     });
 
     it("provides library method name when hovered over - expression", () => {
         testHover(`
 x = TextWindow.Rea${marker}d()`, [
-                "TextWindow.Read",
+                "TextWindow.Read()",
                 DocumentationResources.TextWindow_Read
             ]);
     });

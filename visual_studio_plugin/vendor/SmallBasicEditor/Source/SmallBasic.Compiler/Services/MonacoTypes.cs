@@ -30,12 +30,13 @@ namespace SmallBasic.Compiler.Services
 
     public class MonacoCompletionItem
     {
-        public MonacoCompletionItem(MonacoCompletionItemKind kind, string label, string description, string insertText = default)
+        public MonacoCompletionItem(MonacoCompletionItemKind kind, string label, string description, string insertText = default, string documentation = default)
         {
             this.kind = kind;
             this.label = label;
             this.insertText = new MonacoCompletionItemText(insertText ?? label);
             this.detail = description;
+            this.documentation = documentation;
         }
 
 #pragma warning disable SA1300 // Element must begin with upper-case letter
@@ -46,6 +47,8 @@ namespace SmallBasic.Compiler.Services
         public MonacoCompletionItemText insertText { get; set; }
 
         public string detail { get; set; }
+
+        public string documentation { get; set; }
 #pragma warning restore SA1300 // Element must begin with upper-case letter
     }
 

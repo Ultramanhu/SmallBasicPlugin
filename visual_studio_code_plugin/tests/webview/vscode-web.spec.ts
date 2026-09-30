@@ -107,9 +107,6 @@ function startWorkbench(): Promise<void> {
       "--without-connection-token",
       "--disable-telemetry",
       "--accept-server-license-terms",
-      // Without this the workbench opens in restricted mode: extensions are
-      // installed but not activated, so no SmallBasic command would exist.
-      "--disable-workspace-trust",
       "--default-folder", workspaceFolder
     ],
     { cwd: pluginRoot, shell: process.platform === "win32", stdio: ["ignore", "pipe", "pipe"] }

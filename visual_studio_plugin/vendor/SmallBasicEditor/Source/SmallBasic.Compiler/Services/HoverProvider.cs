@@ -5,6 +5,7 @@
 namespace SmallBasic.Compiler.Services
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using SmallBasic.Compiler.Binding;
     using SmallBasic.Compiler.Diagnostics;
@@ -44,7 +45,20 @@ namespace SmallBasic.Compiler.Services
                         string memberName = objectAccess.IdentifierToken.Text;
                         if (library.Methods.TryGetValue(memberName, out Method method))
                         {
-                            return new[] { method.Name, method.Description };
+                            // Method hovers show the signature spelled like the official
+                            // documentation, followed by the localized parameter docs.
+                            var lines = new List<string>
+                            {
+                                $"{library.Name}.{method.Name}({method.Parameters.Values.Select(p => p.Name).Join(", ")})",
+                                method.Description,
+                            };
+
+                            foreach (Parameter parameter in method.Parameters.Values)
+                            {
+                                lines.Add($"{parameter.Name}: {parameter.Description}");
+                            }
+
+                            return lines.ToArray();
                         }
                         else if (library.Properties.TryGetValue(memberName, out Property property))
                         {

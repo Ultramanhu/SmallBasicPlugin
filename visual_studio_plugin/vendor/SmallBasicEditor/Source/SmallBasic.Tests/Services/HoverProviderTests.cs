@@ -36,7 +36,11 @@ namespace SmallBasic.Tests.Services
         [Fact]
         public void HoverOnMethodName()
         {
-            TestForHover("TextWindow.Write$Line(1)", "WriteLine", LibrariesResources.TextWindow_WriteLine);
+            TestForHover(
+                "TextWindow.Write$Line(1)",
+                "TextWindow.WriteLine(data)",
+                LibrariesResources.TextWindow_WriteLine,
+                $"data: {LibrariesResources.TextWindow_WriteLine_data}");
         }
 
         [Fact]

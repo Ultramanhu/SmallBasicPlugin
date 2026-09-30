@@ -55,6 +55,35 @@ const copyOptions = {
   filter: (source) => keepDebugSymbols || path.extname(source).toLowerCase() !== ".pdb"
 };
 
+/**
+ * vscode-unpkg rejects raw `.dat` URLs, while serving `.br` files normally.
+ * Keep Blazor's real pre-compressed files untouched and add extension-private
+ * aliases whose names are CDN-safe but whose contents are the original ICU
+ * bytes. The extension host maps runtime `.dat` requests to these aliases.
+ */
+function stageWebviewResourceAliases() {
+  const frameworkDirectory = path.join(blazorDestination, "wwwroot", "_framework");
+  const aliasDirectory = path.join(blazorDestination, "wwwroot", "_framework-webview");
+  fs.rmSync(aliasDirectory, { recursive: true, force: true });
+  fs.mkdirSync(aliasDirectory, { recursive: true });
+
+  const dataFiles = fs.readdirSync(frameworkDirectory, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.toLowerCase().endsWith(".dat"));
+
+  if (dataFiles.length === 0) {
+    throw new Error(`No Blazor ICU .dat resources were found under ${frameworkDirectory}.`);
+  }
+
+  for (const entry of dataFiles) {
+    fs.copyFileSync(
+      path.join(frameworkDirectory, entry.name),
+      path.join(aliasDirectory, `${entry.name}.br`)
+    );
+  }
+
+  console.log(`Staged ${dataFiles.length} CDN-safe Blazor ICU resource alias(es).`);
+}
+
 if (blazorOnly) {
   fs.rmSync(blazorDestination, { recursive: true, force: true });
   fs.mkdirSync(blazorDestination, { recursive: true });
@@ -78,6 +107,8 @@ if (blazorOnly) {
   console.log(`Staged portable C# run host from ${portableSource}`);
   console.log(`Staged Blazor run host from ${blazorSource}`);
 }
+
+stageWebviewResourceAliases();
 
 if (!keepDebugSymbols) {
   console.log("Skipped PDB files (release packaging).");

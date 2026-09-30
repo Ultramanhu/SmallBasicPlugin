@@ -11,6 +11,7 @@
 .playwright-mcp
 .tmp
 .kilo
+.zcodeignore
 
 # debug
 *.log

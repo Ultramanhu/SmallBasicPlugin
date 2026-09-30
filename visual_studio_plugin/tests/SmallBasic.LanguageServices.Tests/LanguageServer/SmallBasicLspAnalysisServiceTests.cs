@@ -7,6 +7,7 @@ namespace SmallBasic.LanguageServices
     using SmallBasic.Compiler;
     using SmallBasic.Compiler.Diagnostics;
     using SmallBasic.Tests;
+    using SmallBasic.Utilities.Resources;
     using Xunit;
 
     public sealed class SmallBasicLspAnalysisServiceTests : IClassFixture<CultureFixture>
@@ -18,16 +19,70 @@ namespace SmallBasic.LanguageServices
         {
             IReadOnlyList<SmallBasicLspCompletionItem> items = this.GetCompletions("Program.d$");
 
-            SmallBasicLspCompletionItem delay = items.Single(item => item.Label == "Delay");
+            SmallBasicLspCompletionItem delay = items.Single(item => item.Label == "Delay(milliSeconds)");
             SmallBasicLspCompletionItem directory = items.Single(item => item.Label == "Directory");
 
             delay.Kind.Should().Be(SmallBasicLspCompletionKind.Method);
             delay.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.Snippet);
             delay.InsertText.Should().Be("Delay(${1:milliSeconds})");
+            delay.Detail.Should().NotBeNullOrEmpty();
+            delay.Documentation.Should().Be($"milliSeconds: {LibrariesResources.Program_Delay_milliSeconds}");
 
             directory.Kind.Should().Be(SmallBasicLspCompletionKind.Property);
             directory.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.PlainText);
             directory.InsertText.Should().Be("Directory");
+            directory.Documentation.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void SignatureHelpShowsMethodParametersInsideArgumentList()
+        {
+            (string source, int line, int column) = Marker("x = Math.GetRandomNumber($)");
+
+            SmallBasicLspSignatureHelp? help = this.service.GetSignatureHelp(source, line, column);
+
+            help.Should().NotBeNull();
+            help!.ActiveSignature.Should().Be(0);
+            help.ActiveParameter.Should().Be(0);
+
+            SmallBasicLspSignatureInformation signature = help.Signatures.Single();
+            signature.Label.Should().Be("Math.GetRandomNumber(maxNumber)");
+            signature.Documentation.Should().NotBeNullOrEmpty();
+            signature.Parameters.Select(parameter => parameter.Label).Should().Equal("maxNumber");
+            signature.Parameters.Single().Documentation.Should().NotBeNullOrEmpty();
+        }
+
+        [Fact]
+        public void SignatureHelpMarksTheActiveParameter()
+        {
+            (string source, int line, int column) = Marker("Shapes.Move(name, 1, $)");
+
+            SmallBasicLspSignatureHelp? help = this.service.GetSignatureHelp(source, line, column);
+
+            help.Should().NotBeNull();
+            help!.ActiveParameter.Should().Be(2);
+            help.Signatures.Single().Label.Should().Be("Shapes.Move(shapeName, x, y)");
+        }
+
+        [Fact]
+        public void SignatureHelpIgnoresCommasInsideNestedCallsAndStrings()
+        {
+            (string source, int line, int column) = Marker("Shapes.Move(name, Math.Max(1, 2), $)");
+
+            SmallBasicLspSignatureHelp? help = this.service.GetSignatureHelp(source, line, column);
+
+            help.Should().NotBeNull();
+            help!.ActiveParameter.Should().Be(2);
+        }
+
+        [Fact]
+        public void SignatureHelpReturnsNothingOutsideAnArgumentList()
+        {
+            (string source, int line, int column) = Marker("x = Math.GetRandomNumber(5)$");
+
+            SmallBasicLspSignatureHelp? help = this.service.GetSignatureHelp(source, line, column);
+
+            help.Should().BeNull();
         }
 
         [Fact]
@@ -52,6 +107,20 @@ namespace SmallBasic.LanguageServices
             hover.Should().NotBeNull();
             hover!.Contents.Should().Contain("WriteLine");
             hover.Range.StartLine.Should().Be(0);
+            hover.Range.StartCharacter.Should().Be(11);
+            hover.Range.EndCharacter.Should().Be(20);
+        }
+
+        [Fact]
+        public void HoverAtTheExclusiveEndOfAMethodStillReturnsItsParameters()
+        {
+            (string source, int line, int column) = Marker("TextWindow.WriteLine$(1)");
+
+            SmallBasicLspHover? hover = this.service.GetHover(source, line, column);
+
+            hover.Should().NotBeNull();
+            hover!.Contents.Should().Contain("TextWindow.WriteLine(data)");
+            hover.Contents.Should().Contain($"data: {LibrariesResources.TextWindow_WriteLine_data}");
             hover.Range.StartCharacter.Should().Be(11);
             hover.Range.EndCharacter.Should().Be(20);
         }

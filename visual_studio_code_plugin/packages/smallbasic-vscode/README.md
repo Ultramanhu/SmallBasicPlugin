@@ -28,7 +28,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 - **Run**: use the play button in the editor title bar, or the command palette.
 - **Debug**: set breakpoints in a `.sb` file and press F5. You can pick a backend explicitly in `launch.json`:
 
-CLI mode (the default; all three backends are available; only on desktop):
+CLI mode (the default; all three backends are available; the JavaScript backend support VSCode for Web, others only on desktop):
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",

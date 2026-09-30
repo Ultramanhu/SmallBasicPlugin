@@ -28,6 +28,11 @@ export module CompletionService {
         kind: ResultKind;
         title: string;
         description: string;
+        // Parameter names formatted for display (camelCase, like the official
+        // documentation). Present for methods only, empty for parameterless ones.
+        parameters?: ReadonlyArray<string>;
+        // Localized docs parallel to `parameters`.
+        parameterDescriptions?: ReadonlyArray<string>;
         insertText?: string;
     }
 
@@ -91,11 +96,14 @@ export module CompletionService {
 
             CompilerUtils.values(library.methods).forEach(method => {
                 if (CompilerUtils.stringStartsWith(method.methodName, memberName)) {
+                    const parameters = method.displayParameterNames;
                     this.addResult({
                         title: method.methodName,
                         description: method.description,
                         kind: ResultKind.Method,
-                        insertText: `${method.methodName}(${method.parameters.map((parameter, i) => `\${${i + 1}:${parameter}}`).join(", ")})`
+                        parameters,
+                        parameterDescriptions: method.parameters.map((parameter) => method.parameterDescription(parameter)),
+                        insertText: `${method.methodName}(${parameters.map((parameter, i) => `\${${i + 1}:${parameter}}`).join(", ")})`
                     });
                 }
             });

@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { buildWebviewHtml } from "./webview-html";
+import { payloadResourceCandidates } from "./payload-resource";
 
 /**
  * The browser execution surface shared by the Run flow (`blazor-webview.ts`) and
@@ -238,12 +239,12 @@ export class BlazorWebviewHost implements vscode.Disposable {
     }
 
     try {
-      const resource = this.resolvePayloadResource(message.path);
-      if (!resource) {
+      const resources = this.resolvePayloadResources(message.path);
+      if (resources.length === 0) {
         throw new Error(`非法的 Blazor 资源路径：${String(message.path ?? "")}`);
       }
 
-      const bytes = await vscode.workspace.fs.readFile(resource);
+      const bytes = await this.readFirstAvailableResource(resources);
       // VS Code >= 1.57 transfers nested ArrayBuffers efficiently. Slice to the
       // exact view because a Uint8Array is allowed to share a larger backing store.
       const data = bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength);
@@ -256,20 +257,26 @@ export class BlazorWebviewHost implements vscode.Disposable {
   }
 
   /** Keeps webview resource requests inside runhost/blazor/wwwroot. */
-  private resolvePayloadResource(requestedPath: string | undefined): vscode.Uri | undefined {
-    if (typeof requestedPath !== "string" || requestedPath.length === 0 || requestedPath.length > 512) {
-      return undefined;
+  private resolvePayloadResources(requestedPath: string | undefined): vscode.Uri[] {
+    return payloadResourceCandidates(requestedPath)
+      .map((candidate) => vscode.Uri.joinPath(this.payloadRoot, ...candidate.split("/")));
+  }
+
+  /**
+   * The original path is retained as a development fallback so an unstaged
+   * local payload still works. Marketplace installs use the first (CDN-safe)
+   * candidate for ICU data and never request the rejected `.dat` URL.
+   */
+  private async readFirstAvailableResource(resources: readonly vscode.Uri[]): Promise<Uint8Array> {
+    let lastError: unknown;
+    for (const resource of resources) {
+      try {
+        return await vscode.workspace.fs.readFile(resource);
+      } catch (error) {
+        lastError = error;
+      }
     }
 
-    if (requestedPath.includes("\\") || requestedPath.startsWith("/")) {
-      return undefined;
-    }
-
-    const segments = requestedPath.split("/");
-    if (segments.some((segment) => segment.length === 0 || segment === "." || segment === "..")) {
-      return undefined;
-    }
-
-    return vscode.Uri.joinPath(this.payloadRoot, ...segments);
+    throw lastError ?? new Error("没有可读取的 Blazor 资源候选路径");
   }
 }

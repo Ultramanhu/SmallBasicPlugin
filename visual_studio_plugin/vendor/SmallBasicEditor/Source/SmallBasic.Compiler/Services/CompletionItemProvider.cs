@@ -23,9 +23,11 @@ namespace SmallBasic.Compiler.Services
                 return GetItemsBeforeDot(binder, string.Empty);
             }
 
+            TextPosition caretPosition = position;
+
             // column - 1, as we want to check inside the previous node, not after it.
-            position = (position.Line, position.Column - 1);
-            var node = parser.SyntaxTree.FindNodeAt(position);
+            TextPosition lookupPosition = (position.Line, position.Column - 1);
+            var node = parser.SyntaxTree.FindNodeAt(lookupPosition);
 
             switch (node)
             {
@@ -53,7 +55,7 @@ namespace SmallBasic.Compiler.Services
                         // completed statement, where the parser has no syntax node at the
                         // caret.  Still offer first-level names (Array, TextWindow, keywords,
                         // variables) and filter them by the word immediately before the caret.
-                        return GetItemsBeforeDot(binder, ExtractWordAtPosition(text, position));
+                        return GetItemsBeforeDot(binder, ExtractWordAtPosition(text, caretPosition));
                     }
             }
         }
@@ -97,8 +99,15 @@ namespace SmallBasic.Compiler.Services
             {
                 foreach (var method in library.Methods.Values.Where(m => m.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
                 {
+                    // Methods are displayed with their parameter names, spelled like
+                    // the official documentation (e.g. `GetRandomNumber(maxNumber)`),
+                    // while the inserted text stays a snippet with tab stops. The
+                    // documentation carries the parameter docs, so the host tooltip
+                    // matches what hover shows.
+                    string label = $"{method.Name}({method.Parameters.Values.Select(p => p.Name).Join(", ")})";
                     string arguments = method.Parameters.Values.Select((p, i) => $"${{{i + 1}:{p.Name}}}").Join(", ");
-                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, method.Name, method.Description, $"{method.Name}({arguments})"));
+                    string documentation = method.Parameters.Values.Select(p => $"{p.Name}: {p.Description}").Join(Environment.NewLine);
+                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, label, method.Description, $"{method.Name}({arguments})", documentation));
                 }
 
                 foreach (var property in library.Properties.Values.Where(p => p.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))

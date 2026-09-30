@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import fs from "node:fs";
 import path from "node:path";
 import { buildWebviewHtml } from "../../packages/smallbasic-vscode/src/web/webview-html";
+import { payloadResourceCandidates } from "../../packages/smallbasic-vscode/src/web/payload-resource";
 import {
   extensionPackageRoot,
   requireStagedPayload,
@@ -96,7 +97,23 @@ test.describe("Blazor webview document", () => {
         throw new Error(`Invalid test resource path: ${relativePath}`);
       }
 
-      return fs.readFileSync(path.join(payloadRoot, ...segments)).toString("base64");
+      let lastError: unknown;
+      for (const candidate of payloadResourceCandidates(relativePath)) {
+        // Reproduce the Marketplace failure that prompted the host-side alias:
+        // vscode-unpkg returns 403 for raw ICU `.dat` extension resources.
+        if (candidate.toLowerCase().endsWith(".dat")) {
+          lastError = new Error(`Marketplace resource host rejected ${candidate} (403)`);
+          continue;
+        }
+
+        try {
+          return fs.readFileSync(path.join(payloadRoot, ...candidate.split("/"))).toString("base64");
+        } catch (error) {
+          lastError = error;
+        }
+      }
+
+      throw lastError ?? new Error(`No test resource candidate: ${relativePath}`);
     });
     page.on("console", (message) => {
       if (message.type() === "error") {

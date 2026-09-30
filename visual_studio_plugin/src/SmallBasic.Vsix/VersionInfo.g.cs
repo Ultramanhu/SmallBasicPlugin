@@ -8,6 +8,6 @@ namespace SmallBasic.Vsix
     /// <summary>Product version shared by the Visual Studio and VS Code extensions.</summary>
     public static class SmallBasicVersion
     {
-        public const string Value = "0.1.4";
+        public const string Value = "0.1.5";
     }
 }

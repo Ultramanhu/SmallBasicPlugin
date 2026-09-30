@@ -47,6 +47,10 @@ namespace SmallBasic.LanguageServices
             ((bool)capabilities["hoverProvider"]).Should().BeTrue();
             ((bool)capabilities["documentSymbolProvider"]).Should().BeTrue();
 
+            JsonObject signatureHelpProvider = Obj(capabilities["signatureHelpProvider"]);
+            ((string)signatureHelpProvider["triggerCharacters"].AsArray()[0]).Should().Be("(");
+            ((string)signatureHelpProvider["triggerCharacters"].AsArray()[1]).Should().Be(",");
+
             ((string)serverInfo["name"]).Should().Be("SmallBasic LSP");
             ((string)serverInfo["version"]).Should().Be(ServerVersion);
             messages[1]["error"].Should().BeNull();
@@ -112,11 +116,38 @@ namespace SmallBasic.LanguageServices
 
             JsonArray items = result["items"].AsArray();
             JsonObject delay = items.Select(item => item.AsObject())
-                .Single(item => (string)item["label"] == "Delay");
+                .Single(item => (string)item["label"] == "Delay(milliSeconds)");
 
             ((int)delay["kind"]).Should().Be((int)SmallBasicLspCompletionKind.Method);
             ((int)delay["insertTextFormat"]).Should().Be((int)SmallBasicLspInsertTextFormat.Snippet);
             ((string)delay["insertText"]).Should().Be("Delay(${1:milliSeconds})");
+            ((string)delay["documentation"]).Should().Contain("milliSeconds:");
+        }
+
+        [Fact]
+        public async Task SignatureHelpReturnsTheActiveParameterFromTheOpenDocument()
+        {
+            List<JsonObject> messages = await RunAsync(
+                Notification("textDocument/didOpen", TextDocument("Shapes.Move(name, 1, 2)")),
+                Request(17, "textDocument/signatureHelp", TextPosition(DocumentUri, 0, 18)));
+
+            JsonObject result = Obj(Response(messages, 17)["result"]);
+            ((int)result["activeParameter"]).Should().Be(1);
+
+            JsonObject signature = result["signatures"].AsArray()[0].AsObject();
+            ((string)signature["label"]).Should().Be("Shapes.Move(shapeName, x, y)");
+            signature["parameters"].AsArray().Select(parameter => (string)parameter.AsObject()["label"])
+                .Should().Equal("shapeName", "x", "y");
+        }
+
+        [Fact]
+        public async Task SignatureHelpOutsideAnArgumentListReturnsNull()
+        {
+            List<JsonObject> messages = await RunAsync(
+                Notification("textDocument/didOpen", TextDocument("Shapes.Move(name, 1, 2)")),
+                Request(18, "textDocument/signatureHelp", TextPosition(DocumentUri, 0, 23)));
+
+            Response(messages, 18)["result"].Should().BeNull();
         }
 
         [Fact]
@@ -131,7 +162,8 @@ namespace SmallBasic.LanguageServices
             JsonObject range = Obj(result["range"]);
 
             ((string)contents["kind"]).Should().Be("plaintext");
-            ((string)contents["value"]).Should().Contain("WriteLine");
+            ((string)contents["value"]).Should().Contain("TextWindow.WriteLine(data)");
+            ((string)contents["value"]).Should().Contain("data:");
             ((int)Obj(range["start"])["character"]).Should().Be(11);
             ((int)Obj(range["end"])["character"]).Should().Be(20);
         }
@@ -193,6 +225,21 @@ namespace SmallBasic.LanguageServices
             List<JsonObject> messages = await RunAsync();
 
             messages.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task ServerSurvivesAMalformedMessageAndKeepsServing()
+        {
+            // "method": 123 throws inside the dispatcher; the session must report
+            // the failure and keep serving the next request.
+            List<JsonObject> messages = await RunAsync(
+                "{\"jsonrpc\":\"2.0\",\"id\":20,\"method\":123}",
+                Request(21, "textDocument/completion", TextPosition(DocumentUri, 0, 0)));
+
+            messages.Should().HaveCount(2);
+            ((int)Obj(messages[0]["error"])["code"]).Should().Be(-32603);
+            ((int)messages[1]["id"]).Should().Be(21);
+            messages[1]["result"].Should().NotBeNull();
         }
 
         private static async Task<List<JsonObject>> RunAsync(params string[] jsonMessages)

@@ -57,7 +57,6 @@ export module HoverService {
                 return;
             }
 
-            let description: string;
             const memberNameText = node.identifierToken.token.text;
             const methodKey = CompilerUtils.findKeyIgnoreCase(library.methods, memberNameText);
             const propertyKey = methodKey === undefined ? CompilerUtils.findKeyIgnoreCase(library.properties, memberNameText) : undefined;
@@ -65,22 +64,29 @@ export module HoverService {
                 ? CompilerUtils.findKeyIgnoreCase(library.events, memberNameText)
                 : undefined;
             const memberName = methodKey !== undefined ? methodKey : propertyKey ?? eventKey;
+
+            const text: string[] = [];
             if (methodKey !== undefined) {
-                description = library.methods[methodKey].description;
+                const method = library.methods[methodKey];
+                // Signatures are spelled like the official documentation:
+                // Library.Method(parameter, ...), followed by the parameter docs.
+                text.push(`${libraryName}.${memberName}(${method.displayParameterNames.join(", ")})`);
+                text.push(method.description);
+                method.parameters.forEach((parameter, index) => {
+                    const displayName = method.displayParameterNames[index];
+                    text.push(`- **${displayName}**: ${method.parameterDescription(parameter)}`);
+                });
             } else if (propertyKey !== undefined) {
-                description = library.properties[propertyKey].description;
+                text.push(`${libraryName}.${memberName}`, library.properties[propertyKey].description);
             } else if (eventKey !== undefined) {
-                description = library.events[eventKey].description;
+                text.push(`${libraryName}.${memberName}`, library.events[eventKey].description);
             } else {
                 return;
             }
 
             this.setResult({
                 range: node.range,
-                text: [
-                    `${libraryName}.${memberName}`,
-                    description
-                ]
+                text
             });
         }
     }

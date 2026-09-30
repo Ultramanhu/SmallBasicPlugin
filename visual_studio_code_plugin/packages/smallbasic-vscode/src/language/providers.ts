@@ -14,6 +14,7 @@ import { CompilationCache } from "./compilation-cache";
 import { getCompletionSpan } from "./completion-span";
 import { getContextualCompletions, type RankedCompletion } from "./contextual-completions";
 import { collectOutlineSymbols, type OutlineSymbol } from "./document-symbols";
+import { provideLibrarySignatureHelp } from "./signature-help";
 import { toCompilerPosition, toVsCodeRange } from "../util/positions";
 
 const semanticTokenTypes = [
@@ -120,12 +121,30 @@ export function registerLanguageFeatures(
                     return new vscode.CompletionList(
                         combined.map(({ item, priority, preselect }) => {
                             const kind = mapCompletionKind(item.kind);
-                            const completion = new vscode.CompletionItem(item.title, kind);
+                            // Methods are displayed with their parameter names,
+                            // e.g. `GetRandomNumber(maxNumber)` or `Show()`, like
+                            // signatures in other languages. Filtering and sorting
+                            // keep using the bare name so the typed prefix matches.
+                            const label = item.parameters !== undefined
+                                ? `${item.title}(${item.parameters.join(", ")})`
+                                : item.title;
+                            const completion = new vscode.CompletionItem(label, kind);
                             completion.detail = item.description;
                             completion.filterText = item.title;
                             completion.range = { inserting, replacing };
                             completion.sortText = `${priority.toString().padStart(2, "0")}_${item.title}`;
                             completion.preselect = !!preselect;
+                            if (item.parameterDescriptions !== undefined && item.parameterDescriptions.length > 0) {
+                                // The suggest details pane shows `documentation` under
+                                // the description, so the parameter docs reach parity
+                                // with hover.
+                                const documentation = new vscode.MarkdownString(
+                                    item.parameters!.map((parameter, index) =>
+                                        `- **${parameter}**: ${item.parameterDescriptions![index]}`
+                                    ).join("\n")
+                                );
+                                completion.documentation = documentation;
+                            }
                             if (item.insertText !== undefined) {
                                 completion.insertText = new vscode.SnippetString(item.insertText);
                             } else {
@@ -158,6 +177,16 @@ export function registerLanguageFeatures(
         );
       }
     }),
+    vscode.languages.registerSignatureHelpProvider(
+      { language: "smallbasic" },
+      {
+        provideSignatureHelp(document, position) {
+          return provideLibrarySignatureHelp(document, position);
+        }
+      },
+      "(",
+      ","
+    ),
     vscode.languages.registerDocumentSemanticTokensProvider(
       { language: "smallbasic" },
       {

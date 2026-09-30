@@ -12,8 +12,18 @@ class MethodMetadata {
         return DocumentationResources.get(`${this.typeName}_${this.methodName}`);
     }
 
+    // Hints and signatures show parameter names spelled like the official
+    // documentation (camelCase), while the resources are keyed with the
+    // PascalCase spelling stored in `parameters`.
+    public get displayParameterNames(): ReadonlyArray<string> {
+        return this.parameters.map(parameter => parameter.length > 0
+            ? parameter.charAt(0).toLowerCase() + parameter.substring(1)
+            : parameter);
+    }
+
     public parameterDescription(name: string): string {
-        return DocumentationResources.get(`${this.typeName}_${this.methodName}_${name}`) ?? name;
+        const description = DocumentationResources.get(`${this.typeName}_${this.methodName}_${name}`);
+        return typeof description === "string" ? description : name;
     }
 }
 
@@ -59,10 +69,10 @@ export class LibrariesMetadata {
 
     public readonly Array: TypeMetadata = new TypeMetadata("Array",
         {
-            IsArray: new MethodMetadata("Array", "IsArray", true, ["Value"]),
+            IsArray: new MethodMetadata("Array", "IsArray", true, ["Array"]),
             GetItemCount: new MethodMetadata("Array", "GetItemCount", true, ["Array"]),
             GetAllIndices: new MethodMetadata("Array", "GetAllIndices", true, ["Array"]),
-            ContainsValue: new MethodMetadata("Array", "ContainsValue", true, ["Array", "Index"]),
+            ContainsValue: new MethodMetadata("Array", "ContainsValue", true, ["Array", "Value"]),
             ContainsIndex: new MethodMetadata("Array", "ContainsIndex", true, ["Array", "Index"]),
             GetValue: new MethodMetadata("Array", "GetValue", true, ["ArrayName", "Index"]),
             RemoveValue: new MethodMetadata("Array", "RemoveValue", false, ["ArrayName", "Index"]),
@@ -112,7 +122,7 @@ export class LibrariesMetadata {
 
     public readonly Desktop: TypeMetadata = new TypeMetadata("Desktop",
         {
-            SetWallPaper: new MethodMetadata("Desktop", "SetWallPaper", false, ["FilePath"])
+            SetWallPaper: new MethodMetadata("Desktop", "SetWallPaper", false, ["FileOrUrl"])
         },
         {
             Height: new PropertyMetadata("Desktop", "Height", true, false),
@@ -124,7 +134,7 @@ export class LibrariesMetadata {
 
     public readonly Dictionary: TypeMetadata = new TypeMetadata("Dictionary",
         {
-            GetDefinition: new MethodMetadata("Dictionary", "GetDefinition", true, ["EnglishWord"])
+            GetDefinition: new MethodMetadata("Dictionary", "GetDefinition", true, ["Word"])
         },
         {
             // No Properties
@@ -158,7 +168,7 @@ export class LibrariesMetadata {
         {
             GetPictureOfMoment: new MethodMetadata("Flickr", "GetPictureOfMoment", true, []),
             GetPictureOfMomentWithTag: new MethodMetadata("Flickr", "GetPictureOfMomentWithTag", true, ["Tag"]),
-            GetRandomPicture: new MethodMetadata("Flickr", "GetRandomPicture", true, []),
+            GetRandomPicture: new MethodMetadata("Flickr", "GetRandomPicture", true, ["Tag"]),
             GetRandomPictureWithTag: new MethodMetadata("Flickr", "GetRandomPictureWithTag", true, ["Tag"])
         },
         {
@@ -223,7 +233,7 @@ export class LibrariesMetadata {
         {
             GetHeightOfImage: new MethodMetadata("ImageList", "GetHeightOfImage", true, ["ImageName"]),
             GetWidthOfImage: new MethodMetadata("ImageList", "GetWidthOfImage", true, ["ImageName"]),
-            LoadImage: new MethodMetadata("ImageList", "LoadImage", true, ["FileName"])
+            LoadImage: new MethodMetadata("ImageList", "LoadImage", true, ["FileNameOrUrl"])
         },
         {
             // No Properties
@@ -259,13 +269,13 @@ export class LibrariesMetadata {
 
     public readonly Sound: TypeMetadata = new TypeMetadata("Sound",
         {
-            Pause: new MethodMetadata("Sound", "Pause", false, []),
+            Pause: new MethodMetadata("Sound", "Pause", false, ["FilePath"]),
             Play: new MethodMetadata("Sound", "Play", false, ["FilePath"]),
             PlayBellRing: new MethodMetadata("Sound", "PlayBellRing", false, []),
             PlayChime: new MethodMetadata("Sound", "PlayChime", false, []),
-            PlayMusic: new MethodMetadata("Sound", "PlayMusic", false, ["MusicNotes"]),
+            PlayMusic: new MethodMetadata("Sound", "PlayMusic", false, ["Notes"]),
             Resume: new MethodMetadata("Sound", "Resume", false, []),
-            Stop: new MethodMetadata("Sound", "Stop", false, [])
+            Stop: new MethodMetadata("Sound", "Stop", false, ["FilePath"])
         },
         {
             // No Properties

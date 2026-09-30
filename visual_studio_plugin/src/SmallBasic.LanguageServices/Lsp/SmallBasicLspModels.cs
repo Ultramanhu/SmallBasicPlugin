@@ -58,13 +58,14 @@ namespace SmallBasic.LanguageServices
 
     public sealed class SmallBasicLspCompletionItem
     {
-        public SmallBasicLspCompletionItem(string label, string detail, string insertText, SmallBasicLspCompletionKind kind, SmallBasicLspInsertTextFormat insertTextFormat)
+        public SmallBasicLspCompletionItem(string label, string detail, string insertText, SmallBasicLspCompletionKind kind, SmallBasicLspInsertTextFormat insertTextFormat, string documentation = "")
         {
             this.Label = label;
             this.Detail = detail;
             this.InsertText = insertText;
             this.Kind = kind;
             this.InsertTextFormat = insertTextFormat;
+            this.Documentation = documentation;
         }
 
         public string Label { get; }
@@ -76,6 +77,9 @@ namespace SmallBasic.LanguageServices
         public SmallBasicLspCompletionKind Kind { get; }
 
         public SmallBasicLspInsertTextFormat InsertTextFormat { get; }
+
+        /// <summary>Parameter docs shown in the item tooltip; empty when none.</summary>
+        public string Documentation { get; }
     }
 
     public sealed class SmallBasicLspHover
@@ -89,6 +93,51 @@ namespace SmallBasic.LanguageServices
         public string Contents { get; }
 
         public SmallBasicLspRange Range { get; }
+    }
+
+    public sealed class SmallBasicLspParameterInformation
+    {
+        public SmallBasicLspParameterInformation(string label, string documentation)
+        {
+            this.Label = label;
+            this.Documentation = documentation;
+        }
+
+        public string Label { get; }
+
+        public string Documentation { get; }
+    }
+
+    public sealed class SmallBasicLspSignatureInformation
+    {
+        public SmallBasicLspSignatureInformation(string label, string documentation, IReadOnlyList<SmallBasicLspParameterInformation> parameters)
+        {
+            this.Label = label;
+            this.Documentation = documentation;
+            this.Parameters = parameters;
+        }
+
+        public string Label { get; }
+
+        public string Documentation { get; }
+
+        public IReadOnlyList<SmallBasicLspParameterInformation> Parameters { get; }
+    }
+
+    public sealed class SmallBasicLspSignatureHelp
+    {
+        public SmallBasicLspSignatureHelp(IReadOnlyList<SmallBasicLspSignatureInformation> signatures, int activeSignature, int activeParameter)
+        {
+            this.Signatures = signatures;
+            this.ActiveSignature = activeSignature;
+            this.ActiveParameter = activeParameter;
+        }
+
+        public IReadOnlyList<SmallBasicLspSignatureInformation> Signatures { get; }
+
+        public int ActiveSignature { get; }
+
+        public int ActiveParameter { get; }
     }
 
     public sealed class SmallBasicLspDiagnostic

@@ -33,7 +33,8 @@ namespace SmallBasic.LanguageServices
                     item.detail ?? item.label ?? string.Empty,
                     insertText,
                     MapCompletionKind(item.kind),
-                    isSnippet ? SmallBasicLspInsertTextFormat.Snippet : SmallBasicLspInsertTextFormat.PlainText);
+                    isSnippet ? SmallBasicLspInsertTextFormat.Snippet : SmallBasicLspInsertTextFormat.PlainText,
+                    item.documentation ?? string.Empty);
             }).ToArray();
         }
 
@@ -45,14 +46,46 @@ namespace SmallBasic.LanguageServices
         public SmallBasicLspHover? GetHover(string sourceText, int line, int character)
         {
             string normalizedText = sourceText ?? string.Empty;
-            var compilation = new SmallBasicCompilation(normalizedText);
-            string[] hover = compilation.ProvideHover((line, character));
-            if (hover.Length == 0 || !TryGetIdentifierRange(normalizedText, line, character, out SmallBasicLspRange? range))
+            if (!TryGetIdentifierRange(normalizedText, line, character, out SmallBasicLspRange? range))
             {
                 return null;
             }
 
-            return new SmallBasicLspHover(string.Join(Environment.NewLine, hover), range!);
+            // LSP positions are allowed at the exclusive end of a token. The
+            // compiler uses inclusive token ranges, so query its last character in
+            // that case while returning the original LSP range to the editor.
+            int queryCharacter = Math.Max(range!.StartCharacter, Math.Min(character, range.EndCharacter - 1));
+            var compilation = new SmallBasicCompilation(normalizedText);
+            string[] hover = compilation.ProvideHover((line, queryCharacter));
+            if (hover.Length == 0)
+            {
+                return null;
+            }
+
+            return new SmallBasicLspHover(string.Join(Environment.NewLine, hover), range);
+        }
+
+        /// <summary>
+        /// Returns the signature of the library method call surrounding the position
+        /// with the active argument marked, or <see langword="null"/> when the
+        /// position is not inside an argument list.
+        /// </summary>
+        public SmallBasicLspSignatureHelp? GetSignatureHelp(string sourceText, int line, int character)
+        {
+            SignatureHelp? help = SignatureHelpProvider.Provide(sourceText ?? string.Empty, (line, character));
+            if (help is null)
+            {
+                return null;
+            }
+
+            var signatures = help.Signatures.Select(signature => new SmallBasicLspSignatureInformation(
+                signature.Label,
+                signature.Documentation,
+                signature.Parameters.Select(parameter => new SmallBasicLspParameterInformation(
+                    parameter.Label,
+                    parameter.Documentation)).ToArray())).ToArray();
+
+            return new SmallBasicLspSignatureHelp(signatures, help.ActiveSignature, help.ActiveParameter);
         }
 
         public IReadOnlyList<SmallBasicLspDiagnostic> GetDiagnostics(string sourceText)

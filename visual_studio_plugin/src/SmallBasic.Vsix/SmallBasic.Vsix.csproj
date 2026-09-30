@@ -39,6 +39,10 @@
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Sdk" Version="17.14.40608" PrivateAssets="all" />
     <PackageReference Include="Microsoft.VisualStudio.Extensibility.Build" Version="17.14.40608" PrivateAssets="all" />
     <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.11.40262" ExcludeAssets="runtime" />
+    <!-- The classic content-type based LSP client can coexist with the small legacy
+         language service used by the native navigation bar. Visual Studio supplies
+         the runtime assembly; this reference is compile-only. -->
+    <PackageReference Include="Microsoft.VisualStudio.LanguageServer.Client" Version="17.11.32" ExcludeAssets="runtime" />
     <!-- Open Folder launch-target extensibility. The assembly keeps a stable
          17.0.0.0 version and Visual Studio ships it in every installation, so
          the reference is compile-only (runtime assets excluded). -->

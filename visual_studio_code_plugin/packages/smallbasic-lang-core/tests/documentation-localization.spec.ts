@@ -54,16 +54,39 @@ describe("documentation localization", () => {
     const text = `
 TextWindow.Write${marker}Line("")`;
     expect(hoverText(undefined, text)).toEqual([
-      "TextWindow.WriteLine",
-      "Writes a string or a number to the text window on its own line."
+      "TextWindow.WriteLine(data)",
+      "Writes a string or a number to the text window on its own line.",
+      "- **data**: The string or number to be written to the text window."
     ]);
   });
 
   it("serves Chinese descriptions for the zh-cn UI language", () => {
     const text = `
 TextWindow.Write${marker}Line("")`;
-    expect(hoverText("zh-cn", text)[0]).toBe("TextWindow.WriteLine");
+    expect(hoverText("zh-cn", text)[0]).toBe("TextWindow.WriteLine(data)");
     expect(hoverText("zh-cn", text)[1]).toBe("在文本窗口中写文本或数字。一行新的字符会被附加到输出，因此下一次当新的内容写入文本窗口时会出现在新的一行中。");
+  });
+
+  it("shows parameter names in completion insert text", () => {
+    const text = `
+x = Math.$`;
+    const item = completionItem(undefined, text, "GetRandomNumber");
+    expect(item.insertText).toBe("GetRandomNumber(${1:maxNumber})");
+  });
+
+  it("localizes parameter descriptions after renaming them to match the official docs", () => {
+    // The official documentation spells this parameter `value`; the metadata used
+    // to call it `Index`, which hid every translation of the description.
+    const text = `
+x = Array.$`;
+    setDocumentationLocale(resolveDocumentationLocale("zh-cn"));
+    const position = getMarkerPosition(text, marker);
+    const compilation = new Compilation(text.replace(marker, ""));
+    const item = CompletionService.provideCompletion(compilation, position).find((result) => result.title === "ContainsValue");
+    expect(item).toBeDefined();
+    expect(item!.parameters).toEqual(["array", "value"]);
+    expect(item!.parameterDescriptions).toEqual(["核对数组。", "核对值。"]);
+    expect(item!.description).toContain("值");
   });
 
   it("serves Traditional Chinese descriptions for zh-tw", () => {

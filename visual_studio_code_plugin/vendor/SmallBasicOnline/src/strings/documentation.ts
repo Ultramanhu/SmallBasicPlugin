@@ -23,7 +23,7 @@ export module DocumentationResources {
     export const Array_ContainsIndex_Index = "The index to check.";
     export const Array_ContainsValue = "Gets whether or not the array contains the specified value. This is very useful when deciding if the array's value was stored in some index.";
     export const Array_ContainsValue_Array = "The array to check.";
-    export const Array_ContainsValue_Index = "The index to check.";
+    export const Array_ContainsValue_Value = "The value to check.";
     export const Array_GetAllIndices = "Gets all the indices for the array, as another array. The index of the returned array starts from 1.";
     export const Array_GetAllIndices_Array = "The array whose indices are requested.";
     export const Array_GetItemCount = "Gets the count of all the items in the array.";
@@ -32,7 +32,7 @@ export module DocumentationResources {
     export const Array_GetValue_ArrayName = "The name of the array whose value is requested.";
     export const Array_GetValue_Index = "The index whose value is requested.";
     export const Array_IsArray = "Checks whether the value passed is an array or not.";
-    export const Array_IsArray_Value = "The value to check.";
+    export const Array_IsArray_Array = "The variable to check.";
     export const Array_RemoveValue = "Removes the value stored at the specified index of the named array.";
     export const Array_RemoveValue_ArrayName = "The name of the array whose value should be removed.";
     export const Array_RemoveValue_Index = "The index whose value should be removed.";
@@ -388,7 +388,7 @@ export module DocumentationResources {
     export const File_ReadLine_LineNumber = "The line number to read (1-based).";
     export const ImageList = "The ImageList object provides the ability to load images from file or the network and draw them on the GraphicsWindow.";
     export const ImageList_LoadImage = "Loads an image from the given file or URL into memory.";
-    export const ImageList_LoadImage_FileName = "The name of the file or URL to load the image from.";
+    export const ImageList_LoadImage_FileNameOrUrl = "The file name to load the image from. This could be a local file or a URL to the Internet location.";
     export const ImageList_GetWidthOfImage = "Gets the width of the specified image.";
     export const ImageList_GetWidthOfImage_ImageName = "The name of the image in question.";
     export const ImageList_GetHeightOfImage = "Gets the height of the specified image.";
@@ -397,12 +397,14 @@ export module DocumentationResources {
     export const Sound_Play = "Plays the specified sound file. This will return as soon as the sound starts to play.";
     export const Sound_Play_FilePath = "The full path of the sound file to play.";
     export const Sound_Pause = "Pauses the currently playing sound.";
+    export const Sound_Pause_FilePath = "The path for the audio file. This could either be a local file (e.g.: c:\\music\\track1.mp3) or a file on the network (e.g.: http://contoso.com/track01.wma).";
     export const Sound_Resume = "Resumes playing a previously paused sound.";
-    export const Sound_Stop = "Stops the currently playing sound.";
     export const Sound_PlayBellRing = "Plays the built-in bell ring sound.";
     export const Sound_PlayChime = "Plays the built-in chime sound.";
+    export const Sound_Stop = "Stops the currently playing sound.";
+    export const Sound_Stop_FilePath = "The path for the audio file. This could either be a local file (e.g.: c:\\music\\track1.mp3) or a file on the network (e.g.: http://contoso.com/track01.wma).";
     export const Sound_PlayMusic = "Plays music from musical notes. Musical notes are represented in a simplified notation, e.g. C4:1 C4:2 D4:2.";
-    export const Sound_PlayMusic_MusicNotes = "The musical notes to play.";
+    export const Sound_PlayMusic_Notes = "A set of musical notes to play. The format is a subset of the Music Macro Language supported by QBasic.";
     export const Timer = "The Timer object provides an easy way for doing something repeatedly over a period of time.";
     export const Timer_Interval = "Gets or sets the interval (in milliseconds) at which the timer raises the Tick event.";
     export const Timer_Pause = "Pauses the timer. The Tick event will not be raised while the timer is paused.";
@@ -417,10 +419,10 @@ export module DocumentationResources {
     export const Desktop_Height = "Gets the height of the primary desktop.";
     export const Desktop_Width = "Gets the width of the primary desktop.";
     export const Desktop_SetWallPaper = "Sets the specified image as the desktop wallpaper.";
-    export const Desktop_SetWallPaper_FilePath = "The full path of the image file.";
+    export const Desktop_SetWallPaper_FileOrUrl = "The filename or URL of the picture.";
     export const Dictionary = "This object provides access to an online Dictionary.";
     export const Dictionary_GetDefinition = "Gets the definition of the specified English word.";
-    export const Dictionary_GetDefinition_EnglishWord = "The English word to look up.";
+    export const Dictionary_GetDefinition_Word = "The word to define.";
     export const Network = "The Network object allows you to download web pages and files.";
     export const Network_DownloadFile = "Downloads the file from the specified URL and stores it in a temporary file which is returned.";
     export const Network_DownloadFile_URL = "The URL of the file to download.";
@@ -429,6 +431,7 @@ export module DocumentationResources {
     export const Flickr = "This object provides access to the Flickr online photo service.";
     export const Flickr_GetPictureOfMoment = "Gets the picture of the moment from Flickr and returns its temporary local file path.";
     export const Flickr_GetRandomPicture = "Gets a random picture from Flickr and returns its temporary local file path.";
+    export const Flickr_GetRandomPicture_Tag = "The tag for the requested picture.";
     export const Flickr_GetPictureOfMomentWithTag = "Gets the picture of the moment with the specified tag from Flickr.";
     export const Flickr_GetPictureOfMomentWithTag_Tag = "The tag of the picture.";
     export const Flickr_GetRandomPictureWithTag = "Gets a random picture with the specified tag from Flickr.";
