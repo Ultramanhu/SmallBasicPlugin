@@ -3,6 +3,7 @@ namespace SmallBasic.LanguageServices
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using System.Text.RegularExpressions;
     using SmallBasic.Compiler;
     using SmallBasic.Compiler.Diagnostics;
     using SmallBasic.Compiler.Scanning;
@@ -27,15 +28,31 @@ namespace SmallBasic.LanguageServices
             return items.Select(item =>
             {
                 string insertText = item.insertText?.value ?? item.label ?? string.Empty;
-                bool isSnippet = insertText.IndexOf('$') >= 0;
                 return new SmallBasicLspCompletionItem(
                     item.label ?? string.Empty,
                     item.detail ?? item.label ?? string.Empty,
-                    insertText,
+                    FlattenSnippetPlaceholders(insertText),
                     MapCompletionKind(item.kind),
-                    isSnippet ? SmallBasicLspInsertTextFormat.Snippet : SmallBasicLspInsertTextFormat.PlainText,
+                    SmallBasicLspInsertTextFormat.PlainText,
                     item.documentation ?? string.Empty);
             }).ToArray();
+        }
+
+        /// <summary>
+        /// Visual Studio inserts LSP completion text verbatim and does not expand the
+        /// Monaco tab stops the compiler emits (e.g. <c>DrawBoundText(${1:x}, ${2:y})</c>),
+        /// so those placeholders would land in the document as-is. Flatten every tab
+        /// stop to its placeholder name — or drop it when it has none — and report the
+        /// item as plain text, which VS always honors.
+        /// </summary>
+        private static string FlattenSnippetPlaceholders(string insertText)
+        {
+            if (string.IsNullOrEmpty(insertText) || !insertText.Contains('$'))
+            {
+                return insertText;
+            }
+
+            return Regex.Replace(insertText, @"\$\{\d+:([^}]*)\}|\$\d+", "$1");
         }
 
         /// <summary>

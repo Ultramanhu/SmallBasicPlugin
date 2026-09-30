@@ -105,7 +105,7 @@ namespace SmallBasic.LanguageServices
         }
 
         [Fact]
-        public async Task CompletionReturnsSnippetItemsFromTheOpenDocument()
+        public async Task CompletionReturnsPlainTextItemsFromTheOpenDocument()
         {
             List<JsonObject> messages = await RunAsync(
                 Notification("textDocument/didOpen", TextDocument("Program.d")),
@@ -119,8 +119,8 @@ namespace SmallBasic.LanguageServices
                 .Single(item => (string)item["label"] == "Delay(milliSeconds)");
 
             ((int)delay["kind"]).Should().Be((int)SmallBasicLspCompletionKind.Method);
-            ((int)delay["insertTextFormat"]).Should().Be((int)SmallBasicLspInsertTextFormat.Snippet);
-            ((string)delay["insertText"]).Should().Be("Delay(${1:milliSeconds})");
+            ((int)delay["insertTextFormat"]).Should().Be((int)SmallBasicLspInsertTextFormat.PlainText);
+            ((string)delay["insertText"]).Should().Be("Delay(milliSeconds)");
             ((string)delay["documentation"]).Should().Contain("milliSeconds:");
         }
 

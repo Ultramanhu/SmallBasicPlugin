@@ -19459,4 +19459,3 @@ function analyze(document) {
   activate,
   deactivate
 });
-//# sourceMappingURL=extension.js.map

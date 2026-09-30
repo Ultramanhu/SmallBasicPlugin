@@ -69,7 +69,7 @@ visual_studio_plugin/
 |---|---|
 | 旧经典 `SmallBasic.Vsix` 工程（VSCT、旧包入口） | 被新包取代 |
 | 旧经典包独有的 `Editor/Completion`、`Editor/QuickInfo`、`Editor/Squiggles` | 由 LSP completion / hover / publishDiagnostics 取代 |
-| `SmallBasicSnippet` + 其测试 | VS 的 LSP 客户端原生展开 snippet（`insertTextFormat: Snippet`），解析器成为死代码 |
+| `SmallBasicSnippet` + 其测试 | VS 的 LSP 客户端**不会**展开 snippet（`insertTextFormat: Snippet` 中的 `${1:x}` 占位符被原样插入编辑器），补全文本已在 `SmallBasicLspAnalysisService` 统一摊平为纯文本参数名，解析器无存在必要 |
 | `SmallBasic.VsCommon` | 唯一消费方，迁回包工程 |
 | `build/Package-Ext-Vsix.ps1` | 只剩一个包，合并为 `build/Package-Vsix.ps1` |
 

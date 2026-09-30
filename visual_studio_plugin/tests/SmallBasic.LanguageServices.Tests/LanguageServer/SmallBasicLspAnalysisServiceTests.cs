@@ -15,7 +15,7 @@ namespace SmallBasic.LanguageServices
         private readonly SmallBasicLspAnalysisService service = new SmallBasicLspAnalysisService();
 
         [Fact]
-        public void CompletionMapsMethodsPropertiesAndSnippetsToLspItems()
+        public void CompletionFlattensMethodSnippetsToPlainArgumentNames()
         {
             IReadOnlyList<SmallBasicLspCompletionItem> items = this.GetCompletions("Program.d$");
 
@@ -23,8 +23,8 @@ namespace SmallBasic.LanguageServices
             SmallBasicLspCompletionItem directory = items.Single(item => item.Label == "Directory");
 
             delay.Kind.Should().Be(SmallBasicLspCompletionKind.Method);
-            delay.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.Snippet);
-            delay.InsertText.Should().Be("Delay(${1:milliSeconds})");
+            delay.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.PlainText);
+            delay.InsertText.Should().Be("Delay(milliSeconds)");
             delay.Detail.Should().NotBeNullOrEmpty();
             delay.Documentation.Should().Be($"milliSeconds: {LibrariesResources.Program_Delay_milliSeconds}");
 
@@ -32,6 +32,19 @@ namespace SmallBasic.LanguageServices
             directory.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.PlainText);
             directory.InsertText.Should().Be("Directory");
             directory.Documentation.Should().BeEmpty();
+        }
+
+        [Fact]
+        public void CompletionInsertsDrawBoundTextWithPlainArgumentNames()
+        {
+            IReadOnlyList<SmallBasicLspCompletionItem> items = this.GetCompletions("GraphicsWindow.DrawBoundTe$");
+
+            SmallBasicLspCompletionItem drawBoundText = items.Single(item => item.Label == "DrawBoundText(x, y, width, text)");
+
+            drawBoundText.Kind.Should().Be(SmallBasicLspCompletionKind.Method);
+            drawBoundText.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.PlainText);
+            drawBoundText.InsertText.Should().Be("DrawBoundText(x, y, width, text)");
+            drawBoundText.InsertText.Should().NotContain("$");
         }
 
         [Fact]
@@ -86,15 +99,16 @@ namespace SmallBasic.LanguageServices
         }
 
         [Fact]
-        public void CompletionMapsKeywordBlocksAsSnippetItems()
+        public void CompletionFlattensKeywordBlocksToPlainText()
         {
             IReadOnlyList<SmallBasicLspCompletionItem> items = this.GetCompletions("Whi$");
 
             SmallBasicLspCompletionItem whileItem = items.Single(item => item.Label == "While");
             whileItem.Kind.Should().Be(SmallBasicLspCompletionKind.Snippet);
-            whileItem.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.Snippet);
-            whileItem.InsertText.Should().Contain("${1:condition}");
+            whileItem.InsertTextFormat.Should().Be(SmallBasicLspInsertTextFormat.PlainText);
+            whileItem.InsertText.Should().Contain("While condition");
             whileItem.InsertText.Should().Contain("EndWhile");
+            whileItem.InsertText.Should().NotContain("$");
         }
 
         [Fact]
