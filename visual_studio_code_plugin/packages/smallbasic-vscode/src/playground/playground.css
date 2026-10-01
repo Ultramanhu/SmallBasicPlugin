@@ -1,0 +1,109 @@
+.web-playground {
+  position: relative;
+}
+
+.web-playground-workspace {
+  display: grid;
+  grid-template-columns: minmax(420px, 1.15fr) minmax(320px, 0.85fr);
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+}
+
+.web-editor-pane,
+.web-output-pane {
+  min-height: 0;
+}
+
+.web-editor-pane {
+  min-width: 0;
+}
+
+.web-editor-host {
+  flex: 1;
+  min-height: 540px;
+  border: 1px solid var(--sb-border);
+  border-radius: 8px;
+  overflow: hidden;
+  /* Matches the Monaco theme's editor.background (Dark Modern). */
+  background: #1f1f1f;
+}
+
+.web-editor-host .monaco-editor,
+.web-editor-host .overflow-guard {
+  border-radius: 8px;
+}
+
+.web-outline {
+  position: absolute;
+  top: 68px;
+  left: 12px;
+  z-index: 20;
+  width: min(420px, calc(100vw - 48px));
+  max-height: min(70vh, 540px);
+  overflow: auto;
+  padding: 10px;
+  background: var(--sb-panel);
+  border: 1px solid var(--sb-border);
+  border-radius: 10px;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+}
+
+.web-outline-title {
+  margin: 0 0 8px;
+  color: var(--sb-muted);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.web-outline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.web-outline-empty {
+  color: var(--sb-muted);
+  font-size: 12px;
+}
+
+.web-outline-item {
+  width: 100%;
+  padding: 8px 10px;
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--sb-text);
+  font-family: var(--sb-mono);
+  font-size: 12px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.web-outline-item:hover,
+.web-outline-item:focus-visible {
+  background: var(--sb-accent-soft);
+  outline: none;
+}
+
+#save-button,
+#outline-button,
+#new-button {
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .web-playground-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .web-editor-host {
+    min-height: 420px;
+  }
+
+  .web-output-pane {
+    min-height: 320px;
+  }
+}

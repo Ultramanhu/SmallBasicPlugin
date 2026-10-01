@@ -182,7 +182,7 @@ Blazor 宿主先用 `UsesGraphicsWindow` 分析程序：纯文本程序在终端
 
 ### RunHostWeb
 
-`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 即可在本机浏览器里运行 `.sb` 程序。页面没有编辑器，只有一个工具栏：
+`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 会自动路由到 `playground.html`——浏览器内的 Monaco 编辑 + 运行入口（着色、诊断、补全、悬停、签名帮助、文档符号、折叠、定义跳转与引用查找，全部离线运行）；`runhost.html` 则保留纯运行页面。Playground 工具栏：
 
 ```powershell
 cd runhost\web
@@ -193,7 +193,7 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 
 `serve.mjs` 会按 `Accept-Encoding` 协商下发 `_framework` 的 `.br` 预压缩文件，其余与普通静态服务器一致；整个目录也可直接发布到 GitHub Pages / IIS / nginx 等任意静态托管。
 
-同一个页面也被 CLI Blazor 宿主复用：`dotnet runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file program.sb` 打开的 `?session=<id>` 页面会自动隐藏编辑器，只渲染该会话的图形窗口。实现说明见 [docs/design/10-WebRunHost.md](docs/design/10-WebRunHost.md)。
+`runhost.html` 也被 CLI Blazor 宿主复用：`dotnet runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file program.sb` 打开的 `?session=<id>` 页面会自动隐藏编辑器，只渲染该会话的图形窗口。
 
 ## 示例程序
 
@@ -280,10 +280,10 @@ SmallBasicPlugin/
 │   └── vendor/SmallBasicEditor/   # 拷贝升级的 Small Basic 编译器(C#)
 ├── test/                          # 示例程序
 ├── official_repo/                 # 官方源码子模块(editor / homesite / online)
-└── docs/design/                   # 设计文档(01-11)
+└── docs/design/                   # 设计文档(01-12)
 ```
 
-`runhost\web` 由 `runhost\Build-RunHost.ps1` 组装：外壳页面(`index.html`/`app.css`/`shell.js`/`serve.mjs`)来自 `visual_studio_plugin\src\SmallBasic.Blazor.Client\wwwroot`，JavaScript 后端 `smallbasic-js.js` 来自 `visual_studio_code_plugin` 的 tsup 打包(`src\runhost\web.ts`)，其余为 Blazor 客户端的发布产物。重建该目录前请先停止正在服务的 `serve.mjs`，否则 Windows 会让复制落入已被删除的旧目录。
+`runhost\web` 由 `runhost\Build-RunHost.ps1` 组装：纯运行页(`runhost.html`/`app.css`/`shell-core.js`/`runhost-page.js`/`serve.mjs`)来自 `visual_studio_plugin\src\SmallBasic.Blazor.Client\wwwroot`，JavaScript 后端 `smallbasic-js.js` 来自 `visual_studio_code_plugin` 的 tsup 打包(`src\runhost\web.ts`)，Playground 资源(`index.html`/`playground.html`/`playground.js`/`editor/**`)来自 `visual_studio_code_plugin` 的 `npm run build:playground` 产物 `playground-dist/`，其余为 Blazor 客户端的发布产物。Playground 专属资源只进入 `runhost\web`，不会出现在 CLI 与 VSIX 共用的 `runhost\blazor` 载荷里。重建该目录前请先停止正在服务的 `serve.mjs`，否则 Windows 会让复制落入已被删除的旧目录。
 
 ## 已知限制
 

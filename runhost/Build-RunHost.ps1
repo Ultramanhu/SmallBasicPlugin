@@ -37,6 +37,7 @@ $projectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.RunHost\
 $blazorProjectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
 $vscodeRoot = Join-Path $repoRoot "visual_studio_code_plugin"
 $vscodePackage = Join-Path $vscodeRoot "packages\smallbasic-vscode"
+$playgroundDist = Join-Path $vscodePackage "playground-dist"
 
 if (-not (Test-Path $projectPath)) {
     throw "RunHost project not found: $projectPath"
@@ -62,6 +63,18 @@ if ($Clean) {
     }
 }
 
+# [System.IO.Path]::GetRelativePath needs .NET Core; Windows PowerShell 5.1
+# ships .NET Framework and would fail the sample staging below.
+function Get-RelativePathString([string]$BasePath, [string]$Path) {
+    $fullBase = [System.IO.Path]::GetFullPath($BasePath).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if (-not $fullPath.StartsWith($fullBase, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path '$Path' is not under '$BasePath'."
+    }
+
+    return $fullPath.Substring($fullBase.Length)
+}
+
 $blazorDestination = Join-Path $outputRoot "blazor"
 if (Test-Path $blazorDestination) {
     Remove-Item $blazorDestination -Recurse -Force
@@ -83,19 +96,28 @@ foreach ($platform in $DotNetPlatforms) {
     }
 }
 
-if (-not $SkipJavaScript) {
-    Write-Host "==> Building JavaScript run host (tsup bundle)" -ForegroundColor Cyan
+if (-not $SkipJavaScript -or -not $SkipWeb) {
+    Write-Host "==> Building VS Code browser assets" -ForegroundColor Cyan
     Push-Location $vscodeRoot
     try {
         npm run build
         if ($LASTEXITCODE -ne 0) {
             throw "npm run build failed"
         }
+
+        if (-not $SkipWeb) {
+            npm run build:playground --workspace smallbasic-tools-vsc
+            if ($LASTEXITCODE -ne 0) {
+                throw "npm run build:playground failed"
+            }
+        }
     }
     finally {
         Pop-Location
     }
+}
 
+if (-not $SkipJavaScript) {
     $bundleSource = Join-Path $vscodePackage "dist\runhost.js"
     if (-not (Test-Path $bundleSource)) {
         throw "JavaScript bundle not found: $bundleSource"
@@ -122,16 +144,26 @@ if (-not $SkipWeb) {
         throw "Blazor publish output is missing its wwwroot folder: $blazorWebRoot"
     }
 
+    foreach ($forbidden in @("index.html", "playground.html", "editor", "editor\onig.wasm")) {
+        if (Test-Path (Join-Path $blazorWebRoot $forbidden)) {
+            throw "The Blazor payload must stay a pure run-host surface, but '$forbidden' was found in $blazorWebRoot. Playground assets may only be staged into runhost/web."
+        }
+    }
+
     New-Item -ItemType Directory -Force -Path $webDestination | Out-Null
     Copy-Item (Join-Path $blazorWebRoot "*") $webDestination -Recurse -Force
 
     $webBundleSource = Join-Path $vscodePackage "dist\web-runhost.js"
-    if (Test-Path $webBundleSource) {
-        Copy-Item $webBundleSource (Join-Path $webDestination "smallbasic-js.js") -Force
+    if (-not (Test-Path $webBundleSource)) {
+        throw "SmallBasic browser JavaScript backend not found: $webBundleSource"
     }
-    else {
-        Write-Warning "SmallBasic browser JavaScript backend not found: $webBundleSource. runhost/web will only offer the Blazor backend; build it with 'cd visual_studio_code_plugin; npm run build'."
+
+    if (-not (Test-Path $playgroundDist)) {
+        throw "Playground browser assets not found: $playgroundDist"
     }
+
+    Copy-Item $webBundleSource (Join-Path $webDestination "smallbasic-js.js") -Force
+    Copy-Item (Join-Path $playgroundDist "*") $webDestination -Recurse -Force
 
     # Stage the repository samples so the page can offer them in its program list
     # (samples/index.json). Programs that draw are flagged so the shell preselects
@@ -147,12 +179,12 @@ if (-not $SkipWeb) {
         # are tooling/worktree artifacts rather than real samples.
         foreach ($sample in Get-ChildItem $testRoot -Recurse -File -Filter "*.sb" |
             Where-Object {
-                $relative = [System.IO.Path]::GetRelativePath($testRoot, $_.FullName)
+                $relative = Get-RelativePathString $testRoot $_.FullName
                 $directory = Split-Path -Path $relative -Parent
                 -not ($directory -and ($directory -split '[\\/]' | Where-Object { $_ -like '.*' }))
             } |
             Sort-Object FullName) {
-            $relativePath = [System.IO.Path]::GetRelativePath($testRoot, $sample.FullName).Replace("\", "/")
+            $relativePath = (Get-RelativePathString $testRoot $sample.FullName).Replace("\", "/")
             $target = Join-Path $samplesRoot $relativePath
             New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
             Copy-Item $sample.FullName $target -Force
@@ -173,15 +205,38 @@ if (-not $SkipWeb) {
         $defaultSample = $sampleEntries[0].name
     }
 
-    [ordered]@{
+    $sampleManifest = [ordered]@{
         default = $defaultSample
         items   = @($sampleEntries)
-    } | ConvertTo-Json -Depth 4 | Set-Content -Path (Join-Path $samplesRoot "index.json") -Encoding utf8NoBOM
+    } | ConvertTo-Json -Depth 4
+    # WriteAllText writes UTF-8 without a BOM on both Windows PowerShell 5.1
+    # (which lacks the utf8NoBOM encoding switch) and pwsh.
+    [System.IO.File]::WriteAllText((Join-Path $samplesRoot "index.json"), $sampleManifest)
 
     # A process that serves the previous copy (for example a running
     # 'node web\serve.mjs') keeps the old directory alive and makes the copy
     # silently land in a deleted folder; fail loudly instead.
-    foreach ($required in @("index.html", "shell.js", "app.css", "run.bat", "run.ps1", "samples\index.json", "_framework\blazor.webassembly.js")) {
+    foreach ($required in @(
+        "index.html",
+        "runhost.html",
+        "playground.html",
+        "app.css",
+        "shell-core.js",
+        "runhost-page.js",
+        "playground.js",
+        "smallbasic-js.js",
+        "editor\editor.worker.js",
+        "editor\language.worker.js",
+        "editor\onig.wasm",
+        "editor\language-configuration.json",
+        "editor\grammar\smallbasic.tmLanguage.json",
+        "editor\snippets\smallbasic.json",
+        "third-party-notices.txt",
+        "run.bat",
+        "run.ps1",
+        "samples\index.json",
+        "_framework\blazor.webassembly.js"
+    )) {
         if (-not (Test-Path (Join-Path $webDestination $required))) {
             throw "The web RunHost is incomplete: '$required' is missing from $webDestination. Stop anything serving that folder (for example 'node serve.mjs') and build again."
         }

@@ -43,6 +43,7 @@
 | [09-Blazor后端与RunHost.md](./09-Blazor后端与RunHost.md) | Blazor WASM 图形运行时、按需浏览器 RunHost 与 DAP/WebSocket 调试桥 |
 | [10-WebRunHost.md](./10-WebRunHost.md) | 浏览器内静态 Web RunHost：JS / Blazor WASM 双后端、宿主通道抽象与页面复用；VS Code `mode: "web"` 的 JavaScript/Blazor Webview Inline DAP 调试（共用适配器与协议、宿主无关的 `DebugEngineDriver`、条件断点与页面级 E2E 已实施） |
 | [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md) | `SmallBasic.Vsix` 的最终态设计：VisualStudio.Extensibility in-proc 混合托管 + LSP 语言能力 + VSSDK/MEF 兼容层的功能映射，`SmallBasic.Vsix`/`SmallBasic.VsCommon` 退役与共享层收敛方案 |
+| [12-WebPlayground与Monaco集成设计.md](./12-WebPlayground与Monaco集成设计.md) | `runhost/web` 新增 `playground.html`、原运行页下沉为 `runhost.html`、Monaco 与 VS Code 语言层共享方案，以及页内调试可行性研究（入口重构、共享语言服务 Worker、Monaco 集成与构建链已实施；页内调试为后续阶段） |
 
 ## 方案摘要（TL;DR）
 

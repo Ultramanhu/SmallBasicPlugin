@@ -17535,3 +17535,4 @@ var NodeSmallBasicDebugSession = class extends SmallBasicDebugSession {
   }
 };
 import_debugadapter2.DebugSession.run(NodeSmallBasicDebugSession);
+//# sourceMappingURL=adapter.js.map

@@ -1,0 +1,27 @@
+{
+  "If statement": {
+    "prefix": "if",
+    "body": [
+      "If ${1:condition} Then",
+      "  ${0}",
+      "EndIf"
+    ],
+    "description": "Insert an If statement"
+  },
+  "For loop": {
+    "prefix": "for",
+    "body": [
+      "For ${1:i} = ${2:1} To ${3:10}",
+      "  ${0}",
+      "EndFor"
+    ],
+    "description": "Insert a For loop"
+  },
+  "Hello World": {
+    "prefix": "hello",
+    "body": [
+      "TextWindow.WriteLine(\"Hello World\")"
+    ],
+    "description": "Insert a Hello World sample"
+  }
+}

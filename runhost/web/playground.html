@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Small Basic Playground</title>
+    <link rel="icon" href="data:," />
+    <base href="./" />
+    <link rel="stylesheet" href="app.css" />
+    <link rel="stylesheet" href="playground.css" />
+</head>
+<body>
+    <div class="web-runhost web-playground" id="web-runhost">
+        <header class="web-header">
+            <span class="brand">Small Basic</span>
+            <span class="web-subtitle">Playground</span>
+            <label class="web-field" id="program-field">
+                <span>Sample</span>
+                <select class="web-select" id="program-select"></select>
+            </label>
+            <button class="web-button" id="new-button" type="button">New</button>
+            <label class="web-file-button" id="file-field" data-i18n-title="fileFieldTitle" title="打开本地 .sb 文件到编辑器">
+                Open…
+                <input accept=".sb,.txt,text/plain" id="file-input" type="file" />
+            </label>
+            <button class="web-button" id="save-button" type="button">Save</button>
+            <button class="web-button" id="outline-button" type="button">Symbols</button>
+            <label class="web-field" id="backend-field">
+                <span>Backend</span>
+                <select class="web-select" id="backend-select">
+                    <option value="javascript">JavaScript (TextWindow)</option>
+                    <option value="blazor">Blazor WASM (GraphicsWindow)</option>
+                </select>
+            </label>
+            <button class="web-button primary" id="run-button" type="button">Run</button>
+            <button class="web-button" id="stop-button" type="button" disabled>Stop</button>
+            <span class="web-status" id="status">Ready</span>
+            <button class="web-button" id="locale-button" type="button" aria-label="Switch UI language / 切换界面语言">中文</button>
+        </header>
+
+        <section class="web-playground-workspace">
+            <section class="web-pane web-editor-pane" id="editor-pane">
+                <div class="web-pane-header">
+                    <span class="web-pane-title">Editor</span>
+                    <span class="web-pane-note" data-i18n="editorNote">共用 VS Code 语言层，诊断/补全/悬停/签名帮助在浏览器内离线运行。</span>
+                </div>
+                <div class="web-editor-host" id="editor-host"></div>
+            </section>
+
+            <section class="web-pane web-output-pane" id="output-pane">
+                <div class="web-pane-header">
+                    <span class="web-pane-title">Output</span>
+                    <span class="web-pane-note" id="output-note">TextWindow 输出同时写入浏览器控制台（F12 / Console）。</span>
+                </div>
+                <pre class="web-console" id="console" hidden></pre>
+                <form class="web-input-row" hidden id="input-row">
+                    <span id="input-prompt">Read</span>
+                    <input autocomplete="off" id="input-field" type="text" />
+                    <button type="submit">Send</button>
+                </form>
+                <div class="web-blazor-host" id="blazor-host">
+                    <div id="app"></div>
+                </div>
+                <div class="web-diagnostics" hidden id="diagnostics"></div>
+            </section>
+        </section>
+
+        <aside class="web-outline" hidden id="outline" role="dialog" aria-labelledby="outline-title">
+            <h2 class="web-outline-title" id="outline-title">Quick Outline</h2>
+            <div class="web-outline-empty" hidden id="outline-empty" data-i18n="outlineEmpty">当前文档没有可导航的符号。</div>
+            <div class="web-outline-list" id="outline-list"></div>
+        </aside>
+    </div>
+
+    <div id="blazor-error-ui">
+        <span data-i18n="blazorError">运行 Small Basic Blazor WASM 后端时发生未处理的错误。</span>
+        <a class="reload" href="">Reload</a>
+        <span class="dismiss">🗙</span>
+    </div>
+
+    <script src="shell-core.js"></script>
+    <script type="module" src="playground.js"></script>
+</body>
+</html>

@@ -53,7 +53,7 @@ public sealed class BlazorRuntimeServer : IAsyncDisposable
             using System.Net.WebSockets.WebSocket socket = await context.WebSockets.AcceptWebSocketAsync();
             await session!.AttachAsync(socket, context.RequestAborted);
         });
-        app.MapFallbackToFile("index.html");
+        app.MapFallbackToFile("runhost.html");
 
         await app.StartAsync(cancellationToken);
         IServerAddressesFeature? addresses = app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>();
@@ -84,7 +84,7 @@ public sealed class BlazorRuntimeServer : IAsyncDisposable
     }
 
     public string GetSessionUrl(BlazorHostSession session)
-        => $"{this.BaseAddress}/?session={Uri.EscapeDataString(session.Descriptor.Id)}";
+        => $"{this.BaseAddress}/runhost.html?session={Uri.EscapeDataString(session.Descriptor.Id)}";
 
     public async ValueTask DisposeAsync() => await this.app.DisposeAsync();
 }

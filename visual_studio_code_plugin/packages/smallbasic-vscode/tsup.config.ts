@@ -24,7 +24,7 @@ export default defineConfig([
     clean: true,
     sourcemap,
     external: ["vscode"],
-    noExternal: ["smallbasic-lang-core"]
+    noExternal: ["smallbasic-lang-core", "smallbasic-language-services"]
   },
   {
     // VS Code for the Web executes this single-file bundle in a WebWorker. The
@@ -40,6 +40,7 @@ export default defineConfig([
     external: ["vscode"],
     noExternal: [
       "smallbasic-lang-core",
+      "smallbasic-language-services",
       "@vscode/debugadapter",
       "@vscode/debugprotocol",
       "buffer",
@@ -63,6 +64,6 @@ export default defineConfig([
     platform: "browser",
     clean: false,
     outExtension: () => ({ js: ".js" }),
-    noExternal: ["smallbasic-lang-core"]
+    noExternal: ["smallbasic-lang-core", "smallbasic-language-services"]
   }
 ]);

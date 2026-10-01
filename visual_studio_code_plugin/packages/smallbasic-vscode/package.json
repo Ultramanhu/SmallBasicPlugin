@@ -252,11 +252,16 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:playground": "node ./scripts/build-playground.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "package": "node ./scripts/package-vsix.mjs",
     "stage:blazor": "node ./scripts/stage-runhost.mjs --blazor-only"
   },
   "devDependencies": {
-    "smallbasic-lang-core": "0.1.0"
+    "monaco-editor": "^0.55.1",
+    "smallbasic-lang-core": "0.1.0",
+    "smallbasic-language-services": "0.1.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.2.1"
   }
 }

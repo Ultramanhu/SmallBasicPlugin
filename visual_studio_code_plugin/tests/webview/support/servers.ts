@@ -12,6 +12,8 @@ import path from "node:path";
 export const pluginRoot = path.resolve(__dirname, "..", "..", "..");
 export const extensionPackageRoot = path.join(pluginRoot, "packages", "smallbasic-vscode");
 export const stagedPayloadRoot = path.join(extensionPackageRoot, "runhost", "blazor", "wwwroot");
+export const repositoryRoot = path.resolve(pluginRoot, "..");
+export const builtWebRunHostRoot = path.join(repositoryRoot, "runhost", "web");
 
 const MIME: Record<string, string> = {
   ".br": "application/octet-stream",
@@ -51,6 +53,20 @@ export function requireStagedPayload(): string {
   }
 
   return stagedPayloadRoot;
+}
+
+/** Fails with setup instructions when the built static web distribution is missing. */
+export function requireBuiltWebRunHost(): string {
+  const entry = path.join(builtWebRunHostRoot, "playground.html");
+  if (!fs.existsSync(entry)) {
+    throw new Error(
+      `Built web RunHost not found: ${entry}\n` +
+        "Build it first:\n" +
+        "  .\\runhost\\Build-RunHost.ps1"
+    );
+  }
+
+  return builtWebRunHostRoot;
 }
 
 /** Serves a folder over HTTP with CORS, mounting it below `mountPath`. */

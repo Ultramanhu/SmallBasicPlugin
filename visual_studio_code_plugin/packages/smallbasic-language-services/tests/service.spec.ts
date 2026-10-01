@@ -1,0 +1,73 @@
+import { describe, expect, it } from "vitest";
+import { resolveDocumentationLocale, setDocumentationLocale } from "smallbasic-lang-core";
+import { SmallBasicLanguageService } from "../src/service";
+
+const URI = "file:///program.sb";
+const INVALID_SOURCE = "If Then";
+const VALID_SOURCE = 'TextWindow.WriteLine("x")';
+
+describe("SmallBasicLanguageService document state", () => {
+  it("computes diagnostics from the uri + version + source the request carries", () => {
+    const service = new SmallBasicLanguageService();
+
+    const first = service.syncDocument(URI, INVALID_SOURCE, 1);
+    expect(first.version).toBe(1);
+    expect(first.diagnostics.length).toBeGreaterThan(0);
+
+    const second = service.syncDocument(URI, VALID_SOURCE, 2);
+    expect(second.diagnostics).toEqual([]);
+
+    // An out-of-order request must compute from its own payload, not the
+    // newest cached state.
+    const stale = service.syncDocument(URI, INVALID_SOURCE, 1);
+    expect(stale.diagnostics.length).toBeGreaterThan(0);
+
+    // ...and the newer state is still served on the next request.
+    const latest = service.syncDocument(URI, VALID_SOURCE, 2);
+    expect(latest.diagnostics).toEqual([]);
+  });
+
+  it("rebuilds the document when the source changes under an unchanged version", () => {
+    const service = new SmallBasicLanguageService();
+
+    const before = service.syncDocument(URI, INVALID_SOURCE, 1);
+    expect(before.diagnostics.length).toBeGreaterThan(0);
+
+    const after = service.syncDocument(URI, VALID_SOURCE, 1);
+    expect(after.diagnostics).toEqual([]);
+  });
+
+  it("exposes navigation through the neutral DTO surface", () => {
+    const service = new SmallBasicLanguageService();
+    const source = ["Sub Greet", "EndSub", "Greet()"].join("\n");
+
+    service.syncDocument(URI, source, 1);
+    expect(service.provideDefinition(URI, source, 1, { line: 2, column: 0 })).toEqual({
+      start: { line: 0, column: 4 },
+      end: { line: 0, column: 9 }
+    });
+    expect(service.provideReferences(URI, source, 1, { line: 0, column: 4 })).toHaveLength(2);
+
+    service.disposeDocument(URI);
+    // A disposed document still answers because each request is self-describing.
+    expect(service.provideReferences(URI, source, 1, { line: 0, column: 4 })).toHaveLength(2);
+  });
+
+  it("serves hover documentation in the configured compiler locale", () => {
+    // The playground worker applies the page's UI-language decision through
+    // setDocumentationLocale before any analysis; pin that the shared service
+    // honors it end to end.
+    setDocumentationLocale(resolveDocumentationLocale("zh-CN"));
+    try {
+      const service = new SmallBasicLanguageService();
+      const source = 'TextWindow.WriteLine("x")';
+      service.syncDocument(URI, source, 1);
+
+      const hover = service.provideHover(URI, source, 1, { line: 0, column: 16 });
+      expect(hover).toBeDefined();
+      expect(hover!.contents[1]).toBe("在文本窗口中写文本或数字。一行新的字符会被附加到输出，因此下一次当新的内容写入文本窗口时会出现在新的一行中。");
+    } finally {
+      setDocumentationLocale(undefined);
+    }
+  });
+});

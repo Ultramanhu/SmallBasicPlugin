@@ -18,8 +18,10 @@ export type {
     BaseSyntaxNode,
     ForCommandSyntax,
     IdentifierExpressionSyntax,
+    InvocationExpressionSyntax,
     StatementBlockSyntax,
-    SubModuleDeclarationSyntax
+    SubModuleDeclarationSyntax,
+    TokenSyntax
 } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes";
 export { CompilerUtils } from "../../../vendor/SmallBasicOnline/src/compiler/utils/compiler-utils";
 export {

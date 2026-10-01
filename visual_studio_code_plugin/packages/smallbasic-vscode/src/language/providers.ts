@@ -1,93 +1,44 @@
 import * as vscode from "vscode";
 import {
   Compilation,
-  CompilerPosition,
-  CompilerRange,
-  CompilerUtils,
-  CompletionService,
-  Diagnostic,
-  HoverService,
-  RuntimeLibraries,
-  TokenKind
+  CompilerRange
 } from "smallbasic-lang-core";
+import {
+  collectOutlineSymbols,
+  provideCompletionItems,
+  provideDiagnostics,
+  provideHoverInfo,
+  provideSemanticTokens,
+  semanticTokenTypes,
+  toDocumentSymbols as toSharedDocumentSymbols,
+  type LanguageCompletionKind,
+  type LanguageDiagnostic,
+  type LanguageDocumentSymbol,
+  type LanguageRange
+} from "smallbasic-language-services";
 import { CompilationCache } from "./compilation-cache";
-import { getCompletionSpan } from "./completion-span";
-import { getContextualCompletions, type RankedCompletion } from "./contextual-completions";
-import { collectOutlineSymbols, type OutlineSymbol } from "./document-symbols";
 import { provideLibrarySignatureHelp } from "./signature-help";
-import { toCompilerPosition, toVsCodeRange } from "../util/positions";
-
-const semanticTokenTypes = [
-  "keyword",
-  "comment",
-  "string",
-  "number",
-  "class",
-  "function",
-  "variable"
-] as const;
+import { toVsCodeRange } from "../util/positions";
 
 const legend = new vscode.SemanticTokensLegend([...semanticTokenTypes]);
-const keywordKinds = new Set<TokenKind>([
-  TokenKind.IfKeyword,
-  TokenKind.ThenKeyword,
-  TokenKind.ElseKeyword,
-  TokenKind.ElseIfKeyword,
-  TokenKind.EndIfKeyword,
-  TokenKind.ForKeyword,
-  TokenKind.ToKeyword,
-  TokenKind.StepKeyword,
-  TokenKind.EndForKeyword,
-  TokenKind.GoToKeyword,
-  TokenKind.WhileKeyword,
-  TokenKind.EndWhileKeyword,
-  TokenKind.SubKeyword,
-  TokenKind.EndSubKeyword,
-  TokenKind.And,
-  TokenKind.Or
-]);
 
 export function isSmallBasicDocument(document: vscode.TextDocument): boolean {
   return document.languageId === "smallbasic";
 }
 
-// Letters (plus underscore and dot) are registered as trigger characters so the
-// suggest widget opens automatically while typing identifiers and keywords,
-// not only after a dot.
-const completionTriggerCharacters = [
-  ".",
-  ...Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index)),
-  ...Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index)),
-  "_"
-];
-
-function mapCompletionKind(kind: CompletionService.ResultKind): vscode.CompletionItemKind {
+function mapCompletionKind(kind: LanguageCompletionKind): vscode.CompletionItemKind {
   switch (kind) {
-    case CompletionService.ResultKind.Class:
+    case "class":
       return vscode.CompletionItemKind.Class;
-    case CompletionService.ResultKind.Method:
+    case "method":
       return vscode.CompletionItemKind.Method;
-    case CompletionService.ResultKind.Snippet:
+    case "snippet":
       return vscode.CompletionItemKind.Snippet;
-    case CompletionService.ResultKind.Event:
+    case "event":
       return vscode.CompletionItemKind.Event;
     default:
       return vscode.CompletionItemKind.Property;
   }
-}
-
-let lazyEmptyCompilation: Compilation | undefined;
-
-function emptyCompilation(): Compilation {
-  if (!lazyEmptyCompilation) {
-    lazyEmptyCompilation = new Compilation("");
-  }
-
-  return lazyEmptyCompilation;
-}
-
-function baselineCompletions(): CompletionService.Result[] {
-  return CompletionService.provideCompletion(emptyCompilation(), new CompilerPosition(0, 0));
 }
 
 export function registerLanguageFeatures(
@@ -101,54 +52,31 @@ export function registerLanguageFeatures(
             {
                 provideCompletionItems(document, position) {
                     const compilation = cache.get(document);
-                    const lineText = document.lineAt(position.line).text;
-                    const span = getCompletionSpan(lineText, position.character);
-                    const prefix = lineText.slice(span.start, position.character);
-                    const results = CompletionService.provideCompletion(compilation, toCompilerPosition(position));
-                    const sourceBeforeCursor = document.getText(new vscode.Range(new vscode.Position(0, 0), position));
-                    const isMemberAccess = span.start > 0 && lineText[span.start - 1] === ".";
-                    const contextual = isMemberAccess ? [] : getContextualCompletions(sourceBeforeCursor, prefix);
-                    const baseline = results.length === 0 && prefix.length === 0
-                      ? baselineCompletions().map((item) => ({ item, priority: 20 } satisfies RankedCompletion))
-                      : [];
-                    const combined = dedupeCompletions([...contextual, ...results.map((item) => ({ item, priority: 10 } satisfies RankedCompletion)), ...baseline]);
-                    const replacing = new vscode.Range(position.line, span.start, position.line, span.end);
-                    // VS Code requires both ranges to contain the caret.  A zero-width
-                    // inserting range at the start of an existing prefix is rejected and
-                    // makes completion look intermittent while typing.
-                    const inserting = new vscode.Range(new vscode.Position(position.line, span.start), position);
+                    const completions = provideCompletionItems({
+                      source: document.getText(),
+                      lineText: document.lineAt(position.line).text,
+                      position: { line: position.line, column: position.character },
+                      compilation
+                    });
 
                     return new vscode.CompletionList(
-                        combined.map(({ item, priority, preselect }) => {
-                            const kind = mapCompletionKind(item.kind);
-                            // Methods are displayed with their parameter names,
-                            // e.g. `GetRandomNumber(maxNumber)` or `Show()`, like
-                            // signatures in other languages. Filtering and sorting
-                            // keep using the bare name so the typed prefix matches.
-                            const label = item.parameters !== undefined
-                                ? `${item.title}(${item.parameters.join(", ")})`
-                                : item.title;
-                            const completion = new vscode.CompletionItem(label, kind);
-                            completion.detail = item.description;
-                            completion.filterText = item.title;
-                            completion.range = { inserting, replacing };
-                            completion.sortText = `${priority.toString().padStart(2, "0")}_${item.title}`;
-                            completion.preselect = !!preselect;
-                            if (item.parameterDescriptions !== undefined && item.parameterDescriptions.length > 0) {
-                                // The suggest details pane shows `documentation` under
-                                // the description, so the parameter docs reach parity
-                                // with hover.
-                                const documentation = new vscode.MarkdownString(
-                                    item.parameters!.map((parameter, index) =>
-                                        `- **${parameter}**: ${item.parameterDescriptions![index]}`
-                                    ).join("\n")
-                                );
-                                completion.documentation = documentation;
+                        completions.items.map((item) => {
+                            const completion = new vscode.CompletionItem(item.label, mapCompletionKind(item.kind));
+                            completion.detail = item.detail;
+                            completion.filterText = item.filterText;
+                            completion.range = {
+                              inserting: toVsCodeRangeFromDto(item.ranges.inserting),
+                              replacing: toVsCodeRangeFromDto(item.ranges.replacing)
+                            };
+                            completion.sortText = item.sortText;
+                            completion.preselect = item.preselect;
+                            if (item.documentation) {
+                                completion.documentation = new vscode.MarkdownString(item.documentation);
                             }
-                            if (item.insertText !== undefined) {
+                            if (item.insertTextIsSnippet) {
                                 completion.insertText = new vscode.SnippetString(item.insertText);
                             } else {
-                                completion.insertText = item.title;
+                                completion.insertText = item.insertText;
                             }
                             return completion;
                         }),
@@ -156,24 +84,24 @@ export function registerLanguageFeatures(
                     );
                 }
             },
-            ...completionTriggerCharacters
+            "."
         ),
     vscode.languages.registerDocumentSymbolProvider({ language: "smallbasic" }, {
       provideDocumentSymbols(document) {
-        return toDocumentSymbols(collectOutlineSymbols(cache.get(document)));
+        return toVsCodeDocumentSymbols(toSharedDocumentSymbols(collectOutlineSymbols(cache.get(document))));
       }
     }),
     vscode.languages.registerHoverProvider({ language: "smallbasic" }, {
       provideHover(document, position) {
         const compilation = cache.get(document);
-        const hover = HoverService.provideHover(compilation, toCompilerPosition(position));
+        const hover = provideHoverInfo(compilation, { line: position.line, column: position.character });
         if (!hover) {
           return undefined;
         }
 
         return new vscode.Hover(
-          hover.text.map((line) => new vscode.MarkdownString(line)),
-          toVsCodeRange(hover.range)
+          hover.contents.map((line) => new vscode.MarkdownString(line)),
+          toVsCodeRangeFromDto(hover.range)
         );
       }
     }),
@@ -191,21 +119,15 @@ export function registerLanguageFeatures(
       { language: "smallbasic" },
       {
         provideDocumentSemanticTokens(document) {
-          const compilation = cache.get(document);
           const builder = new vscode.SemanticTokensBuilder(legend);
 
-          for (const token of compilation.tokens) {
-            const tokenType = mapTokenType(compilation, token.kind, token.text);
-            if (tokenType === undefined) {
-              continue;
-            }
-
+          for (const token of provideSemanticTokens(cache.get(document))) {
             builder.push(
-              token.range.start.line,
-              token.range.start.column,
-              Math.max(1, token.text.length),
-              tokenType,
-              0
+              token.line,
+              token.column,
+              token.length,
+              semanticTokenTypes.indexOf(token.type),
+              token.modifiers
             );
           }
 
@@ -219,22 +141,15 @@ export function registerLanguageFeatures(
   context.subscriptions.push(diagnostics);
 }
 
-function toDocumentSymbols(symbols: OutlineSymbol[]): vscode.DocumentSymbol[] {
+function toVsCodeDocumentSymbols(symbols: readonly LanguageDocumentSymbol[]): vscode.DocumentSymbol[] {
   return symbols.map((symbol) => {
-    const children = toDocumentSymbols(symbol.children);
-    // VS Code requires a parent range to contain its selection range and all of
-    // its children, so the reported range is widened defensively.
-    const range = CompilerRange.spanning([
-      symbol.range,
-      symbol.selectionRange,
-      ...symbol.children.map((child) => child.range)
-    ]);
+    const children = toVsCodeDocumentSymbols(symbol.children);
     const documentSymbol = new vscode.DocumentSymbol(
       symbol.name,
-      symbol.kind === "sub" ? "Sub" : "Variable",
+      symbol.detail,
       symbol.kind === "sub" ? vscode.SymbolKind.Function : vscode.SymbolKind.Variable,
-      toVsCodeRange(range),
-      toVsCodeRange(symbol.selectionRange)
+      toVsCodeRangeFromDto(symbol.range),
+      toVsCodeRangeFromDto(symbol.selectionRange)
     );
 
     documentSymbol.children = children;
@@ -254,57 +169,19 @@ export function publishDiagnostics(
   const compilation = cache.get(document);
   diagnostics.set(
     document.uri,
-    compilation.diagnostics.map((diagnostic) => toVsCodeDiagnostic(diagnostic))
+    provideDiagnostics(compilation).map((diagnostic) => toVsCodeDiagnostic(diagnostic))
   );
 }
 
-function toVsCodeDiagnostic(diagnostic: Diagnostic): vscode.Diagnostic {
+function toVsCodeDiagnostic(diagnostic: LanguageDiagnostic): vscode.Diagnostic {
   return new vscode.Diagnostic(
-    toVsCodeRange(diagnostic.range),
-    diagnostic.toString(),
+    toVsCodeRangeFromDto(diagnostic.range),
+    diagnostic.message,
     vscode.DiagnosticSeverity.Error
   );
 }
 
-function mapTokenType(compilation: Compilation, kind: TokenKind, text: string): number | undefined {
-  if (keywordKinds.has(kind)) {
-    return semanticTokenTypes.indexOf("keyword");
-  }
-
-  switch (kind) {
-    case TokenKind.Comment:
-      return semanticTokenTypes.indexOf("comment");
-    case TokenKind.StringLiteral:
-      return semanticTokenTypes.indexOf("string");
-    case TokenKind.NumberLiteral:
-      return semanticTokenTypes.indexOf("number");
-    case TokenKind.Identifier:
-      if (CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, text) !== undefined) {
-        return semanticTokenTypes.indexOf("class");
-      }
-      if (CompilerUtils.lookupIgnoreCase(compilation.boundSubModules, text) !== undefined) {
-        return semanticTokenTypes.indexOf("function");
-      }
-      return semanticTokenTypes.indexOf("variable");
-    default:
-      return undefined;
-  }
-}
-
-function dedupeCompletions(items: RankedCompletion[]): RankedCompletion[] {
-  const seen = new Set<string>();
-  const deduped: RankedCompletion[] = [];
-
-  for (const item of items) {
-    const key = item.item.title.toLowerCase();
-    if (seen.has(key)) {
-      continue;
-    }
-
-    seen.add(key);
-    deduped.push(item);
-  }
-
-  return deduped;
+function toVsCodeRangeFromDto(range: LanguageRange): vscode.Range {
+  return new vscode.Range(range.start.line, range.start.column, range.end.line, range.end.column);
 }
 

@@ -1627,7 +1627,7 @@ __export(extension_exports, {
   deactivate: () => deactivate
 });
 module.exports = __toCommonJS(extension_exports);
-var vscode14 = __toESM(require("vscode"));
+var vscode13 = __toESM(require("vscode"));
 
 // ../../vendor/SmallBasicOnline/src/compiler/runtime/values/base-value.ts
 var Constants;
@@ -16896,7 +16896,7 @@ function resolveDocumentationLocale(language) {
 }
 
 // src/common/activation.ts
-var vscode7 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
 
 // src/debug/inline-values.ts
 var vscode = __toESM(require("vscode"));
@@ -16979,9 +16979,49 @@ var CompilationCache = class {
 };
 
 // src/language/providers.ts
-var vscode4 = __toESM(require("vscode"));
+var vscode3 = __toESM(require("vscode"));
 
-// src/language/completion-span.ts
+// ../smallbasic-language-services/src/ranges.ts
+function toCompilerPosition(position) {
+  return new CompilerPosition(position.line, position.column);
+}
+function toLanguagePosition(position) {
+  return { line: position.line, column: position.column };
+}
+function toLanguageRange(range) {
+  return {
+    start: toLanguagePosition(range.start),
+    end: toLanguagePosition(range.end)
+  };
+}
+function splitLines(source) {
+  return source.split(/\r?\n/u);
+}
+function offsetAt(source, position) {
+  const lines = splitLines(source);
+  const safeLine = Math.max(0, Math.min(position.line, lines.length - 1));
+  const safeColumn = Math.max(0, Math.min(position.column, lines[safeLine]?.length ?? 0));
+  let line = 0;
+  let offset = 0;
+  while (line < safeLine && offset < source.length) {
+    const current = source.charCodeAt(offset);
+    offset += 1;
+    if (current === 13) {
+      if (source.charCodeAt(offset) === 10) {
+        offset += 1;
+      }
+      line += 1;
+    } else if (current === 10) {
+      line += 1;
+    }
+  }
+  return offset + safeColumn;
+}
+function textBeforePosition(source, position) {
+  return source.slice(0, offsetAt(source, position));
+}
+
+// ../smallbasic-language-services/src/completion-span.ts
 var completionSeparatorPattern = /[\s()\[\],.:+\-*/=<>"']/u;
 function isCompletionWordChar(char) {
   return char.length > 0 && !completionSeparatorPattern.test(char);
@@ -16999,7 +17039,7 @@ function getCompletionSpan(lineText, character) {
   return { start, end };
 }
 
-// src/language/contextual-completions.ts
+// ../smallbasic-language-services/src/contextual-completions.ts
 function startsWithIgnoreCase(value, prefix) {
   return value.toLowerCase().startsWith(prefix.toLowerCase());
 }
@@ -17110,7 +17150,7 @@ function getContextualCompletions(sourceBeforeCursor, prefix) {
   return [...unique.values()];
 }
 
-// src/language/document-symbols.ts
+// ../smallbasic-language-services/src/document-symbols.ts
 function comparePositions(left, right) {
   return left.line !== right.line ? left.line - right.line : left.column - right.column;
 }
@@ -17180,11 +17220,26 @@ function collectOutlineSymbols(compilation) {
   });
   return sortByPosition([...variablesByScope.get(-1) ?? [], ...procedures]);
 }
+function toDocumentSymbols(symbols) {
+  return symbols.map((symbol) => {
+    const children = toDocumentSymbols(symbol.children);
+    const range = CompilerRange.spanning([
+      symbol.range,
+      symbol.selectionRange,
+      ...symbol.children.map((child) => child.range)
+    ]);
+    return {
+      name: symbol.name,
+      detail: symbol.kind === "sub" ? "Sub" : "Variable",
+      kind: symbol.kind,
+      range: toLanguageRange(range),
+      selectionRange: toLanguageRange(symbol.selectionRange),
+      children
+    };
+  });
+}
 
-// src/language/signature-help.ts
-var vscode2 = __toESM(require("vscode"));
-
-// src/language/method-signatures.ts
+// ../smallbasic-language-services/src/method-signatures.ts
 function getMethodSignature(line, caret) {
   const invocation = findEnclosingInvocation(line, caret);
   if (!invocation) {
@@ -17297,44 +17352,48 @@ function isIdentifierCharacter(character) {
   return character >= "a" && character <= "z" || character >= "A" && character <= "Z" || character >= "0" && character <= "9" || character === "_";
 }
 
-// src/language/signature-help.ts
-function provideLibrarySignatureHelp(document, position) {
-  const line = document.lineAt(position.line).text;
-  const signature = getMethodSignature(line, position.character);
+// ../smallbasic-language-services/src/diagnostics.ts
+function provideDiagnostics(compilation) {
+  return compilation.diagnostics.map((diagnostic) => ({
+    range: toLanguageRange(diagnostic.range),
+    message: diagnostic.toString(),
+    severity: "error"
+  }));
+}
+
+// ../smallbasic-language-services/src/hover.ts
+function provideHoverInfo(compilation, position) {
+  const hover = HoverService.provideHover(compilation, toCompilerPosition(position));
+  if (!hover) {
+    return void 0;
+  }
+  return {
+    contents: [...hover.text],
+    range: toLanguageRange(hover.range)
+  };
+}
+
+// ../smallbasic-language-services/src/signature-help.ts
+function provideSignatureHelpInfo(lineText, character) {
+  const signature = getMethodSignature(lineText, character);
   if (!signature) {
     return void 0;
   }
-  const information = new vscode2.SignatureInformation(
-    signature.label,
-    new vscode2.MarkdownString(signature.description)
-  );
-  signature.parameters.forEach((parameter) => {
-    information.parameters.push(
-      new vscode2.ParameterInformation(parameter.name, new vscode2.MarkdownString(parameter.description))
-    );
-  });
-  const help = new vscode2.SignatureHelp();
-  help.signatures = [information];
-  help.activeSignature = 0;
-  help.activeParameter = signature.activeParameter;
-  return help;
+  return {
+    signatures: [{
+      label: signature.label,
+      documentation: signature.description,
+      parameters: signature.parameters.map((parameter) => ({
+        name: parameter.name,
+        description: parameter.description
+      }))
+    }],
+    activeSignature: 0,
+    activeParameter: signature.activeParameter
+  };
 }
 
-// src/util/positions.ts
-var vscode3 = __toESM(require("vscode"));
-function toCompilerPosition(position) {
-  return new CompilerPosition(position.line, position.character);
-}
-function toVsCodeRange(range) {
-  return new vscode3.Range(
-    range.start.line,
-    range.start.column,
-    range.end.line,
-    range.end.column
-  );
-}
-
-// src/language/providers.ts
+// ../smallbasic-language-services/src/semantic-tokens.ts
 var semanticTokenTypes = [
   "keyword",
   "comment",
@@ -17344,7 +17403,6 @@ var semanticTokenTypes = [
   "function",
   "variable"
 ];
-var legend = new vscode4.SemanticTokensLegend([...semanticTokenTypes]);
 var keywordKinds = /* @__PURE__ */ new Set([
   1 /* IfKeyword */,
   2 /* ThenKeyword */,
@@ -17363,29 +17421,48 @@ var keywordKinds = /* @__PURE__ */ new Set([
   33 /* And */,
   32 /* Or */
 ]);
-function isSmallBasicDocument(document) {
-  return document.languageId === "smallbasic";
+function provideSemanticTokens(compilation) {
+  const tokens = [];
+  for (const token of compilation.tokens) {
+    const type = mapTokenType(compilation, token.kind, token.text);
+    if (!type) {
+      continue;
+    }
+    tokens.push({
+      line: token.range.start.line,
+      column: token.range.start.column,
+      length: Math.max(1, token.text.length),
+      type,
+      modifiers: 0
+    });
+  }
+  return tokens;
 }
-var completionTriggerCharacters = [
-  ".",
-  ...Array.from({ length: 26 }, (_, index) => String.fromCharCode(97 + index)),
-  ...Array.from({ length: 26 }, (_, index) => String.fromCharCode(65 + index)),
-  "_"
-];
-function mapCompletionKind(kind) {
+function mapTokenType(compilation, kind, text) {
+  if (keywordKinds.has(kind)) {
+    return "keyword";
+  }
   switch (kind) {
-    case CompletionService.ResultKind.Class:
-      return vscode4.CompletionItemKind.Class;
-    case CompletionService.ResultKind.Method:
-      return vscode4.CompletionItemKind.Method;
-    case CompletionService.ResultKind.Snippet:
-      return vscode4.CompletionItemKind.Snippet;
-    case CompletionService.ResultKind.Event:
-      return vscode4.CompletionItemKind.Event;
+    case 37 /* Comment */:
+      return "comment";
+    case 36 /* StringLiteral */:
+      return "string";
+    case 35 /* NumberLiteral */:
+      return "number";
+    case 34 /* Identifier */:
+      if (CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, text) !== void 0) {
+        return "class";
+      }
+      if (CompilerUtils.lookupIgnoreCase(compilation.boundSubModules, text) !== void 0) {
+        return "function";
+      }
+      return "variable";
     default:
-      return vscode4.CompletionItemKind.Property;
+      return void 0;
   }
 }
+
+// ../smallbasic-language-services/src/completions.ts
 var lazyEmptyCompilation;
 function emptyCompilation() {
   if (!lazyEmptyCompilation) {
@@ -17396,167 +17473,68 @@ function emptyCompilation() {
 function baselineCompletions() {
   return CompletionService.provideCompletion(emptyCompilation(), new CompilerPosition(0, 0));
 }
-function registerLanguageFeatures(context, cache, diagnostics) {
-  context.subscriptions.push(
-    vscode4.languages.registerCompletionItemProvider(
-      { language: "smallbasic" },
-      {
-        provideCompletionItems(document, position) {
-          const compilation = cache.get(document);
-          const lineText = document.lineAt(position.line).text;
-          const span = getCompletionSpan(lineText, position.character);
-          const prefix = lineText.slice(span.start, position.character);
-          const results = CompletionService.provideCompletion(compilation, toCompilerPosition(position));
-          const sourceBeforeCursor = document.getText(new vscode4.Range(new vscode4.Position(0, 0), position));
-          const isMemberAccess = span.start > 0 && lineText[span.start - 1] === ".";
-          const contextual = isMemberAccess ? [] : getContextualCompletions(sourceBeforeCursor, prefix);
-          const baseline = results.length === 0 && prefix.length === 0 ? baselineCompletions().map((item) => ({ item, priority: 20 })) : [];
-          const combined = dedupeCompletions([...contextual, ...results.map((item) => ({ item, priority: 10 })), ...baseline]);
-          const replacing = new vscode4.Range(position.line, span.start, position.line, span.end);
-          const inserting = new vscode4.Range(new vscode4.Position(position.line, span.start), position);
-          return new vscode4.CompletionList(
-            combined.map(({ item, priority, preselect }) => {
-              const kind = mapCompletionKind(item.kind);
-              const label = item.parameters !== void 0 ? `${item.title}(${item.parameters.join(", ")})` : item.title;
-              const completion = new vscode4.CompletionItem(label, kind);
-              completion.detail = item.description;
-              completion.filterText = item.title;
-              completion.range = { inserting, replacing };
-              completion.sortText = `${priority.toString().padStart(2, "0")}_${item.title}`;
-              completion.preselect = !!preselect;
-              if (item.parameterDescriptions !== void 0 && item.parameterDescriptions.length > 0) {
-                const documentation = new vscode4.MarkdownString(
-                  item.parameters.map(
-                    (parameter, index) => `- **${parameter}**: ${item.parameterDescriptions[index]}`
-                  ).join("\n")
-                );
-                completion.documentation = documentation;
-              }
-              if (item.insertText !== void 0) {
-                completion.insertText = new vscode4.SnippetString(item.insertText);
-              } else {
-                completion.insertText = item.title;
-              }
-              return completion;
-            }),
-            false
-          );
-        }
-      },
-      ...completionTriggerCharacters
-    ),
-    vscode4.languages.registerDocumentSymbolProvider({ language: "smallbasic" }, {
-      provideDocumentSymbols(document) {
-        return toDocumentSymbols(collectOutlineSymbols(cache.get(document)));
-      }
-    }),
-    vscode4.languages.registerHoverProvider({ language: "smallbasic" }, {
-      provideHover(document, position) {
-        const compilation = cache.get(document);
-        const hover = HoverService.provideHover(compilation, toCompilerPosition(position));
-        if (!hover) {
-          return void 0;
-        }
-        return new vscode4.Hover(
-          hover.text.map((line) => new vscode4.MarkdownString(line)),
-          toVsCodeRange(hover.range)
-        );
-      }
-    }),
-    vscode4.languages.registerSignatureHelpProvider(
-      { language: "smallbasic" },
-      {
-        provideSignatureHelp(document, position) {
-          return provideLibrarySignatureHelp(document, position);
-        }
-      },
-      "(",
-      ","
-    ),
-    vscode4.languages.registerDocumentSemanticTokensProvider(
-      { language: "smallbasic" },
-      {
-        provideDocumentSemanticTokens(document) {
-          const compilation = cache.get(document);
-          const builder = new vscode4.SemanticTokensBuilder(legend);
-          for (const token of compilation.tokens) {
-            const tokenType = mapTokenType(compilation, token.kind, token.text);
-            if (tokenType === void 0) {
-              continue;
-            }
-            builder.push(
-              token.range.start.line,
-              token.range.start.column,
-              Math.max(1, token.text.length),
-              tokenType,
-              0
-            );
-          }
-          return builder.build();
-        }
-      },
-      legend
-    )
+function provideCompletionItems(request) {
+  const span = getCompletionSpan(request.lineText, request.position.column);
+  const prefix = request.lineText.slice(span.start, request.position.column);
+  const results = CompletionService.provideCompletion(
+    request.compilation,
+    new CompilerPosition(request.position.line, request.position.column)
   );
-  context.subscriptions.push(diagnostics);
+  const sourceBeforeCursor = textBeforePosition(request.source, request.position);
+  const isMemberAccess = span.start > 0 && request.lineText[span.start - 1] === ".";
+  const contextual = isMemberAccess ? [] : getContextualCompletions(sourceBeforeCursor, prefix);
+  const baseline = results.length === 0 && prefix.length === 0 ? baselineCompletions().map((item) => ({ item, priority: 20 })) : [];
+  const combined = dedupeCompletions([
+    ...contextual,
+    ...results.map((item) => ({ item, priority: 10 })),
+    ...baseline
+  ]);
+  const replacingRange = toLanguageRange(CompilerRange.fromValues(
+    request.position.line,
+    span.start,
+    request.position.line,
+    span.end
+  ));
+  const insertingRange = toLanguageRange(CompilerRange.fromValues(
+    request.position.line,
+    span.start,
+    request.position.line,
+    request.position.column
+  ));
+  return {
+    items: combined.map(({ item, priority, preselect }) => {
+      const kind = mapCompletionKind(item.kind);
+      const label = item.parameters !== void 0 ? `${item.title}(${item.parameters.join(", ")})` : item.title;
+      return {
+        kind,
+        label,
+        detail: item.description,
+        filterText: item.title,
+        sortText: `${priority.toString().padStart(2, "0")}_${item.title}`,
+        documentation: item.parameterDescriptions !== void 0 && item.parameterDescriptions.length > 0 ? item.parameters.map((parameter, index) => `- **${parameter}**: ${item.parameterDescriptions[index]}`).join("\n") : void 0,
+        insertText: item.insertText ?? item.title,
+        insertTextIsSnippet: item.insertText !== void 0,
+        preselect: !!preselect,
+        ranges: {
+          inserting: insertingRange,
+          replacing: replacingRange
+        }
+      };
+    })
+  };
 }
-function toDocumentSymbols(symbols) {
-  return symbols.map((symbol) => {
-    const children = toDocumentSymbols(symbol.children);
-    const range = CompilerRange.spanning([
-      symbol.range,
-      symbol.selectionRange,
-      ...symbol.children.map((child) => child.range)
-    ]);
-    const documentSymbol = new vscode4.DocumentSymbol(
-      symbol.name,
-      symbol.kind === "sub" ? "Sub" : "Variable",
-      symbol.kind === "sub" ? vscode4.SymbolKind.Function : vscode4.SymbolKind.Variable,
-      toVsCodeRange(range),
-      toVsCodeRange(symbol.selectionRange)
-    );
-    documentSymbol.children = children;
-    return documentSymbol;
-  });
-}
-function publishDiagnostics(document, cache, diagnostics) {
-  if (!isSmallBasicDocument(document)) {
-    return;
-  }
-  const compilation = cache.get(document);
-  diagnostics.set(
-    document.uri,
-    compilation.diagnostics.map((diagnostic) => toVsCodeDiagnostic(diagnostic))
-  );
-}
-function toVsCodeDiagnostic(diagnostic) {
-  return new vscode4.Diagnostic(
-    toVsCodeRange(diagnostic.range),
-    diagnostic.toString(),
-    vscode4.DiagnosticSeverity.Error
-  );
-}
-function mapTokenType(compilation, kind, text) {
-  if (keywordKinds.has(kind)) {
-    return semanticTokenTypes.indexOf("keyword");
-  }
+function mapCompletionKind(kind) {
   switch (kind) {
-    case 37 /* Comment */:
-      return semanticTokenTypes.indexOf("comment");
-    case 36 /* StringLiteral */:
-      return semanticTokenTypes.indexOf("string");
-    case 35 /* NumberLiteral */:
-      return semanticTokenTypes.indexOf("number");
-    case 34 /* Identifier */:
-      if (CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, text) !== void 0) {
-        return semanticTokenTypes.indexOf("class");
-      }
-      if (CompilerUtils.lookupIgnoreCase(compilation.boundSubModules, text) !== void 0) {
-        return semanticTokenTypes.indexOf("function");
-      }
-      return semanticTokenTypes.indexOf("variable");
+    case CompletionService.ResultKind.Class:
+      return "class";
+    case CompletionService.ResultKind.Method:
+      return "method";
+    case CompletionService.ResultKind.Snippet:
+      return "snippet";
+    case CompletionService.ResultKind.Event:
+      return "event";
     default:
-      return void 0;
+      return "property";
   }
 }
 function dedupeCompletions(items) {
@@ -17573,11 +17551,179 @@ function dedupeCompletions(items) {
   return deduped;
 }
 
+// src/language/signature-help.ts
+var vscode2 = __toESM(require("vscode"));
+function provideLibrarySignatureHelp(document, position) {
+  const line = document.lineAt(position.line).text;
+  const signature = provideSignatureHelpInfo(line, position.character);
+  if (!signature) {
+    return void 0;
+  }
+  const information = new vscode2.SignatureInformation(
+    signature.signatures[0].label,
+    new vscode2.MarkdownString(signature.signatures[0].documentation)
+  );
+  signature.signatures[0].parameters.forEach((parameter) => {
+    information.parameters.push(
+      new vscode2.ParameterInformation(parameter.name, new vscode2.MarkdownString(parameter.description))
+    );
+  });
+  const help = new vscode2.SignatureHelp();
+  help.signatures = [information];
+  help.activeSignature = 0;
+  help.activeParameter = signature.activeParameter;
+  return help;
+}
+
+// src/language/providers.ts
+var legend = new vscode3.SemanticTokensLegend([...semanticTokenTypes]);
+function isSmallBasicDocument(document) {
+  return document.languageId === "smallbasic";
+}
+function mapCompletionKind2(kind) {
+  switch (kind) {
+    case "class":
+      return vscode3.CompletionItemKind.Class;
+    case "method":
+      return vscode3.CompletionItemKind.Method;
+    case "snippet":
+      return vscode3.CompletionItemKind.Snippet;
+    case "event":
+      return vscode3.CompletionItemKind.Event;
+    default:
+      return vscode3.CompletionItemKind.Property;
+  }
+}
+function registerLanguageFeatures(context, cache, diagnostics) {
+  context.subscriptions.push(
+    vscode3.languages.registerCompletionItemProvider(
+      { language: "smallbasic" },
+      {
+        provideCompletionItems(document, position) {
+          const compilation = cache.get(document);
+          const completions = provideCompletionItems({
+            source: document.getText(),
+            lineText: document.lineAt(position.line).text,
+            position: { line: position.line, column: position.character },
+            compilation
+          });
+          return new vscode3.CompletionList(
+            completions.items.map((item) => {
+              const completion = new vscode3.CompletionItem(item.label, mapCompletionKind2(item.kind));
+              completion.detail = item.detail;
+              completion.filterText = item.filterText;
+              completion.range = {
+                inserting: toVsCodeRangeFromDto(item.ranges.inserting),
+                replacing: toVsCodeRangeFromDto(item.ranges.replacing)
+              };
+              completion.sortText = item.sortText;
+              completion.preselect = item.preselect;
+              if (item.documentation) {
+                completion.documentation = new vscode3.MarkdownString(item.documentation);
+              }
+              if (item.insertTextIsSnippet) {
+                completion.insertText = new vscode3.SnippetString(item.insertText);
+              } else {
+                completion.insertText = item.insertText;
+              }
+              return completion;
+            }),
+            false
+          );
+        }
+      },
+      "."
+    ),
+    vscode3.languages.registerDocumentSymbolProvider({ language: "smallbasic" }, {
+      provideDocumentSymbols(document) {
+        return toVsCodeDocumentSymbols(toDocumentSymbols(collectOutlineSymbols(cache.get(document))));
+      }
+    }),
+    vscode3.languages.registerHoverProvider({ language: "smallbasic" }, {
+      provideHover(document, position) {
+        const compilation = cache.get(document);
+        const hover = provideHoverInfo(compilation, { line: position.line, column: position.character });
+        if (!hover) {
+          return void 0;
+        }
+        return new vscode3.Hover(
+          hover.contents.map((line) => new vscode3.MarkdownString(line)),
+          toVsCodeRangeFromDto(hover.range)
+        );
+      }
+    }),
+    vscode3.languages.registerSignatureHelpProvider(
+      { language: "smallbasic" },
+      {
+        provideSignatureHelp(document, position) {
+          return provideLibrarySignatureHelp(document, position);
+        }
+      },
+      "(",
+      ","
+    ),
+    vscode3.languages.registerDocumentSemanticTokensProvider(
+      { language: "smallbasic" },
+      {
+        provideDocumentSemanticTokens(document) {
+          const builder = new vscode3.SemanticTokensBuilder(legend);
+          for (const token of provideSemanticTokens(cache.get(document))) {
+            builder.push(
+              token.line,
+              token.column,
+              token.length,
+              semanticTokenTypes.indexOf(token.type),
+              token.modifiers
+            );
+          }
+          return builder.build();
+        }
+      },
+      legend
+    )
+  );
+  context.subscriptions.push(diagnostics);
+}
+function toVsCodeDocumentSymbols(symbols) {
+  return symbols.map((symbol) => {
+    const children = toVsCodeDocumentSymbols(symbol.children);
+    const documentSymbol = new vscode3.DocumentSymbol(
+      symbol.name,
+      symbol.detail,
+      symbol.kind === "sub" ? vscode3.SymbolKind.Function : vscode3.SymbolKind.Variable,
+      toVsCodeRangeFromDto(symbol.range),
+      toVsCodeRangeFromDto(symbol.selectionRange)
+    );
+    documentSymbol.children = children;
+    return documentSymbol;
+  });
+}
+function publishDiagnostics(document, cache, diagnostics) {
+  if (!isSmallBasicDocument(document)) {
+    return;
+  }
+  const compilation = cache.get(document);
+  diagnostics.set(
+    document.uri,
+    provideDiagnostics(compilation).map((diagnostic) => toVsCodeDiagnostic(diagnostic))
+  );
+}
+function toVsCodeDiagnostic(diagnostic) {
+  return new vscode3.Diagnostic(
+    toVsCodeRangeFromDto(diagnostic.range),
+    diagnostic.message,
+    vscode3.DiagnosticSeverity.Error
+  );
+}
+function toVsCodeRangeFromDto(range) {
+  return new vscode3.Range(range.start.line, range.start.column, range.end.line, range.end.column);
+}
+
 // src/run/javascript-runner.ts
-var vscode6 = __toESM(require("vscode"));
+var vscode5 = __toESM(require("vscode"));
 
 // src/run/terminal-session.ts
-var vscode5 = __toESM(require("vscode"));
+var vscode4 = __toESM(require("vscode"));
 var ansiForeground = {
   [0 /* Black */]: 30,
   [1 /* DarkBlue */]: 34,
@@ -17615,8 +17761,8 @@ var ansiBackground = {
   [15 /* White */]: 107
 };
 var SmallBasicTerminalSession = class {
-  writeEmitter = new vscode5.EventEmitter();
-  closeEmitter = new vscode5.EventEmitter();
+  writeEmitter = new vscode4.EventEmitter();
+  closeEmitter = new vscode4.EventEmitter();
   inputBuffer = [];
   lineBuffer = [];
   engine;
@@ -17752,17 +17898,17 @@ var SmallBasicTerminalSession = class {
 // src/run/javascript-runner.ts
 function runJavaScriptCompilation(document, compilation) {
   if (!compilation.isReadyToRun) {
-    void vscode6.window.showErrorMessage("\u5F53\u524D\u7A0B\u5E8F\u5B58\u5728\u7F16\u8BD1\u9519\u8BEF\uFF0C\u8BF7\u5148\u4FEE\u590D\u540E\u518D\u8FD0\u884C\u3002");
+    void vscode5.window.showErrorMessage("\u5F53\u524D\u7A0B\u5E8F\u5B58\u5728\u7F16\u8BD1\u9519\u8BEF\uFF0C\u8BF7\u5148\u4FEE\u590D\u540E\u518D\u8FD0\u884C\u3002");
     return;
   }
   if (compilation.kind.drawsShapes()) {
-    void vscode6.window.showErrorMessage(
+    void vscode5.window.showErrorMessage(
       "\u5F53\u524D JS \u540E\u7AEF\u5C1A\u4E0D\u652F\u6301 GraphicsWindow/Shapes/Turtle/Controls \u56FE\u5F62\u5BBF\u4E3B\u3002\u8BF7\u4F7F\u7528 Blazor \u540E\u7AEF\u7684 Web \u6A21\u5F0F\uFF0C\u6216\u5728 Windows \u684C\u9762\u7248\u4F7F\u7528 C# \u540E\u7AEF\u3002"
     );
     return;
   }
   const session = new SmallBasicTerminalSession();
-  const terminal = vscode6.window.createTerminal({
+  const terminal = vscode5.window.createTerminal({
     name: `SmallBasic: ${documentName(document)}`,
     pty: session
   });
@@ -17776,10 +17922,10 @@ function documentName(document) {
 
 // src/common/activation.ts
 function activateCommon(context, platform) {
-  setDocumentationLocale(resolveDocumentationLocale(vscode7.env.language));
+  setDocumentationLocale(resolveDocumentationLocale(vscode6.env.language));
   const cache = new CompilationCache();
-  const diagnostics = vscode7.languages.createDiagnosticCollection("smallbasic");
-  const debounceMs = () => vscode7.workspace.getConfiguration("smallbasic").get("diagnostics.debounceMs", 150);
+  const diagnostics = vscode6.languages.createDiagnosticCollection("smallbasic");
+  const debounceMs = () => vscode6.workspace.getConfiguration("smallbasic").get("diagnostics.debounceMs", 150);
   const pending = /* @__PURE__ */ new Map();
   const scheduleDiagnostics = (document) => {
     if (!isSmallBasicDocument(document)) {
@@ -17798,28 +17944,28 @@ function activateCommon(context, platform) {
   registerLanguageFeatures(context, cache, diagnostics);
   registerSmallBasicInlineValues(context);
   context.subscriptions.push(
-    vscode7.debug.registerDebugAdapterDescriptorFactory("smallbasic", platform.debugAdapterFactory),
-    vscode7.debug.registerDebugConfigurationProvider(
+    vscode6.debug.registerDebugAdapterDescriptorFactory("smallbasic", platform.debugAdapterFactory),
+    vscode6.debug.registerDebugConfigurationProvider(
       "smallbasic",
       platform.debugConfigurationProvider,
-      vscode7.DebugConfigurationProviderTriggerKind.Initial
+      vscode6.DebugConfigurationProviderTriggerKind.Initial
     )
   );
-  for (const document of vscode7.workspace.textDocuments) {
+  for (const document of vscode6.workspace.textDocuments) {
     scheduleDiagnostics(document);
   }
   const subscriptions = [
-    vscode7.workspace.onDidOpenTextDocument(scheduleDiagnostics),
-    vscode7.workspace.onDidChangeTextDocument((event) => {
+    vscode6.workspace.onDidOpenTextDocument(scheduleDiagnostics),
+    vscode6.workspace.onDidChangeTextDocument((event) => {
       cache.delete(event.document.uri);
       scheduleDiagnostics(event.document);
       if (shouldTriggerSuggest(event)) {
         setTimeout(() => {
-          void vscode7.commands.executeCommand("editor.action.triggerSuggest");
+          void vscode6.commands.executeCommand("editor.action.triggerSuggest");
         }, 0);
       }
     }),
-    vscode7.workspace.onDidCloseTextDocument((document) => {
+    vscode6.workspace.onDidCloseTextDocument((document) => {
       const key = document.uri.toString();
       const existing = pending.get(key);
       if (existing) {
@@ -17829,10 +17975,10 @@ function activateCommon(context, platform) {
       cache.delete(document.uri);
       diagnostics.delete(document.uri);
     }),
-    vscode7.commands.registerCommand("smallbasic.newFile", async (resource) => {
+    vscode6.commands.registerCommand("smallbasic.newFile", async (resource) => {
       await createNewFile(resource);
     }),
-    vscode7.commands.registerCommand("smallbasic.runJavaScript", async () => {
+    vscode6.commands.registerCommand("smallbasic.runJavaScript", async () => {
       if (platform.runJavaScript) {
         await platform.runJavaScript();
       } else {
@@ -17841,67 +17987,67 @@ function activateCommon(context, platform) {
     })
   ];
   if (platform.runCSharp) {
-    subscriptions.push(vscode7.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
+    subscriptions.push(vscode6.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
   }
   if (platform.runBlazor) {
-    subscriptions.push(vscode7.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
+    subscriptions.push(vscode6.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
   }
   context.subscriptions.push(...subscriptions);
 }
 async function createNewFile(resource) {
   const folder = await resolveTargetFolder(resource);
   if (!folder) {
-    const document2 = await vscode7.workspace.openTextDocument({
+    const document2 = await vscode6.workspace.openTextDocument({
       language: "smallbasic",
       content: `' My first SmallBasic program
 TextWindow.WriteLine("Hello World")
 `
     });
-    await vscode7.window.showTextDocument(document2, { preview: false });
+    await vscode6.window.showTextDocument(document2, { preview: false });
     return;
   }
   const file = await nextAvailableFile(folder);
-  await vscode7.workspace.fs.writeFile(
+  await vscode6.workspace.fs.writeFile(
     file,
     new TextEncoder().encode(`' My first SmallBasic program
 TextWindow.WriteLine("Hello World")
 `)
   );
-  const document = await vscode7.workspace.openTextDocument(file);
-  await vscode7.window.showTextDocument(document, { preview: false });
+  const document = await vscode6.workspace.openTextDocument(file);
+  await vscode6.window.showTextDocument(document, { preview: false });
 }
 async function resolveTargetFolder(resource) {
   if (resource) {
     try {
-      const stat = await vscode7.workspace.fs.stat(resource);
-      return stat.type === vscode7.FileType.Directory ? resource : vscode7.Uri.joinPath(resource, "..");
+      const stat = await vscode6.workspace.fs.stat(resource);
+      return stat.type === vscode6.FileType.Directory ? resource : vscode6.Uri.joinPath(resource, "..");
     } catch {
-      return vscode7.Uri.joinPath(resource, "..");
+      return vscode6.Uri.joinPath(resource, "..");
     }
   }
-  return vscode7.workspace.workspaceFolders?.[0]?.uri;
+  return vscode6.workspace.workspaceFolders?.[0]?.uri;
 }
 async function nextAvailableFile(folder) {
   for (let index = 1; index < 1e3; index += 1) {
-    const candidate = vscode7.Uri.joinPath(folder, `Untitled-${index}.sb`);
+    const candidate = vscode6.Uri.joinPath(folder, `Untitled-${index}.sb`);
     try {
-      await vscode7.workspace.fs.stat(candidate);
+      await vscode6.workspace.fs.stat(candidate);
     } catch {
       return candidate;
     }
   }
-  return vscode7.Uri.joinPath(folder, `Untitled-${Date.now()}.sb`);
+  return vscode6.Uri.joinPath(folder, `Untitled-${Date.now()}.sb`);
 }
 async function runActiveDocument(cache, diagnostics) {
-  const editor = vscode7.window.activeTextEditor;
+  const editor = vscode6.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode7.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+    void vscode6.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
     return;
   }
   if (!editor.document.isUntitled) {
     const saved = await editor.document.save();
     if (!saved) {
-      void vscode7.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
+      void vscode6.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
       return;
     }
   }
@@ -17913,7 +18059,7 @@ function shouldTriggerSuggest(event) {
   if (!isSmallBasicDocument(event.document)) {
     return false;
   }
-  const editor = vscode7.window.activeTextEditor;
+  const editor = vscode6.window.activeTextEditor;
   if (!editor || editor.document.uri.toString() !== event.document.uri.toString()) {
     return false;
   }
@@ -17934,17 +18080,17 @@ function selectDefaultDebugBackend(platform, hasCSharpHost) {
 
 // src/debug/factory.ts
 var import_node_path3 = __toESM(require("path"));
-var vscode12 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
 
 // src/run/csharp-runner.ts
 var import_node_fs = __toESM(require("fs"));
 var import_node_path = __toESM(require("path"));
-var vscode8 = __toESM(require("vscode"));
+var vscode7 = __toESM(require("vscode"));
 var CSharpRunner = class _CSharpRunner {
   static async runActiveDocument(extensionPath) {
-    const editor = vscode8.window.activeTextEditor;
+    const editor = vscode7.window.activeTextEditor;
     if (!editor || editor.document.languageId !== "smallbasic") {
-      void vscode8.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+      void vscode7.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
       return;
     }
     await _CSharpRunner.runDocument(editor.document, extensionPath);
@@ -17953,11 +18099,11 @@ var CSharpRunner = class _CSharpRunner {
     if (!document.isUntitled) {
       const saved = await document.save();
       if (!saved) {
-        void vscode8.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
+        void vscode7.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
         return;
       }
     } else {
-      void vscode8.window.showWarningMessage("\u8BF7\u5148\u4FDD\u5B58\u6587\u4EF6\u540E\u518D\u4F7F\u7528 C# \u540E\u7AEF\u8FD0\u884C\u3002");
+      void vscode7.window.showWarningMessage("\u8BF7\u5148\u4FDD\u5B58\u6587\u4EF6\u540E\u518D\u4F7F\u7528 C# \u540E\u7AEF\u8FD0\u884C\u3002");
       return;
     }
     await _CSharpRunner.runProgram(document.uri.fsPath, extensionPath);
@@ -17965,16 +18111,16 @@ var CSharpRunner = class _CSharpRunner {
   static async runProgram(filePath, extensionPath) {
     const host = _CSharpRunner.resolveHostCommand(extensionPath);
     if (!host) {
-      void vscode8.window.showErrorMessage(
+      void vscode7.window.showErrorMessage(
         "\u672A\u627E\u5230\u53EF\u7528\u7684 SmallBasic C# \u8FD0\u884C\u5BBF\u4E3B\u3002\u8BF7\u5728\u8BBE\u7F6E\u4E2D\u914D\u7F6E smallbasic.csharp.runHostPath\uFF0C\u6216\u5B89\u88C5 .NET 8 \u540E\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u7684\u6269\u5C55\u5305\u3002"
       );
       return;
     }
     if (!_CSharpRunner.fileExists(filePath)) {
-      void vscode8.window.showErrorMessage(`\u627E\u4E0D\u5230 SmallBasic \u7A0B\u5E8F\u6587\u4EF6\uFF1A${filePath}`);
+      void vscode7.window.showErrorMessage(`\u627E\u4E0D\u5230 SmallBasic \u7A0B\u5E8F\u6587\u4EF6\uFF1A${filePath}`);
       return;
     }
-    const terminal = vscode8.window.createTerminal({
+    const terminal = vscode7.window.createTerminal({
       name: `SmallBasic (C#): ${import_node_path.default.basename(filePath)}`,
       shellPath: host.executable,
       shellArgs: [...host.argumentsPrefix, "run", "--file", filePath, "--pause"],
@@ -17983,11 +18129,11 @@ var CSharpRunner = class _CSharpRunner {
     terminal.show(true);
   }
   static resolveHostCommand(extensionPath) {
-    const configPath = vscode8.workspace.getConfiguration("smallbasic").get("csharp.runHostPath");
+    const configPath = vscode7.workspace.getConfiguration("smallbasic").get("csharp.runHostPath");
     if (configPath && _CSharpRunner.fileExists(configPath)) {
       return _CSharpRunner.toHostCommand(configPath);
     }
-    const roots = vscode8.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
+    const roots = vscode7.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
     const repositoryCandidates = (root, framework, fileName) => [
       import_node_path.default.join(root, "visual_studio_plugin", "src", "SmallBasic.RunHost", "bin", "Release", framework, fileName),
       import_node_path.default.join(root, "visual_studio_plugin", "src", "SmallBasic.RunHost", "bin", "Debug", framework, fileName),
@@ -18046,16 +18192,16 @@ var CSharpRunner = class _CSharpRunner {
 // src/run/blazor-runner.ts
 var import_node_fs2 = __toESM(require("fs"));
 var import_node_path2 = __toESM(require("path"));
-var vscode9 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 var BlazorRunner = class _BlazorRunner {
   static async runActiveDocument(extensionPath) {
-    const editor = vscode9.window.activeTextEditor;
+    const editor = vscode8.window.activeTextEditor;
     if (!editor || editor.document.languageId !== "smallbasic") {
-      void vscode9.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+      void vscode8.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
       return;
     }
     if (editor.document.isUntitled || !await editor.document.save()) {
-      void vscode9.window.showWarningMessage("\u8BF7\u5148\u4FDD\u5B58\u6587\u4EF6\u540E\u518D\u4F7F\u7528 Blazor \u540E\u7AEF\u8FD0\u884C\u3002");
+      void vscode8.window.showWarningMessage("\u8BF7\u5148\u4FDD\u5B58\u6587\u4EF6\u540E\u518D\u4F7F\u7528 Blazor \u540E\u7AEF\u8FD0\u884C\u3002");
       return;
     }
     await _BlazorRunner.runProgram(editor.document.uri.fsPath, extensionPath);
@@ -18063,16 +18209,16 @@ var BlazorRunner = class _BlazorRunner {
   static async runProgram(filePath, extensionPath) {
     const host = _BlazorRunner.resolveHostCommand(extensionPath);
     if (!host) {
-      void vscode9.window.showErrorMessage(
+      void vscode8.window.showErrorMessage(
         "\u672A\u627E\u5230 Small Basic Blazor RunHost\u3002\u8BF7\u5B89\u88C5 .NET 8 / ASP.NET Core 8 Runtime\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.blazor.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
       );
       return;
     }
     if (!import_node_fs2.default.existsSync(filePath)) {
-      void vscode9.window.showErrorMessage(`\u627E\u4E0D\u5230 SmallBasic \u7A0B\u5E8F\u6587\u4EF6\uFF1A${filePath}`);
+      void vscode8.window.showErrorMessage(`\u627E\u4E0D\u5230 SmallBasic \u7A0B\u5E8F\u6587\u4EF6\uFF1A${filePath}`);
       return;
     }
-    const terminal = vscode9.window.createTerminal({
+    const terminal = vscode8.window.createTerminal({
       name: `SmallBasic (Blazor): ${import_node_path2.default.basename(filePath)}`,
       shellPath: host.executable,
       shellArgs: [...host.argumentsPrefix, "run", "--file", filePath],
@@ -18081,11 +18227,11 @@ var BlazorRunner = class _BlazorRunner {
     terminal.show(true);
   }
   static resolveHostCommand(extensionPath) {
-    const configured = vscode9.workspace.getConfiguration("smallbasic").get("blazor.runHostPath");
+    const configured = vscode8.workspace.getConfiguration("smallbasic").get("blazor.runHostPath");
     if (configured && import_node_fs2.default.existsSync(configured)) {
       return _BlazorRunner.toCommand(configured);
     }
-    const roots = vscode9.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
+    const roots = vscode8.workspace.workspaceFolders?.map((folder) => folder.uri.fsPath) ?? [];
     const developmentRoot = import_node_path2.default.resolve(extensionPath, "..", "..", "..");
     const candidates = [
       import_node_path2.default.join(extensionPath, "runhost", "blazor", "SmallBasic.Blazor.RunHost.dll"),
@@ -18107,7 +18253,7 @@ var BlazorRunner = class _BlazorRunner {
 };
 
 // src/web/inline-factory.ts
-var vscode11 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/web/debug-protocol.ts
 var DEBUG_PROTOCOL_VERSION = 1;
@@ -18489,7 +18635,7 @@ var WebDebugSourceAccessor = class {
 };
 
 // src/web/webview-panel.ts
-var vscode10 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 
 // src/web/webview-html.ts
 function buildContentSecurityPolicy(cspSource) {
@@ -18575,24 +18721,24 @@ var ENTRY_SEGMENTS = ["_framework", "blazor.webassembly.js"];
 var DIST_SEGMENTS = ["dist"];
 var JAVASCRIPT_SEGMENTS = [...DIST_SEGMENTS, "web-runhost.js"];
 function blazorPayloadEntry(context) {
-  return vscode10.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS, ...ENTRY_SEGMENTS);
+  return vscode9.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS, ...ENTRY_SEGMENTS);
 }
 function javascriptPayloadEntry(context) {
-  return vscode10.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
+  return vscode9.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
 }
 async function resolveBlazorPayload(context) {
-  const root = vscode10.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS);
+  const root = vscode9.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS);
   try {
-    await vscode10.workspace.fs.stat(vscode10.Uri.joinPath(root, ...ENTRY_SEGMENTS));
+    await vscode9.workspace.fs.stat(vscode9.Uri.joinPath(root, ...ENTRY_SEGMENTS));
     return root;
   } catch {
     return void 0;
   }
 }
 async function resolveJavaScriptPayload(context) {
-  const javascript = vscode10.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
+  const javascript = vscode9.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
   try {
-    await vscode10.workspace.fs.stat(javascript);
+    await vscode9.workspace.fs.stat(javascript);
     return javascript;
   } catch {
     return void 0;
@@ -18610,13 +18756,13 @@ var BlazorWebviewHost = class {
   constructor(context, options) {
     this.payloadRoot = options.payloadRoot;
     this.logSink = options.log;
-    this.panel = vscode10.window.createWebviewPanel(
+    this.panel = vscode9.window.createWebviewPanel(
       options.viewType,
       options.title,
-      vscode10.ViewColumn.Beside,
+      vscode9.ViewColumn.Beside,
       {
         enableScripts: true,
-        localResourceRoots: [options.payloadRoot, vscode10.Uri.joinPath(context.extensionUri, ...DIST_SEGMENTS)],
+        localResourceRoots: [options.payloadRoot, vscode9.Uri.joinPath(context.extensionUri, ...DIST_SEGMENTS)],
         // Keeps the WebAssembly runtime (and therefore the graphics scene) alive
         // while the user switches between editors.
         retainContextWhenHidden: true
@@ -18646,11 +18792,11 @@ var BlazorWebviewHost = class {
   }
   onMessage(handler) {
     this.handlers.add(handler);
-    return new vscode10.Disposable(() => this.handlers.delete(handler));
+    return new vscode9.Disposable(() => this.handlers.delete(handler));
   }
   onDispose(handler) {
     this.disposeHandlers.add(handler);
-    return new vscode10.Disposable(() => this.disposeHandlers.delete(handler));
+    return new vscode9.Disposable(() => this.disposeHandlers.delete(handler));
   }
   post(message) {
     if (!this.disposed) {
@@ -18748,7 +18894,7 @@ var BlazorWebviewHost = class {
   }
   /** Keeps webview resource requests inside runhost/blazor/wwwroot. */
   resolvePayloadResources(requestedPath) {
-    return payloadResourceCandidates(requestedPath).map((candidate) => vscode10.Uri.joinPath(this.payloadRoot, ...candidate.split("/")));
+    return payloadResourceCandidates(requestedPath).map((candidate) => vscode9.Uri.joinPath(this.payloadRoot, ...candidate.split("/")));
   }
   /**
    * The original path is retained as a development fallback so an unstaged
@@ -18759,7 +18905,7 @@ var BlazorWebviewHost = class {
     let lastError;
     for (const resource of resources) {
       try {
-        return await vscode10.workspace.fs.readFile(resource);
+        return await vscode9.workspace.fs.readFile(resource);
       } catch (error) {
         lastError = error;
       }
@@ -19016,7 +19162,7 @@ var DEBUG_OUTPUT_CHANNEL = "SmallBasic (Web Debug)";
 async function resolveDebugDocument(configuredProgram) {
   const normalize = (value) => value.replace(/\\/g, "/").toLowerCase();
   const wanted = normalize(configuredProgram);
-  const open = configuredProgram ? vscode11.workspace.textDocuments.find((document) => [
+  const open = configuredProgram ? vscode10.workspace.textDocuments.find((document) => [
     document.fileName,
     document.uri.fsPath,
     document.uri.path,
@@ -19025,7 +19171,7 @@ async function resolveDebugDocument(configuredProgram) {
   if (open) {
     return open;
   }
-  const active = vscode11.window.activeTextEditor?.document;
+  const active = vscode10.window.activeTextEditor?.document;
   if (active && isSmallBasicDocument(active)) {
     return active;
   }
@@ -19033,8 +19179,8 @@ async function resolveDebugDocument(configuredProgram) {
     return void 0;
   }
   try {
-    const uri = /^[a-z][a-z0-9+.-]*:/i.test(configuredProgram) ? vscode11.Uri.parse(configuredProgram) : vscode11.Uri.file(configuredProgram);
-    const document = await vscode11.workspace.openTextDocument(uri);
+    const uri = /^[a-z][a-z0-9+.-]*:/i.test(configuredProgram) ? vscode10.Uri.parse(configuredProgram) : vscode10.Uri.file(configuredProgram);
+    const document = await vscode10.workspace.openTextDocument(uri);
     return isSmallBasicDocument(document) ? document : void 0;
   } catch {
     return void 0;
@@ -19050,7 +19196,7 @@ function documentBaseName(document) {
 async function createWebInlineAdapter(context, session) {
   const backend = session.configuration.backend;
   if (backend === "csharp") {
-    void vscode11.window.showErrorMessage(
+    void vscode10.window.showErrorMessage(
       "Web \u6A21\u5F0F\u65E0\u6CD5\u542F\u52A8\u672C\u673A C# RunHost\uFF1ATextWindow \u7A0B\u5E8F\u8BF7\u7528 JavaScript \u540E\u7AEF\uFF0C\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u7528 Blazor \u540E\u7AEF\uFF08\u4E24\u8005\u90FD\u5728 Webview \u5185\u8FD0\u884C\uFF09\u3002"
     );
     return void 0;
@@ -19059,23 +19205,23 @@ async function createWebInlineAdapter(context, session) {
   const configuredProgram = typeof session.configuration.program === "string" ? session.configuration.program : "";
   const document = await resolveDebugDocument(configuredProgram);
   if (!document) {
-    void vscode11.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
+    void vscode10.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
     return void 0;
   }
   const sources = new WebDebugSourceAccessor(document, configuredProgram);
   const root = await resolveBlazorPayload(context);
   if (!root) {
-    void vscode11.window.showErrorMessage(
+    void vscode10.window.showErrorMessage(
       `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${blazorPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
     );
     return void 0;
   }
   const javascript = await resolveJavaScriptPayload(context);
   if (!javascript) {
-    void vscode11.window.showErrorMessage("\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF08dist/web-runhost.js\uFF09\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002");
+    void vscode10.window.showErrorMessage("\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF08dist/web-runhost.js\uFF09\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002");
     return void 0;
   }
-  const output2 = vscode11.window.createOutputChannel(DEBUG_OUTPUT_CHANNEL);
+  const output2 = vscode10.window.createOutputChannel(DEBUG_OUTPUT_CHANNEL);
   const host = new BlazorWebviewHost(context, {
     viewType: DEBUG_VIEW_TYPE,
     title: DEBUG_TITLE,
@@ -19101,7 +19247,7 @@ async function createWebInlineAdapter(context, session) {
       output2.dispose();
     }
   });
-  return new vscode11.DebugAdapterInlineImplementation(adapter);
+  return new vscode10.DebugAdapterInlineImplementation(adapter);
 }
 
 // src/debug/factory.ts
@@ -19118,29 +19264,29 @@ var SmallBasicDebugAdapterFactory = class {
     if (backend === "blazor") {
       const host = BlazorRunner.resolveHostCommand(this.context.extensionPath);
       if (!host) {
-        void vscode12.window.showErrorMessage(
+        void vscode11.window.showErrorMessage(
           "\u672A\u627E\u5230 Small Basic Blazor \u8C03\u8BD5\u5BBF\u4E3B\u3002\u8BF7\u5B89\u88C5 .NET 8 / ASP.NET Core 8 Runtime\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.blazor.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
         );
         return void 0;
       }
-      return new vscode12.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
+      return new vscode11.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
         cwd: host.cwd
       });
     }
     if (backend === "csharp") {
       const host = CSharpRunner.resolveHostCommand(this.context.extensionPath);
       if (!host) {
-        void vscode12.window.showErrorMessage(
+        void vscode11.window.showErrorMessage(
           "\u672A\u627E\u5230\u53EF\u7528\u7684 SmallBasic C# \u8C03\u8BD5\u5BBF\u4E3B\u3002\u8BF7\u5B89\u88C5 .NET 8\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.csharp.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
         );
         return void 0;
       }
-      return new vscode12.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
+      return new vscode11.DebugAdapterExecutable(host.executable, [...host.argumentsPrefix, "debug"], {
         cwd: host.cwd
       });
     }
     const adapterPath = import_node_path3.default.join(this.context.extensionPath, "dist", "debug", "adapter.js");
-    return new vscode12.DebugAdapterExecutable(process.execPath, [adapterPath], {
+    return new vscode11.DebugAdapterExecutable(process.execPath, [adapterPath], {
       cwd: this.context.extensionPath,
       env: {
         ...process.env,
@@ -19151,7 +19297,7 @@ var SmallBasicDebugAdapterFactory = class {
 };
 
 // src/web/blazor-webview.ts
-var vscode13 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 var RUN_VIEW_TYPE = "smallbasic.web";
 var RUN_TITLE = "Small Basic (Web)";
 var OUTPUT_CHANNEL = "SmallBasic (Web)";
@@ -19162,14 +19308,14 @@ var pendingRun;
 async function runInWebview(context, name, source, backend) {
   const root = await resolveBlazorPayload(context);
   if (!root) {
-    void vscode13.window.showErrorMessage(
+    void vscode12.window.showErrorMessage(
       `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${blazorPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_code_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
     );
     return;
   }
   const javascript = await resolveJavaScriptPayload(context);
   if (!javascript) {
-    void vscode13.window.showErrorMessage(
+    void vscode12.window.showErrorMessage(
       `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF1A${javascriptPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002`
     );
     return;
@@ -19184,7 +19330,7 @@ function ensurePanel(context, root, javascript) {
   if (panel && !panel.isDisposed) {
     return panel;
   }
-  output ??= vscode13.window.createOutputChannel(OUTPUT_CHANNEL);
+  output ??= vscode12.window.createOutputChannel(OUTPUT_CHANNEL);
   const host = new BlazorWebviewHost(context, {
     viewType: RUN_VIEW_TYPE,
     title: RUN_TITLE,
@@ -19217,7 +19363,7 @@ function handleRunMessage(message) {
     case "failed":
       output?.appendLine(message.text ?? "[webview] unknown failure");
       output?.show(true);
-      void vscode13.window.showErrorMessage(
+      void vscode12.window.showErrorMessage(
         `Small Basic Web \u6A21\u5F0F\u8FD0\u884C\u5931\u8D25\uFF0C\u8BE6\u60C5\u89C1\u8F93\u51FA\u9762\u677F\u201C${OUTPUT_CHANNEL}\u201D\u3002`
       );
       return;
@@ -19242,7 +19388,7 @@ function handleNotify(json) {
   if (notify.type === "terminated") {
     const exitCode = notify.exitCode ?? 0;
     output?.appendLine(exitCode === 0 ? "[state] completed" : `[state] exited with code ${exitCode}`);
-    vscode13.window.setStatusBarMessage(
+    vscode12.window.setStatusBarMessage(
       exitCode === 0 ? "Small Basic: \u8FD0\u884C\u5B8C\u6210" : `Small Basic: \u9000\u51FA\u7801 ${exitCode}`,
       5e3
     );
@@ -19318,7 +19464,7 @@ function createDebugConfigurationProvider(context) {
     stopOnEntry: true
   });
   const activeSmallBasicPath = () => {
-    const editor = vscode14.window.activeTextEditor;
+    const editor = vscode13.window.activeTextEditor;
     return editor && isSmallBasicDocument(editor.document) ? editor.document.uri.fsPath : void 0;
   };
   return {
@@ -19350,7 +19496,7 @@ function createDebugConfigurationProvider(context) {
         program = activeSmallBasicPath() ?? "";
       }
       if (!program) {
-        void vscode14.window.showErrorMessage("\u8C03\u8BD5\u914D\u7F6E\u7F3A\u5C11\u6709\u6548\u7684 program \u8DEF\u5F84\u3002\u8BF7\u6253\u5F00\u4E00\u4E2A .sb \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
+        void vscode13.window.showErrorMessage("\u8C03\u8BD5\u914D\u7F6E\u7F3A\u5C11\u6709\u6548\u7684 program \u8DEF\u5F84\u3002\u8BF7\u6253\u5F00\u4E00\u4E2A .sb \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
         return void 0;
       }
       if (config.mode === "web") {
@@ -19361,16 +19507,16 @@ function createDebugConfigurationProvider(context) {
           drawsShapes
         );
         if (routing.kind === "reject") {
-          void vscode14.window.showErrorMessage(routing.message);
+          void vscode13.window.showErrorMessage(routing.message);
           return void 0;
         }
         if (routing.kind === "run-in-webview") {
           if (!document) {
-            void vscode14.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u68C0\u67E5 launch.json \u4E2D\u7684 program\u3002");
+            void vscode13.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u68C0\u67E5 launch.json \u4E2D\u7684 program\u3002");
             return void 0;
           }
           if (routing.note) {
-            void vscode14.window.setStatusBarMessage(routing.note, 8e3);
+            void vscode13.window.setStatusBarMessage(routing.note, 8e3);
           }
           await runInWebview(
             context,
@@ -19387,11 +19533,11 @@ function createDebugConfigurationProvider(context) {
       if (config.backend === "javascript" && config.noDebug === true) {
         const document = await openProgram(program);
         if (!document) {
-          void vscode14.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u68C0\u67E5 launch.json \u4E2D\u7684 program\u3002");
+          void vscode13.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u68C0\u67E5 launch.json \u4E2D\u7684 program\u3002");
           return void 0;
         }
         if (!document.isUntitled && document.isDirty && !await document.save()) {
-          void vscode14.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
+          void vscode13.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
           return void 0;
         }
         runJavaScriptCompilation(document, new Compilation(document.getText()));
@@ -19403,7 +19549,7 @@ function createDebugConfigurationProvider(context) {
           return void 0;
         }
         if (!CSharpRunner.resolveHostCommand(extensionPath)) {
-          void vscode14.window.showErrorMessage(
+          void vscode13.window.showErrorMessage(
             "\u672A\u627E\u5230\u53EF\u7528\u7684 SmallBasic C# \u8FD0\u884C\u5BBF\u4E3B\u3002\u8BF7\u5B89\u88C5 .NET 8\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.csharp.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
           );
           return void 0;
@@ -19415,7 +19561,7 @@ function createDebugConfigurationProvider(context) {
           return void 0;
         }
         if (!BlazorRunner.resolveHostCommand(extensionPath)) {
-          void vscode14.window.showErrorMessage(
+          void vscode13.window.showErrorMessage(
             "\u672A\u627E\u5230 Small Basic Blazor RunHost\u3002\u8BF7\u5B89\u88C5 .NET 8 / ASP.NET Core 8 Runtime\u3001\u91CD\u65B0\u5B89\u88C5\u5B8C\u6574\u6269\u5C55\uFF0C\u6216\u5728 smallbasic.blazor.runHostPath \u4E2D\u6307\u5B9A\u5BBF\u4E3B\u8DEF\u5F84\u3002"
           );
           return void 0;
@@ -19429,7 +19575,7 @@ function createDebugConfigurationProvider(context) {
 async function openProgram(program) {
   const normalize = (value) => value.replace(/\\/g, "/").toLowerCase();
   const wanted = normalize(program);
-  const open = vscode14.workspace.textDocuments.find((document) => [
+  const open = vscode13.workspace.textDocuments.find((document) => [
     document.fileName,
     document.uri.fsPath,
     document.uri.path,
@@ -19439,8 +19585,8 @@ async function openProgram(program) {
     return open;
   }
   try {
-    const uri = /^[a-z][a-z0-9+.-]*:\/\//i.test(program) ? vscode14.Uri.parse(program) : vscode14.Uri.file(program);
-    const document = await vscode14.workspace.openTextDocument(uri);
+    const uri = /^[a-z][a-z0-9+.-]*:\/\//i.test(program) ? vscode13.Uri.parse(program) : vscode13.Uri.file(program);
+    const document = await vscode13.workspace.openTextDocument(uri);
     return isSmallBasicDocument(document) ? document : void 0;
   } catch {
     return void 0;
@@ -19459,3 +19605,4 @@ function analyze(document) {
   activate,
   deactivate
 });
+//# sourceMappingURL=extension.js.map
