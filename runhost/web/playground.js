@@ -241426,6 +241426,375 @@ monacoApi.languages.html = monaco_contribution_exports2;
 monacoApi.languages.typescript = monaco_contribution_exports4;
 monacoApi.languages.json = monaco_contribution_exports3;
 
+// src/playground/debug-controller.ts
+function toMonacoLine(protocolLine) {
+  return protocolLine + 1;
+}
+function toProtocolLine(lineNumber) {
+  return lineNumber - 1;
+}
+var JsDebugTransport = class {
+  constructor(web, sessionId) {
+    this.web = web;
+    this.sessionId = sessionId;
+  }
+  async launch(payload) {
+    this.web.debugStart(JSON.stringify({ ...payload, stopOnEntry: false }));
+  }
+  async send(command) {
+    this.web.debugCommand(JSON.stringify({ protocolVersion: 1, sessionId: this.sessionId, ...command }));
+  }
+  dispose() {
+    this.web.debugStop();
+  }
+};
+var BlazorDebugTransport = class {
+  constructor(bridge, sessionId) {
+    this.bridge = bridge;
+    this.sessionId = sessionId;
+  }
+  async launch(payload) {
+    await this.bridge.startBlazor();
+    await this.bridge.invoke("SetSession", JSON.stringify({ ...payload, debug: true, stopOnEntry: false }));
+  }
+  async send(command) {
+    await this.bridge.invoke("DispatchDebugCommand", JSON.stringify({ protocolVersion: 1, sessionId: this.sessionId, ...command }));
+  }
+  async dispose() {
+    try {
+      await this.bridge.invoke("Stop");
+    } catch {
+    }
+  }
+};
+var PlaygroundDebugController = class {
+  constructor(options) {
+    this.options = options;
+    this.breakpointDecorations = options.editor.createDecorationsCollection([]);
+    this.currentLineDecoration = options.editor.createDecorationsCollection([]);
+    options.editor.onMouseDown(this.onMouseDown);
+    this.applyTitles();
+    this.updateToolbar();
+  }
+  /** Protocol line (0-based) -> snapped executable line, or -1 while unvalidated. */
+  breakpoints = /* @__PURE__ */ new Map();
+  breakpointDecorations;
+  currentLineDecoration;
+  transport;
+  lastProgram;
+  /** Frame count of the last paused stack; steps must resume from this depth. */
+  pausedStackDepth = 0;
+  active = false;
+  paused = false;
+  awaitingInput = false;
+  get isActive() {
+    return this.active;
+  }
+  get isPaused() {
+    return this.paused;
+  }
+  /** Entry point of the Debug button: launches a session on the given backend. */
+  async start(name, source, backend) {
+    if (this.active) {
+      return;
+    }
+    if (this.options.shell.isRunning()) {
+      await this.options.shell.stopRun();
+    }
+    this.active = true;
+    this.paused = false;
+    this.awaitingInput = false;
+    this.lastProgram = { name: name || "program.sb", source, backend };
+    this.options.shell.setRunning(true);
+    this.updateToolbar();
+    this.options.shell.setStatus("Starting debug session\u2026");
+    try {
+      this.transport = await this.options.createTransport(backend);
+      await this.transport.launch({
+        sessionId: this.options.sessionId,
+        name: this.lastProgram.name,
+        source: this.lastProgram.source
+      });
+    } catch (error) {
+      this.endSession();
+      throw error;
+    }
+  }
+  /** Relaunches the last program with the current breakpoints (toolbar ↻). */
+  restart() {
+    if (!this.lastProgram) {
+      return;
+    }
+    this.send({ type: "stop" });
+    this.endSession();
+    const { name, source, backend } = this.lastProgram;
+    void this.start(name, source, backend).catch((error) => {
+      this.options.shell.showRuntimeDiagnostics(error instanceof Error ? error.message : String(error));
+      this.options.shell.setStatus("Failed");
+    });
+  }
+  /** Ends the session from the Stop button (or any page-level teardown). */
+  stop() {
+    if (!this.active) {
+      return;
+    }
+    this.send({ type: "stop" });
+    this.endSession();
+    this.options.shell.setStatus("Stopped");
+  }
+  /** Called on every model change; the first edit ends a running session. */
+  onModelChanged() {
+    if (!this.active) {
+      return;
+    }
+    this.send({ type: "stop" });
+    this.endSession();
+    this.options.shell.setStatus(this.options.labels.editEndedSession);
+  }
+  /** The toolbar's continue⇄pause toggle, guarded by the session state. */
+  togglePause() {
+    if (!this.active || this.awaitingInput) {
+      return;
+    }
+    if (this.paused) {
+      this.paused = false;
+      this.clearPausedState();
+      this.send({ type: "control", control: "continue" });
+      return;
+    }
+    this.send({ type: "control", control: "pause" });
+  }
+  /** Step Over / Step Into / Step Out, enabled while paused. */
+  step(kind) {
+    if (!this.active || !this.paused || this.awaitingInput) {
+      return;
+    }
+    this.paused = false;
+    this.clearPausedState();
+    this.send({ type: "control", control: kind, depth: this.pausedStackDepth });
+  }
+  /** Sink for `SmallBasicWebHost.notify` debug events. */
+  handleEvent(event) {
+    if (!this.active) {
+      return;
+    }
+    switch (event.type) {
+      case "ready":
+        this.sendBreakpoints();
+        this.send({ type: "start", breakpoints: [...this.breakpoints.keys()] });
+        break;
+      case "breakpointsValidated":
+        this.applyValidatedBreakpoints(event.breakpoints ?? []);
+        break;
+      case "stopped":
+        this.paused = true;
+        this.awaitingInput = false;
+        this.pausedStackDepth = event.frames?.length ?? this.pausedStackDepth;
+        this.showPausedState(event);
+        break;
+      case "input":
+        this.pausedStackDepth = event.frames?.length ?? this.pausedStackDepth;
+        void this.handleInputRequest(event);
+        break;
+      case "terminated":
+        this.endSession();
+        break;
+      case "error":
+        this.options.shell.showRuntimeDiagnostics(event.message || "Debug session error.");
+        this.endSession();
+        break;
+    }
+  }
+  dispose() {
+    if (this.transport) {
+      this.transport.dispose();
+      this.transport = void 0;
+    }
+    this.active = false;
+    this.currentLineDecoration.clear();
+    this.updateToolbar();
+  }
+  onMouseDown = (event) => {
+    if (event.target.type !== editor.MouseTargetType.GUTTER_GLYPH_MARGIN || !event.target.position) {
+      return;
+    }
+    const line = toProtocolLine(event.target.position.lineNumber);
+    if (this.breakpoints.has(line)) {
+      this.breakpoints.delete(line);
+    } else {
+      this.breakpoints.set(line, -1);
+    }
+    this.refreshBreakpointDecorations();
+    if (this.active) {
+      this.sendBreakpoints();
+    }
+  };
+  async handleInputRequest(event) {
+    this.paused = true;
+    this.awaitingInput = true;
+    this.showPausedState(event);
+    const answer = await this.options.shell.requestDebugInput(event.numberInput === true);
+    this.awaitingInput = false;
+    if (!this.active) {
+      return;
+    }
+    this.send({ type: "input", text: answer });
+    this.paused = false;
+    this.clearPausedState();
+  }
+  showPausedState(event) {
+    this.updateToolbar();
+    if (typeof event.line === "number") {
+      const monacoLine = toMonacoLine(event.line);
+      this.currentLineDecoration.set([{
+        range: new Range3(monacoLine, 1, monacoLine, 1),
+        options: {
+          isWholeLine: true,
+          className: "debug-current-line",
+          glyphMarginClassName: "debug-current-line-glyph"
+        }
+      }]);
+      this.options.editor.revealLineInCenter(monacoLine);
+    }
+    this.renderStack(event.frames ?? []);
+    this.renderVariables(event.variables ?? []);
+    this.options.dom.panel.hidden = false;
+  }
+  clearPausedState() {
+    this.updateToolbar();
+    this.currentLineDecoration.clear();
+  }
+  endSession() {
+    this.active = false;
+    this.paused = false;
+    this.awaitingInput = false;
+    const transport = this.transport;
+    this.transport = void 0;
+    if (transport) {
+      transport.dispose();
+    }
+    this.options.shell.setRunning(false);
+    this.options.dom.panel.hidden = true;
+    this.clearPausedState();
+  }
+  applyValidatedBreakpoints(validated) {
+    const actualLines = new Set(validated);
+    for (const [line, current] of this.breakpoints) {
+      if (current === -1 && actualLines.has(line)) {
+        this.breakpoints.set(line, line);
+      }
+    }
+    this.refreshBreakpointDecorations();
+  }
+  refreshBreakpointDecorations() {
+    const decorations = [];
+    for (const [line, actual] of this.breakpoints) {
+      const monacoLine = toMonacoLine(line);
+      decorations.push({
+        range: new Range3(monacoLine, 1, monacoLine, 1),
+        options: {
+          glyphMarginClassName: actual >= 0 ? "debug-breakpoint-glyph" : "debug-breakpoint-unverified-glyph",
+          glyphMarginHoverMessage: { value: this.options.labels.titles.breakpoint },
+          stickiness: editor.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges
+        }
+      });
+    }
+    this.breakpointDecorations.set(decorations);
+  }
+  sendBreakpoints() {
+    this.send({
+      type: "setBreakpoints",
+      breakpoints: [...this.breakpoints.keys()],
+      requestId: `bp-${Date.now()}`
+    });
+  }
+  send(command) {
+    const transport = this.transport;
+    if (!transport) {
+      return;
+    }
+    transport.send(command).catch((error) => {
+      this.options.shell.showRuntimeDiagnostics(error instanceof Error ? error.message : String(error));
+    });
+  }
+  applyTitles() {
+    const { dom, labels } = this.options;
+    dom.toggleButton.title = `${labels.titles.continue} (F5) / ${labels.titles.pause}`;
+    dom.stepOverButton.title = `${labels.titles.stepOver} (F10)`;
+    dom.stepIntoButton.title = `${labels.titles.stepInto} (F11)`;
+    dom.stepOutButton.title = `${labels.titles.stepOut} (Shift+F11)`;
+    dom.restartButton.title = labels.titles.restart;
+    dom.stopButton.title = `${labels.titles.stop} (Shift+F5)`;
+  }
+  updateToolbar() {
+    const { dom, labels } = this.options;
+    dom.debugButton.disabled = this.active;
+    dom.toggleButton.disabled = !this.active || this.awaitingInput;
+    dom.toggleIcon.className = `codicon ${this.paused ? "codicon-debug-continue" : "codicon-debug-pause"}`;
+    dom.toggleButton.title = this.paused ? `${labels.titles.continue} (F5)` : `${labels.titles.pause}`;
+    const canStep = this.active && this.paused && !this.awaitingInput;
+    dom.stepOverButton.disabled = !canStep;
+    dom.stepIntoButton.disabled = !canStep;
+    dom.stepOutButton.disabled = !canStep;
+    dom.restartButton.disabled = !this.active;
+    dom.stopButton.disabled = !this.active;
+  }
+  renderStack(frames) {
+    const { dom, labels } = this.options;
+    dom.stack.textContent = "";
+    if (frames.length === 0) {
+      const empty2 = document.createElement("div");
+      empty2.className = "web-debug-variable";
+      empty2.textContent = labels.emptyStack;
+      dom.stack.appendChild(empty2);
+      return;
+    }
+    for (const frame of frames) {
+      const row = document.createElement("button");
+      row.type = "button";
+      row.className = "web-debug-frame";
+      row.textContent = labels.frame(frame.name, toMonacoLine(frame.line));
+      row.addEventListener("click", () => {
+        const line = toMonacoLine(frame.line);
+        this.options.editor.revealLineInCenter(line);
+        this.options.editor.setPosition({ lineNumber: line, column: 1 });
+        this.options.editor.focus();
+      });
+      dom.stack.appendChild(row);
+    }
+  }
+  renderVariables(variables) {
+    const { dom, labels } = this.options;
+    dom.variables.textContent = "";
+    if (variables.length === 0) {
+      const empty2 = document.createElement("div");
+      empty2.className = "web-debug-variable";
+      empty2.textContent = labels.emptyVariables;
+      dom.variables.appendChild(empty2);
+      return;
+    }
+    this.renderVariableTree(dom.variables, variables, 0);
+  }
+  renderVariableTree(target, variables, depth) {
+    for (const variable of variables) {
+      const row = document.createElement("div");
+      row.className = "web-debug-variable";
+      row.style.paddingLeft = `${6 + depth * 16}px`;
+      const name = document.createElement("span");
+      name.className = "web-debug-var-name";
+      name.textContent = variable.name;
+      const value = document.createElement("span");
+      value.className = "web-debug-var-value";
+      value.textContent = ` = ${variable.value}`;
+      row.append(name, value);
+      target.appendChild(row);
+      if (variable.children && variable.children.length > 0) {
+        this.renderVariableTree(target, variable.children, depth + 1);
+      }
+    }
+  }
+};
+
 // src/monaco/language-client.ts
 var LanguageWorkerClient = class {
   constructor(worker2) {
@@ -254754,14 +255123,41 @@ var TEXT = (() => {
     languageServiceFailed: (message) => chinese ? `\u7F16\u8F91\u5668\u8BED\u8A00\u670D\u52A1\u5931\u8D25\uFF1A${message}` : `The editor language service failed: ${message}`,
     confirmDiscard: () => chinese ? "\u5F53\u524D\u5185\u5BB9\u5C1A\u672A\u4FDD\u5B58\uFF0C\u7EE7\u7EED\u64CD\u4F5C\u4F1A\u8986\u76D6\u7F16\u8F91\u5668\u4E2D\u7684\u6539\u52A8\u3002\u662F\u5426\u7EE7\u7EED\uFF1F" : "Your current changes are not saved. Continuing will overwrite the editor content. Continue?",
     diagnosticsSummary: (count) => chinese ? `\u7F16\u8F91\u671F\u8BCA\u65AD\uFF08${count}\uFF09` : `Editor diagnostics (${count})`,
-    diagnosticsMore: (count) => chinese ? `- \u2026 \u53E6\u6709 ${count} \u6761` : `- \u2026 ${count} more`
+    diagnosticsMore: (count) => chinese ? `- \u2026 \u53E6\u6709 ${count} \u6761` : `- \u2026 ${count} more`,
+    frameLabel: (name, monacoLine) => chinese ? `${name}\uFF08\u7B2C ${monacoLine} \u884C\uFF09` : `${name} (line ${monacoLine})`,
+    emptyStack: chinese ? "\u7A0B\u5E8F\u672A\u6682\u505C\u3002" : "The program is not paused.",
+    emptyVariables: chinese ? "\u6682\u65E0\u5C40\u90E8\u53D8\u91CF\u3002" : "No variables in scope.",
+    editEndedSession: chinese ? "\u7F16\u8F91\u5DF2\u7EC8\u6B62\u8C03\u8BD5\u4F1A\u8BDD\u3002" : "Editing ended the debug session.",
+    backendUnavailable: (message) => chinese ? `\u65E0\u6CD5\u542F\u52A8\u8C03\u8BD5\u540E\u7AEF\uFF1A${message}` : `Failed to start the debug backend: ${message}`,
+    titles: chinese ? {
+      continue: "\u7EE7\u7EED",
+      pause: "\u6682\u505C",
+      stepOver: "\u5355\u6B65\u8DF3\u8FC7",
+      stepInto: "\u5355\u6B65\u8FDB\u5165",
+      stepOut: "\u5355\u6B65\u8DF3\u51FA",
+      restart: "\u91CD\u542F\u8C03\u8BD5",
+      stop: "\u505C\u6B62",
+      breakpoint: "\u65AD\u70B9"
+    } : {
+      continue: "Continue",
+      pause: "Pause",
+      stepOver: "Step Over",
+      stepInto: "Step Into",
+      stepOut: "Step Out",
+      restart: "Restart Debugging",
+      stop: "Stop",
+      breakpoint: "Breakpoint"
+    }
   };
 })();
 shellApi.applyStaticText({
   fileFieldTitle: "Open a local .sb file into the editor.",
   editorNote: "Shared VS Code language layer: diagnostics, completion, hover and signature help run offline in the browser.",
   outlineEmpty: "No navigable symbols in this document.",
-  blazorError: "An unhandled error occurred while running the Small Basic Blazor WASM backend."
+  blazorError: "An unhandled error occurred while running the Small Basic Blazor WASM backend.",
+  // Only applied for non-Chinese browsers; the HTML ships the Chinese copy.
+  debugStackTitle: "Call Stack",
+  debugVariablesTitle: "Variables"
 });
 var DIAGNOSTIC_OWNER = "smallbasic.language";
 var DEFAULT_PROGRAM_NAME = "program.sb";
@@ -254803,7 +255199,7 @@ async function bootstrap() {
     minimap: { enabled: false },
     quickSuggestions: { other: true, comments: false, strings: true },
     suggestOnTriggerCharacters: true,
-    glyphMargin: false,
+    glyphMargin: true,
     folding: true,
     wordBasedSuggestions: "off",
     tabSize: 2,
@@ -254816,6 +255212,51 @@ async function bootstrap() {
   const resizeObserver = new ResizeObserver(() => editor2.layout());
   resizeObserver.observe(dom.editorHost);
   await controller.probeJavaScriptBackend();
+  const debug = new PlaygroundDebugController({
+    editor: editor2,
+    model,
+    shell: controller,
+    dom: {
+      debugButton: dom.debugButton,
+      toolbar: dom.debugToolbar,
+      panel: dom.debugPanel,
+      stack: dom.debugStack,
+      variables: dom.debugVariables,
+      toggleButton: dom.debugToggle,
+      toggleIcon: dom.debugToggleIcon,
+      stepOverButton: dom.debugStepOver,
+      stepIntoButton: dom.debugStepInto,
+      stepOutButton: dom.debugStepOut,
+      restartButton: dom.debugRestart,
+      stopButton: dom.debugStop
+    },
+    labels: {
+      frame: TEXT.frameLabel,
+      emptyStack: TEXT.emptyStack,
+      emptyVariables: TEXT.emptyVariables,
+      editEndedSession: TEXT.editEndedSession,
+      titles: TEXT.titles
+    },
+    sessionId: "playground",
+    createTransport: async (backend) => {
+      if (backend === "blazor") {
+        return new BlazorDebugTransport(
+          {
+            startBlazor: () => controller.startBlazor(),
+            invoke: (method, ...args) => controller.invokeBlazor(method, ...args)
+          },
+          "playground"
+        );
+      }
+      await controller.loadJavaScriptBackend();
+      return new JsDebugTransport(webApi(), "playground");
+    }
+  });
+  controller.onHostWrite = (text2) => {
+    controller.appendConsole(text2, 15, 0);
+    controller.mirrorToConsole(text2);
+  };
+  controller.debugListener = (event) => debug.handleEvent(event);
   const syncDiagnostics = debounce(async () => {
     const version = model.getVersionId();
     try {
@@ -254833,6 +255274,7 @@ async function bootstrap() {
     }
   }, 150);
   model.onDidChangeContent(() => {
+    debug.onModelChanged();
     if (!state.suppressDirty) {
       state.dirty = true;
     }
@@ -254854,13 +255296,26 @@ async function bootstrap() {
     void controller.runProgram(currentSnapshot(model, state.currentFileName));
   });
   dom.stop.addEventListener("click", () => {
+    if (debug.isActive) {
+      debug.stop();
+      return;
+    }
     void controller.stopRun();
   });
+  dom.debugButton.addEventListener("click", () => {
+    void startDebugSession(controller, debug, currentSnapshot(model, state.currentFileName));
+  });
+  dom.debugToggle.addEventListener("click", () => debug.togglePause());
+  dom.debugStepOver.addEventListener("click", () => debug.step("next"));
+  dom.debugStepInto.addEventListener("click", () => debug.step("stepIn"));
+  dom.debugStepOut.addEventListener("click", () => debug.step("stepOut"));
+  dom.debugRestart.addEventListener("click", () => debug.restart());
+  dom.debugStop.addEventListener("click", () => debug.stop());
   dom.backend.addEventListener("change", () => {
     controller.selectBackend(dom.backend.value);
   });
   dom.newButton.addEventListener("click", () => {
-    void createNewProgram(controller, model, state, NEW_FILE_TEMPLATE);
+    void createNewProgram(controller, model, state, NEW_FILE_TEMPLATE, debug);
   });
   dom.file.addEventListener("change", async () => {
     const file = dom.file.files?.[0];
@@ -254872,6 +255327,7 @@ async function bootstrap() {
       return;
     }
     const source = shellApi.stripBom(await file.text());
+    debug.stop();
     if (controller.isRunning()) {
       await controller.stopRun();
     }
@@ -254884,7 +255340,7 @@ async function bootstrap() {
     void toggleOutline(dom, client, model, editor2, state);
   });
   dom.sampleSelect.addEventListener("change", () => {
-    void selectSample(dom.sampleSelect.value, controller, model, state);
+    void selectSample(dom.sampleSelect.value, controller, model, state, debug);
   });
   document.addEventListener("click", (event) => {
     if (!state.outlineVisible) {
@@ -254908,6 +255364,32 @@ async function bootstrap() {
     }
     if (event.key === "Escape" && state.outlineVisible) {
       hideOutline(dom, state);
+      return;
+    }
+    if (!debug.isActive) {
+      return;
+    }
+    if (event.key === "F5") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        debug.stop();
+      } else {
+        debug.togglePause();
+      }
+      return;
+    }
+    if (event.key === "F10") {
+      event.preventDefault();
+      debug.step("next");
+      return;
+    }
+    if (event.key === "F11") {
+      event.preventDefault();
+      if (event.shiftKey) {
+        debug.step("stepOut");
+      } else {
+        debug.step("stepIn");
+      }
     }
   });
   window.addEventListener("beforeunload", (event) => {
@@ -254925,10 +255407,13 @@ async function bootstrap() {
     state.programs = [shellApi.FALLBACK_PROGRAM];
     populateSamples(dom.sampleSelect, state.programs);
   }
-  await selectSample(initial.path, controller, model, state);
+  await selectSample(initial.path, controller, model, state, debug);
   await syncDiagnostics();
+  editor2.layout();
+  void document.fonts?.ready.then(() => editor2.layout());
   window.addEventListener("unload", () => {
     resizeObserver.disconnect();
+    debug.dispose();
     providers.dispose();
     void client.disposeDocument(model.uri.toString()).catch(() => void 0);
     client.dispose();
@@ -254961,7 +255446,19 @@ function bindDom() {
     outline: mustElement("outline"),
     outlineTitle: mustElement("outline-title"),
     outlineList: mustElement("outline-list"),
-    outlineEmpty: mustElement("outline-empty")
+    outlineEmpty: mustElement("outline-empty"),
+    debugButton: mustElement("debug-button"),
+    debugToolbar: mustElement("debug-toolbar"),
+    debugPanel: mustElement("debug-panel"),
+    debugStack: mustElement("debug-stack"),
+    debugVariables: mustElement("debug-variables"),
+    debugToggle: mustElement("debug-toggle"),
+    debugToggleIcon: mustElement("debug-toggle-icon"),
+    debugStepOver: mustElement("debug-step-over"),
+    debugStepInto: mustElement("debug-step-into"),
+    debugStepOut: mustElement("debug-step-out"),
+    debugRestart: mustElement("debug-restart"),
+    debugStop: mustElement("debug-stop")
   };
 }
 function mustElement(id) {
@@ -254980,7 +255477,7 @@ function populateSamples(select, programs) {
     select.appendChild(option2);
   }
 }
-async function selectSample(path, controller, model, state, skipConfirm = false) {
+async function selectSample(path, controller, model, state, debug, skipConfirm = false) {
   const program = state.programs.find((item) => item.path === path);
   if (!program) {
     return;
@@ -254989,6 +255486,7 @@ async function selectSample(path, controller, model, state, skipConfirm = false)
     return;
   }
   const resolved = await shellApi.ensureProgramSource(program);
+  debug.stop();
   if (controller.isRunning()) {
     await controller.stopRun();
   }
@@ -255009,10 +255507,11 @@ async function loadIntoEditor(model, state, fileName, source, controller, graphi
     controller.selectBackend(shellApi.BACKEND_BLAZOR);
   }
 }
-async function createNewProgram(controller, model, state, template) {
+async function createNewProgram(controller, model, state, template, debug) {
   if (!await confirmDiscard(state)) {
     return;
   }
+  debug.stop();
   if (controller.isRunning()) {
     await controller.stopRun();
   }
@@ -255050,6 +255549,21 @@ function formatDiagnostics(diagnostics) {
     ...diagnostics.slice(0, 5).map((item) => `- ${item.message}`),
     diagnostics.length > 5 ? TEXT.diagnosticsMore(diagnostics.length - 5) : ""
   ].filter(Boolean).join("\n");
+}
+function webApi() {
+  const api3 = window.SmallBasicWeb;
+  if (!api3) {
+    throw new Error("smallbasic-js.js did not expose SmallBasicWeb.");
+  }
+  return api3;
+}
+async function startDebugSession(controller, debug, snapshot) {
+  try {
+    await debug.start(snapshot.name, snapshot.source, controller.getBackend() === shellApi.BACKEND_BLAZOR ? "blazor" : "javascript");
+  } catch (error) {
+    controller.showRuntimeDiagnostics(TEXT.backendUnavailable(error instanceof Error ? error.message : String(error)));
+    controller.setStatus("Failed");
+  }
 }
 function saveProgram(fileName, source) {
   const blob = new Blob([source], { type: "text/plain;charset=utf-8" });

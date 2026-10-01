@@ -16015,7 +16015,7 @@
           return;
         }
         case "control": {
-          const depth = typeof command.depth === "number" ? command.depth : 0;
+          const depth = typeof command.depth === "number" ? command.depth : driver.frames().length;
           switch (command.control) {
             case "pause":
               driver.pause();

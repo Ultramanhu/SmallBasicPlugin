@@ -33,6 +33,7 @@
                 </select>
             </label>
             <button class="web-button primary" id="run-button" type="button">Run</button>
+            <button class="web-button" id="debug-button" type="button" title="以断点调试运行">Debug</button>
             <button class="web-button" id="stop-button" type="button" disabled>Stop</button>
             <span class="web-status" id="status">Ready</span>
             <button class="web-button" id="locale-button" type="button" aria-label="Switch UI language / 切换界面语言">中文</button>
@@ -43,6 +44,17 @@
                 <div class="web-pane-header">
                     <span class="web-pane-title">Editor</span>
                     <span class="web-pane-note" data-i18n="editorNote">共用 VS Code 语言层，诊断/补全/悬停/签名帮助在浏览器内离线运行。</span>
+                    <!-- VS Code-style debug toolbar, docked in the editor pane header;
+                         disabled while no debug session is running. -->
+                    <div class="web-debug-toolbar" id="debug-toolbar">
+                        <button class="web-debug-button" id="debug-toggle" type="button" disabled><span class="codicon codicon-debug-pause" id="debug-toggle-icon"></span></button>
+                        <button class="web-debug-button" id="debug-step-over" type="button" disabled><span class="codicon codicon-debug-step-over"></span></button>
+                        <button class="web-debug-button" id="debug-step-into" type="button" disabled><span class="codicon codicon-debug-step-into"></span></button>
+                        <button class="web-debug-button" id="debug-step-out" type="button" disabled><span class="codicon codicon-debug-step-out"></span></button>
+                        <span class="web-debug-separator"></span>
+                        <button class="web-debug-button" id="debug-restart" type="button" disabled><span class="codicon codicon-debug-restart"></span></button>
+                        <button class="web-debug-button" id="debug-stop" type="button" disabled><span class="codicon codicon-debug-stop"></span></button>
+                    </div>
                 </div>
                 <div class="web-editor-host" id="editor-host"></div>
             </section>
@@ -60,6 +72,16 @@
                 </form>
                 <div class="web-blazor-host" id="blazor-host">
                     <div id="app"></div>
+                </div>
+                <div class="web-debug-panel" hidden id="debug-panel">
+                    <section class="web-debug-section">
+                        <h3 class="web-debug-title" data-i18n="debugStackTitle">调用堆栈 / Call Stack</h3>
+                        <div class="web-debug-list" id="debug-stack"></div>
+                    </section>
+                    <section class="web-debug-section">
+                        <h3 class="web-debug-title" data-i18n="debugVariablesTitle">变量 / Variables</h3>
+                        <div class="web-debug-list" id="debug-variables"></div>
+                    </section>
                 </div>
                 <div class="web-diagnostics" hidden id="diagnostics"></div>
             </section>

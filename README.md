@@ -182,7 +182,7 @@ Blazor 宿主先用 `UsesGraphicsWindow` 分析程序：纯文本程序在终端
 
 ### RunHostWeb
 
-`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 会自动路由到 `playground.html`——浏览器内的 Monaco 编辑 + 运行入口（着色、诊断、补全、悬停、签名帮助、文档符号、折叠、定义跳转与引用查找，全部离线运行）；`runhost.html` 则保留纯运行页面。Playground 工具栏：
+`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 会自动路由到 `playground.html`——浏览器内的 Monaco 编辑 + 运行入口（着色、诊断、补全、悬停、签名帮助、文档符号、折叠、定义跳转、引用查找，以及 JS / Blazor 双后端的页内调试：gutter 断点、VS Code 风格悬浮工具条（继续/暂停/单步/重启，F5/F10/F11 快捷键）、调用堆栈与变量面板，全部离线运行）；`runhost.html` 则保留纯运行页面。Playground 工具栏：
 
 ```powershell
 cd runhost\web

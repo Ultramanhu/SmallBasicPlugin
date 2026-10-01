@@ -41,6 +41,73 @@ test.describe("runhost/web static distribution", () => {
     expect(diagnostics).toEqual([]);
   });
 
+  test("debugs with a gutter breakpoint, then continues to completion", async ({ page }) => {
+    await page.goto(`${server.origin}/playground.html`);
+    await page.locator("#editor-host .monaco-editor").waitFor({ timeout: 120_000 });
+    await page.locator("#backend-select").selectOption("javascript");
+    await expect(page.locator("#status")).toContainText("Loaded", { timeout: 60_000 });
+
+    // Toggle a breakpoint through the glyph margin on line 5 of hello.sb
+    // (`TextWindow.WriteLine(a2)`), so a1/a2 are defined when it hits.
+    const editorBox = await page.locator("#editor-host .monaco-editor").first().boundingBox();
+    const line5 = await page.locator("#editor-host .view-line").nth(4).boundingBox();
+    await page.mouse.click(editorBox.x + 12, line5.y + line5.height / 2);
+    await expect(page.locator("#editor-host .debug-breakpoint-unverified-glyph, #editor-host .debug-breakpoint-glyph")).toHaveCount(1);
+
+    // The toolbar is persistent and fully disabled before a session starts.
+    await expect(page.locator("#debug-toolbar")).toBeVisible();
+    await expect(page.locator("#debug-toggle")).toBeDisabled();
+
+    await page.locator("#debug-button").click();
+    await expect(page.locator("#status")).toContainText("Paused: breakpoint", { timeout: 60_000 });
+    await expect(page.locator("#editor-host .debug-current-line")).toBeVisible();
+    await expect(page.locator("#debug-panel")).toBeVisible();
+    await expect(page.locator("#debug-variables")).toContainText("a1", { timeout: 60_000 });
+    // The floating toolbar shows the VS Code continue glyph while paused.
+    await expect(page.locator("#debug-toggle .codicon-debug-continue")).toBeVisible();
+
+    // Step Over must stop again on the next executable line (line 7). With a
+    // missing stack depth it would silently run to completion instead.
+    await page.locator("#debug-step-over").click();
+    await expect(page.locator("#status")).toContainText("Paused: step", { timeout: 60_000 });
+
+    await page.locator("#debug-toggle").click();
+    await expect(page.locator("#status")).toHaveText(/Completed/, { timeout: 120_000 });
+    await expect(page.locator("#debug-panel")).toBeHidden();
+    await expect(page.locator("#debug-button")).toBeEnabled();
+    // Ending the session must clear the current-stack-frame marker again.
+    await expect(page.locator("#editor-host .debug-current-line")).toHaveCount(0);
+    await expect(page.locator("#debug-toggle")).toBeDisabled();
+    expect(diagnostics).toEqual([]);
+  });
+
+  test("debugs the Blazor backend with breakpoints and keeps graphics available", async ({ page }) => {
+    test.setTimeout(240_000);
+    await page.goto(`${server.origin}/playground.html`);
+    await page.locator("#editor-host .monaco-editor").waitFor({ timeout: 120_000 });
+    await page.locator("#backend-select").selectOption("blazor");
+    await expect(page.locator("#status")).toContainText("Loaded", { timeout: 60_000 });
+
+    // Breakpoint on line 3 (`a1 = 1`), one of the first statements the Blazor
+    // engine executes.
+    const editorBox = await page.locator("#editor-host .monaco-editor").first().boundingBox();
+    const line3 = await page.locator("#editor-host .view-line").nth(2).boundingBox();
+    await page.mouse.click(editorBox.x + 12, line3.y + line3.height / 2);
+    await expect(page.locator("#editor-host .debug-breakpoint-unverified-glyph, #editor-host .debug-breakpoint-glyph")).toHaveCount(1);
+
+    // Debug on the Blazor backend: the WebAssembly runtime boots in the page,
+    // then the same web debug protocol drives it through JS interop.
+    await page.locator("#debug-button").click();
+    await expect(page.locator("#status")).toContainText("Paused: breakpoint", { timeout: 180_000 });
+    await expect(page.locator("#debug-panel")).toBeVisible();
+    await expect(page.locator("#debug-toggle .codicon-debug-continue")).toBeVisible();
+
+    await page.locator("#debug-toggle").click();
+    await expect(page.locator("#status")).toHaveText(/Completed/, { timeout: 180_000 });
+    await expect(page.locator("#debug-button")).toBeEnabled();
+    expect(diagnostics).toEqual([]);
+  });
+
   test("keeps the legacy runhost page running the default sample", async ({ page }) => {
     await page.goto(`${server.origin}/runhost.html`);
     await expect(page.locator("#status")).toContainText("Loaded", { timeout: 60_000 });

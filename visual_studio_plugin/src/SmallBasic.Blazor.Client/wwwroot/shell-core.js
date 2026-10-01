@@ -94,10 +94,15 @@
             this.stopped = false;
             this.responded = false;
             this.pendingInput = null;
+            this.pendingDebugInput = null;
             this.blazorStart = null;
             this.jsBackend = null;
             this.languageDiagnostics = "";
             this.runtimeDiagnostics = "";
+            /** Set by pages that drive debug sessions (see web-debug protocol). */
+            this.debugListener = null;
+            /** Set by pages that want host writes rendered in their own panel. */
+            this.onHostWrite = null;
 
             activeController = this;
             this.bindInput();
@@ -133,6 +138,19 @@
 
             this.dom.inputRow.addEventListener("submit", (event) => {
                 event.preventDefault();
+                const value = this.dom.inputField.value;
+
+                const debugPending = this.pendingDebugInput;
+                if (debugPending) {
+                    this.pendingDebugInput = null;
+                    this.dom.inputRow.hidden = true;
+                    this.dom.inputField.value = "";
+                    this.appendConsole(value + "\n", DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
+                    this.mirrorToConsole(value);
+                    debugPending.resolve(value);
+                    return;
+                }
+
                 const pending = this.pendingInput;
                 if (!pending) {
                     return;
@@ -140,7 +158,6 @@
 
                 this.pendingInput = null;
                 this.dom.inputRow.hidden = true;
-                const value = this.dom.inputField.value;
                 this.dom.inputField.value = "";
                 this.appendConsole(value + "\n", DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
                 this.mirrorToConsole(value);
@@ -261,14 +278,39 @@
             });
         }
 
+        /**
+         * Same input row, but resolves through the web-debug `input` command
+         * instead of the runJavaScript bridge. Used by debug sessions.
+         */
+        requestDebugInput(numberInput) {
+            return new Promise((resolve) => {
+                this.pendingDebugInput = { resolve };
+                if (this.dom.inputPrompt) {
+                    this.dom.inputPrompt.textContent = numberInput ? "ReadNumber" : "Read";
+                }
+                if (this.dom.inputField) {
+                    this.dom.inputField.value = "";
+                    this.dom.inputField.focus();
+                }
+                if (this.dom.inputRow) {
+                    this.dom.inputRow.hidden = false;
+                }
+            });
+        }
+
         resolvePendingInput(value = "") {
             const pending = this.pendingInput;
             this.pendingInput = null;
+            const debugPending = this.pendingDebugInput;
+            this.pendingDebugInput = null;
             if (this.dom.inputRow) {
                 this.dom.inputRow.hidden = true;
             }
             if (pending) {
                 pending.resolve(value);
+            }
+            if (debugPending) {
+                debugPending.resolve(value);
             }
         }
 
@@ -533,6 +575,10 @@
 
         handleHostNotification(message) {
             this.responded = true;
+            if (this.debugListener) {
+                this.debugListener(message);
+            }
+
             if (message.type === "ready") {
                 this.setStatus("Running");
                 return;
@@ -567,7 +613,15 @@
     window.SmallBasicWebHost = {
         isWebRunHost: () => !(activeController && activeController.isEmbeddedCliMode()),
         write(text) {
-            activeController && activeController.mirrorToConsole(text);
+            if (!activeController) {
+                return;
+            }
+
+            if (activeController.onHostWrite) {
+                activeController.onHostWrite(text);
+            } else {
+                activeController.mirrorToConsole(text);
+            }
         },
         notify(json) {
             if (!activeController) {

@@ -18,9 +18,10 @@
 > - Monaco 集成：TextMate + Oniguruma 桥接、language-configuration / snippets 适配、全部 provider 注册、`playground.html` 编辑 + 运行；
 > - 构建链：`npm run build:playground` 产出 `playground-dist/**`，`Build-RunHost.ps1` 硬校验并做负向载荷检查；
 > - 测试：language-services 单元测试 + `tests/webview/runhost-web.spec.ts` 页面级 E2E；
-> - 界面提示按浏览器语言本地化：偏好语言列表中出现任意 `zh-*` 即显示页面内置中文，否则显示英文；页头提供 中/EN 切换按钮，选择存入 `localStorage`（`smallbasic.uiLocale`）并优先于检测（机制见 `shell-core.js` 的 `SmallBasicRunHostShell.applyStaticText` 与各页面文案字典）；语言 Worker 通过 `configure` 请求接收同一 locale 决定，调用 `setDocumentationLocale` 让悬停/补全的 API 文档同步切换；状态栏短关键词（Loaded/Running/Completed 等）保持语言中立。
+> - 界面提示按浏览器语言本地化：偏好语言列表中出现任意 `zh-*` 即显示页面内置中文，否则显示英文；页头提供 中/EN 切换按钮，选择存入 `localStorage`（`smallbasic.uiLocale`）并优先于检测（机制见 `shell-core.js` 的 `SmallBasicRunHostShell.applyStaticText` 与各页面文案字典）；语言 Worker 通过 `configure` 请求接收同一 locale 决定，调用 `setDocumentationLocale` 让悬停/补全的 API 文档同步切换；状态栏短关键词（Loaded/Running/Completed 等）保持语言中立；
+> - 页内调试已落地（第 11 节二阶段，双后端）：`PlaygroundDebugController` 驱动 web 调试协议——glyph margin 断点（VS Code 配色：已验证实心红点 / 未验证灰色空心圈 / codicon 栈帧箭头，会话结束即清除）、常驻悬浮调试工具条（codicon 图标：继续⇄暂停、单步、重启、停止，非调试时整条禁用，F5/F10/F11/Shift+F11/Shift+F5 快捷键）、当前栈帧高亮、调用堆栈与变量面板、调试期间 TextWindow 输出进面板、编辑首次修改自动终止会话。JS 后端引擎在页面内直连；Blazor 后端经 `SetSession(debug)` + `DispatchDebugCommand` interop 驱动 WebAssembly 会话（注意：C# 会话用 start 消息携带的断点覆盖断点集合，因此 start 必须随行携带断点；同理，单步 control 必须携带暂停栈的帧数作为 depth——两端都以 `depth <= startingDepth` 判定步过落点，缺失时 JS 会话回退为当前栈深），图形窗口在调试期间保持渲染。
 >
-> 页内调试仍为后续阶段（见第 11 节），重命名与常驻 Outline 面板按第 8.2 节边界暂缓。
+> 重命名与常驻 Outline 面板按第 8.2 节边界暂缓。
 
 ## 1. 目标与非目标
 

@@ -159,7 +159,11 @@ export class BrowserDebugSession {
         return;
       }
       case "control": {
-        const depth = typeof command.depth === "number" ? command.depth : 0;
+        // The DAP adapter steps from the paused stack depth (session.ts passes
+        // `driver.frames().length`); web commands may omit the depth, and 0
+        // would make "next"/"stepOut" never stop, so fall back to the current
+        // stack.
+        const depth = typeof command.depth === "number" ? command.depth : driver.frames().length;
         switch (command.control) {
           case "pause":
             driver.pause();
