@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "main",
+  "description": "Main playground window: core IPC only. Application commands are covered by the app itself; remote graphics windows (Blazor CLI sessions) receive no capability at all.",
+  "windows": ["main"],
+  "permissions": ["core:default"]
+}

@@ -255165,6 +255165,35 @@ var NEW_FILE_TEMPLATE = [
   "' My first Small Basic program",
   'TextWindow.WriteLine("Hello World")'
 ].join("\n");
+var resolveReady;
+var whenReady = new Promise((resolve3) => {
+  resolveReady = resolve3;
+});
+var controllerRef = null;
+var customBackends = /* @__PURE__ */ new Map();
+var debugBackendFactories = /* @__PURE__ */ new Map();
+var modelChangeListeners = /* @__PURE__ */ new Set();
+var saveHandlerOverride = null;
+var graphicsBackendResolver = null;
+window.SmallBasicPlayground = {
+  whenReady,
+  registerBackend(id, handler) {
+    customBackends.set(id, handler);
+    controllerRef?.registerCustomBackend(id, handler);
+  },
+  registerDebugBackend(id, factory) {
+    debugBackendFactories.set(id, factory);
+  },
+  registerSaveHandler(handler) {
+    saveHandlerOverride = handler;
+  },
+  addModelChangedListener(listener) {
+    modelChangeListeners.add(listener);
+  },
+  setGraphicsBackendResolver(resolver) {
+    graphicsBackendResolver = resolver;
+  }
+};
 void bootstrap();
 globalThis.MonacoEnvironment = {
   getWorker: () => new Worker(new URL("./editor/editor.worker.js", import.meta.url), { type: "module" })
@@ -255172,6 +255201,10 @@ globalThis.MonacoEnvironment = {
 async function bootstrap() {
   const dom = bindDom();
   const controller = shellApi.createRunHostController({ dom });
+  controllerRef = controller;
+  for (const [id, handler] of customBackends) {
+    controller.registerCustomBackend(id, handler);
+  }
   const state = {
     programs: [],
     currentFileName: DEFAULT_PROGRAM_NAME,
@@ -255239,6 +255272,10 @@ async function bootstrap() {
     },
     sessionId: "playground",
     createTransport: async (backend) => {
+      const factory = debugBackendFactories.get(backend);
+      if (factory) {
+        return factory();
+      }
       if (backend === "blazor") {
         return new BlazorDebugTransport(
           {
@@ -255257,6 +255294,27 @@ async function bootstrap() {
     controller.mirrorToConsole(text2);
   };
   controller.debugListener = (event) => debug.handleEvent(event);
+  const saveProgram = async () => {
+    const fileName = state.currentFileName;
+    const source = model.getValue();
+    if (saveHandlerOverride) {
+      const saved = await saveHandlerOverride(fileName, source);
+      if (saved) {
+        state.currentFileName = saved;
+        controller.setStatus(`Saved ${saved}`);
+      }
+      return;
+    }
+    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link2 = document.createElement("a");
+    link2.href = url;
+    link2.download = fileName || DEFAULT_PROGRAM_NAME;
+    document.body.appendChild(link2);
+    link2.click();
+    link2.remove();
+    URL.revokeObjectURL(url);
+  };
   const syncDiagnostics = debounce(async () => {
     const version = model.getVersionId();
     try {
@@ -255277,6 +255335,9 @@ async function bootstrap() {
     debug.onModelChanged();
     if (!state.suppressDirty) {
       state.dirty = true;
+    }
+    for (const listener of modelChangeListeners) {
+      listener();
     }
     void syncDiagnostics();
   });
@@ -255331,10 +255392,10 @@ async function bootstrap() {
     if (controller.isRunning()) {
       await controller.stopRun();
     }
-    await loadIntoEditor(model, state, file.name, source, controller, shellApi.detectGraphicsUsage(source));
+    await loadIntoEditor(model, state, file.name, source, controller, shellApi.detectGraphicsUsage(source), graphicsBackendResolver);
   });
   dom.saveButton.addEventListener("click", () => {
-    saveProgram(state.currentFileName, model.getValue());
+    void saveProgram();
   });
   dom.outlineButton.addEventListener("click", () => {
     void toggleOutline(dom, client, model, editor2, state);
@@ -255354,7 +255415,7 @@ async function bootstrap() {
   document.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      saveProgram(state.currentFileName, model.getValue());
+      void saveProgram();
       return;
     }
     if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key.toLowerCase() === "o") {
@@ -255420,6 +255481,15 @@ async function bootstrap() {
     model.dispose();
     editor2.dispose();
     controller.dispose();
+  });
+  resolveReady?.({
+    controller,
+    notify: (event) => controller.handleHostNotification(event),
+    debug,
+    model,
+    editor: editor2,
+    state,
+    snapshot: () => currentSnapshot(model, state.currentFileName)
   });
 }
 function bindDom() {
@@ -255490,13 +255560,13 @@ async function selectSample(path, controller, model, state, debug, skipConfirm =
   if (controller.isRunning()) {
     await controller.stopRun();
   }
-  await loadIntoEditor(model, state, resolved.name, resolved.source ?? "", controller, resolved.graphics);
+  await loadIntoEditor(model, state, resolved.name, resolved.source ?? "", controller, resolved.graphics, graphicsBackendResolver);
   const select = document.getElementById("program-select");
   if (select) {
     select.value = resolved.path;
   }
 }
-async function loadIntoEditor(model, state, fileName, source, controller, graphics) {
+async function loadIntoEditor(model, state, fileName, source, controller, graphics, graphicsResolver) {
   state.suppressDirty = true;
   model.setValue(source);
   state.suppressDirty = false;
@@ -255504,7 +255574,7 @@ async function loadIntoEditor(model, state, fileName, source, controller, graphi
   state.dirty = false;
   controller.setStatus(`Loaded ${state.currentFileName}`);
   if (graphics) {
-    controller.selectBackend(shellApi.BACKEND_BLAZOR);
+    controller.selectBackend(graphicsResolver?.() ?? shellApi.BACKEND_BLAZOR);
   }
 }
 async function createNewProgram(controller, model, state, template, debug) {
@@ -255515,7 +255585,7 @@ async function createNewProgram(controller, model, state, template, debug) {
   if (controller.isRunning()) {
     await controller.stopRun();
   }
-  await loadIntoEditor(model, state, DEFAULT_PROGRAM_NAME, template, controller, false);
+  await loadIntoEditor(model, state, DEFAULT_PROGRAM_NAME, template, controller, false, graphicsBackendResolver);
 }
 async function confirmDiscard(state) {
   if (!state.dirty) {
@@ -255559,22 +255629,11 @@ function webApi() {
 }
 async function startDebugSession(controller, debug, snapshot) {
   try {
-    await debug.start(snapshot.name, snapshot.source, controller.getBackend() === shellApi.BACKEND_BLAZOR ? "blazor" : "javascript");
+    await debug.start(snapshot.name, snapshot.source, controller.getBackend());
   } catch (error) {
     controller.showRuntimeDiagnostics(TEXT.backendUnavailable(error instanceof Error ? error.message : String(error)));
     controller.setStatus("Failed");
   }
-}
-function saveProgram(fileName, source) {
-  const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link2 = document.createElement("a");
-  link2.href = url;
-  link2.download = fileName || DEFAULT_PROGRAM_NAME;
-  document.body.appendChild(link2);
-  link2.click();
-  link2.remove();
-  URL.revokeObjectURL(url);
 }
 async function toggleOutline(dom, client, model, editor2, state) {
   if (state.outlineVisible) {

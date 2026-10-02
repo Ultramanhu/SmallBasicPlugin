@@ -99,6 +99,10 @@
             this.jsBackend = null;
             this.languageDiagnostics = "";
             this.runtimeDiagnostics = "";
+            /** Backends registered by embedders (desktop CLI hosts), id -> handler. */
+            this.customBackends = new Map();
+            /** Persistent stdin row of a CLI run session. */
+            this.sessionInputVisible = false;
             /** Set by pages that drive debug sessions (see web-debug protocol). */
             this.debugListener = null;
             /** Set by pages that want host writes rendered in their own panel. */
@@ -152,16 +156,25 @@
                 }
 
                 const pending = this.pendingInput;
-                if (!pending) {
+                if (pending) {
+                    this.pendingInput = null;
+                    this.dom.inputRow.hidden = true;
+                    this.dom.inputField.value = "";
+                    this.appendConsole(value + "\n", DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
+                    this.mirrorToConsole(value);
+                    pending.resolve(value);
                     return;
                 }
 
-                this.pendingInput = null;
-                this.dom.inputRow.hidden = true;
-                this.dom.inputField.value = "";
-                this.appendConsole(value + "\n", DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
-                this.mirrorToConsole(value);
-                pending.resolve(value);
+                // A custom (CLI) backend session keeps the row open and turns
+                // every submitted line into stdin for the child process.
+                const custom = this.customBackends.get(this.backend);
+                if (custom && typeof custom.onInput === "function" && this.running) {
+                    this.appendConsole(value + "\n", DEFAULT_FOREGROUND, DEFAULT_BACKGROUND);
+                    this.mirrorToConsole(value);
+                    this.dom.inputField.value = "";
+                    custom.onInput(value);
+                }
             });
         }
 
@@ -403,17 +416,21 @@
 
         applyBackend() {
             const blazor = this.backend === BACKEND_BLAZOR;
+            const custom = this.customBackends.get(this.backend);
             if (this.dom.console) {
                 this.dom.console.hidden = blazor;
             }
             if (this.dom.inputRow) {
-                this.dom.inputRow.hidden = blazor || !this.pendingInput;
+                this.dom.inputRow.hidden = blazor
+                    || (!this.pendingInput && !custom && !this.sessionInputVisible);
             }
             if (this.dom.blazorHost) {
                 this.dom.blazorHost.hidden = !blazor;
             }
             if (this.dom.outputNote) {
-                this.dom.outputNote.textContent = blazor ? t.outputNoteBlazor() : t.outputNoteTextWindow();
+                this.dom.outputNote.textContent = blazor
+                    ? t.outputNoteBlazor()
+                    : (custom && custom.outputNote) || t.outputNoteTextWindow();
             }
             if (this.dom.page) {
                 this.dom.page.dataset.backend = this.backend;
@@ -424,8 +441,48 @@
         }
 
         selectBackend(backend) {
-            this.backend = backend === BACKEND_BLAZOR ? BACKEND_BLAZOR : BACKEND_JAVASCRIPT;
+            if (this.customBackends.has(backend)) {
+                this.backend = backend;
+            } else {
+                this.backend = backend === BACKEND_BLAZOR ? BACKEND_BLAZOR : BACKEND_JAVASCRIPT;
+            }
             this.applyBackend();
+        }
+
+        /**
+         * Registers an embedder backend (desktop CLI hosts, doc 10 §17-18):
+         * adds the select option and routes Run/Stop/stdin through `handler`.
+         */
+        registerCustomBackend(id, handler) {
+            this.customBackends.set(id, handler || {});
+            this.addBackendOption(id, (handler && handler.label) || id);
+        }
+
+        addBackendOption(value, label) {
+            if (!this.dom.backend || this.dom.backend.querySelector(`option[value="${value}"]`)) {
+                return;
+            }
+
+            const option = document.createElement("option");
+            option.value = value;
+            option.textContent = label;
+            this.dom.backend.appendChild(option);
+        }
+
+        /**
+         * Shows or hides the input row for the duration of a CLI run session
+         * (TextWindow input is read from the child's stdin).
+         */
+        setSessionInputVisible(visible) {
+            this.sessionInputVisible = visible;
+            if (!this.dom.inputRow || this.pendingInput || this.pendingDebugInput) {
+                return;
+            }
+
+            this.dom.inputRow.hidden = !visible;
+            if (visible && this.dom.inputPrompt) {
+                this.dom.inputPrompt.textContent = "stdin";
+            }
         }
 
         async probeJavaScriptBackend() {
@@ -463,6 +520,12 @@
             this.clearRuntimeDiagnostics();
             this.clearConsole();
             this.stopped = false;
+            const custom = this.customBackends.get(this.backend);
+            if (custom && typeof custom.run === "function") {
+                await custom.run(snapshot);
+                return;
+            }
+
             if (this.backend === BACKEND_BLAZOR) {
                 await this.runBlazor(snapshot);
             } else {
@@ -545,6 +608,12 @@
             }
 
             this.stopped = true;
+            const custom = this.customBackends.get(this.backend);
+            if (custom && typeof custom.stop === "function") {
+                await custom.stop();
+                return;
+            }
+
             if (this.backend === BACKEND_JAVASCRIPT) {
                 if (window.SmallBasicWeb && typeof window.SmallBasicWeb.stopJavaScript === "function") {
                     window.SmallBasicWeb.stopJavaScript();

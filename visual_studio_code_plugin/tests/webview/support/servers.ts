@@ -14,6 +14,8 @@ export const extensionPackageRoot = path.join(pluginRoot, "packages", "smallbasi
 export const stagedPayloadRoot = path.join(extensionPackageRoot, "runhost", "blazor", "wwwroot");
 export const repositoryRoot = path.resolve(pluginRoot, "..");
 export const builtWebRunHostRoot = path.join(repositoryRoot, "runhost", "web");
+/** Staged Tauri app: the playground page plus the injected desktop bridge. */
+export const stagedPlaygroundAppRoot = path.join(repositoryRoot, "runhost", "playground", "app");
 
 const MIME: Record<string, string> = {
   ".br": "application/octet-stream",
@@ -67,6 +69,15 @@ export function requireBuiltWebRunHost(): string {
   }
 
   return builtWebRunHostRoot;
+}
+
+/**
+ * True when the desktop staging root was assembled. The spec that needs it is
+ * skipped on a clean checkout; both `runhost/playground/` and its sidecar
+ * binaries are generated (design doc 10, §19.1).
+ */
+export function hasStagedPlaygroundApp(): boolean {
+  return fs.existsSync(path.join(stagedPlaygroundAppRoot, "desktop.js"));
 }
 
 /** Serves a folder over HTTP with CORS, mounting it below `mountPath`. */

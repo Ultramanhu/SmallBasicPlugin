@@ -128,5 +128,37 @@ export function syncRepositoryVersion() {
     updated
   );
 
+  // Tauri desktop Playground. The npm package, the tauri bundle metadata and
+  // the Rust crate all carry the shared version, so its installers are named
+  // like the extensions (doc 10, §19.1).
+  syncTextFile(
+    "visual_studio_code_plugin/packages/smallbasic-playground-desktop/package.json",
+    (content) => content.replace(/^(\s*"version":\s*")[^"]*(")/m, `$1${version}$2`),
+    updated
+  );
+
+  syncTextFile(
+    "visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/tauri.conf.json",
+    (content) => content.replace(/^(\s*"version":\s*")[^"]*(")/m, `$1${version}$2`),
+    updated
+  );
+
+  syncTextFile(
+    "visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/Cargo.toml",
+    (content) => content.replace(/^(\s*version\s*=\s*")[^"]*(")/m, `$1${version}$2`),
+    updated
+  );
+
+  // The workspace lockfile keeps a copy of every workspace package version.
+  syncTextFile(
+    "visual_studio_code_plugin/package-lock.json",
+    (content) =>
+      content.replace(
+        /("packages\/smallbasic-playground-desktop":\s*\{\s*"version":\s*")[^"]*(")/,
+        `$1${version}$2`
+      ),
+    updated
+  );
+
   return { version, updated };
 }

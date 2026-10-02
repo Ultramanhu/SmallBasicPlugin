@@ -6,6 +6,19 @@
     <AssemblyName>SmallBasic.Blazor.RunHost</AssemblyName>
   </PropertyGroup>
 
+  <!--
+    Single-file sidecar publish for the Tauri desktop playground (design doc 10,
+    section 18.5). The switch is scoped to this project because passing
+    PublishSingleFile on the CLI propagates to referenced projects and breaks
+    the Blazor client (NETSDK1098). Staged with: dotnet publish -r RID
+    -self-contained true and the global property SmallBasicStageSidecar=true.
+  -->
+  <PropertyGroup Condition="'$(SmallBasicStageSidecar)' == 'true'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.Server" Version="8.0.22" />
   </ItemGroup>

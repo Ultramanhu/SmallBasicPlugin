@@ -4,7 +4,7 @@
 
 > **2026-09-30 最终态校准**
 >
-> - Visual Studio 侧已收敛为**单包**：`src/SmallBasic.Vsix`（新版扩展 SDK in-proc 混合托管 + 内置 LSP server）。过渡期的旧工程与公共库 `src/SmallBasic.VsCommon` 已删除，内容全部并入本工程（命名空间统一为 `SmallBasic.Vsix.*`），详见 [11-VisualStudio.Extensibility迁移设计.md](./11-VisualStudio.Extensibility迁移设计.md)。
+> - Visual Studio 侧已收敛为**单包**：`src/SmallBasic.Vsix`（新版扩展 SDK in-proc 混合托管 + 内置 LSP server）。过渡期的旧工程与公共库 `src/SmallBasic.VsCommon` 已删除，内容全部并入本工程（命名空间统一为 `SmallBasic.Vsix.*`）；迁移与收敛记录见本文第 9 节。
 > - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，收录 `src/SmallBasic.Vsix`、`src/SmallBasic.LanguageServices`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests`、`tests/SmallBasic.LanguageServices.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Ext 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
 > - 包内代码分为新框架层（`Commands/` 的新 SDK 命令、`LanguageServer/`、`ToolWindows/`）与兼容层（`Commands/` 的调试启动与 F5 过滤器、`Services/`、`Workspace/`、`Editor/` 的分类/折叠/导航栏/调试内联值）。**没有** `Templates/`、`Resources/`（无项模板）。补全 / QuickInfo / Squiggle 的旧 MEF 实现已删除，同等能力由 LSP 提供。
 > - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（仓库根 `launch.vs.json` 的 `smallbasic` 配置按其 `backend` 生效；`.vscode/launch.json` 仅供 VS Code 使用）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口及 Show Document Outline（共 7 项），仅当活动编辑器是 `.sb` 文件时启用。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
@@ -79,7 +79,7 @@ visual_studio_plugin/
 
 **验收**：升级期零语义改动；`SmallBasic.Compiler.Tests` 全部用例通过，作为后续一切开发的安全网。
 
-## 3. 编辑器集成（MEF）
+## 3. 编辑器与语言服务集成
 
 ### 3.1 内容类型与文件关联
 
@@ -99,20 +99,21 @@ internal static FileExtensionToContentTypeDefinition SBFileExtension;
 - 事件驱动：`TextBuffer.Changed` → 防抖 150ms → 触发 `ClassificationChanged` 重分类。
 - 各分类默认前景色由 `ClassificationFormatDefinition` 提供并响应深浅主题（可编辑于“字体和颜色”）。
 
-### 3.3 IntelliSense
+### 3.3 IntelliSense 与诊断（LSP）
 
-| VS API | 实现 | 数据源 |
+| LSP 能力 | 服务端实现 | Visual Studio 呈现 |
 |---|---|---|
-| `IAsyncCompletionSource` | `SmallBasicCompletionSource` | `SmallBasicCompilation.ProvideCompletionItems(TextPosition)`；`.` 触发成员补全，标识符/Ctrl+Space 触发一般补全；`CompletionItem.Icon` 用 VS `KnownMonikers`；描述文案来自 vendor 的本地化库文档 |
-| `IAsyncQuickInfoSource` | `SmallBasicQuickInfoSource` | `ProvideHover(TextPosition)` → `ContainerElement`；诊断处优先显示错误 |
-| `ITagger<IErrorTag>` + Error List | `SmallBasicErrorTagger` | `compilation.Diagnostics`（`TextRange` 0-based → `SnapshotSpan`）呈现于波浪线与错误列表 |
-| Signature Help | **未实现** | —— |
+| Completion | `SmallBasicLspAnalysisService` | `.` / 标识符 / Ctrl+Space 补全；补全文本已摊平为普通参数名 |
+| Hover | `SmallBasicLspAnalysisService` | Quick Info，文档来自 vendor 本地化资源 |
+| Diagnostics | `publishDiagnostics` | 编辑器波浪线与 Error List |
+| Document Symbols | `SmallBasic.LanguageServices` | 文档符号与大纲数据源 |
+| Signature Help | **未实现** | 当前内置 LSP 未发布该能力 |
 
-**坐标换算**：VS `SnapshotPoint` → 行列 0-based（`ITextSnapshotLine`），与 `TextPosition(int Line, int Column)` 天然同基。
+旧 `IAsyncCompletionSource`、`IAsyncQuickInfoSource` 与 `ITagger<IErrorTag>` 实现已经删除，不能再视为当前架构。LSP 使用 0-based 行列 DTO，并由 `LanguageServerProvider` 建立进程内客户端/服务端连接。
 
-### 3.4 编译服务缓存
+### 3.4 编译服务与缓存
 
-`SmallBasicCompilationService`：以 `(ITextBuffer, ITextVersion)` 为键缓存 `SmallBasicCompilation`，供分类器/补全/QuickInfo/ErrorTagger/大纲与结构折叠共享——**同一份编译结果服务多个功能**，是 VS 侧性能核心（预算见 07）。
+`SmallBasic.LanguageServices` 负责 LSP 分析和编译结果复用；包内 `SmallBasicCompilationService` 继续服务分类、折叠、导航栏与调试内联值等 MEF 兼容层能力。两条路径共享 vendor 编译器语义，但分别保持其宿主生命周期。
 
 ### 3.5 大纲、导航栏与折叠
 
@@ -132,7 +133,7 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 
 - `Ctrl+F5` / `Run with C# Backend`（命令 id `0x0100`）：启动随 VSIX 分发的 `runhost\csharp\SmallBasic.RunHost.exe run --file "<path>.sb" --pause`（net48，支持图形）。
 - `Run with JavaScript Backend`（`0x0102`）：要求系统 Node 20+，执行 `node "<...>runhost\javascript\smallbasic-runhost.js" run --file "<path>.sb" --pause`；若程序使用图形库则弹窗拒绝并建议改用 C#。
-- `Run with Blazor Backend`（`0x0105`）：执行 `dotnet "<...>runhost\blazor\SmallBasic.Blazor.RunHost.dll" run --file "<path>.sb" --pause`；跨平台提供图形（见 [09](./09-Blazor后端与RunHost.md)）。
+- `Run with Blazor Backend`（`0x0105`）：执行 `dotnet "<...>runhost\blazor\SmallBasic.Blazor.RunHost.dll" run --file "<path>.sb" --pause`；跨平台提供图形（见 [09](./09-Blazor与Web运行宿主.md)）。
 
 运行宿主内部把 `SmallBasicCompilation` 交给 `SmallBasicEngine`，由 `RuntimeLibrariesCollection` 提供 `IEngineLibraries` 实现（`TextWindow` 走控制台，图形走图形窗口）。
 
@@ -152,7 +153,7 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 - 携带载荷：`SmallBasic.Vsix.dll/.pkgdef`、`SmallBasic.LanguageServices.dll`、vendor 的 `SmallBasic.Compiler.dll`/`SmallBasic.Utilities.dll` 及依赖、`debugadapter/adapter.js`（JS DAP bundle）、`runhost/csharp/SmallBasic.RunHost.exe`（net48）、`runhost/blazor/**`（net8.0 发布输出）、`runhost/javascript/smallbasic-runhost.js`。
 - `build/Package-Vsix.ps1` 在打包后校验 VSIX v3 必需条目（`extension.vsixmanifest`/`manifest.json`/`catalog.json`/`[Content_Types].xml`）与必需载荷，并**拒绝内置 node.exe/node_modules**（不得内置 Node 运行时）。
 - `build/Package-Vsix.ps1` 依赖 `runhost/Build-RunHost.ps1` 的输出（VSIX 携带其中的 RunHost、Blazor 与 JavaScript 载荷），因此默认先构建 RunHost 分发再 `dotnet build`；`Build-All.ps1` 已构建过该分发，故传入 `-SkipRunHost` 避免重复构建。VSIX 工程自身的 `PrepareRunHostForVsix` target 仍会按需构建 net48 宿主并发布 Blazor 宿主。
-- 版本单一来源为仓库根 `version.json`（当前 `0.1.2`），由 `tools/sync-version.mjs` 同步到 manifest 与 `VersionInfo.g.cs`。
+- 版本单一来源为仓库根 `version.json`（当前 `0.1.5`），由 `tools/sync-version.mjs` 同步到 manifest 与 `VersionInfo.g.cs`。
 - 当前 VSIX 产物约 17 MB。
 
 ## 8. 与 VS Code 侧的差异与一致性
@@ -167,3 +168,109 @@ Tools → Small Basic 子菜单提供三个运行入口（外加 `Ctrl+F5` 默�
 | 调试 | DAP（内嵌 TS / RunHost / Blazor RunHost） | DAP（RunHost / Blazor RunHost / JS bundle）经 Debug Adapter Host |
 
 两端**共享**：`.sb` 语言 ID、断点吸附/单步语义、库文档数据源（vendor 本地化资源）、示例程序与调试语义。
+
+## 9. VisualStudio.Extensibility 迁移与收敛记录
+
+> 本节由原 11 号文档并入，记录从经典 VSSDK 包到单一混合托管包的演进、删除项和验收基线；当前使用说明仍以前述第 1 至 8 节为准。
+
+落地目录：`visual_studio_plugin/src/SmallBasic.Vsix/`。本文档描述**最终态**：Small Basic 的 Visual Studio 支持收敛为唯一的扩展包 `SmallBasic.Vsix.<version>.vsix`，技术栈为 VisualStudio.Extensibility 入口层 + in-proc VSSDK 兼容层。
+
+> **历史说明**
+>
+> 本方案经历两轮演进：
+>
+> 1. 经典 `SmallBasic.Vsix`（纯 VSSDK + MEF + VSCT）→ 新增 `SmallBasic.Ext`（新框架路线），两者经 `SmallBasic.VsCommon` 共享实现；
+> 2. 新框架路线验证可行后反向收敛：`SmallBasic.Ext` 吸收 `SmallBasic.VsCommon` 全部内容并**改回 `SmallBasic.Vsix` 之名**，旧经典工程与共享库删除，包 Id 恢复为 `smallbasic-tools-vs`（老用户直接升级替换，无共存冲突）。
+
+### 1. 最终架构
+
+```text
+visual_studio_plugin/
+├── src/
+│   ├── SmallBasic.LanguageServices/      # 语言能力层（netstandard2.0）
+│   │   ├── Lsp/                          # LSP 模型 / 编译语义映射 / 帧 / 内置 server
+│   │   └── Outline/                      # 编译器大纲 → 工具窗树形数据
+│   ├── SmallBasic.Vsix/                  # 唯一的 VS 扩展包（net48，混合托管）
+│   │   ├── SmallBasicExtension.cs        # Extension 入口 + DI
+│   │   ├── SmallBasicPackage.cs          # 兼容 AsyncPackage（语言服务注册兜底）
+│   │   ├── Commands/                     # 新 SDK 菜单命令 + 兼容层运行/调试/过滤器
+│   │   ├── LanguageServer/               # LanguageServerProvider（LSP 客户端接线）
+│   │   ├── ToolWindows/Outline/          # Remote UI 大纲工具窗
+│   │   ├── Editor/                       # MEF：分类/折叠/导航栏/调试内联值/ContentType
+│   │   ├── Services/                     # 编译服务 / 诊断日志
+│   │   ├── Workspace/                    # Open Folder 调试目标提供器
+│   │   └── VersionInfo.g.cs              # 由 version.json 生成（namespace SmallBasic.Vsix）
+│   └── SmallBasic.RunHost 等             # 进程外运行/调试载荷（不受本次改造影响）
+├── tests/
+│   ├── SmallBasic.Compiler.Tests/        # 编译器 + 运行时回归（vendor 测试套）
+│   └── SmallBasic.LanguageServices.Tests/  # 语言层测试（引用 SmallBasic.LanguageServices）
+└── build/
+    └── Package-Vsix.ps1                  # 唯一的 VS 打包脚本
+```
+
+### 2. 为什么共享层只保留 LanguageServices
+
+过渡期曾把两条 VS 路线共用的实现抽成 `SmallBasic.VsCommon`。收敛为单包后共享前提消失：
+
+- 只剩一个消费方，"程序集级共享"不再有收益；
+- `InternalsVisibleTo` 跨程序集可见性徒增复杂度。
+
+因此 VS 集成层全部回到包工程本体。真正仍然共享的只有 `SmallBasic.LanguageServices`（netstandard2.0）：它被扩展（net48）与测试（net8.0）同时引用同一程序集，且不含任何 VS 依赖。测试工程随之命名 `SmallBasic.LanguageServices.Tests`——它只测语言层，名实相符。
+
+### 3. 能力实现路径（最终态）
+
+| 能力 | 实现 |
+|---|---|
+| 扩展入口 / DI | `Extension`（`RequiresInProcessHosting = true`） |
+| Tools 菜单 / 六个运行调试命令 / 大纲命令 | `Command` / `MenuConfiguration` |
+| 命令启用规则 | `EnabledWhen`（活动编辑器为 `*.sb` 时启用） |
+| 文档大纲工具窗 | `ToolWindow` + Remote UI |
+| 补全 / 悬停 / 实时诊断 / 文档符号 | 内置 LSP server + `LanguageServerProvider` |
+| 分类着色 / 折叠 / 导航栏 / 调试内联值 | editor MEF（in-proc 兼容层） |
+| F5 / Ctrl+F5 / F10 / F11 拦截 | `IOleCommandTarget` 过滤器（in-proc） |
+| Open Folder 调试（launch.vs.json） | `ILaunchDebugTargetProvider4`（in-proc） |
+| 调试启动（三后端 DAP） | DTE `DebugAdapterHost.Launch`（in-proc） |
+| 语言服务注册链 | `ProvideLanguageService` 等 + `ProvideObject(CodeBase)`（类型必须在包程序集内） |
+
+**调试结论**：新扩展 SDK（17.14）没有调试启动 / 调试引擎 / 命令拦截 API；调试链路 100% 走 in-proc 兼容层。这正是选择 `VssdkCompatibleExtension` + `RequiresInProcessHosting` 混合托管的原因，也是最终形态，不等待新 SDK 补调试 API。
+
+**manifest 源生成器约束**：命令类必须**直接**继承 `Command` 并在类上声明具体 `CommandConfiguration`，否则命令会从生成的 `extension.json` 中静默丢失（间接继承基类中的配置不被发现）。六个运行/调试命令因此各自持有 `CommandConfiguration`，共享部分（图标、`EnabledWhen`）由基类静态成员提供。
+
+### 4. 退役与删除清单
+
+| 删除项 | 理由 |
+|---|---|
+| 旧经典 `SmallBasic.Vsix` 工程（VSCT、旧包入口） | 被新包取代 |
+| 旧经典包独有的 `Editor/Completion`、`Editor/QuickInfo`、`Editor/Squiggles` | 由 LSP completion / hover / publishDiagnostics 取代 |
+| `SmallBasicSnippet` + 其测试 | VS 的 LSP 客户端**不会**展开 snippet（`insertTextFormat: Snippet` 中的 `${1:x}` 占位符被原样插入编辑器），补全文本已在 `SmallBasicLspAnalysisService` 统一摊平为纯文本参数名，解析器无存在必要 |
+| `SmallBasic.VsCommon` | 唯一消费方，迁回包工程 |
+| `build/Package-Ext-Vsix.ps1` | 只剩一个包，合并为 `build/Package-Vsix.ps1` |
+
+### 5. 身份标识与注册稳定性
+
+- VSIX Id **恢复为 `smallbasic-tools-vs`**：与旧经典包同 Id，VSIX Installer 直接升级替换，无共存冲突；
+- DisplayName 为 `SmallBasic for Visual Studio`（不带任何括号后缀）；
+- 包 GUID `B2A8F1D6-...`、语言服务 GUID `8F2B7C41-...`、内容类型名 `smallbasic`、Open Folder provider GUID 全部不变；
+- 用户只需安装 `SmallBasic.Vsix.<version>.vsix` 一个包。
+
+### 6. 已修复的已知问题
+
+1. **LSP server 生命周期**：`CreateServerConnectionAsync` 的 `cancellationToken` 只约束"创建连接"，不再传给 server 读循环；改为 `CancellationToken.None`，依赖管道关闭（`ReadMessageAsync` 返回 `null`）退出，异常仍经 `TraceSource` 上报。
+2. **System.Text.Json 版本下探**：`SmallBasic.LanguageServices` 引用 **8.0.5**（所用 API 自 6.0 起稳定），覆盖 VS 17.14 随附的 8.0.x 与 VS 18 的 10.0.0.10（devenv 绑定重定向 `0.0.0.0–10.0.0.10` 已实测）。
+3. **命令启用规则**：六个运行/调试命令增加 `EnabledWhen`（仅 `.sb` 活动文档时启用）。
+4. 诊断每次击键全量重编译暂不去抖（Small Basic 程序规模小，编译亚毫秒级，记录在案）。
+
+### 7. 测试策略
+
+- `SmallBasic.LanguageServices.Tests`（net8.0 → LanguageServices netstandard2.0）：LSP 协议映射、帧读写、端到端 JSON-RPC、大纲构建；
+- `SmallBasic.Compiler.Tests`：编译器与运行时回归（vendor 测试套）；
+- 打包脚本校验：VSIX v3 条目、`SmallBasic.Vsix.dll/.pkgdef`、`SmallBasic.LanguageServices.dll`、RunHost 三后端载荷、`debugadapter/adapter.js`、MEF 资产声明、Release 无 PDB、不夹带 Node.js。
+
+### 8. 验收标准（已达成）
+
+- 单一 VS 扩展工程 `SmallBasic.Vsix`；旧经典工程与 `SmallBasic.VsCommon` 目录不存在；
+- 解决方案、Build-All、版本同步脚本均指向现存工程；
+- `dotnet build` 全量通过；两个测试工程全绿（23 + 577）；
+- `build/Package-Vsix.ps1` 产出 `SmallBasic.Vsix.<version>.vsix` 且校验通过；
+- 包能力对照第 3 节表格无退化（语言能力走 LSP，调试走 in-proc 兼容层）；
+- README 与设计文档索引同步更新。

@@ -30,7 +30,13 @@ export function toProtocolLine(lineNumber: number): number {
   return lineNumber - 1;
 }
 
-export type DebugBackendKind = "javascript" | "blazor";
+/**
+ * Backends the controller can debug. The two Web kinds are built in; the
+ * desktop shell registers additional CLI kinds (`cli-javascript`,
+ * `cli-csharp`, `cli-blazor`, doc 10 §17.2) whose transports are provided
+ * through the page's extension hook, so the string stays open here.
+ */
+export type DebugBackendKind = "javascript" | "blazor" | (string & {});
 
 /** Wire commands accepted by both backend transports. */
 export type DebugCommand = {

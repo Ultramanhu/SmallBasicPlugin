@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json.Nodes;
 using SmallBasic.Blazor.RunHost.Debug;
 using SmallBasic.Blazor.RunHost.Hosting;
 using SmallBasic.Compiler;
@@ -59,6 +60,7 @@ static async Task<int> RunAsync(string[] args)
         compilation.Analysis.UsesGraphicsWindow);
     string url = runtime.GetSessionUrl(session);
     Console.WriteLine($"Small Basic Blazor RunHost: {url}");
+    WriteSessionControlLine(url, session.Descriptor.Id);
     if (!noOpen)
     {
         try
@@ -73,6 +75,23 @@ static async Task<int> RunAsync(string[] args)
     }
 
     return await session.Completion;
+}
+
+/// <summary>
+/// Emits the machine-readable graphics-session announcement consumed by the
+/// Tauri desktop shell (design doc 10, §18.4): one versioned JSON control
+/// line on stderr, keeping stdout free for TextWindow output.
+/// </summary>
+static void WriteSessionControlLine(string url, string sessionId)
+{
+    var payload = new JsonObject
+    {
+        ["v"] = 1,
+        ["type"] = "smallbasic/blazorSession",
+        ["url"] = url,
+        ["sessionId"] = sessionId
+    };
+    Console.Error.WriteLine(payload.ToJsonString());
 }
 
 static async Task<int> RunInConsoleAsync(SmallBasicCompilation compilation, bool pauseOnExit)

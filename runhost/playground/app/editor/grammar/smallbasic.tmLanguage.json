@@ -1,0 +1,56 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "SmallBasic",
+  "scopeName": "source.smallbasic",
+  "patterns": [
+    { "include": "#comments" },
+    { "include": "#strings" },
+    { "include": "#numbers" },
+    { "include": "#keywords" },
+    { "include": "#library-types" }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.apostrophe.smallbasic",
+          "match": "'.*$"
+        }
+      ]
+    },
+    "strings": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.smallbasic",
+          "begin": "\"",
+          "end": "\"\"|\"",
+          "patterns": []
+        }
+      ]
+    },
+    "numbers": {
+      "patterns": [
+        {
+          "name": "constant.numeric.smallbasic",
+          "match": "\\b\\d+(?:\\.\\d+)?\\b"
+        }
+      ]
+    },
+    "keywords": {
+      "patterns": [
+        {
+          "name": "keyword.control.smallbasic",
+          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Sub|EndSub|GoTo|And|Or)\\b"
+        }
+      ]
+    },
+    "library-types": {
+      "patterns": [
+        {
+          "name": "support.class.library.smallbasic",
+          "match": "(?i)\\b(Array|Clock|Controls|Math|Program|Shapes|Stack|Text|TextWindow|Turtle)\\b"
+        }
+      ]
+    }
+  }
+}

@@ -21,7 +21,7 @@ origin repository: https://github.com/sb
 | 文档大纲 + 导航栏 | 有 | 有 | 有(LSP 文档符号 + 大纲工具窗 + 原生导航栏) |
 | 运行程序 | CLI 三后端(JS / C# / Blazor)+ Web 双后端(JS / Blazor) | Web 双后端(JS / Blazor) | CLI 三后端(JS / C# / Blazor) |
 | 图形程序(GraphicsWindow/Shapes/Turtle) | C#(Windows)或跨平台 Blazor | Blazor WASM 在 Webview 内渲染 SVG | C# 桌面窗口或 Blazor 浏览器窗口 |
-| 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | 仅 JavaScript 后端(F5)；Blazor 调试需本机 RunHost，暂未支持 | 三后端；C#/Blazor 支持图形调试 |
+| 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | Web 双后端(JavaScript / Blazor)；Blazor 支持图形调试 | 三后端；C#/Blazor 支持图形调试 |
 | 多语言 | 支持 | 支持 | 支持 |
 
 各后端共享相同的 Small Basic 调试语义(断点吸附、单步、变量展开)；Blazor 图形调试由 RunHost 把 IDE 的 DAP 与浏览器内 WASM 解释器桥接起来。
@@ -29,7 +29,7 @@ origin repository: https://github.com/sb
 三个方案共用同一套语言与运行基线，差异只在宿主与接入方式：
 
 - **VS Code / VS Code for the Web**：同一个扩展，靠 `mode`(`cli` / `web`)选择运行面；Web 面没有本机进程，因此语言核心跑在 Web Worker 里，C# 后端不可用。
-- **Visual Studio**：`SmallBasic.Vsix` 包。菜单 / 命令 / 大纲工具窗走新版扩展 SDK，补全 / 悬停 / 诊断 / 文档符号由**进程内 LSP server** 提供；分类着色、折叠、原生导航栏、调试内联值、F5 过滤器、Open Folder 调试目标由包内兼容层(MEF / DTE)承担。语言层位于独立程序集 `SmallBasic.LanguageServices`(`SmallBasic.LanguageServices.Tests` 直接引用同一程序集)。详见 [docs/design/11-VisualStudio.Extensibility迁移设计.md](docs/design/11-VisualStudio.Extensibility迁移设计.md)。
+- **Visual Studio**：`SmallBasic.Vsix` 包。菜单 / 命令 / 大纲工具窗走新版扩展 SDK，补全 / 悬停 / 诊断 / 文档符号由**进程内 LSP server** 提供；分类着色、折叠、原生导航栏、调试内联值、F5 过滤器、Open Folder 调试目标由包内兼容层(MEF / DTE)承担。语言层位于独立程序集 `SmallBasic.LanguageServices`(`SmallBasic.LanguageServices.Tests` 直接引用同一程序集)。详见 [docs/design/04-VisualStudio插件设计.md](docs/design/04-VisualStudio插件设计.md)。
 
 VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本机命令行/调试宿主，`"web"` 走浏览器 Webview。Web 模式支持 JavaScript 与 Blazor；C# 需要本机进程，只支持 CLI。VS Code for the Web 没有本机进程，会把启动配置强制按 Web 模式处理。
 
@@ -178,11 +178,11 @@ dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file test\tetris\tet
 dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll debug
 ```
 
-Blazor 宿主先用 `UsesGraphicsWindow` 分析程序：纯文本程序在终端内执行，图形程序才启动浏览器会话。实现细节见 [docs/design/09-Blazor后端与RunHost.md](docs/design/09-Blazor后端与RunHost.md)。
+Blazor 宿主先用 `UsesGraphicsWindow` 分析程序：纯文本程序在终端内执行，图形程序才启动浏览器会话。实现细节见 [docs/design/09-Blazor与Web运行宿主.md](docs/design/09-Blazor与Web运行宿主.md)。
 
 ### RunHostWeb
 
-`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 会自动路由到 `playground.html`——浏览器内的 Monaco 编辑 + 运行入口（着色、诊断、补全、悬停、签名帮助、文档符号、折叠、定义跳转、引用查找，以及 JS / Blazor 双后端的页内调试：gutter 断点、VS Code 风格悬浮工具条（继续/暂停/单步/重启，F5/F10/F11 快捷键）、调用堆栈与变量面板，全部离线运行）；`runhost.html` 则保留纯运行页面。Playground 工具栏：
+`runhost\web` 是随 RunHost 分发一起构建的**纯静态站点**：没有服务端进程、不连接任何服务器，打开页面 `index.html` 会自动路由到 `playground.html`——浏览器内的 Monaco 编辑 + 运行入口（着色、诊断、补全、悬停、签名帮助、文档符号、折叠、定义跳转、引用查找，以及 JS / Blazor 双后端的页内调试：gutter 断点、VS Code 风格悬浮工具条（继续/暂停/单步/重启，F5/F10/F11 快捷键）、调用堆栈与变量面板，全部离线运行）；`runhost.html` 则保留纯运行页面。设计与桌面化方案见 [docs/design/10-Playground与Tauri本地应用.md](docs/design/10-Playground与Tauri本地应用.md)。Playground 工具栏：
 
 ```powershell
 cd runhost\web
@@ -219,6 +219,17 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 ```
 
 `-Configuration` 会透传到全部子构建：`runhost\Build-RunHost.ps1`(各平台 `dotnet publish`)、VS Code 打包脚本(连同它暂存的 RunHost 载荷)、Visual Studio 的 `SmallBasic.Vsix` 项目，以及各自的 VSIX 打包脚本，保证所有产物来自同一配置。
+
+编译并验证（单一入口）：
+
+```powershell
+.\Build-Plugin.ps1                       # Release 编译 + 完整验证
+.\Build-Plugin.ps1 -SkipBuild            # 只验证现有产物
+.\Build-Plugin.ps1 -VerifyE2E            # 追加 Playwright 页面 E2E(需已安装浏览器)
+.\Build-Plugin.ps1 -StopWebServers       # 编译前停止占用 runhost\web 的 run.bat/run.ps1/serve.mjs
+```
+
+`Build-Plugin.ps1` 先调用 `Build-All.ps1` 完成编译，再依次校验：TypeScript 类型检查、vitest 单元测试、桌面 Tauri 壳的 `cargo test`、Visual Studio 语言服务测试(`dotnet test`)，以及产物完整性(VSIX 内容、RunHost 各平台入口、`runhost\web` 必需文件、已暂存的桌面 Playground sidecar)。每个校验项打印 `PASS`/`FAIL`/`SKIP`，任一必需项失败即以非零码退出，可直接作为 CI 或发布前门禁；本机缺少的工具链(无 `npm`/`cargo`/`dotnet`)记为 `SKIP` 而非失败。重建 `runhost\web` 前必须先停止正在服务的 `serve.mjs` 或用 `run.bat`/`run.ps1` 打开的会话，否则 Windows 会因目录被占用而失败——`-StopWebServers` 会自动处理。
 
 两个打包脚本(`visual_studio_code_plugin\build\Package-Vsix.ps1` 与 `visual_studio_plugin\build\Package-Vsix.ps1`)都依赖 RunHost 分发：单独执行时会先调用 `runhost\Build-RunHost.ps1`，而 `Build-All.ps1` 已经把它作为第一步，因此对这些脚本传入 `-SkipRunHost`，避免同一份载荷被重复构建。
 
@@ -266,6 +277,7 @@ Visual Studio 包由 `Microsoft.VSSDK.BuildTools` 原生生成完整 VSIX v3 声
 ```
 SmallBasicPlugin/
 ├── Build-All.ps1                  # 一键构建入口
+├── Build-Plugin.ps1               # 一键编译 + 验证入口
 ├── runhost/                       # RunHost 多平台分发(Build-RunHost.ps1)
 ├── visual_studio_code_plugin/        # VS Code 扩展(npm monorepo)
 │   └── packages/
@@ -280,7 +292,7 @@ SmallBasicPlugin/
 │   └── vendor/SmallBasicEditor/   # 拷贝升级的 Small Basic 编译器(C#)
 ├── test/                          # 示例程序
 ├── official_repo/                 # 官方源码子模块(editor / homesite / online)
-└── docs/design/                   # 设计文档(01-12)
+└── docs/design/                   # 设计文档(01-10)
 ```
 
 `runhost\web` 由 `runhost\Build-RunHost.ps1` 组装：纯运行页(`runhost.html`/`app.css`/`shell-core.js`/`runhost-page.js`/`serve.mjs`)来自 `visual_studio_plugin\src\SmallBasic.Blazor.Client\wwwroot`，JavaScript 后端 `smallbasic-js.js` 来自 `visual_studio_code_plugin` 的 tsup 打包(`src\runhost\web.ts`)，Playground 资源(`index.html`/`playground.html`/`playground.js`/`editor/**`)来自 `visual_studio_code_plugin` 的 `npm run build:playground` 产物 `playground-dist/`，其余为 Blazor 客户端的发布产物。Playground 专属资源只进入 `runhost\web`，不会出现在 CLI 与 VSIX 共用的 `runhost\blazor` 载荷里。重建该目录前请先停止正在服务的 `serve.mjs`，否则 Windows 会让复制落入已被删除的旧目录。

@@ -212,6 +212,16 @@ public sealed class BlazorDebugAdapter
                 this.stopOnEntry,
                 usesGraphics: true);
             string url = this.server.GetSessionUrl(this.session);
+            // Machine-readable announcement for the Tauri desktop shell
+            // (design doc 10, §18.4): the graphics window is created by the
+            // shell, not by parsing human-readable output. stdout stays
+            // DAP-only - this is a regular DAP custom event.
+            this.SendEvent("smallbasic/blazorSession", new JsonObject
+            {
+                ["url"] = url,
+                ["sessionId"] = this.session.Descriptor.Id,
+                ["reason"] = "start"
+            });
             try
             {
                 if (!this.noOpen)
@@ -241,6 +251,13 @@ public sealed class BlazorDebugAdapter
     private async Task HandleSetBreakpointsAsync(int requestSequence, string command, JsonObject? arguments)
     {
         string sourcePath = (string?)arguments?["source"]?["path"] ?? this.programPath;
+        // The desktop bridge (doc 10, §18.3) - and any spec-conformant client -
+        // sends setBreakpoints from the adapter's `initialized` event, i.e.
+        // before `launch` has compiled the program. Resolve the executable-line
+        // table from the source here so those breakpoints verify and bind
+        // instead of silently degrading to "no executable statement".
+        this.EnsureExecutableLines(sourcePath);
+
         var requested = new List<int>();
         if (arguments?["breakpoints"] is JsonArray entries)
         {
@@ -657,6 +674,36 @@ public sealed class BlazorDebugAdapter
         {
             this.adapter.SendOutput((value ?? string.Empty) + Environment.NewLine);
             return Task.CompletedTask;
+        }
+    }
+
+    /// <summary>
+    /// Loads the compilation for a source path when <c>launch</c> has not run
+    /// yet, so breakpoints sent early can be validated (the desktop transport
+    /// configures them from the adapter's <c>initialized</c> event).
+    /// </summary>
+    private void EnsureExecutableLines(string sourcePath)
+    {
+        if (this.executableLines.Length > 0 || sourcePath.Length == 0 || !File.Exists(sourcePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var compilation = new SmallBasicCompilation(File.ReadAllText(sourcePath));
+            if (compilation.Diagnostics.Count > 0)
+            {
+                return;
+            }
+
+            this.compilation = compilation;
+            this.programPath = Path.GetFullPath(sourcePath);
+            this.executableLines = compilation.GetExecutableLines().OrderBy(line => line).ToArray();
+        }
+        catch
+        {
+            // Breakpoints stay unverified; the launch request reports the error.
         }
     }
 

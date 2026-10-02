@@ -1,0 +1,23 @@
+{
+  "name": "smallbasic-playground-desktop",
+  "private": true,
+  "version": "0.1.5",
+  "description": "Tauri v2 desktop shell for the Small Basic Monaco playground (CLI sidecar backends)",
+  "type": "module",
+  "scripts": {
+    "build": "node ./scripts/build-desktop.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "stage": "node ./scripts/stage-playground.mjs",
+    "tauri": "tauri",
+    "dev": "node ./scripts/stage-playground.mjs && tauri dev",
+    "build:app": "node ./scripts/stage-playground.mjs && tauri build"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.9.0"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.9.0",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.9.2"
+  }
+}

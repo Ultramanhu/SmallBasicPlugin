@@ -5,7 +5,7 @@
 > **2026-09-28 现状校准**
 >
 > - monorepo 实际只有两个包：`packages/smallbasic-lang-core`（语言核心，仅再导出 `vendor/SmallBasicOnline` 并补充调试表达式求值）与 `packages/smallbasic-vscode`（扩展本体，调试适配器内嵌其中）。**没有**独立的 `sb-debug` 包，也**没有** `conformance/` 目录。
-> - 扩展同时提供桌面入口（`src/extension.ts`）与 Web 入口（`src/web/extension.ts`，清单 `browser` 字段）；Web 端支持 JavaScript 后端，以及**在 Webview 内运行的 Blazor WASM 后端**（图形程序可用，见 [10-WebRunHost.md](./10-WebRunHost.md) §vscode.dev 集成），但 Blazor **逐行调试**仍只在桌面端提供：Web 端 `Ctrl+F5`（运行但不调试）经 `src/web/run-routing.ts` 分流为「在 Webview 内运行」，`F5` 的 Blazor/图形调试请求则被拒绝并提示改用运行命令。
+> - 扩展同时提供桌面入口（`src/extension.ts`）与 Web 入口（`src/web/extension.ts`，清单 `browser` 字段）；Web 端的 JavaScript 与 Blazor WASM 后端均可在 Webview 内运行和逐行调试（图形程序可用，见 [09](./09-Blazor与Web运行宿主.md) 的 VS Code Web 模式部分）。`Ctrl+F5` 运行但不调试，`F5` 通过浏览器兼容的 Inline DAP 适配器接入 VS Code 原生调试 UI；C# 后端仍只支持 `mode: "cli"`。
 > - 已实现：`.sb` 关联、TextMate + 语义令牌双层着色、诊断、悬停、上下文补全、文档大纲（Sub 与变量首次使用）、调试内联值、`TextWindow` 文本运行，以及 **JS / C# / Blazor 三后端**的运行与调试。
 > - 运行是三个**显式命令**（不再有统一的 `smallbasic.run`，也没有 `smallbasic.backend` 设置）：
 >   - `smallbasic.runJavaScript` —— 内置 JS 引擎，跨平台（含 VS Code for the Web），无图形能力；
@@ -211,7 +211,7 @@ class CompilationCache {
 **`smallbasic.runBlazor`（跨平台图形后端）**：
 
 1. 通过 `smallbasic.blazor.runHostPath` 或内置 `runhost/blazor/SmallBasic.Blazor.RunHost.dll` 定位宿主。
-2. 执行 `dotnet SmallBasic.Blazor.RunHost.dll run --file "<path>.sb"`：文本程序直接在终端跑；图形程序启动本机 Kestrel 并打开浏览器 WASM 页面渲染（见 [09](./09-Blazor后端与RunHost.md)）。
+2. 执行 `dotnet SmallBasic.Blazor.RunHost.dll run --file "<path>.sb"`：文本程序直接在终端跑；图形程序启动本机 Kestrel 并打开浏览器 WASM 页面渲染（见 [09](./09-Blazor与Web运行宿主.md)）。
 
 ## 9. 调试接入
 

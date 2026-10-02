@@ -33,3 +33,13 @@ out
 visual_studio_code_plugin/packages/smallbasic-vscode/runhost/
 .gitignore
 
+
+# Tauri local playground (generated staging).
+runhost/playground/bundles/
+!runhost/playground/bin/
+!runhost/playground/bundles/*.msi
+
+# Build inputs and intermediates of the desktop shell (never shipped).
+visual_studio_code_plugin/packages/smallbasic-playground-desktop/dist/
+visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/target/
+visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/gen/

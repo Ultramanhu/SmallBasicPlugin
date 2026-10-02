@@ -1,0 +1,21 @@
+TextWindow.WriteLine("Hello, World!")
+
+a1 = 1
+a2 = a1 + ""
+TextWindow.WriteLine(a2)
+
+s1 = "3"
+s2 = s1 * 1
+TextWindow.WriteLine(s2)
+
+i = 1
+
+Sub MySub
+	TextWindow.WriteLine("MySub:" + i)
+	i = i + 1
+	If i < 10 Then
+		MySub()
+	EndIf
+EndSub
+
+MySub()

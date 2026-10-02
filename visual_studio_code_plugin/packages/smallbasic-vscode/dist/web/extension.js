@@ -25130,4 +25130,3 @@ buffer/index.js:
 punycode/punycode.js:
   (*! https://mths.be/punycode v1.4.1 by @mathias *)
 */
-//# sourceMappingURL=extension.js.map

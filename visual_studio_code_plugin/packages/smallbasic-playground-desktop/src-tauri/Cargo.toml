@@ -1,0 +1,25 @@
+[package]
+name = "smallbasic-playground-desktop"
+version = "0.1.5"
+description = "Small Basic local playground - Tauri desktop shell with CLI sidecar backends"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "smallbasic_playground_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4"] }
+rfd = "0.15"
+
+[profile.release]
+codegen-units = 1
+lto = true
+strip = true

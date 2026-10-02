@@ -7,7 +7,8 @@ import {
   JsDebugTransport,
   PlaygroundDebugController,
   type DebugBackendKind,
-  type DebugEvent
+  type DebugEvent,
+  type DebugTransport
 } from "./debug-controller";
 import { LanguageWorkerClient } from "../monaco/language-client";
 import { PLAYGROUND_THEME, registerSmallBasicLanguage } from "../monaco/register-language";
@@ -24,12 +25,6 @@ interface ShellProgram {
 interface ShellManifest {
   default: string;
   items: ShellProgram[];
-}
-
-interface ProgramSnapshot {
-  name: string;
-  source: string;
-  modelVersion?: number;
 }
 
 interface SmallBasicWebApi {
@@ -57,6 +52,10 @@ interface RunHostController {
   startBlazor(): Promise<void>;
   invokeBlazor(method: string, ...args: unknown[]): Promise<unknown>;
   banner(text: string): void;
+  registerCustomBackend(id: string, handler: PlaygroundBackendHandler): void;
+  setSessionInputVisible(visible: boolean): void;
+  /** Host notifications (web-debug protocol) drive status + debug routing. */
+  handleHostNotification(message: DebugEvent): void;
   debugListener: ((message: DebugEvent) => void) | null;
   onHostWrite: ((text: string) => void) | null;
   dispose(): void;
@@ -75,6 +74,67 @@ interface ShellApi {
   loadProgramManifest(): Promise<ShellManifest>;
   ensureProgramSource(program: ShellProgram): Promise<ShellProgram>;
   createRunHostController(options: { dom: Record<string, ControllerDomValue> }): RunHostController;
+}
+
+/** Editor snapshot handed to run/debug entry points. */
+export interface ProgramSnapshot {
+  name: string;
+  source: string;
+  modelVersion?: number;
+}
+
+/**
+ * A run backend registered by an embedder (currently the Tauri desktop shell,
+ * doc 10 §19). The shell controller routes Run/Stop/stdin to it; debug
+ * transports register separately through {@link PlaygroundGlobalApi}.
+ */
+export interface PlaygroundBackendHandler {
+  label: string;
+  /** Fixed note shown above the output pane while this backend is selected. */
+  outputNote?: string;
+  run?(snapshot: ProgramSnapshot): Promise<void>;
+  stop?(): Promise<void>;
+  onInput?(text: string): void;
+}
+
+/** The controller slice an embedder may drive. */
+export interface PlaygroundControllerFacade {
+  setStatus(text: string): void;
+  setRunning(running: boolean): void;
+  isRunning(): boolean;
+  appendConsole(text: string, foreground: number, background: number): void;
+  mirrorToConsole(text: string): void;
+  showRuntimeDiagnostics(text: string): void;
+  selectBackend(backend: string): void;
+  getBackend(): string;
+  /** Persistent stdin row for CLI run sessions. */
+  setSessionInputVisible(visible: boolean): void;
+}
+
+export interface PlaygroundContext {
+  controller: PlaygroundControllerFacade;
+  /** Shared host-notification path: status bar + debug event routing. */
+  notify(event: DebugEvent): void;
+  debug: PlaygroundDebugController;
+  model: monaco.editor.ITextModel;
+  editor: monaco.editor.IStandaloneCodeEditor;
+  state: { currentFileName: string; dirty: boolean };
+  snapshot(): ProgramSnapshot;
+}
+
+/**
+ * Extension surface of the playground page. The web build defines it but
+ * nothing consumes it; the desktop entry (`smallbasic-playground-desktop`)
+ * registers CLI backends, debug transports, native file dialogs and edit
+ * teardown hooks through it.
+ */
+export interface PlaygroundGlobalApi {
+  whenReady: Promise<PlaygroundContext>;
+  registerBackend(id: string, handler: PlaygroundBackendHandler): void;
+  registerDebugBackend(id: string, factory: () => Promise<DebugTransport>): void;
+  registerSaveHandler(handler: (name: string, source: string) => Promise<string | null>): void;
+  addModelChangedListener(listener: () => void): void;
+  setGraphicsBackendResolver(resolver: (() => string | null) | null): void;
 }
 
 interface DomHandles {
@@ -188,6 +248,50 @@ const NEW_FILE_TEMPLATE = [
   'TextWindow.WriteLine("Hello World")'
 ].join("\n");
 
+// Extension surface for embedders (currently the Tauri desktop shell, doc 10
+// §19). The web build defines the API but nothing registers through it, so
+// the page behaves exactly like before; the staged desktop entry attaches
+// the CLI backends while bootstrap is still loading.
+let resolveReady: ((context: PlaygroundContext) => void) | undefined;
+const whenReady = new Promise<PlaygroundContext>((resolve) => {
+  resolveReady = resolve;
+});
+/**
+ * The live controller, once bootstrap built it. Embedders that await
+ * {@link PlaygroundGlobalApi.whenReady} register *after* bootstrap has drained
+ * the queued backends, so late registrations must be forwarded here or the CLI
+ * options never reach the backend `<select>`.
+ */
+let controllerRef: RunHostController | null = null;
+const customBackends = new Map<string, PlaygroundBackendHandler>();
+const debugBackendFactories = new Map<string, () => Promise<DebugTransport>>();
+const modelChangeListeners = new Set<() => void>();
+let saveHandlerOverride: ((name: string, source: string) => Promise<string | null>) | null = null;
+let graphicsBackendResolver: (() => string | null) | null = null;
+
+(window as typeof window & { SmallBasicPlayground?: PlaygroundGlobalApi }).SmallBasicPlayground = {
+  whenReady,
+  registerBackend(id: string, handler: PlaygroundBackendHandler): void {
+    customBackends.set(id, handler);
+    // The desktop entry registers through this API only after `whenReady`
+    // resolved, i.e. after bootstrap drained the map above - without this
+    // forwarding the CLI backends stay invisible (doc 10, §19.3 phase 2).
+    controllerRef?.registerCustomBackend(id, handler);
+  },
+  registerDebugBackend(id: string, factory: () => Promise<DebugTransport>): void {
+    debugBackendFactories.set(id, factory);
+  },
+  registerSaveHandler(handler: (name: string, source: string) => Promise<string | null>): void {
+    saveHandlerOverride = handler;
+  },
+  addModelChangedListener(listener: () => void): void {
+    modelChangeListeners.add(listener);
+  },
+  setGraphicsBackendResolver(resolver: (() => string | null) | null): void {
+    graphicsBackendResolver = resolver;
+  }
+};
+
 void bootstrap();
 
 // Monaco spawns its editor worker lazily (links, word suggestions, ...); the
@@ -200,6 +304,11 @@ void bootstrap();
 async function bootstrap(): Promise<void> {
   const dom = bindDom();
   const controller = shellApi.createRunHostController({ dom });
+  controllerRef = controller;
+  // Embedders may have queued backend registrations while the page loaded.
+  for (const [id, handler] of customBackends) {
+    controller.registerCustomBackend(id, handler);
+  }
 
   const state = {
     programs: [] as ShellProgram[],
@@ -279,6 +388,12 @@ async function bootstrap(): Promise<void> {
     },
     sessionId: "playground",
     createTransport: async (backend: DebugBackendKind) => {
+      // CLI backends registered by the desktop shell take precedence.
+      const factory = debugBackendFactories.get(backend);
+      if (factory) {
+        return factory();
+      }
+
       if (backend === "blazor") {
         return new BlazorDebugTransport(
           {
@@ -300,6 +415,31 @@ async function bootstrap(): Promise<void> {
     controller.mirrorToConsole(text);
   };
   controller.debugListener = (event) => debug.handleEvent(event);
+
+  // Save goes to the browser download flow by default; an embedder (desktop
+  // shell) swaps in a native file dialog through registerSaveHandler.
+  const saveProgram = async (): Promise<void> => {
+    const fileName = state.currentFileName;
+    const source = model.getValue();
+    if (saveHandlerOverride) {
+      const saved = await saveHandlerOverride(fileName, source);
+      if (saved) {
+        state.currentFileName = saved;
+        controller.setStatus(`Saved ${saved}`);
+      }
+      return;
+    }
+
+    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName || DEFAULT_PROGRAM_NAME;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const syncDiagnostics = debounce(async () => {
     const version = model.getVersionId();
@@ -325,6 +465,9 @@ async function bootstrap(): Promise<void> {
       state.dirty = true;
     }
 
+    for (const listener of modelChangeListeners) {
+      listener();
+    }
     void syncDiagnostics();
   });
 
@@ -385,10 +528,10 @@ async function bootstrap(): Promise<void> {
       await controller.stopRun();
     }
 
-    await loadIntoEditor(model, state, file.name, source, controller, shellApi.detectGraphicsUsage(source));
+    await loadIntoEditor(model, state, file.name, source, controller, shellApi.detectGraphicsUsage(source), graphicsBackendResolver);
   });
   dom.saveButton.addEventListener("click", () => {
-    saveProgram(state.currentFileName, model.getValue());
+    void saveProgram();
   });
   dom.outlineButton.addEventListener("click", () => {
     void toggleOutline(dom, client, model, editor, state);
@@ -412,7 +555,7 @@ async function bootstrap(): Promise<void> {
   document.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s") {
       event.preventDefault();
-      saveProgram(state.currentFileName, model.getValue());
+      void saveProgram();
       return;
     }
 
@@ -494,6 +637,16 @@ async function bootstrap(): Promise<void> {
     model.dispose();
     editor.dispose();
     controller.dispose();
+  });
+
+  resolveReady?.({
+    controller,
+    notify: (event) => controller.handleHostNotification(event),
+    debug,
+    model,
+    editor,
+    state,
+    snapshot: () => currentSnapshot(model, state.currentFileName)
   });
 }
 
@@ -579,7 +732,7 @@ async function selectSample(
     await controller.stopRun();
   }
 
-  await loadIntoEditor(model, state, resolved.name, resolved.source ?? "", controller, resolved.graphics);
+  await loadIntoEditor(model, state, resolved.name, resolved.source ?? "", controller, resolved.graphics, graphicsBackendResolver);
   const select = document.getElementById("program-select") as HTMLSelectElement | null;
   if (select) {
     select.value = resolved.path;
@@ -592,7 +745,8 @@ async function loadIntoEditor(
   fileName: string,
   source: string,
   controller: RunHostController,
-  graphics: boolean
+  graphics: boolean,
+  graphicsResolver: (() => string | null) | null
 ): Promise<void> {
   state.suppressDirty = true;
   model.setValue(source);
@@ -601,7 +755,9 @@ async function loadIntoEditor(
   state.dirty = false;
   controller.setStatus(`Loaded ${state.currentFileName}`);
   if (graphics) {
-    controller.selectBackend(shellApi.BACKEND_BLAZOR);
+    // Embedders may prefer a graphics-capable CLI backend (native
+    // GraphicsWindow on Windows); the web default stays Blazor WASM.
+    controller.selectBackend(graphicsResolver?.() ?? shellApi.BACKEND_BLAZOR);
   }
 }
 
@@ -621,7 +777,7 @@ async function createNewProgram(
     await controller.stopRun();
   }
 
-  await loadIntoEditor(model, state, DEFAULT_PROGRAM_NAME, template, controller, false);
+  await loadIntoEditor(model, state, DEFAULT_PROGRAM_NAME, template, controller, false, graphicsBackendResolver);
 }
 
 async function confirmDiscard(state: { dirty: boolean }): Promise<boolean> {
@@ -678,22 +834,13 @@ async function startDebugSession(
   snapshot: ProgramSnapshot
 ): Promise<void> {
   try {
-    await debug.start(snapshot.name, snapshot.source, controller.getBackend() === shellApi.BACKEND_BLAZOR ? "blazor" : "javascript");
+    // Desktop-registered CLI backends flow through the same path; the
+    // controller's transport registry resolves them (doc 10, §18.3).
+    await debug.start(snapshot.name, snapshot.source, controller.getBackend());
   } catch (error) {
     controller.showRuntimeDiagnostics(TEXT.backendUnavailable(error instanceof Error ? error.message : String(error)));
     controller.setStatus("Failed");
   }
-}
-
-function saveProgram(fileName: string, source: string): void {  const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = fileName || DEFAULT_PROGRAM_NAME;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
 }
 
 async function toggleOutline(

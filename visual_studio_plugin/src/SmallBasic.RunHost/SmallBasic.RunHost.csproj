@@ -15,6 +15,18 @@
     <DefineConstants>$(DefineConstants);GRAPHICS_HOST</DefineConstants>
   </PropertyGroup>
 
+  <!--
+    Single-file sidecar publish for the Tauri desktop playground (design doc 10,
+    section 18.5). The switch is scoped to this project so referenced projects
+    are not affected. Staged with: dotnet publish -r RID -self-contained true
+    and the global property SmallBasicStageSidecar set to true.
+  -->
+  <PropertyGroup Condition="'$(SmallBasicStageSidecar)' == 'true'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+  </PropertyGroup>
+
   <ItemGroup Condition="'$(TargetFramework)' == 'net48' or '$(TargetFramework)' == 'net8.0-windows'">
     <PackageReference Include="SmallBasic" Version="1.2.0" />
   </ItemGroup>
