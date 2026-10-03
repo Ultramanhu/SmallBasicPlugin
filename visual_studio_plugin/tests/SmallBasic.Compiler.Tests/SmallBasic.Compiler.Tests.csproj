@@ -32,4 +32,10 @@
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Tests\Runtime\**\*.cs" Link="Runtime\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Tests\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Content Include="..\..\..\tests\conformance\language-extension\cases.json"
+             Link="Conformance\language-extension\cases.json"
+             CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

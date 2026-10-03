@@ -96,7 +96,7 @@ visual_studio_code_plugin/
       "aliases": ["SmallBasic", "smallbasic"],
       "extensions": [".sb"],
       "configuration": "./language-configuration.json",
-      "icon": { "light": "./media/SmallBasic.svg", "dark": "./media/SmallBasic.svg" }
+      "icon": { "light": "./media/SmallBasic.png", "dark": "./media/SmallBasic.png" }
     }],
     "breakpoints": [{ "language": "smallbasic" }],
     "grammars": [{

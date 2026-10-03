@@ -6,6 +6,12 @@ using SmallBasic.Compiler;
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
+if (args.Length == 1 && string.Equals(args[0], "--capabilities", StringComparison.OrdinalIgnoreCase))
+{
+    Console.WriteLine("{\"protocolVersion\":2,\"capabilities\":[\"function-v1\"]}");
+    return;
+}
+
 if (args.Length >= 1 && string.Equals(args[0], "debug", StringComparison.OrdinalIgnoreCase))
 {
     // DAP debug adapter mode: stdin/stdout carry the protocol, so all program
@@ -129,7 +135,7 @@ static bool TryParseArguments(string[] args, out string filePath, out bool pause
 {
     filePath = string.Empty;
     pauseOnExit = args.Any(value => string.Equals(value, "--pause", StringComparison.OrdinalIgnoreCase));
-    errorMessage = "Usage: SmallBasic.RunHost run --file <program.sb> [--pause] | SmallBasic.RunHost debug";
+    errorMessage = "Usage: SmallBasic.RunHost run --file <program.sb> [--pause] | SmallBasic.RunHost debug | SmallBasic.RunHost --capabilities";
 
     if (args.Length >= 3 && string.Equals(args[0], "run", StringComparison.OrdinalIgnoreCase))
     {

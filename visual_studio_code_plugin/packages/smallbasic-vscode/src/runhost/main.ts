@@ -15,6 +15,7 @@ import {
   TextWindowColor,
   ValueKind
 } from "smallbasic-lang-core";
+import { RUN_HOST_CAPABILITIES } from "../run/capabilities";
 
 /**
  * Standalone Node.js run host for SmallBasic programs, mirroring the CLI of the
@@ -221,9 +222,15 @@ function sleep(milliseconds: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const arguments_ = tryParseArguments(process.argv.slice(2));
+  const rawArguments = process.argv.slice(2);
+  if (rawArguments.length === 1 && rawArguments[0].toLowerCase() === "--capabilities") {
+    process.stdout.write(`${JSON.stringify(RUN_HOST_CAPABILITIES)}\n`);
+    return;
+  }
+
+  const arguments_ = tryParseArguments(rawArguments);
   if (!arguments_) {
-    process.stderr.write("Usage: smallbasic-runhost run --file <program.sb> [--pause]\n");
+    process.stderr.write("Usage: smallbasic-runhost run --file <program.sb> [--pause] | smallbasic-runhost --capabilities\n");
     await pauseAndExit(1, true);
     return;
   }

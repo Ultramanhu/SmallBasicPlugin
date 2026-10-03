@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BrowserDebugSession, type DebugEventSink } from "../src/runhost/web-debug";
+import { DEBUG_PROTOCOL_VERSION } from "../src/web/debug-protocol";
 
 const SESSION = "js-web-session";
 const PROGRAM = "x = 1\ny = x + 1\nTextWindow.WriteLine(y)\n";
@@ -15,7 +16,7 @@ interface WireEvent {
   exitCode?: number;
   message?: string;
   numberInput?: boolean;
-  frames?: Array<{ name: string; line: number }>;
+  frames?: Array<{ name: string; line: number; variables?: Array<{ name: string; value: string; children: unknown[] }> }>;
   variables?: Array<{ name: string; value: string; children: unknown[] }>;
 }
 
@@ -64,7 +65,7 @@ function launch(sink: RecordingSink, options: { stopOnEntry?: boolean; source?: 
 }
 
 function command(session: BrowserDebugSession, wire: Record<string, unknown>): void {
-  session.dispatch(JSON.stringify({ protocolVersion: 1, sessionId: SESSION, ...wire }));
+  session.dispatch(JSON.stringify({ protocolVersion: DEBUG_PROTOCOL_VERSION, sessionId: SESSION, ...wire }));
 }
 
 describe("browser JavaScript debug session (mode: web)", () => {
@@ -72,7 +73,7 @@ describe("browser JavaScript debug session (mode: web)", () => {
     const sink = new RecordingSink();
     launch(sink);
     expect(sink.ofType("ready")).toHaveLength(1);
-    expect(sink.ofType("ready")[0]).toMatchObject({ protocolVersion: 1, sessionId: SESSION });
+    expect(sink.ofType("ready")[0]).toMatchObject({ protocolVersion: DEBUG_PROTOCOL_VERSION, sessionId: SESSION });
   });
 
   it("reports compilation errors and terminates", () => {
@@ -171,11 +172,37 @@ describe("browser JavaScript debug session (mode: web)", () => {
     const sink = new RecordingSink();
     const session = launch(sink);
 
-    session.dispatch(JSON.stringify({ protocolVersion: 1, sessionId: "other", type: "setBreakpoints", breakpoints: [1] }));
+    session.dispatch(JSON.stringify({ protocolVersion: DEBUG_PROTOCOL_VERSION, sessionId: "other", type: "setBreakpoints", breakpoints: [1] }));
     session.dispatch(JSON.stringify({ protocolVersion: 99, sessionId: SESSION, type: "setBreakpoints", breakpoints: [1] }));
     session.dispatch("{not json}");
     await new Promise((resolve) => setTimeout(resolve, 10));
 
     expect(sink.ofType("breakpointsValidated")).toHaveLength(0);
+  });
+
+  it("publishes Function parameters and Dim locals in each browser frame", async () => {
+    const sink = new RecordingSink();
+    const session = launch(sink, {
+      source: [
+        "answer = Double(4)",
+        "Function Double(Value)",
+        "  Dim Local",
+        "  Local = Value * 2",
+        "  Return Local",
+        "EndFunction"
+      ].join("\n")
+    });
+
+    command(session, { type: "setBreakpoints", requestId: "bp", breakpoints: [3] });
+    command(session, { type: "start", breakpoints: [3] });
+    const stopped = await sink.waitFor("stopped");
+    expect(stopped.frames?.map((frame) => frame.name)).toEqual(["Double", "<Main>"]);
+    expect(stopped.frames?.[0].variables).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "Value", value: "4" }),
+      expect.objectContaining({ name: "Local", value: "\"\"" })
+    ]));
+
+    command(session, { type: "control", control: "continue" });
+    await sink.waitFor("terminated");
   });
 });

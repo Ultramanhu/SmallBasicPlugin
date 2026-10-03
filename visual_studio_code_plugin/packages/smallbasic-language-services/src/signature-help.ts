@@ -1,8 +1,13 @@
+import type { Compilation } from "smallbasic-lang-core";
 import type { LanguageSignatureHelp } from "./protocol";
 import { getMethodSignature } from "./method-signatures";
 
-export function provideSignatureHelpInfo(lineText: string, character: number): LanguageSignatureHelp | undefined {
-  const signature = getMethodSignature(lineText, character);
+export function provideSignatureHelpInfo(
+  lineText: string,
+  character: number,
+  compilation?: Compilation
+): LanguageSignatureHelp | undefined {
+  const signature = getMethodSignature(lineText, character, compilation);
   if (!signature) {
     return undefined;
   }

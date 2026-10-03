@@ -15,6 +15,7 @@
 
 # debug
 *.log
+.cache
 .trace
 .network
 visual_studio_code_plugin/tests/webview/artifacts
@@ -43,3 +44,4 @@ runhost/playground/bundles/
 visual_studio_code_plugin/packages/smallbasic-playground-desktop/dist/
 visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/target/
 visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/gen/
+visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/keystore/

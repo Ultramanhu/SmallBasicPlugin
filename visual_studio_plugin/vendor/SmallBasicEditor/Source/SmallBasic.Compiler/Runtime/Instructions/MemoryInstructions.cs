@@ -22,7 +22,7 @@ namespace SmallBasic.Compiler.Runtime
 
         protected override void Execute(SmallBasicEngine engine)
         {
-            engine.Memory[this.variable] = engine.EvaluationStack.Pop();
+            engine.GetVariableMemory(this.variable)[this.variable] = engine.EvaluationStack.Pop();
         }
     }
 
@@ -38,7 +38,7 @@ namespace SmallBasic.Compiler.Runtime
 
         protected override void Execute(SmallBasicEngine engine)
         {
-            if (engine.Memory.TryGetValue(this.variable, out BaseValue value))
+            if (engine.GetVariableMemory(this.variable).TryGetValue(this.variable, out BaseValue value))
             {
                 engine.EvaluationStack.Push(value);
             }
@@ -64,7 +64,7 @@ namespace SmallBasic.Compiler.Runtime
         protected override void Execute(SmallBasicEngine engine)
         {
             BaseValue value = engine.EvaluationStack.Pop();
-            executeAux(new ArrayValue(engine.Memory), this.array, this.indicesCount);
+            executeAux(new ArrayValue(engine.GetVariableMemory(this.array)), this.array, this.indicesCount);
 
             BaseValue executeAux(ArrayValue memory, string index, int remainingIndices)
             {
@@ -110,7 +110,7 @@ namespace SmallBasic.Compiler.Runtime
 
         protected override void Execute(SmallBasicEngine engine)
         {
-            IReadOnlyDictionary<string, BaseValue> memory = engine.Memory;
+            IReadOnlyDictionary<string, BaseValue> memory = engine.GetVariableMemory(this.array);
             int remainingIndices = this.indicesCount;
             string index = this.array;
 

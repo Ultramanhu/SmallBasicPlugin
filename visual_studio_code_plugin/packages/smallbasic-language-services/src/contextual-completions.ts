@@ -6,7 +6,7 @@ export interface RankedCompletion {
   readonly preselect?: boolean;
 }
 
-type BlockKind = "if" | "for" | "while" | "sub";
+type BlockKind = "if" | "for" | "while" | "sub" | "function";
 
 function startsWithIgnoreCase(value: string, prefix: string): boolean {
   return value.toLowerCase().startsWith(prefix.toLowerCase());
@@ -58,6 +58,11 @@ function detectOpenBlocks(sourceBeforeCursor: string): BlockKind[] {
       continue;
     }
 
+    if (/^endfunction\b/i.test(line)) {
+      popLatest(stack, "function");
+      continue;
+    }
+
     if (/^if\b.*\bthen\b/i.test(line) && !/^elseif\b/i.test(line)) {
       stack.push("if");
       continue;
@@ -75,6 +80,11 @@ function detectOpenBlocks(sourceBeforeCursor: string): BlockKind[] {
 
     if (/^sub\b\s+[^\s(]+/i.test(line)) {
       stack.push("sub");
+      continue;
+    }
+
+    if (/^function\b\s+[^\s(]+\s*\(/i.test(line)) {
+      stack.push("function");
     }
   }
 
@@ -124,6 +134,11 @@ export function getContextualCompletions(
       break;
     case "sub":
       results.push(snippet("EndSub", "EndSub", 0, true));
+      break;
+    case "function":
+      results.push(snippet("Return", "Return ${1:value}", 0, true));
+      results.push(snippet("EndFunction", "EndFunction", 1));
+      results.push(snippet("Dim", "Dim ${1:name}", 2));
       break;
     default:
       break;

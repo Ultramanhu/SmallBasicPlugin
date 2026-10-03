@@ -32,6 +32,7 @@ export interface DebugSourceAccessor {
 /** Transient variable containers; globals stay live so stops read fresh values. */
 type VariableContainer =
   | { kind: "globals" }
+  | { kind: "locals"; frameId: number }
   | { kind: "array"; value: DebugVariableValue };
 
 /**
@@ -82,7 +83,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     response.body = {
       supportsConfigurationDoneRequest: true,
       supportsConditionalBreakpoints: true,
-      supportsEvaluateForHovers: false,
+      supportsEvaluateForHovers: true,
       supportsStepBack: false,
       supportsRestartRequest: false
     };
@@ -164,9 +165,9 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     response: DebugProtocol.StackTraceResponse,
     _args: DebugProtocol.StackTraceArguments
   ): void {
-    const stackFrames = this.driver.frames().map((frame, index) => {
+    const stackFrames = this.driver.frames().map((frame) => {
       const source = new Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new StackFrame(index + 1, frame.name, source, frame.line + 1, frame.column + 1);
+      return new StackFrame(frame.id, frame.name, source, frame.line + 1, frame.column + 1);
     });
 
     response.body = {
@@ -178,10 +179,13 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
 
   protected override scopesRequest(
     response: DebugProtocol.ScopesResponse,
-    _args: DebugProtocol.ScopesArguments
+    args: DebugProtocol.ScopesArguments
   ): void {
     response.body = {
-      scopes: [new Scope("Globals", this.variableHandles.create({ kind: "globals" }), false)]
+      scopes: [
+        new Scope("Globals", this.variableHandles.create({ kind: "globals" }), false),
+        new Scope("Locals", this.variableHandles.create({ kind: "locals", frameId: args.frameId }), false)
+      ]
     };
     this.sendResponse(response);
   }
@@ -193,7 +197,11 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     const container = this.variableHandles.get(args.variablesReference);
     const variables = !container
       ? []
-      : container.kind === "globals" ? this.driver.variables() : this.driver.expand(container.value);
+      : container.kind === "globals"
+        ? this.driver.variables()
+        : container.kind === "locals"
+          ? this.driver.localVariables(container.frameId)
+          : this.driver.expand(container.value);
     response.body = {
       variables: variables.map((variable) => this.createVariable(variable))
     };
@@ -265,7 +273,8 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       return;
     }
 
-    const value = this.driver.findVariable(expression);
+    const value = this.driver.evaluate(expression, args.frameId ?? 1)
+      ?? this.driver.findVariable(expression, args.frameId ?? 1);
     if (value) {
       response.body = {
         result: value.value,

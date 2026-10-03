@@ -57,11 +57,15 @@ namespace SmallBasic.Compiler
 
         internal BoundStatementBlock MainModule => this.binder.MainModule;
 
+        internal IReadOnlyList<string> GlobalDeclarations => this.binder.GlobalDeclarations;
+
         internal IReadOnlyDictionary<string, BoundSubModule> SubModules => this.binder.SubModules;
+
+        internal IReadOnlyDictionary<string, BoundFunction> Functions => this.binder.Functions;
 
         public MonacoCompletionItem[] ProvideCompletionItems(TextPosition position) => CompletionItemProvider.Provide(this.parser, this.binder, this.Text, position);
 
-        public string[] ProvideHover(TextPosition position) => HoverProvider.Provide(this.diagnostics, this.parser, position);
+        public string[] ProvideHover(TextPosition position) => HoverProvider.Provide(this.diagnostics, this.parser, this.binder, position);
 
         // Document outline: procedure declarations plus the first use of every
         // variable, grouped by the scope owning that first use.
@@ -76,6 +80,11 @@ namespace SmallBasic.Compiler
             foreach (BoundSubModule subModule in this.SubModules.Values)
             {
                 CollectExecutableLines(subModule.Body, lines);
+            }
+
+            foreach (BoundFunction function in this.Functions.Values)
+            {
+                CollectExecutableLines(function.Body, lines);
             }
 
             return lines;
@@ -124,7 +133,13 @@ namespace SmallBasic.Compiler
             }
 
             var emitter = new ModuleEmitter(binder.MainModule);
-            var module = new RuntimeModule("<expression>", emitter.Instructions, parser.SyntaxTree);
+            var module = new RuntimeModule(
+                "<expression>",
+                RuntimeModuleKind.DebugExpression,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                emitter.Instructions,
+                parser.SyntaxTree);
             return new CompiledExpression(module, ExpressionResultVariable);
         }
     }

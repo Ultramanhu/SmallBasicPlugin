@@ -81,9 +81,31 @@ and `!runhost/playground/bundles/*.msi` (the global `core.excludesFile` ignores
 `*.msi`).
 
 The repository-level entry point is `runhost/Build-PlaygroundApp.ps1`, which
-runs the four steps above for one target triple and also archives the installers
-(`-SkipSidecars` reuses already staged payloads). `Build-All.ps1` calls it as
-its step 4 (`-SkipPlayground` opts out).
+runs the four steps above and also archives the installers (`-SkipSidecars`
+reuses already staged payloads). `Build-All.ps1` calls it as its step 4
+(`-SkipPlayground` opts out).
+
+Package shapes and target selection:
+
+```text
+.\runhost\Build-PlaygroundApp.ps1                                  # host target, installers + bundles\
+.\runhost\Build-PlaygroundApp.ps1 -StageOnly                       # run package only: stage + portable exe, no bundling
+.\runhost\Build-PlaygroundApp.ps1 -Target aarch64-pc-windows-msvc  # one explicit target
+.\runhost\Build-PlaygroundApp.ps1 -BundleTargets win-x64,win-arm64,linux-x64,android-arm64
+```
+
+`-BundleTargets` builds and archives several platforms in one invocation; it
+accepts aliases (`win-x64`, `win-arm64`, `linux-x64`, `linux-arm64`,
+`android-arm64`, `macos-*`) or full Rust triples. Windows targets run
+`tauri build` natively (cross builds need the matching `rustup target`),
+Linux targets build inside the WSL distro named by `-WslDistro` (webkit2gtk
+deps + rustup + cargo-tauri required; the sidecar is still cross-published on
+the Windows side), and Android targets run `tauri android build` with the
+SDK/NDK/JDK 17+ resolved by `-AndroidSdkHome` / `-JavaHome` (a stale system
+`JAVA_HOME` pointing at JDK 11 is skipped automatically). Because the staging
+root holds one target's payloads at a time, the LAST target of the list also
+determines what `runhost/playground/` (portable exe, `bin/`, `resources/`,
+`manifest.json`) is left holding; `bundles/` accumulates every target.
 
 Its outputs, all under `runhost/playground/`:
 
@@ -140,6 +162,32 @@ CLI Blazor did not launch reliably in the packaged app, and the pair also cost
 about 147 MB of sidecar payload per installer. The single C# entry was then
 split into the two .NET flavours described above, which also restored the
 `resources/` payload tree - now carrying exactly one Windows-only folder.
+
+### Cross-platform bundles (2026-10-03, built on this Windows host)
+
+| Target | Bundles | How |
+|---|---|---|
+| `x86_64-pc-windows-msvc` | `.msi` + `-setup.exe` | `Build-PlaygroundApp.ps1` / `tauri build` |
+| `aarch64-pc-windows-msvc` | `.msi` + `-setup.exe` | `tauri build --target aarch64-pc-windows-msvc` (cross publish `win-arm64` sidecar) |
+| `x86_64-unknown-linux-gnu` | `.deb` + `.rpm` + `.AppImage` | WSL Ubuntu: apt webkit2gtk deps, `cargo tauri build` (sidecar cross-published from Windows) |
+| `aarch64-linux-android` | `.apk` + `.aab` (dev-signed) | Android SDK/NDK via sdkmanager, `tauri android init` + `tauri android build --target aarch64` |
+
+Platform notes:
+
+- Mobile has no sidecar (`tauri.android.conf.json` empties `bundle.externalBin`);
+  the shell compiles with the two Web backends only. `rfd` is dependency-gated
+  to desktop triples and the dialog commands return an error stub under
+  `#[cfg(mobile)]`; `lib.rs::run` carries `#[cfg_attr(mobile,
+  tauri::mobile_entry_point)]`, without which the `.so` fails the bundler's
+  runtime-symbol validation.
+- The Android dev keystore (`src-tauri/keystore/`, gitignored) signs APK/AAB
+  through a `signingConfigs` block in `gen/android/app/build.gradle.kts`;
+  production signing belongs to release CI. Gradle daemons cache the
+  environment - after changing `PATH`, run `gradlew --stop` or the `BuildTask`
+  fails to start `npm.cmd` and the error surfaces masked as its `npm.bat`
+  fallback.
+- macOS/iOS cannot be bundled from Windows (Xcode-only); the staging script
+  already accepts the apple triples for CI runners.
 
 ## Tests
 

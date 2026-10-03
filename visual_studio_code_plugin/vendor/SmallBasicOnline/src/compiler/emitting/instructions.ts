@@ -15,6 +15,7 @@ export enum InstructionKind {
     Jump,
     ConditionalJump,
     InvokeSubModule,
+    ReturnValue,
     SetEventHandler,
     StoreVariable,
     StoreArrayElement,
@@ -126,13 +127,25 @@ export class ConditionalJumpInstruction extends BaseInstruction {
 export class InvokeSubModuleInstruction extends BaseInstruction {
     public constructor(
         public readonly name: string,
+        public readonly argumentCount: number,
+        public readonly returnsValue: boolean,
         range: CompilerRange) {
         super(InstructionKind.InvokeSubModule, range);
     }
 
     public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
         frame.instructionIndex++;
-        engine.pushSubModule(this.name);
+        engine.pushProcedure(this.name, this.argumentCount, this.returnsValue);
+    }
+}
+
+export class ReturnValueInstruction extends BaseInstruction {
+    public constructor(range: CompilerRange) {
+        super(InstructionKind.ReturnValue, range);
+    }
+
+    public execute(engine: ExecutionEngine, _2: ExecutionMode, _3: StackFrame): void {
+        engine.returnFromFunction(engine.popEvaluationStack());
     }
 }
 
@@ -160,7 +173,7 @@ export class StoreVariableInstruction extends BaseInstruction {
 
     public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
         const value = engine.popEvaluationStack();
-        engine.memory.setIndex(this.name, value);
+        engine.getVariableMemory(this.name, frame).setIndex(this.name, value);
         frame.instructionIndex++;
     }
 }
@@ -177,7 +190,7 @@ export class StoreArrayElementInstruction extends BaseInstruction {
         const value = engine.popEvaluationStack();
 
         let index = this.name;
-        let current = engine.memory;
+        let current = engine.getVariableMemory(this.name, frame);
         let remainingIndices = this.indices;
 
         while (remainingIndices-- > 0) {
@@ -236,7 +249,7 @@ export class LoadVariableInstruction extends BaseInstruction {
     }
 
     public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
-        let value = engine.memory.getValue(this.name);
+        let value = engine.getVariableMemory(this.name, frame).getValue(this.name);
 
         if (!value) {
             value = new StringValue("");
@@ -258,7 +271,7 @@ export class LoadArrayElementInstruction extends BaseInstruction {
     public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
         let index = this.name;
         let remainingIndices = this.indices;
-        let current = engine.memory;
+        let current = engine.getVariableMemory(this.name, frame);
 
         while (remainingIndices-- > 0) {
             const existing = current.getValue(index);
@@ -546,7 +559,7 @@ export class DeleteVariableInstruction extends BaseInstruction {
     }
 
     public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
-        engine.memory.deleteIndex(this.name);
+        engine.getVariableMemory(this.name, frame).deleteIndex(this.name);
         frame.instructionIndex++;
     }
 }

@@ -1,4 +1,4 @@
-import { CompilerUtils, RuntimeLibraries } from "smallbasic-lang-core";
+import { Compilation, CompilerUtils, RuntimeLibraries } from "smallbasic-lang-core";
 
 export interface SignatureParameter {
   name: string;
@@ -17,7 +17,7 @@ export interface MethodSignature {
 }
 
 interface EnclosingInvocation {
-  library: string;
+  library?: string;
   method: string;
   activeParameter: number;
 }
@@ -30,10 +30,26 @@ interface MethodMetadataLike {
   parameterDescription(name: string): string;
 }
 
-export function getMethodSignature(line: string, caret: number): MethodSignature | undefined {
+export function getMethodSignature(line: string, caret: number, compilation?: Compilation): MethodSignature | undefined {
   const invocation = findEnclosingInvocation(line, caret);
   if (!invocation) {
     return undefined;
+  }
+
+  if (invocation.library === undefined) {
+    const procedure = compilation
+      ? CompilerUtils.lookupIgnoreCase(compilation.procedures, invocation.method)
+      : undefined;
+    if (!procedure) {
+      return undefined;
+    }
+
+    return {
+      label: `${procedure.name}(${procedure.parameters.join(", ")})`,
+      description: procedure.returnsValue ? "Function" : "Sub",
+      parameters: procedure.parameters.map((name) => ({ name, description: `Parameter ${name}` })),
+      activeParameter: Math.max(0, Math.min(invocation.activeParameter, procedure.parameters.length - 1))
+    };
   }
 
   const method = lookupMethod(invocation.library, invocation.method);
@@ -130,7 +146,7 @@ function findEnclosingInvocation(line: string, caret: number): EnclosingInvocati
   };
 }
 
-function matchMethodName(line: string, openParen: number): { library: string; method: string } | undefined {
+function matchMethodName(line: string, openParen: number): { library?: string; method: string } | undefined {
   let index = openParen - 1;
   while (index >= 0 && (line[index] === " " || line[index] === "\t")) {
     index -= 1;
@@ -142,8 +158,12 @@ function matchMethodName(line: string, openParen: number): { library: string; me
   }
   const method = line.slice(index + 1, methodEnd);
 
-  if (!method || index < 0 || line[index] !== ".") {
+  if (!method) {
     return undefined;
+  }
+
+  if (index < 0 || line[index] !== ".") {
+    return { method };
   }
   index -= 1;
 

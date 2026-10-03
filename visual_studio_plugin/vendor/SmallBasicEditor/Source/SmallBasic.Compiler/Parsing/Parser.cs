@@ -48,6 +48,9 @@ namespace SmallBasic.Compiler.Parsing
                     case TokenKind.Sub:
                         statements.Add(this.ParseSubModuleDeclaration());
                         break;
+                    case TokenKind.Function:
+                        statements.Add(this.ParseFunctionDeclaration());
+                        break;
                     default:
                         statements.Add(this.ParseStatement());
                         break;
@@ -65,12 +68,72 @@ namespace SmallBasic.Compiler.Parsing
             var nameToken = this.Eat(TokenKind.Identifier);
             this.RunToEndOfLine();
 
-            var statements = this.ParseStatementsExcept(TokenKind.Sub, TokenKind.EndSub);
+            var statements = this.ParseStatementsExcept(TokenKind.Sub, TokenKind.Function, TokenKind.EndSub);
+
+            if (this.index < this.tokens.Count && this.Peek() == TokenKind.Function)
+            {
+                this.diagnostics.ReportCannotDefineProcedureInsideProcedure(this.tokens[this.index].Range);
+            }
 
             var endSubToken = this.Eat(TokenKind.EndSub);
             this.RunToEndOfLine();
 
             return new SubModuleStatementSyntax(subToken, nameToken, statements, endSubToken);
+        }
+
+        private FunctionStatementSyntax ParseFunctionDeclaration()
+        {
+            var functionToken = this.Eat(TokenKind.Function);
+            var nameToken = this.Eat(TokenKind.Identifier);
+            var leftParenToken = this.Eat(TokenKind.LeftParen);
+            var parameters = this.ParseParameters(functionToken.Range.Start.Line);
+            var rightParenToken = this.Eat(TokenKind.RightParen);
+            this.RunToEndOfLine();
+
+            var statements = this.ParseStatementsExcept(TokenKind.Sub, TokenKind.Function, TokenKind.EndFunction);
+
+            if (this.index < this.tokens.Count && (this.Peek() == TokenKind.Sub || this.Peek() == TokenKind.Function))
+            {
+                this.diagnostics.ReportCannotDefineProcedureInsideProcedure(this.tokens[this.index].Range);
+            }
+
+            var endFunctionToken = this.Eat(TokenKind.EndFunction);
+            this.RunToEndOfLine();
+
+            return new FunctionStatementSyntax(
+                functionToken,
+                nameToken,
+                leftParenToken,
+                parameters,
+                rightParenToken,
+                statements,
+                endFunctionToken);
+        }
+
+        private List<ParameterSyntax> ParseParameters(int declarationLine)
+        {
+            var parameters = new List<ParameterSyntax>();
+            while (this.index < this.tokens.Count &&
+                   this.tokens[this.index].Range.Start.Line == declarationLine &&
+                   this.Peek() != TokenKind.RightParen)
+            {
+                var identifierToken = this.Eat(TokenKind.Identifier);
+                Token commaTokenOpt = null;
+                if (this.index < this.tokens.Count &&
+                    this.tokens[this.index].Range.Start.Line == declarationLine &&
+                    this.Peek() == TokenKind.Comma)
+                {
+                    commaTokenOpt = this.Eat(TokenKind.Comma);
+                }
+
+                parameters.Add(new ParameterSyntax(identifierToken, commaTokenOpt));
+                if (commaTokenOpt.IsDefault())
+                {
+                    break;
+                }
+            }
+
+            return parameters;
         }
 
         private StatementBlockSyntax ParseStatementsExcept(params TokenKind[] kinds)
@@ -94,6 +157,10 @@ namespace SmallBasic.Compiler.Parsing
                     return this.ParseForStatement();
                 case TokenKind.While:
                     return this.ParseWhileStatement();
+                case TokenKind.Dim:
+                    return this.ParseDimStatement();
+                case TokenKind.Return:
+                    return this.ParseReturnStatement();
 
                 case TokenKind.Identifier:
                     if (this.index + 1 < this.tokens.Count && this.tokens[this.index + 1].Kind == TokenKind.Colon)
@@ -132,6 +199,59 @@ namespace SmallBasic.Compiler.Parsing
 
                     return new UnrecognizedStatementSyntax(foundToken);
             }
+        }
+
+        private DimStatementSyntax ParseDimStatement()
+        {
+            var dimToken = this.Eat(TokenKind.Dim);
+            var variables = new List<DimVariableSyntax>();
+            var declarationLine = dimToken.Range.Start.Line;
+
+            while (this.index < this.tokens.Count && this.tokens[this.index].Range.Start.Line == declarationLine)
+            {
+                var identifierToken = this.Eat(TokenKind.Identifier);
+                Token commaTokenOpt = null;
+                if (this.index < this.tokens.Count &&
+                    this.tokens[this.index].Range.Start.Line == declarationLine &&
+                    this.Peek() == TokenKind.Comma)
+                {
+                    commaTokenOpt = this.Eat(TokenKind.Comma);
+                }
+
+                variables.Add(new DimVariableSyntax(identifierToken, commaTokenOpt));
+                if (commaTokenOpt.IsDefault())
+                {
+                    break;
+                }
+            }
+
+            if (variables.Count == 0)
+            {
+                var missing = this.Eat(TokenKind.Identifier);
+                variables.Add(new DimVariableSyntax(missing, commaTokenOpt: null));
+            }
+
+            this.RunToEndOfLine();
+            return new DimStatementSyntax(dimToken, variables);
+        }
+
+        private ReturnStatementSyntax ParseReturnStatement()
+        {
+            var returnToken = this.Eat(TokenKind.Return);
+            BaseExpressionSyntax expression;
+
+            if (this.index >= this.tokens.Count || this.tokens[this.index].Range.Start.Line != returnToken.Range.Start.Line)
+            {
+                this.diagnostics.ReportUnexpectedEndOfStream(returnToken.Range, TokenKind.Identifier);
+                expression = new IdentifierExpressionSyntax(new Token(TokenKind.Identifier, string.Empty, returnToken.Range));
+            }
+            else
+            {
+                expression = this.ParseBaseExpression();
+            }
+
+            this.RunToEndOfLine();
+            return new ReturnStatementSyntax(returnToken, expression);
         }
 
         private IfStatementSyntax ParseIfStatement()

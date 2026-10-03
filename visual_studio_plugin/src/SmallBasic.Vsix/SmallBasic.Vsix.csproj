@@ -4,6 +4,10 @@
     <Platforms>AnyCPU</Platforms>
     <TargetFramework>net48</TargetFramework>
     <PlatformTarget>AnyCPU</PlatformTarget>
+    <!-- The .sb file icon is resolved through the WPF resource bundle
+         (SmallBasic.Vsix.g.resources), so the WPF resource pipeline has to run
+         even though the extension has no XAML application of its own. -->
+    <UseWPF>true</UseWPF>
     <Prefer32Bit>false</Prefer32Bit>
     <VssdkCompatibleExtension>true</VssdkCompatibleExtension>
     <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
@@ -67,6 +71,22 @@
     <!-- Framework agnostic language layer: LSP models, compiler semantic mapping,
          document outline and the built-in Small Basic language server. -->
     <ProjectReference Include="..\SmallBasic.LanguageServices\SmallBasic.LanguageServices.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Solution Explorer icon for .sb files: the Resource item packs the logo
+         into the WPF resource bundle referenced by the image manifest, and the
+         manifest plus the pkgdef that maps .sb to the moniker ship as VSIX
+         assets. -->
+    <Resource Include="Icons\SmallBasicFileIcon.png" />
+    <Content Include="SmallBasicIcons.imagemanifest">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="SmallBasicIcons.pkgdef">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
 
   <ItemGroup>

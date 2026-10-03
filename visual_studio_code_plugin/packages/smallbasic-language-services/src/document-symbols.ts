@@ -5,7 +5,9 @@ import {
   RuntimeLibraries,
   SyntaxKind,
   type BaseSyntaxNode,
+  type DimCommandSyntax,
   type ForCommandSyntax,
+  type FunctionDeclarationSyntax,
   type IdentifierExpressionSyntax,
   type StatementBlockSyntax,
   type SubModuleDeclarationSyntax
@@ -13,10 +15,11 @@ import {
 import type { LanguageDocumentSymbol } from "./protocol";
 import { toLanguageRange } from "./ranges";
 
-export type OutlineSymbolKind = "sub" | "variable";
+export type OutlineSymbolKind = "sub" | "function" | "variable";
 
 export interface OutlineSymbol {
   name: string;
+  detail: string;
   kind: OutlineSymbolKind;
   /** Whole `Sub` block for procedures; the identifier for variables. */
   range: CompilerRange;
@@ -37,8 +40,8 @@ function sortByPosition(symbols: OutlineSymbol[]): OutlineSymbol[] {
 interface VariableFirstUse {
   name: string;
   range: CompilerRange;
-  /** Index into `parseTree.subModules`, or -1 for the main module. */
-  subModuleIndex: number;
+  /** Index into the combined procedure list, or -1 for the main module. */
+  scopeIndex: number;
 }
 
 /** Walks a statement block and reports every identifier that is used as a variable. */
@@ -59,6 +62,12 @@ function forEachVariableUse(
       if (!isExcluded(identifier.token.text)) {
         report(identifier.token.text, identifier.range);
       }
+    } else if (node.kind === SyntaxKind.DimCommand) {
+      for (const identifier of (node as DimCommandSyntax).variableTokens) {
+        if (!isExcluded(identifier.token.text)) {
+          report(identifier.token.text, identifier.range);
+        }
+      }
     }
 
     for (const child of node.children()) {
@@ -75,38 +84,59 @@ function forEachVariableUse(
  */
 export function collectOutlineSymbols(compilation: Compilation): OutlineSymbol[] {
   const subModules = compilation.parseTree.subModules;
-  const subModuleNames = new Set(Object.keys(compilation.boundSubModules).map((name) => name.toLowerCase()));
+  const functions = compilation.parseTree.functions;
+  const subModuleNames = new Set(Object.values(compilation.procedures).map((procedure) => procedure.name.toLowerCase()));
   const isExcluded = (name: string): boolean =>
     subModuleNames.has(name.toLowerCase())
     || CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, name) !== undefined;
 
   const firstUses = new Map<string, VariableFirstUse>();
-  const registerScope = (block: StatementBlockSyntax, subModuleIndex: number): void => {
+  const registerScope = (block: StatementBlockSyntax, scopeIndex: number, localNames: ReadonlySet<string> = new Set()): void => {
     forEachVariableUse(block, isExcluded, (name, range) => {
-      const key = name.toLowerCase();
+      const lowered = name.toLowerCase();
+      const key = localNames.has(lowered) ? `${scopeIndex}:${lowered}` : `global:${lowered}`;
       const existing = firstUses.get(key);
       if (existing === undefined || comparePositions(range.start, existing.range.start) < 0) {
-        firstUses.set(key, { name, range, subModuleIndex });
+        firstUses.set(key, { name, range, scopeIndex });
       }
     });
   };
 
   registerScope(compilation.parseTree.mainModule, -1);
-  subModules.forEach((subModule: SubModuleDeclarationSyntax, index: number) => registerScope(subModule.statementsList, index));
+  subModules.forEach((subModule: SubModuleDeclarationSyntax, index: number) => {
+    const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, subModule.subCommand.nameToken.token.text);
+    registerScope(subModule.statementsList, index, new Set((metadata?.locals ?? []).map((name) => name.toLowerCase())));
+  });
+  functions.forEach((func: FunctionDeclarationSyntax, index: number) => {
+    const scopeIndex = subModules.length + index;
+    const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, func.functionCommand.nameToken.token.text);
+    const localNames = new Set([
+      ...(metadata?.parameters ?? []),
+      ...(metadata?.locals ?? [])
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of func.functionCommand.parameterTokens) {
+      const key = `${scopeIndex}:${parameter.token.text.toLowerCase()}`;
+      if (!firstUses.has(key)) {
+        firstUses.set(key, { name: parameter.token.text, range: parameter.range, scopeIndex });
+      }
+    }
+    registerScope(func.statementsList, scopeIndex, localNames);
+  });
 
   const variablesByScope = new Map<number, OutlineSymbol[]>();
   for (const use of firstUses.values()) {
     const symbol: OutlineSymbol = {
       name: use.name,
+      detail: "Variable",
       kind: "variable",
       range: use.range,
       selectionRange: use.range,
       children: []
     };
 
-    const bucket = variablesByScope.get(use.subModuleIndex);
+    const bucket = variablesByScope.get(use.scopeIndex);
     if (bucket === undefined) {
-      variablesByScope.set(use.subModuleIndex, [symbol]);
+      variablesByScope.set(use.scopeIndex, [symbol]);
     } else {
       bucket.push(symbol);
     }
@@ -116,6 +146,7 @@ export function collectOutlineSymbols(compilation: Compilation): OutlineSymbol[]
     const nameToken = subModule.subCommand.nameToken;
     return {
       name: nameToken.token.text,
+      detail: `Sub ${nameToken.token.text}`,
       kind: "sub",
       range: subModule.range,
       selectionRange: nameToken.range,
@@ -123,7 +154,19 @@ export function collectOutlineSymbols(compilation: Compilation): OutlineSymbol[]
     };
   });
 
-  return sortByPosition([...(variablesByScope.get(-1) ?? []), ...procedures]);
+  const functionSymbols = functions.map((func: FunctionDeclarationSyntax, index: number): OutlineSymbol => {
+    const nameToken = func.functionCommand.nameToken;
+    return {
+      name: nameToken.token.text,
+      detail: `Function ${nameToken.token.text}(${func.functionCommand.parameterTokens.map((parameter) => parameter.token.text).join(", ")})`,
+      kind: "function",
+      range: func.range,
+      selectionRange: nameToken.range,
+      children: sortByPosition(variablesByScope.get(subModules.length + index) ?? [])
+    };
+  });
+
+  return sortByPosition([...(variablesByScope.get(-1) ?? []), ...procedures, ...functionSymbols]);
 }
 
 export function toDocumentSymbols(symbols: readonly OutlineSymbol[]): LanguageDocumentSymbol[] {
@@ -137,7 +180,7 @@ export function toDocumentSymbols(symbols: readonly OutlineSymbol[]): LanguageDo
 
     return {
       name: symbol.name,
-      detail: symbol.kind === "sub" ? "Sub" : "Variable",
+      detail: symbol.detail,
       kind: symbol.kind,
       range: toLanguageRange(range),
       selectionRange: toLanguageRange(symbol.selectionRange),

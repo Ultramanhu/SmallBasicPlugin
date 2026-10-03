@@ -1,0 +1,5 @@
+; Shows the Small Basic logo as the Solution Explorer icon for .sb files.
+; The value is the image moniker declared in SmallBasicIcons.imagemanifest
+; (image library guid : image id).
+[$RootKey$\ShellFileAssociations\.sb]
+"DefaultIconMoniker"="57c89fbb-6dd2-49b1-ad07-e02f072f65b9:1"

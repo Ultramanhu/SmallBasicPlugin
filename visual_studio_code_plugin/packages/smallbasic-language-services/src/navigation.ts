@@ -5,7 +5,9 @@ import {
   SyntaxKind,
   type BaseSyntaxNode,
   type Compilation,
+  type DimCommandSyntax,
   type ForCommandSyntax,
+  type FunctionDeclarationSyntax,
   type IdentifierExpressionSyntax,
   type InvocationExpressionSyntax,
   type SubModuleDeclarationSyntax,
@@ -14,12 +16,14 @@ import {
 import type { LanguagePosition, LanguageRange } from "./protocol";
 import { toCompilerPosition, toLanguageRange } from "./ranges";
 
-type IdentifierRole = "subDeclaration" | "subInvocation" | "variable";
+type IdentifierRole = "procedureDeclaration" | "procedureInvocation" | "variable";
 
 interface IdentifierToken {
   readonly name: string;
   readonly range: CompilerRange;
   readonly role: IdentifierRole;
+  /** Procedure name for locals/parameters, or `<Main>` for global variables. */
+  readonly scope: string;
 }
 
 function isLibraryName(name: string): boolean {
@@ -35,53 +39,95 @@ function isLibraryName(name: string): boolean {
  */
 function collectIdentifierTokens(compilation: Compilation): IdentifierToken[] {
   const tokens: IdentifierToken[] = [];
+  const mainScope = "<Main>";
 
   for (const subModule of compilation.parseTree.subModules) {
     const nameToken = (subModule as SubModuleDeclarationSyntax).subCommand.nameToken;
     tokens.push({
       name: nameToken.token.text,
       range: nameToken.range,
-      role: "subDeclaration"
+      role: "procedureDeclaration",
+      scope: mainScope
     });
   }
 
-  const pushVariable = (identifier: TokenSyntax): void => {
+  for (const func of compilation.parseTree.functions) {
+    const nameToken = (func as FunctionDeclarationSyntax).functionCommand.nameToken;
+    tokens.push({
+      name: nameToken.token.text,
+      range: nameToken.range,
+      role: "procedureDeclaration",
+      scope: mainScope
+    });
+  }
+
+  const pushVariable = (identifier: TokenSyntax, scope: string, localNames: ReadonlySet<string>): void => {
     if (!isLibraryName(identifier.token.text)) {
-      tokens.push({ name: identifier.token.text, range: identifier.range, role: "variable" });
+      const variableScope = localNames.has(identifier.token.text.toLowerCase()) ? scope : mainScope;
+      tokens.push({ name: identifier.token.text, range: identifier.range, role: "variable", scope: variableScope });
     }
   };
 
-  const visit = (node: BaseSyntaxNode): void => {
+  const visit = (node: BaseSyntaxNode, scope: string, localNames: ReadonlySet<string>): void => {
     if (node.kind === SyntaxKind.InvocationExpression) {
       const invocation = node as InvocationExpressionSyntax;
       if (invocation.baseExpression.kind === SyntaxKind.IdentifierExpression) {
         const identifier = (invocation.baseExpression as IdentifierExpressionSyntax).identifierToken;
-        if (!isLibraryName(identifier.token.text)) {
-          tokens.push({ name: identifier.token.text, range: identifier.range, role: "subInvocation" });
+        if (CompilerUtils.lookupIgnoreCase(compilation.procedures, identifier.token.text) !== undefined) {
+          tokens.push({
+            name: identifier.token.text,
+            range: identifier.range,
+            role: "procedureInvocation",
+            scope: mainScope
+          });
+        } else {
+          pushVariable(identifier, scope, localNames);
         }
       }
 
       for (const argument of invocation.argumentsList) {
-        visit(argument);
+        visit(argument, scope, localNames);
       }
 
       return;
     }
 
     if (node.kind === SyntaxKind.IdentifierExpression) {
-      pushVariable((node as IdentifierExpressionSyntax).identifierToken);
+      pushVariable((node as IdentifierExpressionSyntax).identifierToken, scope, localNames);
     } else if (node.kind === SyntaxKind.ForCommand) {
-      pushVariable((node as ForCommandSyntax).identifierToken);
+      pushVariable((node as ForCommandSyntax).identifierToken, scope, localNames);
+    } else if (node.kind === SyntaxKind.DimCommand) {
+      for (const identifier of (node as DimCommandSyntax).variableTokens) {
+        pushVariable(identifier, scope, localNames);
+      }
     }
 
     for (const child of node.children()) {
-      visit(child);
+      visit(child, scope, localNames);
     }
   };
 
-  visit(compilation.parseTree.mainModule);
+  visit(compilation.parseTree.mainModule, mainScope, new Set());
   for (const subModule of compilation.parseTree.subModules) {
-    visit((subModule as SubModuleDeclarationSyntax).statementsList);
+    const declaration = subModule as SubModuleDeclarationSyntax;
+    const scope = declaration.subCommand.nameToken.token.text;
+    const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, scope);
+    const locals = new Set((metadata?.locals ?? []).map((name) => name.toLowerCase()));
+    visit(declaration.statementsList, scope, locals);
+  }
+
+  for (const func of compilation.parseTree.functions) {
+    const declaration = func as FunctionDeclarationSyntax;
+    const scope = declaration.functionCommand.nameToken.token.text;
+    const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, scope);
+    const locals = new Set([
+      ...(metadata?.parameters ?? []),
+      ...(metadata?.locals ?? [])
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of declaration.functionCommand.parameterTokens) {
+      pushVariable(parameter, scope, locals);
+    }
+    visit(declaration.statementsList, scope, locals);
   }
 
   return tokens;
@@ -92,9 +138,9 @@ function findIdentifierToken(tokens: readonly IdentifierToken[], position: Langu
   return tokens.find((token) => token.range.containsPosition(compilerPosition));
 }
 
-function hasSubDeclaration(tokens: readonly IdentifierToken[], name: string): boolean {
+function hasProcedureDeclaration(tokens: readonly IdentifierToken[], name: string): boolean {
   const lowered = name.toLowerCase();
-  return tokens.some((token) => token.role === "subDeclaration" && token.name.toLowerCase() === lowered);
+  return tokens.some((token) => token.role === "procedureDeclaration" && token.name.toLowerCase() === lowered);
 }
 
 /**
@@ -114,13 +160,14 @@ export function provideDefinition(compilation: Compilation, position: LanguagePo
     const lowered = token.name.toLowerCase();
     const firstUse = tokens
       .filter((candidate) => candidate.role === "variable" && candidate.name.toLowerCase() === lowered)
+      .filter((candidate) => candidate.scope.toLowerCase() === token.scope.toLowerCase())
       .reduce<IdentifierToken | undefined>((earliest, candidate) =>
         earliest === undefined || candidate.range.start.before(earliest.range.start) ? candidate : earliest, undefined);
     return firstUse ? toLanguageRange(firstUse.range) : undefined;
   }
 
   const lowered = token.name.toLowerCase();
-  const declaration = tokens.find((candidate) => candidate.role === "subDeclaration" && candidate.name.toLowerCase() === lowered);
+  const declaration = tokens.find((candidate) => candidate.role === "procedureDeclaration" && candidate.name.toLowerCase() === lowered);
   return declaration ? toLanguageRange(declaration.range) : undefined;
 }
 
@@ -138,11 +185,13 @@ export function provideReferences(compilation: Compilation, position: LanguagePo
   }
 
   const lowered = token.name.toLowerCase();
-  const isSub = hasSubDeclaration(tokens, token.name);
+  const isProcedure = hasProcedureDeclaration(tokens, token.name) && token.role !== "variable";
   return tokens
     .filter((candidate) =>
       candidate.name.toLowerCase() === lowered
-      && (isSub ? candidate.role !== "variable" : candidate.role === "variable"))
+      && (isProcedure
+        ? candidate.role !== "variable"
+        : candidate.role === "variable" && candidate.scope.toLowerCase() === token.scope.toLowerCase()))
     .map((candidate) => candidate.range)
     .sort((left, right) => (left.start.before(right.start) ? -1 : right.start.before(left.start) ? 1 : 0))
     .map((range) => toLanguageRange(range));

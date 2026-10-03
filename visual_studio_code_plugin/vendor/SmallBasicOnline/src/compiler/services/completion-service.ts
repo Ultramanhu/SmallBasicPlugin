@@ -39,20 +39,20 @@ export module CompletionService {
     export function provideCompletion(compilation: Compilation, position: CompilerPosition): Result[] {
         const objectAccessExpression = compilation.getSyntaxNode(position, SyntaxKind.ObjectAccessExpression);
         if (objectAccessExpression) {
-            const visitor = new CompletionVisitor(compilation);
+            const visitor = new CompletionVisitor(compilation, position);
             visitor.visit(objectAccessExpression);
             return visitor.results;
         }
 
         const identifierExpression = compilation.getSyntaxNode(position, SyntaxKind.IdentifierExpression);
         if (identifierExpression) {
-            const visitor = new CompletionVisitor(compilation);
+            const visitor = new CompletionVisitor(compilation, position);
             visitor.visit(identifierExpression);
             return visitor.results;
         }
 
         if (!compilation.text.trim()) {
-            return getResultsBeforeDot("", compilation);
+            return getResultsBeforeDot("", compilation, position);
         }
 
         // No syntax node found at the cursor position (e.g. blank line, after a
@@ -60,13 +60,15 @@ export module CompletionService {
         // cursor from the source text and return filtered first-level completions
         // so the suggest widget shows relevant items instead of nothing.
         const wordAtCursor = extractWordAtPosition(compilation.text, position);
-        return getResultsBeforeDot(wordAtCursor, compilation);
+        return getResultsBeforeDot(wordAtCursor, compilation, position);
     }
 
     class CompletionVisitor extends SyntaxNodeVisitor {
         private _allResults: Result[] = [];
 
-        public constructor(private readonly compilation: Compilation) {
+        public constructor(
+            private readonly compilation: Compilation,
+            private readonly position: CompilerPosition) {
             super();
         }
 
@@ -131,19 +133,32 @@ export module CompletionService {
 
         public visitIdentifierExpression(node: IdentifierExpressionSyntax): void {
             const libraryName = node.identifierToken.token.text;
-            this._allResults = getResultsBeforeDot(libraryName, this.compilation);
+            this._allResults = getResultsBeforeDot(libraryName, this.compilation, this.position);
         }
     }
 
-    function getResultsBeforeDot(prefix: string, compilation: Compilation): Result[] {
+    function getResultsBeforeDot(prefix: string, compilation: Compilation, position?: CompilerPosition): Result[] {
         const results: Result[] = [];
 
-        collectVariablesAndSubModules(compilation).forEach(name => {
+        CompilerUtils.values(compilation.procedures).forEach(procedure => {
+            if (CompilerUtils.stringStartsWith(procedure.name, prefix)) {
+                results.push({
+                    title: procedure.name,
+                    description: procedure.returnsValue ? "Function" : "Sub",
+                    kind: ResultKind.Method,
+                    parameters: procedure.parameters,
+                    parameterDescriptions: procedure.parameters.map(parameter => parameter),
+                    insertText: `${procedure.name}(${procedure.parameters.map((parameter, i) => `\${${i + 1}:${parameter}}`).join(", ")})`
+                });
+            }
+        });
+
+        collectVariables(compilation, position).forEach(name => {
             if (CompilerUtils.stringStartsWith(name, prefix)) {
                 results.push({
                     title: name,
                     description: name,
-                    kind: name in compilation.boundSubModules ? ResultKind.Method : ResultKind.Property
+                    kind: ResultKind.Property
                 });
             }
         });
@@ -167,7 +182,7 @@ export module CompletionService {
         return results;
     }
 
-    function collectVariablesAndSubModules(compilation: Compilation): string[] {
+    function collectVariables(compilation: Compilation, position?: CompilerPosition): string[] {
         const names: string[] = [];
         const seen = new Set<string>();
 
@@ -179,12 +194,30 @@ export module CompletionService {
             }
         };
 
-        for (const [name, module] of Object.entries(compilation.boundSubModules)) {
-            if (name !== "<Main>") {
-                add(name);
-            }
+        for (const [moduleName, module] of Object.entries(compilation.boundSubModules)) {
+            const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, moduleName);
+            const localNames = new Set([
+                ...(metadata?.parameters ?? []),
+                ...(metadata?.locals ?? [])
+            ].map(name => name.toLowerCase()));
+            visit(module, name => {
+                if (!localNames.has(name.toLowerCase())) {
+                    add(name);
+                }
+            });
+        }
 
-            visit(module, add);
+        if (position) {
+            const declaration = [...compilation.parseTree.subModules, ...compilation.parseTree.functions]
+                .find(procedure => procedure.range.containsPosition(position));
+            if (declaration) {
+                const name = "subCommand" in declaration
+                    ? declaration.subCommand.nameToken.token.text
+                    : declaration.functionCommand.nameToken.token.text;
+                const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, name);
+                metadata?.parameters.forEach(add);
+                metadata?.locals.forEach(add);
+            }
         }
 
         return names;
@@ -268,7 +301,11 @@ export module CompletionService {
             snippet("For Step", "For ${1:name} = ${2:start} To ${3:end} Step ${4:increment}\nEndFor"),
             snippet("EndFor", "EndFor"),
             snippet("Sub", "Sub ${1:name}\nEndSub"),
-            snippet("EndSub", "EndSub")
+            snippet("EndSub", "EndSub"),
+            snippet("Function", "Function ${1:name}(${2:arguments})\n\t${3}\nEndFunction"),
+            snippet("EndFunction", "EndFunction"),
+            snippet("Dim", "Dim ${1:name}"),
+            snippet("Return", "Return ${1:value}")
         ];
     }
 

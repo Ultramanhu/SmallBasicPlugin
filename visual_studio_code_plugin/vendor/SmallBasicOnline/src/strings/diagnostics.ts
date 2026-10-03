@@ -12,8 +12,16 @@ export module DiagnosticsResources {
     export const UnexpectedCommand_ExpectingCommand = "Unexpected command of type '{0}'. I was expecting a command of type '{1}'.";
     export const UnexpectedEOF_ExpectingCommand = "Unexpected end of file. I was expecting a command of type '{0}'.";
     export const CannotDefineASubInsideAnotherSub = "You cannot define a sub-module inside another sub-module.";
+    export const CannotDefineProcedureInsideProcedure = "You cannot define a Sub or Function inside another procedure.";
     export const CannotHaveCommandWithoutPreviousCommand = "You cannot write a command of type '{0}' without an earlier command of type '{1}'.";
     export const TwoSubModulesWithTheSameName = "Another sub-module with the same name '{0}' is already defined.";
+    export const TwoProceduresWithTheSameName = "Another Sub or Function with the same name '{0}' is already defined.";
+    export const ProcedureConflictsWithLibrary = "The procedure name '{0}' conflicts with a Small Basic library name.";
+    export const DuplicateParameter = "The parameter '{0}' is already declared in this function.";
+    export const DuplicateLocalVariable = "The local variable '{0}' is already declared in this procedure.";
+    export const DimMustBeAtProcedureLevel = "Dim declarations must be direct children of the program, Sub, or Function body.";
+    export const ReturnOutsideFunction = "Return can only be used inside a Function.";
+    export const FunctionCannotBeEventHandler = "A Function cannot be assigned as an event handler. Use a parameterless Sub instead.";
     export const LabelDoesNotExist = "No label with the name '{0}' exists in the same module.";
     export const UnassignedExpressionStatement = "This value is not assigned to anything. Did you mean to assign it to a variable?";
     export const InvalidExpressionStatement = "This expression is not a valid statement.";

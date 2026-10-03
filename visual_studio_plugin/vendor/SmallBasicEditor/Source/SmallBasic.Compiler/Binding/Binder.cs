@@ -17,64 +17,177 @@ namespace SmallBasic.Compiler.Binding
     {
         private readonly DiagnosticBag diagnostics;
         private readonly bool isRunningOnDesktop;
-        private readonly IReadOnlyCollection<string> definedSubModules;
+        private readonly IReadOnlyDictionary<string, ProcedureSymbol> definedProcedures;
+
+        private bool currentReturnsValue;
 
         public Binder(StatementBlockSyntax syntaxTree, DiagnosticBag diagnostics, bool isRunningOnDesktop)
         {
             this.diagnostics = diagnostics;
             this.isRunningOnDesktop = isRunningOnDesktop;
-            this.definedSubModules = new SubModuleNamesCollector(syntaxTree).Names;
-
-            var mainModule = new List<BaseBoundStatement>();
-            var subModules = new Dictionary<string, BoundSubModule>();
-
-            foreach (var syntax in syntaxTree.Body)
+            var procedures = new Dictionary<string, ProcedureSymbol>(StringComparer.OrdinalIgnoreCase);
+            foreach (BaseStatementSyntax syntax in syntaxTree.Body)
             {
                 switch (syntax)
                 {
-                    case SubModuleStatementSyntax subModuleStatement:
+                    case SubModuleStatementSyntax subModule:
+                        addProcedure(subModule.NameToken, subModule, Array.Empty<string>(), returnsValue: false);
+                        break;
+                    case FunctionStatementSyntax function:
                         {
-                            var body = this.BindStatementBlock(subModuleStatement.Body);
-                            var subModule = new BoundSubModule(subModuleStatement, subModuleStatement.NameToken.Text, body);
-
-                            if (subModules.ContainsKey(subModule.Name))
+                            var parameterNames = new List<string>();
+                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                            foreach (ParameterSyntax parameter in function.Parameters)
                             {
-                                this.diagnostics.ReportTwoSubModulesWithTheSameName(subModuleStatement.NameToken.Range, subModule.Name);
-                            }
-                            else
-                            {
-                                subModules.Add(subModule.Name, subModule);
-                            }
-
-                            break;
-                        }
-
-                    default:
-                        {
-                            var statement = this.BindStatementOpt(syntax);
-                            if (!statement.IsDefault())
-                            {
-                                mainModule.Add(statement);
+                                string name = parameter.IdentifierToken.Text;
+                                if (!seen.Add(name))
+                                {
+                                    this.diagnostics.ReportDuplicateParameter(parameter.IdentifierToken.Range, name);
+                                }
+                                else
+                                {
+                                    parameterNames.Add(name);
+                                }
                             }
 
+                            addProcedure(function.NameToken, function, parameterNames, returnsValue: true);
                             break;
                         }
                 }
             }
 
-            this.MainModule = new BoundStatementBlock(syntaxTree, mainModule);
+            this.definedProcedures = procedures;
+
+            this.MainModule = this.BindProcedureBody(
+                syntaxTree,
+                Array.Empty<string>(),
+                returnsValue: false,
+                out IReadOnlyList<string> globalDeclarations);
+            this.GlobalDeclarations = globalDeclarations;
             this.CheckForLabelErrors(this.MainModule);
+
+            var subModules = new Dictionary<string, BoundSubModule>(StringComparer.OrdinalIgnoreCase);
+            var functions = new Dictionary<string, BoundFunction>(StringComparer.OrdinalIgnoreCase);
+            foreach (BaseStatementSyntax syntax in syntaxTree.Body)
+            {
+                switch (syntax)
+                {
+                    case SubModuleStatementSyntax subModuleSyntax when
+                        procedures.TryGetValue(subModuleSyntax.NameToken.Text, out ProcedureSymbol subSymbol) &&
+                        ReferenceEquals(subSymbol.Declaration, subModuleSyntax):
+                        {
+                            BoundStatementBlock body = this.BindProcedureBody(
+                                subModuleSyntax.Body,
+                                subSymbol.Parameters,
+                                returnsValue: false,
+                                out IReadOnlyList<string> locals);
+                            subModules.Add(subSymbol.Name, new BoundSubModule(subModuleSyntax, subSymbol.Name, locals, body));
+                            break;
+                        }
+
+                    case FunctionStatementSyntax functionSyntax when
+                        procedures.TryGetValue(functionSyntax.NameToken.Text, out ProcedureSymbol functionSymbol) &&
+                        ReferenceEquals(functionSymbol.Declaration, functionSyntax):
+                        {
+                            BoundStatementBlock body = this.BindProcedureBody(
+                                functionSyntax.Body,
+                                functionSymbol.Parameters,
+                                returnsValue: true,
+                                out IReadOnlyList<string> locals);
+                            functions.Add(functionSymbol.Name, new BoundFunction(
+                                functionSyntax,
+                                functionSymbol.Name,
+                                functionSymbol.Parameters,
+                                locals,
+                                body));
+                            break;
+                        }
+                }
+            }
 
             this.SubModules = subModules;
             foreach (var subModule in this.SubModules.Values)
             {
                 this.CheckForLabelErrors(subModule.Body);
             }
+
+            this.Functions = functions;
+            foreach (var function in this.Functions.Values)
+            {
+                this.CheckForLabelErrors(function.Body);
+            }
+
+            void addProcedure(
+                Token nameToken,
+                BaseStatementSyntax declaration,
+                IReadOnlyList<string> parameters,
+                bool returnsValue)
+            {
+                string name = nameToken.Text;
+                if (Libraries.Types.Keys.Any(libraryName => string.Equals(libraryName, name, StringComparison.OrdinalIgnoreCase)))
+                {
+                    this.diagnostics.ReportProcedureConflictsWithLibrary(nameToken.Range, name);
+                }
+
+                if (procedures.TryGetValue(name, out ProcedureSymbol existingProcedure))
+                {
+                    if (!returnsValue && !existingProcedure.ReturnsValue)
+                    {
+                        // Keep the established diagnostic contract for two Sub declarations.
+                        this.diagnostics.ReportTwoSubModulesWithTheSameName(nameToken.Range, name);
+                    }
+                    else
+                    {
+                        this.diagnostics.ReportTwoProceduresWithTheSameName(nameToken.Range, name);
+                    }
+                }
+                else
+                {
+                    procedures.Add(name, new ProcedureSymbol(name, declaration, parameters, returnsValue));
+                }
+            }
         }
 
         public BoundStatementBlock MainModule { get; private set; }
 
+        public IReadOnlyList<string> GlobalDeclarations { get; private set; }
+
         public IReadOnlyDictionary<string, BoundSubModule> SubModules { get; private set; }
+
+        public IReadOnlyDictionary<string, BoundFunction> Functions { get; private set; }
+
+        private BoundStatementBlock BindProcedureBody(
+            StatementBlockSyntax syntax,
+            IReadOnlyList<string> parameters,
+            bool returnsValue,
+            out IReadOnlyList<string> locals)
+        {
+            bool previousReturnsValue = this.currentReturnsValue;
+            this.currentReturnsValue = returnsValue;
+
+            var declaredNames = new HashSet<string>(parameters, StringComparer.OrdinalIgnoreCase);
+            var localNames = new List<string>();
+            foreach (DimStatementSyntax dim in syntax.Body.OfType<DimStatementSyntax>())
+            {
+                foreach (DimVariableSyntax variable in dim.Variables)
+                {
+                    string name = variable.IdentifierToken.Text;
+                    if (!declaredNames.Add(name))
+                    {
+                        this.diagnostics.ReportDuplicateLocalVariable(variable.IdentifierToken.Range, name);
+                    }
+                    else
+                    {
+                        localNames.Add(name);
+                    }
+                }
+            }
+
+            BoundStatementBlock result = this.BindStatementBlock(syntax, allowDim: true);
+            this.currentReturnsValue = previousReturnsValue;
+            locals = localNames;
+            return result;
+        }
 
         private void CheckForLabelErrors(BoundStatementBlock module)
         {
@@ -91,6 +204,12 @@ namespace SmallBasic.Compiler.Binding
                 case WhileStatementSyntax whileStatement: return this.BindWhileStatement(whileStatement);
                 case ForStatementSyntax forStatement: return this.BindForStatement(forStatement);
                 case ExpressionStatementSyntax expressionStatement: return this.BindExpressionStatement(expressionStatement);
+                case ReturnStatementSyntax returnStatement: return this.BindReturnStatement(returnStatement);
+
+                // Procedure declarations are collected in the first binding pass. They are
+                // declarations, not executable statements in the main module.
+                case SubModuleStatementSyntax subModuleStatement: return null;
+                case FunctionStatementSyntax functionStatement: return null;
 
                 case LabelStatementSyntax labelStatement: return new BoundLabelStatement(labelStatement, labelStatement.LabelToken.Text);
                 case GoToStatementSyntax goToStatement: return new BoundGoToStatement(goToStatement, goToStatement.LabelToken.Text);
@@ -102,12 +221,22 @@ namespace SmallBasic.Compiler.Binding
             }
         }
 
-        private BoundStatementBlock BindStatementBlock(StatementBlockSyntax syntax)
+        private BoundStatementBlock BindStatementBlock(StatementBlockSyntax syntax, bool allowDim = false)
         {
             var statements = new List<BaseBoundStatement>();
 
             foreach (var child in syntax.Body)
             {
+                if (child is DimStatementSyntax)
+                {
+                    if (!allowDim)
+                    {
+                        this.diagnostics.ReportDimMustBeAtProcedureLevel(child.Range);
+                    }
+
+                    continue;
+                }
+
                 var statement = this.BindStatementOpt(child);
 
                 if (!statement.IsDefault())
@@ -169,6 +298,17 @@ namespace SmallBasic.Compiler.Binding
             return new BoundForStatement(syntax, identifier, fromExpression, toExpression, stepExpression, body);
         }
 
+        private BoundReturnStatement BindReturnStatement(ReturnStatementSyntax syntax)
+        {
+            BaseBoundExpression expression = this.BindExpression(syntax.Expression);
+            if (!this.currentReturnsValue)
+            {
+                this.diagnostics.ReportReturnOutsideFunction(syntax.Range);
+            }
+
+            return new BoundReturnStatement(syntax, expression);
+        }
+
         private BaseBoundStatement BindExpressionStatement(ExpressionStatementSyntax syntax)
         {
             BaseBoundExpression expression = this.BindExpression(syntax.Expression, expectsValue: false);
@@ -192,7 +332,12 @@ namespace SmallBasic.Compiler.Binding
 
                 case BoundSubModuleInvocationExpression subModuleInvocation:
                     {
-                        return new BoundSubModuleInvocationStatement(syntax, subModuleInvocation);
+                        if (!subModuleInvocation.ReturnsValue)
+                        {
+                            return new BoundSubModuleInvocationStatement(syntax, subModuleInvocation);
+                        }
+
+                        break;
                     }
             }
 
@@ -236,6 +381,12 @@ namespace SmallBasic.Compiler.Binding
                     {
                         if (assignment.Right is BoundSubModuleExpression subModule)
                         {
+                            if (subModule.ReturnsValue)
+                            {
+                                this.diagnostics.ReportFunctionCannotBeEventHandler(subModule.Syntax.Range);
+                                return new BoundInvalidExpressionStatement(syntax, assignment);
+                            }
+
                             return new BoundEventAssignmentStatement(syntax, @event, subModule.Name);
                         }
                         else
@@ -504,19 +655,25 @@ namespace SmallBasic.Compiler.Binding
                     {
                         if (!hasErrors)
                         {
-                            if (arguments.Count != 0)
+                            if (arguments.Count != subModule.Parameters.Count)
                             {
                                 hasErrors = true;
-                                this.diagnostics.ReportUnexpectedArgumentsCount(syntax.Range, arguments.Count, 0);
+                                this.diagnostics.ReportUnexpectedArgumentsCount(syntax.Range, arguments.Count, subModule.Parameters.Count);
                             }
-                            else if (expectsValue)
+                            else if (expectsValue && !subModule.ReturnsValue)
                             {
                                 hasErrors = true;
                                 this.diagnostics.ReportExpectedExpressionWithAValue(syntax.Range);
                             }
                         }
 
-                        return new BoundSubModuleInvocationExpression(syntax, hasValue: false, hasErrors, subModule.Name);
+                        return new BoundSubModuleInvocationExpression(
+                            syntax,
+                            hasValue: subModule.ReturnsValue,
+                            hasErrors,
+                            subModule.Name,
+                            arguments,
+                            subModule.ReturnsValue);
                     }
 
                 default:
@@ -542,19 +699,48 @@ namespace SmallBasic.Compiler.Binding
 
                 return new BoundLibraryTypeExpression(syntax, hasValue: false, hasErrors, name);
             }
-            else if (this.definedSubModules.Contains(name))
+            else if (this.definedProcedures.TryGetValue(name, out ProcedureSymbol procedure))
             {
                 if (expectsValue)
                 {
                     return new BoundVariableExpression(syntax, hasValue: true, hasErrors, name);
                 }
 
-                return new BoundSubModuleExpression(syntax, hasValue: false, hasErrors, name);
+                return new BoundSubModuleExpression(
+                    syntax,
+                    hasValue: false,
+                    hasErrors,
+                    procedure.Name,
+                    procedure.Parameters,
+                    procedure.ReturnsValue);
             }
             else
             {
                 return new BoundVariableExpression(syntax, hasValue: true, hasErrors, name);
             }
+        }
+
+        private sealed class ProcedureSymbol
+        {
+            public ProcedureSymbol(
+                string name,
+                BaseStatementSyntax declaration,
+                IReadOnlyList<string> parameters,
+                bool returnsValue)
+            {
+                this.Name = name;
+                this.Declaration = declaration;
+                this.Parameters = parameters;
+                this.ReturnsValue = returnsValue;
+            }
+
+            public string Name { get; }
+
+            public BaseStatementSyntax Declaration { get; }
+
+            public IReadOnlyList<string> Parameters { get; }
+
+            public bool ReturnsValue { get; }
         }
     }
 }

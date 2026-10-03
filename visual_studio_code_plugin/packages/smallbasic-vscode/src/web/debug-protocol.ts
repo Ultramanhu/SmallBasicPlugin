@@ -28,7 +28,7 @@
  */
 
 /** Bumped whenever the wire shape changes incompatibly. */
-export const DEBUG_PROTOCOL_VERSION = 1;
+export const DEBUG_PROTOCOL_VERSION = 2;
 
 /** Milliseconds a `setBreakpoints` / `terminate` round trip may take. */
 export const DEBUG_REQUEST_TIMEOUT_MS = 15_000;
@@ -46,6 +46,8 @@ export function isDebugControl(value: unknown): value is WebDebugControl {
 export interface WebDebugFrame {
   name: string;
   line: number;
+  /** Parameters and Dim variables in this frame. Older runtimes may omit it. */
+  variables?: WebDebugVariable[];
 }
 
 /** One variable, optionally with an array's children (recursive DTO). */
@@ -309,11 +311,17 @@ function toFrames(value: unknown): WebDebugFrame[] {
   }
 
   return value
-    .filter((entry): entry is { name?: unknown; line?: unknown } => !!entry && typeof entry === "object")
-    .map((entry) => ({
-      name: typeof entry.name === "string" ? entry.name : "Program",
-      line: lineOf(entry.line)
-    }));
+    .filter((entry): entry is { name?: unknown; line?: unknown; variables?: unknown } => !!entry && typeof entry === "object")
+    .map((entry) => {
+      const frame: WebDebugFrame = {
+        name: typeof entry.name === "string" ? entry.name : "Program",
+        line: lineOf(entry.line)
+      };
+      if (Array.isArray(entry.variables)) {
+        frame.variables = toVariables(entry.variables);
+      }
+      return frame;
+    });
 }
 
 function toVariables(value: unknown): WebDebugVariable[] {

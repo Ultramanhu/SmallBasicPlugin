@@ -17,6 +17,10 @@ export enum TokenKind {
     EndWhileKeyword,
     SubKeyword,
     EndSubKeyword,
+    FunctionKeyword,
+    EndFunctionKeyword,
+    DimKeyword,
+    ReturnKeyword,
 
     Dot,
     RightParen,

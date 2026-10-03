@@ -34,4 +34,14 @@ describe("Small Basic folding ranges", () => {
       { startLine: 0, endLine: 2, kind: "region" }
     ]);
   });
+
+  it("folds Function blocks", () => {
+    expect(provideFoldingRanges([
+      "Function Add(Left, Right)",
+      "  Return Left + Right",
+      "EndFunction"
+    ].join("\n"))).toEqual([
+      { startLine: 0, endLine: 2, kind: "region" }
+    ]);
+  });
 });

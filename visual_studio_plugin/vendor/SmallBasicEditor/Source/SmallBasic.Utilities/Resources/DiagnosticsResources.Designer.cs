@@ -149,6 +149,54 @@ namespace SmallBasic.Utilities.Resources {
                 return ResourceManager.GetString("TwoSubModulesWithTheSameName", resourceCulture);
             }
         }
+
+        public static string TwoProceduresWithTheSameName {
+            get {
+                return ResourceManager.GetString("TwoProceduresWithTheSameName", resourceCulture);
+            }
+        }
+
+        public static string CannotDefineProcedureInsideProcedure {
+            get {
+                return ResourceManager.GetString("CannotDefineProcedureInsideProcedure", resourceCulture);
+            }
+        }
+
+        public static string ProcedureConflictsWithLibrary {
+            get {
+                return ResourceManager.GetString("ProcedureConflictsWithLibrary", resourceCulture);
+            }
+        }
+
+        public static string DuplicateParameter {
+            get {
+                return ResourceManager.GetString("DuplicateParameter", resourceCulture);
+            }
+        }
+
+        public static string DuplicateLocalVariable {
+            get {
+                return ResourceManager.GetString("DuplicateLocalVariable", resourceCulture);
+            }
+        }
+
+        public static string DimMustBeAtProcedureLevel {
+            get {
+                return ResourceManager.GetString("DimMustBeAtProcedureLevel", resourceCulture);
+            }
+        }
+
+        public static string ReturnOutsideFunction {
+            get {
+                return ResourceManager.GetString("ReturnOutsideFunction", resourceCulture);
+            }
+        }
+
+        public static string FunctionCannotBeEventHandler {
+            get {
+                return ResourceManager.GetString("FunctionCannotBeEventHandler", resourceCulture);
+            }
+        }
         
         /// <summary>
         ///   Looks up a localized string similar to This expression returns a result. Did you mean to assign it to a variable?.

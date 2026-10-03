@@ -2,8 +2,8 @@ import * as vscode from "vscode";
 
 const identifierPattern = /\b[A-Za-z_][A-Za-z0-9_]*\b/g;
 const keywords = new Set([
-  "and", "else", "elseif", "endfor", "endif", "endsub", "endwhile",
-  "for", "goto", "if", "or", "step", "sub", "then", "to", "while"
+  "and", "dim", "else", "elseif", "endfor", "endfunction", "endif", "endsub", "endwhile",
+  "for", "function", "goto", "if", "or", "return", "step", "sub", "then", "to", "while"
 ]);
 
 export function registerSmallBasicInlineValues(context: vscode.ExtensionContext): void {

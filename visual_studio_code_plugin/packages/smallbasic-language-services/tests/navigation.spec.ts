@@ -85,4 +85,35 @@ describe("Small Basic navigation", () => {
     expect(provideDefinition(compilation, { line: 3, column: 0 })).toBeUndefined();
     expect(provideReferences(compilation, { line: 3, column: 0 })).toEqual([]);
   });
+
+  it("navigates functions and keeps local names isolated from globals", () => {
+    const source = [
+      "Function Echo(Value)",
+      "  Dim Local",
+      "  Local = Value",
+      "  Return Local",
+      "EndFunction",
+      "Local = 10",
+      "answer = Echo(Local)"
+    ].join("\n");
+    const scoped = new Compilation(source);
+
+    expect(provideDefinition(scoped, { line: 6, column: 9 })).toEqual({
+      start: { line: 0, column: 9 },
+      end: { line: 0, column: 13 }
+    });
+    expect(provideDefinition(scoped, { line: 2, column: 10 })).toEqual({
+      start: { line: 0, column: 14 },
+      end: { line: 0, column: 19 }
+    });
+    expect(provideReferences(scoped, { line: 1, column: 6 })).toEqual([
+      { start: { line: 1, column: 6 }, end: { line: 1, column: 11 } },
+      { start: { line: 2, column: 2 }, end: { line: 2, column: 7 } },
+      { start: { line: 3, column: 9 }, end: { line: 3, column: 14 } }
+    ]);
+    expect(provideReferences(scoped, { line: 5, column: 0 })).toEqual([
+      { start: { line: 5, column: 0 }, end: { line: 5, column: 5 } },
+      { start: { line: 6, column: 14 }, end: { line: 6, column: 19 } }
+    ]);
+  });
 });

@@ -171,6 +171,10 @@ export class Scanner {
             case "endwhile": this.addToken(word, TokenKind.EndWhileKeyword); return;
             case "sub": this.addToken(word, TokenKind.SubKeyword); return;
             case "endsub": this.addToken(word, TokenKind.EndSubKeyword); return;
+            case "function": this.addToken(word, TokenKind.FunctionKeyword); return;
+            case "endfunction": this.addToken(word, TokenKind.EndFunctionKeyword); return;
+            case "dim": this.addToken(word, TokenKind.DimKeyword); return;
+            case "return": this.addToken(word, TokenKind.ReturnKeyword); return;
             case "or": this.addToken(word, TokenKind.Or); return;
             case "and": this.addToken(word, TokenKind.And); return;
             default: this.addToken(word, TokenKind.Identifier); return;

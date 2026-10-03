@@ -50,19 +50,47 @@ namespace SmallBasic.Compiler
             this.State = ExecutionState.Running;
             this.ExecutionStack = new LinkedList<Frame>();
             this.EvaluationStack = new Stack<BaseValue>();
-            this.Memory = new Dictionary<string, BaseValue>();
-            this.Modules = new Dictionary<string, RuntimeModule>();
+            this.Memory = new Dictionary<string, BaseValue>(StringComparer.OrdinalIgnoreCase);
+            this.Modules = new Dictionary<string, RuntimeModule>(StringComparer.OrdinalIgnoreCase);
             this.Libraries = libraries;
+
+            foreach (string global in compilation.GlobalDeclarations)
+            {
+                this.Memory[global] = StringValue.Empty;
+            }
 
             this.Libraries.SetEventCallbacks(this);
 
-            RuntimeModule mainModule = this.EmitAndSaveModule("Program", compilation.MainModule);
+            RuntimeModule mainModule = this.EmitAndSaveModule(
+                "Program",
+                RuntimeModuleKind.Program,
+                Array.Empty<string>(),
+                Array.Empty<string>(),
+                compilation.MainModule,
+                compilation.MainModule.Syntax);
             foreach (BoundSubModule subModule in compilation.SubModules.Values)
             {
-                this.EmitAndSaveModule(subModule.Name, subModule.Body);
+                this.EmitAndSaveModule(
+                    subModule.Name,
+                    RuntimeModuleKind.Sub,
+                    Array.Empty<string>(),
+                    subModule.Locals,
+                    subModule.Body,
+                    subModule.Syntax);
             }
 
-            this.ExecutionStack.AddLast(new Frame(mainModule));
+            foreach (BoundFunction function in compilation.Functions.Values)
+            {
+                this.EmitAndSaveModule(
+                    function.Name,
+                    RuntimeModuleKind.Function,
+                    function.Parameters,
+                    function.Locals,
+                    function.Body,
+                    function.Syntax);
+            }
+
+            this.PushProcedure(mainModule.Name, Array.Empty<BaseValue>(), returnsValue: false);
         }
 
         public ExecutionMode Mode { get; set; }
@@ -107,7 +135,7 @@ namespace SmallBasic.Compiler
                 Frame frame = this.ExecutionStack.Last();
                 if (frame.InstructionIndex == frame.Module.Instructions.Count)
                 {
-                    this.ExecutionStack.RemoveLast();
+                    this.CompleteCurrentFrame();
                     continue;
                 }
 
@@ -139,14 +167,23 @@ namespace SmallBasic.Compiler
             return result?.ToBoolean();
         }
 
-        private async Task<BaseValue> EvaluateExpressionAsync(CompiledExpression expression)
+        /// <summary>
+        /// Evaluates an expression with the globals and the selected frame's
+        /// parameters/Dim variables without changing the paused program.
+        /// </summary>
+        public async Task<BaseValue> EvaluateExpressionAsync(CompiledExpression expression, Frame selectedFrame = null)
         {
             RuntimeModule module = expression.Module;
             ExecutionState savedState = this.State;
             int savedLine = this.CurrentSourceLine;
             bool hadPrevious = this.Memory.TryGetValue(expression.ResultVariable, out BaseValue previous);
 
-            var frame = new Frame(module);
+            selectedFrame ??= this.ExecutionStack.Count > 0 ? this.ExecutionStack.Last() : null;
+            Dictionary<string, BaseValue> inheritedLocals = selectedFrame is { }
+                ? selectedFrame.LocalMemory
+                : null;
+            int evaluationStackBase = this.EvaluationStack.Count;
+            var frame = new Frame(module, Array.Empty<BaseValue>(), evaluationStackBase, inheritedLocals);
             this.ExecutionStack.AddLast(frame);
             int targetDepth = this.ExecutionStack.Count;
 
@@ -202,7 +239,10 @@ namespace SmallBasic.Compiler
                     this.Memory.Remove(expression.ResultVariable);
                 }
 
-                this.EvaluationStack.Clear();
+                while (this.EvaluationStack.Count > evaluationStackBase)
+                {
+                    this.EvaluationStack.Pop();
+                }
                 this.State = savedState;
                 this.CurrentSourceLine = savedLine;
             }
@@ -286,14 +326,83 @@ namespace SmallBasic.Compiler
                 // The last frame is the active frame. Event callbacks must be
                 // pushed on top of it so they can interrupt a long-running main
                 // loop (for example GraphicsWindow.KeyDown in Tetris).
-                this.ExecutionStack.AddLast(new Frame(this.Modules[subModule]));
+                this.PushProcedure(subModule, Array.Empty<BaseValue>(), returnsValue: false);
             }
         }
 
-        private RuntimeModule EmitAndSaveModule(string name, BoundStatementBlock body)
+        internal Dictionary<string, BaseValue> GetVariableMemory(string name)
+        {
+            if (this.ExecutionStack.Count > 0)
+            {
+                Frame frame = this.ExecutionStack.Last();
+                if (frame.LocalMemory.ContainsKey(name))
+                {
+                    return frame.LocalMemory;
+                }
+            }
+
+            return this.Memory;
+        }
+
+        internal void PushProcedure(string name, IReadOnlyList<BaseValue> arguments, bool returnsValue)
+        {
+            RuntimeModule module = this.Modules[name];
+            bool moduleReturnsValue = module.Kind == RuntimeModuleKind.Function;
+            if (moduleReturnsValue != returnsValue)
+            {
+                throw new InvalidOperationException($"Procedure '{name}' return contract does not match its declaration.");
+            }
+
+            this.ExecutionStack.AddLast(new Frame(module, arguments, this.EvaluationStack.Count));
+        }
+
+        internal void ReturnFromFunction(BaseValue value)
+        {
+            if (this.ExecutionStack.Count == 0 || this.ExecutionStack.Last().Module.Kind != RuntimeModuleKind.Function)
+            {
+                throw new InvalidOperationException("Return executed outside a Function frame.");
+            }
+
+            Frame frame = this.ExecutionStack.Last();
+            this.ExecutionStack.RemoveLast();
+            this.RestoreEvaluationStack(frame.EvaluationStackBase);
+            this.EvaluationStack.Push(value);
+        }
+
+        private void CompleteCurrentFrame()
+        {
+            Frame frame = this.ExecutionStack.Last();
+            this.ExecutionStack.RemoveLast();
+            this.RestoreEvaluationStack(frame.EvaluationStackBase);
+            if (frame.Module.Kind == RuntimeModuleKind.Function)
+            {
+                this.EvaluationStack.Push(StringValue.Empty);
+            }
+        }
+
+        private void RestoreEvaluationStack(int size)
+        {
+            if (this.EvaluationStack.Count < size)
+            {
+                throw new InvalidOperationException("Evaluation stack became unbalanced while executing a procedure.");
+            }
+
+            while (this.EvaluationStack.Count > size)
+            {
+                this.EvaluationStack.Pop();
+            }
+        }
+
+        private RuntimeModule EmitAndSaveModule(
+            string name,
+            RuntimeModuleKind kind,
+            IReadOnlyList<string> parameters,
+            IReadOnlyList<string> locals,
+            BoundStatementBlock body,
+            Parsing.BaseSyntaxNode syntax)
         {
             ModuleEmitter emitter = new ModuleEmitter(body);
-            RuntimeModule module = new RuntimeModule(name, emitter.Instructions, body.Syntax);
+            RuntimeModule module = new RuntimeModule(name, kind, parameters, locals, emitter.Instructions, syntax);
 
             this.Modules.Add(module.Name, module);
             return module;

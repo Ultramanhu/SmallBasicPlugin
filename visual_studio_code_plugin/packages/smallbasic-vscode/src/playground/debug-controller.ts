@@ -1,4 +1,5 @@
 import * as monaco from "monaco-editor";
+import { DEBUG_PROTOCOL_VERSION } from "../web/debug-protocol";
 
 /**
  * In-page debug controller of `playground.html`.
@@ -80,7 +81,7 @@ export class JsDebugTransport implements DebugTransport {
   }
 
   public async send(command: DebugCommand): Promise<void> {
-    this.web.debugCommand(JSON.stringify({ protocolVersion: 1, sessionId: this.sessionId, ...command }));
+    this.web.debugCommand(JSON.stringify({ protocolVersion: DEBUG_PROTOCOL_VERSION, sessionId: this.sessionId, ...command }));
   }
 
   public dispose(): void {
@@ -104,7 +105,7 @@ export class BlazorDebugTransport implements DebugTransport {
   }
 
   public async send(command: DebugCommand): Promise<void> {
-    await this.bridge.invoke("DispatchDebugCommand", JSON.stringify({ protocolVersion: 1, sessionId: this.sessionId, ...command }));
+    await this.bridge.invoke("DispatchDebugCommand", JSON.stringify({ protocolVersion: DEBUG_PROTOCOL_VERSION, sessionId: this.sessionId, ...command }));
   }
 
   public async dispose(): Promise<void> {

@@ -266,4 +266,140 @@ describe("smallbasic debug session", () => {
     const launch = await client.request("launch", { program, stopOnEntry: false }).catch((error: Error) => error);
     expect(launch).toBeInstanceOf(Error);
   });
+
+  it("shows Function parameters and Dim variables per frame and evaluates with locals", async () => {
+    const program = writeProgram("function-debug.sb", [
+      "answer = Calculate(4)",
+      "TextWindow.WriteLine(answer)",
+      "Function Calculate(Input)",
+      "  Dim Doubled",
+      "  Doubled = Input * 2",
+      "  Return Doubled",
+      "EndFunction"
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 5 }]
+    });
+    await client.request("configurationDone");
+    await client.waitForEvent("stopped");
+
+    const stack = await client.request("stackTrace", { threadId: 1 });
+    const frames = stack.body?.stackFrames as Array<{ id: number; name: string }>;
+    expect(frames.map((frame) => frame.name)).toEqual(["Calculate", "<Main>"]);
+
+    const scopes = await client.request("scopes", { frameId: frames[0].id });
+    const localScope = (scopes.body?.scopes as Array<{ name: string; variablesReference: number }>)
+      .find((scope) => scope.name === "Locals")!;
+    const variables = await client.request("variables", { variablesReference: localScope.variablesReference });
+    const locals = variables.body?.variables as Array<{ name: string; value: string }>;
+    expect(locals.find((variable) => variable.name === "Input")?.value).toBe("4");
+    expect(locals.find((variable) => variable.name === "Doubled")?.value).toBe('""');
+
+    const evaluation = await client.request("evaluate", { expression: "Input + 1", frameId: frames[0].id });
+    expect(evaluation.body?.result).toBe("5");
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+    expect(client.outputText()).toContain("8");
+  });
+
+  it("keeps recursive Function frames distinct and evaluates the selected frame", async () => {
+    const program = writeProgram("recursive-debug.sb", [
+      "answer = Recurse(3)",
+      "Function Recurse(N)",
+      "  Dim Current",
+      "  Current = N",
+      "  If N > 1 Then",
+      "    Return Recurse(N - 1)",
+      "  EndIf",
+      "  Return Current",
+      "EndFunction"
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 5 }]
+    });
+    await client.request("configurationDone");
+    await client.waitForEvent("stopped");
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("stopped", 2);
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("stopped", 3);
+
+    const stack = await client.request("stackTrace", { threadId: 1 });
+    const frames = stack.body?.stackFrames as Array<{ id: number; name: string }>;
+    expect(frames.map((frame) => frame.name)).toEqual(["Recurse", "Recurse", "Recurse", "<Main>"]);
+    expect(new Set(frames.map((frame) => frame.id)).size).toBe(frames.length);
+
+    for (const [index, expected] of ["1", "2", "3"].entries()) {
+      const evaluation = await client.request("evaluate", { expression: "N", frameId: frames[index].id });
+      expect(evaluation.body?.result).toBe(expected);
+    }
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+  });
+
+  it("steps into and out of a Function call", async () => {
+    const program = writeProgram("function-steps.sb", [
+      "answer = Double(4)",
+      "TextWindow.WriteLine(answer)",
+      "Function Double(Value)",
+      "  Dim Result",
+      "  Result = Value * 2",
+      "  Return Result",
+      "EndFunction"
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: true });
+    await client.request("configurationDone");
+    await client.waitForEvent("stopped");
+
+    await client.request("stepIn", { threadId: 1 });
+    await client.waitForEvent("stopped", 2);
+    let stack = await client.request("stackTrace", { threadId: 1 });
+    expect((stack.body?.stackFrames as Array<{ name: string }>)[0].name).toBe("Double");
+
+    await client.request("stepOut", { threadId: 1 });
+    await client.waitForEvent("stopped", 3);
+    stack = await client.request("stackTrace", { threadId: 1 });
+    const frames = stack.body?.stackFrames as Array<{ name: string; line: number }>;
+    expect(frames).toHaveLength(1);
+    expect(frames[0]).toMatchObject({ name: "<Main>", line: 2 });
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+  });
+
+  it("steps over a Function call and stops on the following statement", async () => {
+    const program = writeProgram("function-next.sb", [
+      "answer = Double(4)",
+      "TextWindow.WriteLine(answer)",
+      "Function Double(Value)",
+      "  Return Value * 2",
+      "EndFunction"
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: true });
+    await client.request("configurationDone");
+    await client.waitForEvent("stopped");
+
+    await client.request("next", { threadId: 1 });
+    await client.waitForEvent("stopped", 2);
+    const stack = await client.request("stackTrace", { threadId: 1 });
+    expect((stack.body?.stackFrames as Array<{ name: string; line: number }>)[0])
+      .toMatchObject({ name: "<Main>", line: 2 });
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+  });
 });

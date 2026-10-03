@@ -6,6 +6,7 @@
     { "include": "#comments" },
     { "include": "#strings" },
     { "include": "#numbers" },
+    { "include": "#procedure-declarations" },
     { "include": "#keywords" },
     { "include": "#library-types" }
   ],
@@ -40,7 +41,25 @@
       "patterns": [
         {
           "name": "keyword.control.smallbasic",
-          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Sub|EndSub|GoTo|And|Or)\\b"
+          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|And|Or)\\b"
+        }
+      ]
+    },
+    "procedure-declarations": {
+      "patterns": [
+        {
+          "match": "(?i)\\b(Function)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.smallbasic" },
+            "2": { "name": "entity.name.function.smallbasic" }
+          }
+        },
+        {
+          "match": "(?i)\\b(Sub)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+          "captures": {
+            "1": { "name": "keyword.control.smallbasic" },
+            "2": { "name": "entity.name.function.smallbasic" }
+          }
         }
       ]
     },

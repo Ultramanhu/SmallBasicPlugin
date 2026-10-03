@@ -25,6 +25,10 @@ namespace SmallBasic.Compiler.Scanning
         EndWhile,
         Sub,
         EndSub,
+        Function,
+        EndFunction,
+        Dim,
+        Return,
         GoTo,
         Or,
         And,
@@ -71,6 +75,10 @@ namespace SmallBasic.Compiler.Scanning
                 case TokenKind.EndWhile: return "EndWhile";
                 case TokenKind.Sub: return "Sub";
                 case TokenKind.EndSub: return "EndSub";
+                case TokenKind.Function: return "Function";
+                case TokenKind.EndFunction: return "EndFunction";
+                case TokenKind.Dim: return "Dim";
+                case TokenKind.Return: return "Return";
                 case TokenKind.GoTo: return "GoTo";
                 case TokenKind.Or: return "Or";
                 case TokenKind.And: return "And";

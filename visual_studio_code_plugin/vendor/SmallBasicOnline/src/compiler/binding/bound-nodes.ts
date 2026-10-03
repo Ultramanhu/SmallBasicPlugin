@@ -10,6 +10,7 @@ export enum BoundKind {
     ForStatement,
     LabelStatement,
     GoToStatement,
+    ReturnStatement,
     SubModuleInvocationStatement,
     LibraryMethodInvocationStatement,
     EventAssignmentStatement,
@@ -154,6 +155,18 @@ export class BoundGoToStatement extends BaseBoundStatement {
 
     public children(): ReadonlyArray<BaseBoundNode> {
         return [];
+    }
+}
+
+export class BoundReturnStatement extends BaseBoundStatement {
+    public constructor(
+        public readonly expression: BaseBoundExpression,
+        syntax: BaseSyntaxNode) {
+        super(BoundKind.ReturnStatement, syntax);
+    }
+
+    public children(): ReadonlyArray<BaseBoundNode> {
+        return [this.expression];
     }
 }
 
@@ -531,6 +544,8 @@ export class BoundLibraryMethodInvocationExpression extends BaseBoundExpression 
 export class BoundSubModuleExpression extends BaseBoundExpression {
     public constructor(
         public readonly subModuleName: string,
+        public readonly parameters: ReadonlyArray<string>,
+        public readonly returnsValue: boolean,
         hasErrors: boolean,
         syntax: BaseSyntaxNode) {
         super(BoundKind.SubModuleExpression, false, hasErrors, syntax);
@@ -544,13 +559,15 @@ export class BoundSubModuleExpression extends BaseBoundExpression {
 export class BoundSubModuleInvocationExpression extends BaseBoundExpression {
     public constructor(
         public readonly subModuleName: string,
+        public readonly argumentsList: ReadonlyArray<BaseBoundExpression>,
+        public readonly returnsValue: boolean,
         hasErrors: boolean,
         syntax: BaseSyntaxNode) {
-        super(BoundKind.SubModuleInvocationExpression, false, hasErrors, syntax);
+        super(BoundKind.SubModuleInvocationExpression, returnsValue, hasErrors, syntax);
     }
 
     public children(): ReadonlyArray<BaseBoundNode> {
-        return [];
+        return this.argumentsList;
     }
 }
 
@@ -616,6 +633,7 @@ export class BoundNodeRewriter {
             case BoundKind.ForStatement: return this.rewriteForStatement(node as BoundForStatement);
             case BoundKind.LabelStatement: return this.rewriteLabelStatement(node as BoundLabelStatement);
             case BoundKind.GoToStatement: return this.rewriteGoToStatement(node as BoundGoToStatement);
+            case BoundKind.ReturnStatement: return this.rewriteReturnStatement(node as BoundReturnStatement);
             case BoundKind.SubModuleInvocationStatement: return this.rewriteSubModuleInvocationStatement(node as BoundSubModuleInvocationStatement);
             case BoundKind.LibraryMethodInvocationStatement: return this.rewriteLibraryMethodInvocationStatement(node as BoundLibraryMethodInvocationStatement);
             case BoundKind.EventAssignmentStatement: return this.rewriteEventAssignmentStatement(node as BoundEventAssignmentStatement);
@@ -695,6 +713,12 @@ export class BoundNodeRewriter {
 
     public rewriteGoToStatement(node: BoundGoToStatement): BaseBoundNode {
         return node;
+    }
+
+    public rewriteReturnStatement(node: BoundReturnStatement): BaseBoundNode {
+        return new BoundReturnStatement(
+            this.rewrite(node.expression) as BaseBoundExpression,
+            node.syntax);
     }
 
     public rewriteSubModuleInvocationStatement(node: BoundSubModuleInvocationStatement): BaseBoundNode {
@@ -884,7 +908,12 @@ export class BoundNodeRewriter {
     }
 
     public rewriteSubModuleInvocationExpression(node: BoundSubModuleInvocationExpression): BaseBoundNode {
-        return node;
+        return new BoundSubModuleInvocationExpression(
+            node.subModuleName,
+            node.argumentsList.map(argument => this.rewrite(argument) as BaseBoundExpression),
+            node.returnsValue,
+            node.hasErrors,
+            node.syntax);
     }
 
     public rewriteVariableExpression(node: BoundVariableExpression): BaseBoundNode {

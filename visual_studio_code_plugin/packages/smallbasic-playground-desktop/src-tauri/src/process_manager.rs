@@ -42,6 +42,7 @@ pub const NET48_PROGRAM: &str = "resources/dotnet/csharp-net48/SmallBasic.RunHos
 /// Grace period between the protocol-level disconnect and the tree kill.
 const DISCONNECT_GRACE: Duration = Duration::from_millis(2000);
 const POLL_INTERVAL: Duration = Duration::from_millis(50);
+#[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -216,7 +217,10 @@ fn spawn_in_dir(
         command.creation_flags(CREATE_NO_WINDOW);
     }
     #[cfg(unix)]
-    command.process_group(0);
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
 
     let mut child = command.spawn().map_err(|error| {
         format!(

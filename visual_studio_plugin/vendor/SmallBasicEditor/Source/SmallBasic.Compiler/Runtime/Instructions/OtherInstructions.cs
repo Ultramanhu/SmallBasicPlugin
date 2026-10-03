@@ -5,23 +5,46 @@
 namespace SmallBasic.Compiler.Runtime
 {
     using System;
+    using System.Collections.Generic;
     using System.Threading.Tasks;
     using SmallBasic.Compiler.Scanning;
 
     internal sealed class InvokeSubModuleInstruction : BaseNonJumpInstruction
     {
         private readonly string subModuleName;
+        private readonly int argumentCount;
+        private readonly bool returnsValue;
 
-        public InvokeSubModuleInstruction(string subModuleName, TextRange range)
+        public InvokeSubModuleInstruction(string subModuleName, int argumentCount, bool returnsValue, TextRange range)
             : base(range)
         {
             this.subModuleName = subModuleName;
+            this.argumentCount = argumentCount;
+            this.returnsValue = returnsValue;
         }
 
         protected override void Execute(SmallBasicEngine engine)
         {
-            Frame frame = new Frame(engine.Modules[this.subModuleName]);
-            engine.ExecutionStack.AddLast(frame);
+            var arguments = new BaseValue[this.argumentCount];
+            for (int index = this.argumentCount - 1; index >= 0; index--)
+            {
+                arguments[index] = engine.EvaluationStack.Pop();
+            }
+
+            engine.PushProcedure(this.subModuleName, arguments, this.returnsValue);
+        }
+    }
+
+    internal sealed class ReturnValueInstruction : BaseNonJumpInstruction
+    {
+        public ReturnValueInstruction(TextRange range)
+            : base(range)
+        {
+        }
+
+        protected override void Execute(SmallBasicEngine engine)
+        {
+            engine.ReturnFromFunction(engine.EvaluationStack.Pop());
         }
     }
 

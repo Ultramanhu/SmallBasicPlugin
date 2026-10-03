@@ -8,7 +8,7 @@ namespace SmallBasic.Vsix.Editor.Classification
     {
         private static readonly HashSet<string> Keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "If", "Then", "Else", "ElseIf", "EndIf", "For", "To", "Step", "EndFor", "GoTo", "While", "EndWhile", "Sub", "EndSub", "And", "Or",
+            "If", "Then", "Else", "ElseIf", "EndIf", "For", "To", "Step", "EndFor", "GoTo", "While", "EndWhile", "Sub", "EndSub", "Function", "EndFunction", "Dim", "Return", "And", "Or",
         };
 
         private static readonly HashSet<string> Libraries = new HashSet<string>(StringComparer.OrdinalIgnoreCase)

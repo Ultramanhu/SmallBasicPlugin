@@ -189,7 +189,7 @@ namespace SmallBasic.Compiler.Scanning
 
             string word = this.text.Substring(this.index, lookAhead - this.index);
 
-            switch (word.ToLower(CultureInfo.CurrentCulture))
+            switch (word.ToLowerInvariant())
             {
                 case "if": this.AddToken(word, TokenKind.If); return;
                 case "then": this.AddToken(word, TokenKind.Then); return;
@@ -205,6 +205,10 @@ namespace SmallBasic.Compiler.Scanning
                 case "endwhile": this.AddToken(word, TokenKind.EndWhile); return;
                 case "sub": this.AddToken(word, TokenKind.Sub); return;
                 case "endsub": this.AddToken(word, TokenKind.EndSub); return;
+                case "function": this.AddToken(word, TokenKind.Function); return;
+                case "endfunction": this.AddToken(word, TokenKind.EndFunction); return;
+                case "dim": this.AddToken(word, TokenKind.Dim); return;
+                case "return": this.AddToken(word, TokenKind.Return); return;
                 case "or": this.AddToken(word, TokenKind.Or); return;
                 case "and": this.AddToken(word, TokenKind.And); return;
                 default: this.AddToken(word, TokenKind.Identifier); return;

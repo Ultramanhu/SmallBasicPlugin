@@ -138,7 +138,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
                     OutlineItem procedure = this.GetProcedureAt(iIndex);
                     if (procedure != null)
                     {
-                        ppszText = procedure.Name;
+                        ppszText = procedure.Detail;
                         return VSConstants.S_OK;
                     }
                 }
@@ -267,7 +267,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
             {
                 foreach (OutlineItem item in this.compilationService.GetCompilation(this.textView.TextBuffer).GetOutlineItems())
                 {
-                    if (item.Kind == OutlineItemKind.Procedure)
+                    if (item.Kind == OutlineItemKind.Procedure || item.Kind == OutlineItemKind.Function)
                     {
                         procedures.Add(item);
                     }

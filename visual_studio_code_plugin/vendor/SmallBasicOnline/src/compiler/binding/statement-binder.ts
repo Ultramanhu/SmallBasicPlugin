@@ -1,20 +1,37 @@
 import { RuntimeLibraries } from "../runtime/libraries";
 import { ExpressionBinder } from "./expression-binder";
 import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { BaseBoundStatement, BoundArrayAccessExpression, BaseBoundExpression, BoundKind, BoundEqualExpression, BoundLibraryEventExpression, BoundLibraryMethodInvocationExpression, BoundLibraryPropertyExpression, BoundSubModuleExpression, BoundSubModuleInvocationExpression, BoundVariableExpression, BoundForStatement, BoundIfStatement, BoundWhileStatement, BoundLabelStatement, BoundGoToStatement, BoundInvalidExpressionStatement, BoundVariableAssignmentStatement, BoundArrayAssignmentStatement, BoundPropertyAssignmentStatement, BoundEventAssignmentStatement, BoundLibraryMethodInvocationStatement, BoundSubModuleInvocationStatement, BoundIfHeaderStatement, BoundStatementBlock } from "./bound-nodes";
-import { GoToCommandSyntax, BaseSyntaxNode, SyntaxKind, ForStatementSyntax, IfStatementSyntax, WhileStatementSyntax, LabelCommandSyntax, ExpressionCommandSyntax, BaseStatementSyntax, StatementBlockSyntax } from "../syntax/syntax-nodes";
+import { BaseBoundStatement, BoundArrayAccessExpression, BaseBoundExpression, BoundKind, BoundEqualExpression, BoundLibraryEventExpression, BoundLibraryMethodInvocationExpression, BoundLibraryPropertyExpression, BoundSubModuleExpression, BoundSubModuleInvocationExpression, BoundVariableExpression, BoundForStatement, BoundIfStatement, BoundWhileStatement, BoundLabelStatement, BoundGoToStatement, BoundReturnStatement, BoundInvalidExpressionStatement, BoundVariableAssignmentStatement, BoundArrayAssignmentStatement, BoundPropertyAssignmentStatement, BoundEventAssignmentStatement, BoundLibraryMethodInvocationStatement, BoundSubModuleInvocationStatement, BoundIfHeaderStatement, BoundStatementBlock } from "./bound-nodes";
+import { GoToCommandSyntax, BaseSyntaxNode, SyntaxKind, ForStatementSyntax, IfStatementSyntax, WhileStatementSyntax, LabelCommandSyntax, ExpressionCommandSyntax, ReturnCommandSyntax, DimCommandSyntax, BaseStatementSyntax, StatementBlockSyntax } from "../syntax/syntax-nodes";
+import type { ProcedureSymbol } from "./modules-binder";
 
 export class StatementBinder {
     private _definedLabels: { [name: string]: boolean } = {};
     private _goToStatements: GoToCommandSyntax[] = [];
+    private _declaredNames: { [name: string]: string } = {};
+    private _declarations: string[] = [];
+    private _locals: string[] = [];
 
     public readonly result: BoundStatementBlock;
 
+    public get locals(): ReadonlyArray<string> {
+        return this._locals;
+    }
+
+    public get declarations(): ReadonlyArray<string> {
+        return this._declarations;
+    }
+
     public constructor(
         statements: StatementBlockSyntax,
-        private _definedSubModules: { readonly [name: string]: string },
-        private readonly _diagnostics: Diagnostic[]) {
-        this.result = this.bindStatementsBlock(statements);
+        private _definedProcedures: { readonly [name: string]: ProcedureSymbol },
+        private readonly _diagnostics: Diagnostic[],
+        parameters: ReadonlyArray<string> = [],
+        private readonly _returnsValue: boolean = false,
+        private readonly _localsAreLocal: boolean = true) {
+        parameters.forEach(parameter => this._declaredNames[parameter.toLowerCase()] = parameter);
+        this.collectLocalDeclarations(statements);
+        this.result = this.bindStatementsBlock(statements, true);
 
         this._goToStatements.forEach(statement => {
             const identifier = statement.labelToken;
@@ -24,13 +41,45 @@ export class StatementBinder {
         });
     }
 
-    private bindStatementsBlock(block: StatementBlockSyntax): BoundStatementBlock {
+    private collectLocalDeclarations(block: StatementBlockSyntax): void {
+        block.statements.forEach(statement => {
+            if (statement.kind !== SyntaxKind.DimCommand) {
+                return;
+            }
+
+            const dim = statement as unknown as DimCommandSyntax;
+            dim.variableTokens.forEach(variable => {
+                const name = variable.token.text;
+                const key = name.toLowerCase();
+                if (this._declaredNames[key]) {
+                    this._diagnostics.push(new Diagnostic(ErrorCode.DuplicateLocalVariable, variable.range, name));
+                } else {
+                    this._declaredNames[key] = name;
+                    this._declarations.push(name);
+                    if (this._localsAreLocal) {
+                        this._locals.push(name);
+                    }
+                }
+            });
+        });
+    }
+
+    private bindStatementsBlock(block: StatementBlockSyntax, allowDim: boolean = false): BoundStatementBlock {
         const result: BaseBoundStatement[] = [];
 
         block.statements.forEach(statement => {
-            if (statement.kind !== SyntaxKind.CommentCommand) {
-                result.push(this.bindStatement(statement));
+            if (statement.kind === SyntaxKind.CommentCommand) {
+                return;
             }
+
+            if (statement.kind === SyntaxKind.DimCommand) {
+                if (!allowDim) {
+                    this._diagnostics.push(new Diagnostic(ErrorCode.DimMustBeAtProcedureLevel, statement.range));
+                }
+                return;
+            }
+
+            result.push(this.bindStatement(statement));
         });
 
         return new BoundStatementBlock(result, block);
@@ -43,6 +92,7 @@ export class StatementBinder {
             case SyntaxKind.WhileStatement: return this.bindWhileStatement(syntax as WhileStatementSyntax);
             case SyntaxKind.LabelCommand: return this.bindLabelStatement(syntax as LabelCommandSyntax);
             case SyntaxKind.GoToCommand: return this.bindGoToStatement(syntax as GoToCommandSyntax);
+            case SyntaxKind.ReturnCommand: return this.bindReturnStatement(syntax as unknown as ReturnCommandSyntax);
             case SyntaxKind.ExpressionCommand: return this.bindExpressionStatement(syntax as ExpressionCommandSyntax);
             default: throw new Error(`Unexpected statement of kind ${SyntaxKind[syntax.kind]} here`);
         }
@@ -105,6 +155,15 @@ export class StatementBinder {
         return new BoundGoToStatement(syntax.labelToken.token.text, syntax);
     }
 
+    private bindReturnStatement(syntax: ReturnCommandSyntax): BoundReturnStatement {
+        const expression = this.bindExpression(syntax.expression, true);
+        if (!this._returnsValue) {
+            this._diagnostics.push(new Diagnostic(ErrorCode.ReturnOutsideFunction, syntax.range));
+        }
+
+        return new BoundReturnStatement(expression, syntax);
+    }
+
     private bindExpressionStatement(syntax: ExpressionCommandSyntax): BaseBoundStatement {
         const expression = this.bindExpression(syntax.expression, false);
 
@@ -142,6 +201,10 @@ export class StatementBinder {
 
                         if (binaryExpression.rightExpression.kind === BoundKind.SubModuleExpression) {
                             const subModule = binaryExpression.rightExpression as BoundSubModuleExpression;
+                            if (subModule.returnsValue) {
+                                this._diagnostics.push(new Diagnostic(ErrorCode.FunctionCannotBeEventHandler, subModule.syntax.range));
+                                return new BoundInvalidExpressionStatement(expression, syntax);
+                            }
                             return new BoundEventAssignmentStatement(eventExpression.libraryName, eventExpression.eventName, subModule.subModuleName, syntax);
                         }
 
@@ -166,7 +229,10 @@ export class StatementBinder {
 
             case BoundKind.SubModuleInvocationExpression: {
                 const call = expression as BoundSubModuleInvocationExpression;
-                return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+                if (!call.returnsValue) {
+                    return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+                }
+                break;
             }
         }
 
@@ -179,6 +245,6 @@ export class StatementBinder {
     }
 
     private bindExpression(syntax: BaseSyntaxNode, expectedValue: boolean): BaseBoundExpression {
-        return new ExpressionBinder(syntax, expectedValue, this._definedSubModules, this._diagnostics).result;
+        return new ExpressionBinder(syntax, expectedValue, this._definedProcedures, this._diagnostics).result;
     }
 }

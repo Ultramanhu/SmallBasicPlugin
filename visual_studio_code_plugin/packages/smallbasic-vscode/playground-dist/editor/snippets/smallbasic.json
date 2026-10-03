@@ -17,6 +17,27 @@
     ],
     "description": "Insert a For loop"
   },
+  "Function declaration": {
+    "prefix": "function",
+    "body": [
+      "Function ${1:name}(${2:arguments})",
+      "  Dim ${3:local}",
+      "  ${0}",
+      "  Return ${4:value}",
+      "EndFunction"
+    ],
+    "description": "Insert a Function declaration"
+  },
+  "Dim declaration": {
+    "prefix": "dim",
+    "body": "Dim ${1:name}",
+    "description": "Declare procedure-local variables"
+  },
+  "Return value": {
+    "prefix": "return",
+    "body": "Return ${1:value}",
+    "description": "Return a value from a Function"
+  },
   "Hello World": {
     "prefix": "hello",
     "body": [

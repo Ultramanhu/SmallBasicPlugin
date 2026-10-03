@@ -12,7 +12,7 @@ import {
 } from "@vscode/debugadapter";
 import { DebugProtocol } from "@vscode/debugprotocol";
 import type { DebugSourceAccessor } from "../debug/session";
-import type { WebDebugEvent, WebDebugVariable } from "./debug-protocol";
+import type { WebDebugEvent, WebDebugFrame, WebDebugVariable } from "./debug-protocol";
 import type { WebDebugSessionBroker } from "./debug-broker";
 
 const THREAD_ID = 1;
@@ -43,7 +43,7 @@ export interface WebviewDebugOptions {
 export class WebviewDebugSession extends LoggingDebugSession {
   private programPath = "";
   private breakpoints: number[] = [];
-  private snapshot: { line: number; frames: ReadonlyArray<{ name: string; line: number }>; variables: readonly WebDebugVariable[] } | undefined;
+  private snapshot: { line: number; frames: readonly WebDebugFrame[]; variables: readonly WebDebugVariable[] } | undefined;
   private readonly variableHandles = new Handles<readonly WebDebugVariable[]>();
   private readonly subscription: { dispose(): void };
   private waitingForInput = false;
@@ -69,7 +69,7 @@ export class WebviewDebugSession extends LoggingDebugSession {
       // The JavaScript runtime evaluates conditions (`DebugEngineDriver`);
       // the Blazor runtime aligns with SmallBasic.Blazor.RunHost, which has none.
       supportsConditionalBreakpoints: this.options.backend === "javascript",
-      supportsEvaluateForHovers: false,
+      supportsEvaluateForHovers: true,
       supportsStepBack: false,
       supportsRestartRequest: false
     };
@@ -169,10 +169,14 @@ export class WebviewDebugSession extends LoggingDebugSession {
 
   protected override scopesRequest(
     response: DebugProtocol.ScopesResponse,
-    _args: DebugProtocol.ScopesArguments
+    args: DebugProtocol.ScopesArguments
   ): void {
+    const locals = this.snapshot?.frames[args.frameId - 1]?.variables ?? [];
     response.body = {
-      scopes: [new Scope("Globals", this.variableHandles.create(this.snapshot?.variables ?? []), false)]
+      scopes: [
+        new Scope("Globals", this.variableHandles.create(this.snapshot?.variables ?? []), false),
+        new Scope("Locals", this.variableHandles.create(locals), false)
+      ]
     };
     this.sendResponse(response);
   }
@@ -244,7 +248,8 @@ export class WebviewDebugSession extends LoggingDebugSession {
       return;
     }
 
-    const value = this.findVariable(expression);
+    const locals = this.snapshot?.frames[(args.frameId ?? 1) - 1]?.variables ?? [];
+    const value = this.findVariable(expression, locals);
     if (value) {
       response.body = {
         result: value.value,
@@ -335,8 +340,8 @@ export class WebviewDebugSession extends LoggingDebugSession {
     };
   }
 
-  private findVariable(name: string): WebDebugVariable | undefined {
-    const variables = this.snapshot?.variables ?? [];
+  private findVariable(name: string, locals: readonly WebDebugVariable[] = []): WebDebugVariable | undefined {
+    const variables = [...locals, ...(this.snapshot?.variables ?? [])];
     const exact = variables.find((variable) => variable.name === name);
     if (exact) {
       return exact;

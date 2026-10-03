@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { Compilation } from "smallbasic-lang-core";
 import { getMethodSignature } from "../src/language/method-signatures";
 
 describe("method signatures (parameter hints)", () => {
@@ -65,5 +66,19 @@ describe("method signatures (parameter hints)", () => {
 
   it("returns nothing inside a comment", () => {
     expect(getMethodSignature("' Math.GetRandomNumber(", "' Math.GetRandomNumber(".length)).toBeUndefined();
+  });
+
+  it("shows user Function parameters", () => {
+    const compilation = new Compilation([
+      "Function Add(Left, Right)",
+      "  Return Left + Right",
+      "EndFunction",
+      "answer = Add(1, "
+    ].join("\n"));
+    const signature = getMethodSignature("answer = Add(1, ", "answer = Add(1, ".length, compilation);
+
+    expect(signature?.label).toBe("Add(Left, Right)");
+    expect(signature?.activeParameter).toBe(1);
+    expect(signature?.parameters.map((parameter) => parameter.name)).toEqual(["Left", "Right"]);
   });
 });

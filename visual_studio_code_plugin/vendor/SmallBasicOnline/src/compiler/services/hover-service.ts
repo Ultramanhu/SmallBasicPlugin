@@ -2,7 +2,18 @@ import { Compilation } from "../../compiler/compilation";
 import { CompilerRange, CompilerPosition } from "../syntax/ranges";
 import { RuntimeLibraries } from "../runtime/libraries";
 import { CompilerUtils } from "../utils/compiler-utils";
-import { SyntaxKind, ObjectAccessExpressionSyntax, IdentifierExpressionSyntax, SyntaxNodeVisitor } from "../syntax/syntax-nodes";
+import {
+    BaseSyntaxNode,
+    DimCommandSyntax,
+    FunctionDeclarationSyntax,
+    IdentifierExpressionSyntax,
+    ObjectAccessExpressionSyntax,
+    SubModuleDeclarationSyntax,
+    SyntaxKind,
+    SyntaxNodeVisitor,
+    TokenSyntax
+} from "../syntax/syntax-nodes";
+import { ProcedureKind, ProcedureSymbol } from "../binding/modules-binder";
 
 export module HoverService {
     export interface Result {
@@ -22,6 +33,11 @@ export module HoverService {
             }
         }
 
+        const userSymbol = provideUserSymbolHover(compilation, position);
+        if (userSymbol) {
+            return userSymbol;
+        }
+
         const node = compilation.getSyntaxNode(position, SyntaxKind.ObjectAccessExpression);
         if (node) {
             const visitor = new HoverVisitor();
@@ -30,6 +46,113 @@ export module HoverService {
         }
 
         return undefined;
+    }
+
+    function provideUserSymbolHover(compilation: Compilation, position: CompilerPosition): Result | undefined {
+        for (const func of compilation.parseTree.functions) {
+            const procedure = findProcedure(compilation, func.functionCommand.nameToken.token.text);
+            if (func.functionCommand.nameToken.range.containsPosition(position)) {
+                return procedureResult(procedure, func.functionCommand.nameToken);
+            }
+
+            const parameter = func.functionCommand.parameterTokens.find(token => token.range.containsPosition(position));
+            if (parameter) {
+                return variableResult(parameter, "Parameter", "Function-scoped parameter");
+            }
+        }
+
+        for (const sub of compilation.parseTree.subModules) {
+            const procedure = findProcedure(compilation, sub.subCommand.nameToken.token.text);
+            if (sub.subCommand.nameToken.range.containsPosition(position)) {
+                return procedureResult(procedure, sub.subCommand.nameToken);
+            }
+        }
+
+        const dim = compilation.getSyntaxNode(position, SyntaxKind.DimCommand) as DimCommandSyntax | undefined;
+        const dimVariable = dim?.variableTokens.find(token => token.range.containsPosition(position));
+        if (dimVariable) {
+            return variableResult(dimVariable, "Local variable", "Procedure-scoped variable declared with Dim");
+        }
+
+        const identifier = compilation.getSyntaxNode(position, SyntaxKind.IdentifierExpression) as IdentifierExpressionSyntax | undefined;
+        if (!identifier) {
+            return undefined;
+        }
+
+        const name = identifier.identifierToken.token.text;
+        const procedure = findProcedure(compilation, name);
+        if (procedure) {
+            return procedureResult(procedure, identifier.identifierToken);
+        }
+
+        const declaration = containingProcedure(compilation, position);
+        if (!declaration) {
+            return undefined;
+        }
+
+        if (declaration.kind === SyntaxKind.FunctionDeclaration) {
+            const func = declaration as FunctionDeclarationSyntax;
+            const parameter = func.functionCommand.parameterTokens.find(token => equalsIgnoreCase(token.token.text, name));
+            if (parameter) {
+                return variableResult(identifier.identifierToken, "Parameter", "Function-scoped parameter");
+            }
+        }
+
+        if (collectDimNames(declaration).some(local => equalsIgnoreCase(local, name))) {
+            return variableResult(identifier.identifierToken, "Local variable", "Procedure-scoped variable declared with Dim");
+        }
+
+        return undefined;
+    }
+
+    function findProcedure(compilation: Compilation, name: string): ProcedureSymbol | undefined {
+        return compilation.procedures[name.toLowerCase()];
+    }
+
+    function procedureResult(procedure: ProcedureSymbol | undefined, token: TokenSyntax): Result | undefined {
+        if (!procedure) {
+            return undefined;
+        }
+
+        const prefix = procedure.kind === ProcedureKind.Function ? "Function" : "Sub";
+        const signature = procedure.kind === ProcedureKind.Function
+            ? `${prefix} ${procedure.name}(${procedure.parameters.join(", ")})`
+            : `${prefix} ${procedure.name}`;
+        return {
+            range: token.range,
+            text: [signature, procedure.kind === ProcedureKind.Function ? "User-defined function" : "User-defined subroutine"]
+        };
+    }
+
+    function variableResult(token: TokenSyntax, category: string, description: string): Result {
+        return {
+            range: token.range,
+            text: [`${category} ${token.token.text}`, description]
+        };
+    }
+
+    function containingProcedure(compilation: Compilation, position: CompilerPosition): FunctionDeclarationSyntax | SubModuleDeclarationSyntax | undefined {
+        return [...compilation.parseTree.functions, ...compilation.parseTree.subModules]
+            .find(declaration => declaration.range.containsPosition(position));
+    }
+
+    function collectDimNames(declaration: FunctionDeclarationSyntax | SubModuleDeclarationSyntax): string[] {
+        const names: string[] = [];
+        collectDimNamesFromNode(declaration.statementsList, names);
+        return names;
+    }
+
+    function collectDimNamesFromNode(node: BaseSyntaxNode, names: string[]): void {
+        if (node.kind === SyntaxKind.DimCommand) {
+            (node as DimCommandSyntax).variableTokens.forEach(variable => names.push(variable.token.text));
+            return;
+        }
+
+        node.children().forEach(child => collectDimNamesFromNode(child, names));
+    }
+
+    function equalsIgnoreCase(left: string, right: string): boolean {
+        return left.toLowerCase() === right.toLowerCase();
     }
 
     class HoverVisitor extends SyntaxNodeVisitor {

@@ -886,7 +886,7 @@ function renderOutlineSymbol(
   button.type = "button";
   button.className = "web-outline-item";
   button.style.paddingLeft = `${12 + depth * 18}px`;
-  button.textContent = `${symbol.kind === "sub" ? "ƒ" : "•"} ${symbol.name}`;
+  button.textContent = `${symbol.kind === "sub" || symbol.kind === "function" ? "ƒ" : "•"} ${symbol.name}`;
   button.addEventListener("click", () => {
     const lineNumber = symbol.selectionRange.start.line + 1;
     const column = symbol.selectionRange.start.column + 1;

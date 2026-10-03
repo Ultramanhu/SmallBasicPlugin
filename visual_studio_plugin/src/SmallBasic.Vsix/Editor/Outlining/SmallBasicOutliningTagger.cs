@@ -171,7 +171,7 @@ namespace SmallBasic.Vsix.Editor.Outlining
         {
             if (TryToSpan(snapshot, item.Range, out SnapshotSpan span))
             {
-                bool isProcedure = item.Kind == OutlineItemKind.Procedure;
+                bool isProcedure = item.Kind == OutlineItemKind.Procedure || item.Kind == OutlineItemKind.Function;
                 ITextSnapshotLine firstLine = snapshot.GetLineFromPosition(span.Start.Position);
                 ITextSnapshotLine lastLine = snapshot.GetLineFromPosition(span.End.Position);
                 bool isCollapsible = isProcedure && lastLine.LineNumber > firstLine.LineNumber;
@@ -215,7 +215,7 @@ namespace SmallBasic.Vsix.Editor.Outlining
 
         private static string GetStructureType(OutlineItemKind kind)
         {
-            return kind == OutlineItemKind.Procedure
+            return kind == OutlineItemKind.Procedure || kind == OutlineItemKind.Function
                 ? PredefinedStructureTagTypes.Member
                 : PredefinedStructureTagTypes.Statement;
         }

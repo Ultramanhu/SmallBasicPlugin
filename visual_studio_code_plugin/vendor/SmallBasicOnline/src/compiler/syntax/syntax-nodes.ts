@@ -4,6 +4,7 @@ import { Token } from "./tokens";
 export enum SyntaxKind {
     ParseTree,
     SubModuleDeclaration,
+    FunctionDeclaration,
 
     // Statements
     StatementBlock,
@@ -26,6 +27,10 @@ export enum SyntaxKind {
     GoToCommand,
     SubCommand,
     EndSubCommand,
+    FunctionCommand,
+    EndFunctionCommand,
+    DimCommand,
+    ReturnCommand,
     ExpressionCommand,
     CommentCommand,
 
@@ -66,15 +71,29 @@ export abstract class BaseSyntaxNode {
 export class ParseTreeSyntax extends BaseSyntaxNode {
     public constructor(
         public readonly mainModule: StatementBlockSyntax,
-        public readonly subModules: ReadonlyArray<SubModuleDeclarationSyntax>) {
+        public readonly subModules: ReadonlyArray<SubModuleDeclarationSyntax>,
+        public readonly functions: ReadonlyArray<FunctionDeclarationSyntax> = []) {
         // Main statements may legally appear after sub modules, so the ranges
         // must be spanned (min start / max end), not combined in order.
         super(SyntaxKind.ParseTree, CompilerRange.spanning(
-            [mainModule.range, ...subModules.map(subModule => subModule.range)]));
+            [mainModule.range, ...subModules.map(subModule => subModule.range), ...functions.map(func => func.range)]));
     }
 
     public children(): ReadonlyArray<BaseSyntaxNode> {
-        return [this.mainModule, ...this.subModules];
+        return [this.mainModule, ...this.subModules, ...this.functions];
+    }
+}
+
+export class FunctionDeclarationSyntax extends BaseSyntaxNode {
+    public constructor(
+        public readonly functionCommand: FunctionCommandSyntax,
+        public readonly statementsList: StatementBlockSyntax,
+        public readonly endFunctionCommand: EndFunctionCommandSyntax) {
+        super(SyntaxKind.FunctionDeclaration, CompilerRange.combine(functionCommand.range, endFunctionCommand.range));
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.functionCommand, this.statementsList, this.endFunctionCommand];
     }
 }
 
@@ -338,6 +357,74 @@ export class EndSubCommandSyntax extends BaseCommandSyntax {
     }
 }
 
+export class FunctionCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly functionToken: TokenSyntax,
+        public readonly nameToken: TokenSyntax,
+        public readonly leftParenToken: TokenSyntax,
+        public readonly parameterTokens: ReadonlyArray<TokenSyntax>,
+        public readonly commaTokens: ReadonlyArray<TokenSyntax>,
+        public readonly rightParenToken: TokenSyntax) {
+        super(SyntaxKind.FunctionCommand, CompilerRange.combine(functionToken.range, rightParenToken.range));
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        const children: BaseSyntaxNode[] = [this.functionToken, this.nameToken, this.leftParenToken];
+        this.parameterTokens.forEach((parameter, index) => {
+            children.push(parameter);
+            if (index < this.commaTokens.length) {
+                children.push(this.commaTokens[index]);
+            }
+        });
+        children.push(this.rightParenToken);
+        return children;
+    }
+}
+
+export class EndFunctionCommandSyntax extends BaseCommandSyntax {
+    public constructor(public readonly endFunctionToken: TokenSyntax) {
+        super(SyntaxKind.EndFunctionCommand, endFunctionToken.range);
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.endFunctionToken];
+    }
+}
+
+export class DimCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly dimToken: TokenSyntax,
+        public readonly variableTokens: ReadonlyArray<TokenSyntax>,
+        public readonly commaTokens: ReadonlyArray<TokenSyntax>) {
+        super(SyntaxKind.DimCommand, variableTokens.length
+            ? CompilerRange.combine(dimToken.range, variableTokens[variableTokens.length - 1].range)
+            : dimToken.range);
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        const children: BaseSyntaxNode[] = [this.dimToken];
+        this.variableTokens.forEach((variable, index) => {
+            children.push(variable);
+            if (index < this.commaTokens.length) {
+                children.push(this.commaTokens[index]);
+            }
+        });
+        return children;
+    }
+}
+
+export class ReturnCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly returnToken: TokenSyntax,
+        public readonly expression: BaseExpressionSyntax) {
+        super(SyntaxKind.ReturnCommand, CompilerRange.combine(returnToken.range, expression.range));
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.returnToken, this.expression];
+    }
+}
+
 export class ExpressionCommandSyntax extends BaseCommandSyntax {
     public constructor(
         public readonly expression: BaseExpressionSyntax) {
@@ -521,6 +608,7 @@ export class SyntaxNodeVisitor {
         switch (node.kind) {
             case SyntaxKind.ParseTree: this.visitParseTree(node as ParseTreeSyntax); break;
             case SyntaxKind.SubModuleDeclaration: this.visitSubModuleDeclaration(node as SubModuleDeclarationSyntax); break;
+            case SyntaxKind.FunctionDeclaration: this.visitFunctionDeclaration(node as FunctionDeclarationSyntax); break;
             case SyntaxKind.StatementBlock: this.visitStatementBlock(node as StatementBlockSyntax); break;
             case SyntaxKind.IfHeader: this.visitIfHeader(node as IfHeaderSyntax<IfCommandSyntax | ElseIfCommandSyntax | ElseCommandSyntax>); break;
             case SyntaxKind.IfStatement: this.visitIfStatement(node as IfStatementSyntax); break;
@@ -539,6 +627,10 @@ export class SyntaxNodeVisitor {
             case SyntaxKind.GoToCommand: this.visitGoToCommand(node as GoToCommandSyntax); break;
             case SyntaxKind.SubCommand: this.visitSubCommand(node as SubCommandSyntax); break;
             case SyntaxKind.EndSubCommand: this.visitEndSubCommand(node as EndSubCommandSyntax); break;
+            case SyntaxKind.FunctionCommand: this.visitFunctionCommand(node as FunctionCommandSyntax); break;
+            case SyntaxKind.EndFunctionCommand: this.visitEndFunctionCommand(node as EndFunctionCommandSyntax); break;
+            case SyntaxKind.DimCommand: this.visitDimCommand(node as DimCommandSyntax); break;
+            case SyntaxKind.ReturnCommand: this.visitReturnCommand(node as ReturnCommandSyntax); break;
             case SyntaxKind.ExpressionCommand: this.visitExpressionCommand(node as ExpressionCommandSyntax); break;
             case SyntaxKind.CommentCommand: this.visitCommentCommand(node as CommentCommandSyntax); break;
             case SyntaxKind.UnaryOperatorExpression: this.visitUnaryOperatorExpression(node as UnaryOperatorExpressionSyntax); break;
@@ -561,6 +653,10 @@ export class SyntaxNodeVisitor {
     }
 
     public visitSubModuleDeclaration(node: SubModuleDeclarationSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitFunctionDeclaration(node: FunctionDeclarationSyntax): void {
         this.defaultVisit(node);
     }
 
@@ -633,6 +729,22 @@ export class SyntaxNodeVisitor {
     }
 
     public visitEndSubCommand(node: EndSubCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitFunctionCommand(node: FunctionCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitEndFunctionCommand(node: EndFunctionCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitDimCommand(node: DimCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitReturnCommand(node: ReturnCommandSyntax): void {
         this.defaultVisit(node);
     }
 

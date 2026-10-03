@@ -1,5 +1,6 @@
 import {
   Compilation,
+  CompilerPosition,
   CompilerUtils,
   RuntimeLibraries,
   TokenKind
@@ -13,6 +14,7 @@ export const semanticTokenTypes: readonly LanguageSemanticTokenType[] = [
   "number",
   "class",
   "function",
+  "parameter",
   "variable"
 ] as const;
 
@@ -31,6 +33,10 @@ const keywordKinds = new Set<TokenKind>([
   TokenKind.EndWhileKeyword,
   TokenKind.SubKeyword,
   TokenKind.EndSubKeyword,
+  TokenKind.FunctionKeyword,
+  TokenKind.EndFunctionKeyword,
+  TokenKind.DimKeyword,
+  TokenKind.ReturnKeyword,
   TokenKind.And,
   TokenKind.Or
 ]);
@@ -39,7 +45,7 @@ export function provideSemanticTokens(compilation: Compilation): LanguageSemanti
   const tokens: LanguageSemanticToken[] = [];
 
   for (const token of compilation.tokens) {
-    const type = mapTokenType(compilation, token.kind, token.text);
+    const type = mapTokenType(compilation, token.kind, token.text, token.range.start);
     if (!type) {
       continue;
     }
@@ -56,7 +62,7 @@ export function provideSemanticTokens(compilation: Compilation): LanguageSemanti
   return tokens;
 }
 
-function mapTokenType(compilation: Compilation, kind: TokenKind, text: string): LanguageSemanticTokenType | undefined {
+function mapTokenType(compilation: Compilation, kind: TokenKind, text: string, position: CompilerPosition): LanguageSemanticTokenType | undefined {
   if (keywordKinds.has(kind)) {
     return "keyword";
   }
@@ -72,8 +78,13 @@ function mapTokenType(compilation: Compilation, kind: TokenKind, text: string): 
       if (CompilerUtils.lookupIgnoreCase(RuntimeLibraries.Metadata, text) !== undefined) {
         return "class";
       }
-      if (CompilerUtils.lookupIgnoreCase(compilation.boundSubModules, text) !== undefined) {
+      if (CompilerUtils.lookupIgnoreCase(compilation.procedures, text) !== undefined) {
         return "function";
+      }
+      if (compilation.parseTree.functions.some((func) =>
+        func.range.containsPosition(position)
+        && func.functionCommand.parameterTokens.some((parameter) => parameter.token.text.toLowerCase() === text.toLowerCase()))) {
+        return "parameter";
       }
       return "variable";
     default:

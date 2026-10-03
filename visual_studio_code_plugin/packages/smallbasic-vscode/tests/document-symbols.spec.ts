@@ -7,7 +7,7 @@ function outline(text: string): OutlineSymbol[] {
 }
 
 function render(symbol: OutlineSymbol): string {
-  const kind = symbol.kind === "sub" ? "Sub" : "Var";
+  const kind = symbol.kind === "sub" ? "Sub" : symbol.kind === "function" ? "Function" : "Var";
   return `${kind} ${symbol.name}@${symbol.selectionRange.start.line}:${symbol.selectionRange.start.column}`;
 }
 
@@ -67,5 +67,24 @@ describe("document outline", () => {
     const symbols = outline(["x = 1", "x = 2", "y = x"].join("\n"));
 
     expect(symbols.map(render)).toEqual(["Var x@0:0", "Var y@2:0"]);
+  });
+
+  it("lists functions and nests parameters and Dim variables", () => {
+    const symbols = outline([
+      "Function Add(Left, Right)",
+      "  Dim Result",
+      "  Result = Left + Right",
+      "  Return Result",
+      "EndFunction",
+      "answer = Add(1, 2)"
+    ].join("\n"));
+
+    expect(symbols.map(render)).toEqual(["Function Add@0:9", "Var answer@5:0"]);
+    expect(symbols[0].children.map(render)).toEqual([
+      "Var Left@0:13",
+      "Var Right@0:19",
+      "Var Result@1:6"
+    ]);
+    expect(symbols[0].detail).toBe("Function Add(Left, Right)");
   });
 });

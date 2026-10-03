@@ -3,6 +3,7 @@ import { ExecutionEngine, ExecutionMode, StackFrame } from "../../../vendor/Smal
 import { BaseInstruction, InstructionKind } from "../../../vendor/SmallBasicOnline/src/compiler/emitting/instructions";
 import { ModulesBinder } from "../../../vendor/SmallBasicOnline/src/compiler/binding/modules-binder";
 import { BaseValue } from "../../../vendor/SmallBasicOnline/src/compiler/runtime/values/base-value";
+import { ArrayValue } from "../../../vendor/SmallBasicOnline/src/compiler/runtime/values/array-value";
 
 // Synthetic variable used to capture the expression result. It is restored
 // (or removed) after every evaluation, so it never leaks into program memory.
@@ -55,12 +56,27 @@ export function compileDebugExpression(text: string): CompiledDebugExpression | 
  */
 export function evaluateDebugExpression(
   engine: ExecutionEngine,
-  expression: CompiledDebugExpression
+  expression: CompiledDebugExpression,
+  selectedFrame?: StackFrame
 ): BaseValue | undefined {
   const savedState = engine.state;
-  const previous = engine.memory.getValue(expression.resultVariable);
+  selectedFrame ??= engine.executionStack.length
+    ? engine.executionStack[engine.executionStack.length - 1]
+    : undefined;
+  const localMemory = selectedFrame?.localMemory ?? new ArrayValue();
+  const resultMemory = localMemory.getValue(expression.resultVariable) !== undefined
+    ? localMemory
+    : engine.memory;
+  const previous = resultMemory.getValue(expression.resultVariable);
   const hadPrevious = previous !== undefined;
-  const frame: StackFrame = { moduleName: "<debug-expression>", instructionIndex: 0 };
+  const evaluationStackBase = engine.evaluationStack.length;
+  const frame: StackFrame = {
+    moduleName: "<debug-expression>",
+    instructionIndex: 0,
+    localMemory,
+    evaluationStackBase,
+    returnsValue: false
+  };
 
   try {
     let steps = 0;
@@ -73,16 +89,16 @@ export function evaluateDebugExpression(
       expression.instructions[frame.instructionIndex].execute(engine, ExecutionMode.Debug, frame);
     }
 
-    return engine.memory.getValue(expression.resultVariable);
+    return resultMemory.getValue(expression.resultVariable);
   } finally {
-    while (engine.evaluationStack.length > 0) {
+    while (engine.evaluationStack.length > evaluationStackBase) {
       engine.popEvaluationStack();
     }
 
     if (hadPrevious && previous) {
-      engine.memory.setIndex(expression.resultVariable, previous);
+      resultMemory.setIndex(expression.resultVariable, previous);
     } else {
-      engine.memory.deleteIndex(expression.resultVariable);
+      resultMemory.deleteIndex(expression.resultVariable);
     }
 
     engine.state = savedState;

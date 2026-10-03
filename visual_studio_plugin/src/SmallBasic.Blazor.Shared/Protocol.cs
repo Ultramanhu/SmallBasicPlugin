@@ -8,7 +8,7 @@ namespace SmallBasic.Blazor.Shared;
 /// </summary>
 public static class DebugProtocol
 {
-    public const int Version = 1;
+    public const int Version = 2;
 }
 
 public sealed class SessionDescriptor
@@ -96,6 +96,8 @@ public sealed class DebugFrame
     public required string Name { get; init; }
 
     public int Line { get; init; }
+
+    public DebugVariable[] Variables { get; init; } = Array.Empty<DebugVariable>();
 }
 
 public sealed class DebugVariable

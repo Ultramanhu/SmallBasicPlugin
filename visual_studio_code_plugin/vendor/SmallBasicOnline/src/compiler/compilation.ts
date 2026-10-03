@@ -2,7 +2,7 @@ import { ModuleEmitter } from "./emitting/module-emitter";
 import { BaseInstruction } from "./emitting/instructions";
 import { CommandsParser } from "./syntax/command-parser";
 import { Diagnostic } from "./utils/diagnostics";
-import { ModulesBinder } from "./binding/modules-binder";
+import { ModuleMetadata, ModulesBinder, ProcedureSymbol } from "./binding/modules-binder";
 import { Scanner } from "./syntax/scanner";
 import { Token } from "./syntax/tokens";
 import { StatementsParser } from "./syntax/statements-parser";
@@ -21,6 +21,8 @@ export class Compilation {
     public readonly tokens: ReadonlyArray<Token>;
     public readonly parseTree: ParseTreeSyntax;
     public readonly boundSubModules: { [name: string]: BoundStatementBlock };
+    public readonly moduleMetadata: { readonly [name: string]: ModuleMetadata };
+    public readonly procedures: { readonly [name: string]: ProcedureSymbol };
     public readonly diagnostics: Diagnostic[] = [];
 
     public get isReadyToRun(): boolean {
@@ -47,6 +49,8 @@ export class Compilation {
 
         const binder = new ModulesBinder(this.parseTree, this.diagnostics);
         this.boundSubModules = binder.boundModules;
+        this.moduleMetadata = binder.moduleMetadata;
+        this.procedures = binder.definedProcedures;
     }
 
     public emit(): { readonly [name: string]: ReadonlyArray<BaseInstruction> } {

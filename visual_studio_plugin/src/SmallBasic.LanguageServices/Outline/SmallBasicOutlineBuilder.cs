@@ -21,7 +21,7 @@ namespace SmallBasic.LanguageServices.Outline
 
             foreach (OutlineItem item in compilation.GetOutlineItems())
             {
-                if (item.Kind == OutlineItemKind.Procedure)
+                if (item.Kind == OutlineItemKind.Procedure || item.Kind == OutlineItemKind.Function)
                 {
                     procedureNodes.Add(ToProcedureNode(filePath, item));
                 }
@@ -50,7 +50,7 @@ namespace SmallBasic.LanguageServices.Outline
         private static SmallBasicOutlineNodeInfo ToProcedureNode(string filePath, OutlineItem item)
         {
             return new SmallBasicOutlineNodeInfo(
-                displayText: $"Sub {item.Name}",
+                displayText: item.Detail,
                 filePath: filePath,
                 line: item.SelectionRange.Start.Line,
                 column: item.SelectionRange.Start.Column,

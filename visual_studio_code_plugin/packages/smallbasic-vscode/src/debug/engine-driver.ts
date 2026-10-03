@@ -5,6 +5,7 @@ import {
   CompiledDebugExpression,
   compileDebugExpression,
   evaluateDebugCondition,
+  evaluateDebugExpression,
   ExecutionEngine,
   ExecutionMode,
   ExecutionState,
@@ -40,9 +41,9 @@ export interface DebugSourceReader {
 
 export type RunControl =
   | { kind: "continue" }
-  | { kind: "stepIn"; depth: number }
-  | { kind: "next"; depth: number }
-  | { kind: "stepOut"; depth: number };
+  | { kind: "stepIn"; depth: number; line?: number }
+  | { kind: "next"; depth: number; line?: number }
+  | { kind: "stepOut"; depth: number; line?: number };
 
 export interface DebugBreakpointRequest {
   /** 0-based requested line. */
@@ -58,12 +59,16 @@ export interface DebugBreakpoint extends DebugBreakpointRequest {
 }
 
 export interface DebugFrame {
+  /** DAP-compatible frame identifier: 1 is the top frame. */
+  id: number;
   /** Module name, used as the frame label. */
   name: string;
   /** 0-based. */
   line: number;
   /** 0-based. */
   column: number;
+  /** Parameters and Dim variables visible in this frame. */
+  variables: DebugVariableValue[];
 }
 
 export interface DebugVariableValue {
@@ -212,7 +217,12 @@ export class DebugEngineDriver {
   }
 
   public step(depth: number, kind: "stepIn" | "next" | "stepOut"): void {
-    this.activeControl = { kind, depth };
+    const frames = this.frames();
+    // For Next, skip the remaining VM instructions on the current source line.
+    // For Step Out, also skip the rest of the caller's invocation line after the
+    // callee frame disappears, and stop at the caller's following statement.
+    const line = kind === "stepOut" ? frames[1]?.line : frames[0]?.line;
+    this.activeControl = { kind, depth, line };
     this.pauseRequested = false;
     this.resume();
   }
@@ -250,18 +260,30 @@ export class DebugEngineDriver {
       return [];
     }
 
-    return [...this.engine.executionStack].reverse().map((frame) => {
+    return [...this.engine.executionStack].reverse().map((frame, index) => {
       const instruction = this.instructionFor(frame.moduleName, frame.instructionIndex);
       return {
+        id: index + 1,
         name: frame.moduleName,
         line: instruction?.sourceRange.start.line ?? 0,
-        column: instruction?.sourceRange.start.column ?? 0
+        column: instruction?.sourceRange.start.column ?? 0,
+        variables: this.valuesFromMemory(frame.localMemory.values)
       };
     });
   }
 
   public variables(): DebugVariableValue[] {
     const memory = this.engine?.memory.values ?? {};
+    return this.valuesFromMemory(memory);
+  }
+
+  /** Returns the parameters and Dim variables for a top-first frame id. */
+  public localVariables(frameId: number): DebugVariableValue[] {
+    const frame = this.getFrame(frameId);
+    return frame ? this.valuesFromMemory(frame.localMemory.values) : [];
+  }
+
+  private valuesFromMemory(memory: { readonly [name: string]: BaseValue }): DebugVariableValue[] {
     return Object.keys(memory)
       .sort((left, right) => left.localeCompare(right))
       .map((name) => this.toVariableValue(name, memory[name]));
@@ -291,10 +313,25 @@ export class DebugEngineDriver {
     };
   }
 
-  public findVariable(name: string): DebugVariableValue | undefined {
-    const variables = this.variables();
+  public findVariable(name: string, frameId = 1): DebugVariableValue | undefined {
+    const variables = [...this.localVariables(frameId), ...this.variables()];
     return variables.find((variable) => variable.name === name)
       ?? variables.find((variable) => variable.name.toLowerCase() === name.toLowerCase());
+  }
+
+  /** Evaluates an expression with the selected frame's locals and the live globals. */
+  public evaluate(expressionText: string, frameId = 1): DebugVariableValue | undefined {
+    if (!this.engine) {
+      return undefined;
+    }
+
+    const expression = compileDebugExpression(expressionText);
+    if (!expression) {
+      return undefined;
+    }
+
+    const value = evaluateDebugExpression(this.engine, expression, this.getFrame(frameId));
+    return value ? this.toVariableValue(expressionText, value) : undefined;
   }
 
   /** Called by the TextWindow plugin; keeps the driver the only emitter. */
@@ -451,9 +488,9 @@ export class DebugEngineDriver {
       case "stepIn":
         return "step";
       case "next":
-        return depth <= this.activeControl.depth ? "step" : undefined;
+        return depth <= this.activeControl.depth && this.currentLine() !== this.activeControl.line ? "step" : undefined;
       case "stepOut":
-        return depth < this.activeControl.depth ? "step" : undefined;
+        return depth < this.activeControl.depth && this.currentLine() !== this.activeControl.line ? "step" : undefined;
       case "continue":
         return await this.shouldStopAtLine(this.currentLine()) ? "breakpoint" : undefined;
       default:
@@ -505,6 +542,15 @@ export class DebugEngineDriver {
     }
 
     return instructions[instructionIndex];
+  }
+
+  private getFrame(frameId: number) {
+    const stack = this.engine?.executionStack;
+    if (!stack || frameId < 1 || frameId > stack.length) {
+      return undefined;
+    }
+
+    return stack[stack.length - frameId];
   }
 
   private toVariableValue(name: string, value: BaseValue): DebugVariableValue {

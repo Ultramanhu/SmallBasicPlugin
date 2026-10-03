@@ -70,4 +70,54 @@ describe("SmallBasicLanguageService document state", () => {
       setDocumentationLocale(undefined);
     }
   });
+
+  it("offers Function completions with argument placeholders and signature help", () => {
+    const service = new SmallBasicLanguageService();
+    const source = [
+      "Function Add(Left, Right)",
+      "  Return Left + Right",
+      "EndFunction",
+      "answer = Ad"
+    ].join("\n");
+
+    const completions = service.provideCompletionItems(URI, source, 1, { line: 3, column: 11 });
+    const add = completions.items.find((item) => item.filterText === "Add");
+    expect(add?.label).toBe("Add(Left, Right)");
+    expect(add?.insertText).toBe("Add(${1:Left}, ${2:Right})");
+
+    const callSource = source.replace("answer = Ad", "answer = Add(1, ");
+    const help = service.provideSignatureHelp(URI, callSource, 2, { line: 3, column: 16 });
+    expect(help?.signatures[0].label).toBe("Add(Left, Right)");
+    expect(help?.activeParameter).toBe(1);
+  });
+
+  it("describes user functions, parameters, and Dim locals on hover", () => {
+    const service = new SmallBasicLanguageService();
+    const source = [
+      "Function Add(Left, Right)",
+      "  Dim Result",
+      "  Result = Left + Right",
+      "  Return Result",
+      "EndFunction",
+      "answer = Add(1, 2)"
+    ].join("\n");
+
+    expect(service.provideHover(URI, source, 1, { line: 5, column: 10 })?.contents).toEqual([
+      "Function Add(Left, Right)",
+      "User-defined function"
+    ]);
+    expect(service.provideHover(URI, source, 1, { line: 2, column: 11 })?.contents).toEqual([
+      "Parameter Left",
+      "Function-scoped parameter"
+    ]);
+    expect(service.provideHover(URI, source, 1, { line: 3, column: 10 })?.contents).toEqual([
+      "Local variable Result",
+      "Procedure-scoped variable declared with Dim"
+    ]);
+
+    const tokens = service.provideSemanticTokens(URI, source, 1);
+    expect(tokens.find((token) => token.line === 0 && token.column === 13)?.type).toBe("parameter");
+    expect(tokens.find((token) => token.line === 2 && token.column === 11)?.type).toBe("parameter");
+    expect(tokens.find((token) => token.line === 1 && token.column === 6)?.type).toBe("variable");
+  });
 });

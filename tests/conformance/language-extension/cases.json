@@ -1,0 +1,209 @@
+[
+  {
+    "name": "multi-parameter function",
+    "source": [
+      "Function Add(Left, Right)",
+      "  Return Left + Right",
+      "EndFunction",
+      "Answer = Add(20, 22)",
+      "TextWindow.WriteLine(Answer)"
+    ],
+    "stdout": ["42"],
+    "globals": { "Answer": "42" }
+  },
+  {
+    "name": "no-parameter fallthrough returns empty",
+    "source": [
+      "Function Empty()",
+      "  Dim Local",
+      "  Local = 1",
+      "EndFunction",
+      "Answer = Empty()",
+      "TextWindow.WriteLine(\"[\" + Answer + \"]\")"
+    ],
+    "stdout": ["[]"],
+    "globals": { "Answer": "" }
+  },
+  {
+    "name": "nested calls and library argument",
+    "source": [
+      "Function Increment(Value)",
+      "  Return Value + 1",
+      "EndFunction",
+      "TextWindow.WriteLine(Increment(Increment(3)))"
+    ],
+    "stdout": ["5"],
+    "globals": {}
+  },
+  {
+    "name": "recursive frames",
+    "source": [
+      "Function Factorial(N)",
+      "  If N <= 1 Then",
+      "    Return 1",
+      "  EndIf",
+      "  Return N * Factorial(N - 1)",
+      "EndFunction",
+      "Answer = Factorial(6)"
+    ],
+    "stdout": [],
+    "globals": { "Answer": "720" }
+  },
+  {
+    "name": "parameter and Dim shadow globals",
+    "source": [
+      "Value = 100",
+      "Local = 200",
+      "Function Calculate(Value)",
+      "  Dim Local",
+      "  Local = Value + 1",
+      "  Return Local",
+      "EndFunction",
+      "Answer = Calculate(4)"
+    ],
+    "stdout": [],
+    "globals": { "Value": "100", "Local": "200", "Answer": "5" }
+  },
+  {
+    "name": "same local name belongs to separate procedures",
+    "source": [
+      "Function One()",
+      "  Dim Temporary",
+      "  Temporary = 1",
+      "  Return Temporary",
+      "EndFunction",
+      "Function Two()",
+      "  Dim Temporary",
+      "  Temporary = 2",
+      "  Return Temporary",
+      "EndFunction",
+      "First = One()",
+      "Second = Two()"
+    ],
+    "stdout": [],
+    "globals": { "First": "1", "Second": "2" }
+  },
+  {
+    "name": "return exits nested control flow",
+    "source": [
+      "Function FindThird()",
+      "  Dim Index",
+      "  Index = 0",
+      "  While Index < 5",
+      "    Index = Index + 1",
+      "    If Index = 3 Then",
+      "      Return Index",
+      "    EndIf",
+      "  EndWhile",
+      "  Return 0",
+      "EndFunction",
+      "Answer = FindThird()"
+    ],
+    "stdout": [],
+    "globals": { "Answer": "3" }
+  },
+  {
+    "name": "array parameter has ByVal reference semantics",
+    "source": [
+      "Function Change(Item)",
+      "  Item[\"changed\"] = \"yes\"",
+      "  Item = \"replacement\"",
+      "  Return Item",
+      "EndFunction",
+      "Source[\"initial\"] = \"value\"",
+      "Returned = Change(Source)",
+      "TextWindow.WriteLine(Returned)",
+      "TextWindow.WriteLine(Source[\"changed\"])"
+    ],
+    "stdout": ["replacement", "yes"],
+    "globals": { "Returned": "replacement" }
+  },
+  {
+    "name": "undeclared procedure variable remains global",
+    "source": [
+      "Counter = 0",
+      "Increment()",
+      "Sub Increment",
+      "  Counter = Counter + 1",
+      "EndSub"
+    ],
+    "stdout": [],
+    "globals": { "Counter": "1" }
+  },
+  {
+    "name": "top-level Dim creates an empty global",
+    "source": [
+      "Dim Declared",
+      "TextWindow.WriteLine(\"[\" + Declared + \"]\")"
+    ],
+    "stdout": ["[]"],
+    "globals": { "Declared": "" }
+  },
+  {
+    "name": "keywords and calls are ASCII case insensitive",
+    "source": [
+      "fUnCtIoN Double(Value)",
+      "  rEtUrN Value * 2",
+      "eNdFuNcTiOn",
+      "Answer = dOuBlE(5)"
+    ],
+    "stdout": [],
+    "globals": { "Answer": "10" }
+  },
+  {
+    "name": "forward mutual function calls",
+    "source": [
+      "Function IsEven(N)",
+      "  If N = 0 Then",
+      "    Return \"True\"",
+      "  EndIf",
+      "  Return IsOdd(N - 1)",
+      "EndFunction",
+      "Function IsOdd(N)",
+      "  If N = 0 Then",
+      "    Return \"False\"",
+      "  EndIf",
+      "  Return IsEven(N - 1)",
+      "EndFunction",
+      "Answer = IsEven(8)"
+    ],
+    "stdout": [],
+    "globals": { "Answer": "True" }
+  },
+  {
+    "name": "argument count diagnostic",
+    "source": [
+      "Function Identity(Value)",
+      "  Return Value",
+      "EndFunction",
+      "Answer = Identity()"
+    ],
+    "diagnostics": ["UnexpectedArgumentsCount"]
+  },
+  {
+    "name": "Return outside Function diagnostic",
+    "source": ["Return 1"],
+    "diagnostics": ["ReturnOutsideFunction"]
+  },
+  {
+    "name": "nested Dim diagnostic",
+    "source": [
+      "Sub Work",
+      "  If \"True\" Then",
+      "    Dim Nested",
+      "  EndIf",
+      "EndSub"
+    ],
+    "diagnostics": ["DimMustBeAtProcedureLevel"]
+  },
+  {
+    "name": "function event handler diagnostic",
+    "source": [
+      "Function Handler()",
+      "  Return 1",
+      "EndFunction",
+      "GraphicsWindow.KeyDown = Handler"
+    ],
+    "diagnostics": ["FunctionCannotBeEventHandler"]
+  }
+]

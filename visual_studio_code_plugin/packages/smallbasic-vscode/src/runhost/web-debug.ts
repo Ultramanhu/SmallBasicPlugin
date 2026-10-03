@@ -1,5 +1,6 @@
 import { ValueKind } from "smallbasic-lang-core";
 import { DebugEngineDriver, type DebugSnapshot } from "../debug/engine-driver";
+import { DEBUG_PROTOCOL_VERSION } from "../web/debug-protocol";
 
 /**
  * Browser-side debug session of the JavaScript backend for `mode: "web"`.
@@ -18,7 +19,7 @@ import { DebugEngineDriver, type DebugSnapshot } from "../debug/engine-driver";
 const EXIT_COMPILE_ERROR = 2;
 
 /** Version of the web debug protocol (mirrors `debug-protocol.ts`). */
-const PROTOCOL_VERSION = 1;
+const PROTOCOL_VERSION = DEBUG_PROTOCOL_VERSION;
 
 /** The browser session hosts exactly one program; its path is symbolic. */
 const PROGRAM_PATH = "program.sb";
@@ -201,7 +202,11 @@ export class BrowserDebugSession {
   private snapshotFields(snapshot: DebugSnapshot): Record<string, unknown> {
     return {
       line: snapshot.frames[0]?.line ?? 0,
-      frames: snapshot.frames.map((frame) => ({ name: frame.name, line: frame.line })),
+      frames: snapshot.frames.map((frame) => ({
+        name: frame.name,
+        line: frame.line,
+        variables: this.driver ? frame.variables.map((variable) => this.driver!.toVariableTree(variable)) : []
+      })),
       variables: this.driver ? snapshot.variables.map((variable) => this.driver!.toVariableTree(variable)) : []
     };
   }

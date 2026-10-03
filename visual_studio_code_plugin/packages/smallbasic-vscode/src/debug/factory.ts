@@ -7,7 +7,7 @@ import { createWebInlineAdapter } from "../web/inline-factory";
 export class SmallBasicDebugAdapterFactory implements vscode.DebugAdapterDescriptorFactory {
   public constructor(private readonly context: vscode.ExtensionContext) {}
 
-  public createDebugAdapterDescriptor(session: vscode.DebugSession): vscode.ProviderResult<vscode.DebugAdapterDescriptor> {
+  public async createDebugAdapterDescriptor(session: vscode.DebugSession): Promise<vscode.DebugAdapterDescriptor | undefined> {
     // `mode: "web"` never falls back to a local process even when one is
     // available: it must share the browser-compatible inline adapters with
     // VS Code for the Web (see src/web/inline-factory.ts).
@@ -40,6 +40,14 @@ export class SmallBasicDebugAdapterFactory implements vscode.DebugAdapterDescrip
         void vscode.window.showErrorMessage(
           "未找到可用的 SmallBasic C# 调试宿主。请安装 .NET 8、重新安装完整扩展，" +
           "或在 smallbasic.csharp.runHostPath 中指定宿主路径。"
+        );
+        return undefined;
+      }
+
+      if (!await CSharpRunner.supportsFunctions(host)) {
+        void vscode.window.showErrorMessage(
+          "当前 SmallBasic C# 调试宿主不支持 Function/Dim/Return。" +
+          "请升级扩展内置宿主，或更新 smallbasic.csharp.runHostPath 指向的自定义宿主。"
         );
         return undefined;
       }

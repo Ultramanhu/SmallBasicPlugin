@@ -35,6 +35,7 @@ public sealed class BlazorDebugAdapter
     private bool localEndSent;
     private string activeControl = "continue";
     private int activeControlDepth;
+    private int? activeControlLine;
     private bool pauseRequested;
     private TaskCompletionSource<bool> resumeSignal = NewSignal();
     private TaskCompletionSource<bool> inputSignal = NewSignal();
@@ -83,7 +84,7 @@ public sealed class BlazorDebugAdapter
                 this.SendResponse(requestSequence, command, new JsonObject
                 {
                     ["supportsConfigurationDoneRequest"] = true,
-                    ["supportsEvaluateForHovers"] = false,
+                    ["supportsEvaluateForHovers"] = true,
                     ["supportsStepBack"] = false,
                     ["supportsRestartRequest"] = false,
                 });
@@ -114,13 +115,7 @@ public sealed class BlazorDebugAdapter
                 this.HandleStackTrace(requestSequence, command);
                 break;
             case "scopes":
-                this.SendResponse(requestSequence, command, new JsonObject
-                {
-                    ["scopes"] = new JsonArray(new JsonObject
-                    {
-                        ["name"] = "Globals", ["variablesReference"] = 1, ["expensive"] = false,
-                    }),
-                });
+                this.HandleScopes(requestSequence, command, arguments);
                 break;
             case "variables":
                 this.HandleVariables(requestSequence, command, arguments);
@@ -344,6 +339,22 @@ public sealed class BlazorDebugAdapter
         this.SendResponse(requestSequence, command, new JsonObject { ["variables"] = variables });
     }
 
+    private void HandleScopes(int requestSequence, string command, JsonObject? arguments)
+    {
+        int frameId = (int?)arguments?["frameId"] ?? 1;
+        DebugVariable[] locals = frameId > 0 && frameId <= (this.snapshot?.Frames.Length ?? 0)
+            ? this.snapshot!.Frames[frameId - 1].Variables
+            : Array.Empty<DebugVariable>();
+        int localsReference = this.nextVariableHandle++;
+        this.variableHandles[localsReference] = locals;
+        this.SendResponse(requestSequence, command, new JsonObject
+        {
+            ["scopes"] = new JsonArray(
+                new JsonObject { ["name"] = "Globals", ["variablesReference"] = 1, ["expensive"] = false },
+                new JsonObject { ["name"] = "Locals", ["variablesReference"] = localsReference, ["expensive"] = false }),
+        });
+    }
+
     private async Task HandleEvaluateAsync(int requestSequence, string command, JsonObject? arguments)
     {
         string expression = (string?)arguments?["expression"] ?? string.Empty;
@@ -363,6 +374,31 @@ public sealed class BlazorDebugAdapter
             await this.session.SendAsync(new HostMessage { Type = "input", Text = expression });
             this.waitingForInput = false;
             this.SendResponse(requestSequence, command, new JsonObject { ["result"] = expression, ["variablesReference"] = 0 });
+            return;
+        }
+
+        int frameId = (int?)arguments?["frameId"] ?? 1;
+        IEnumerable<DebugVariable> visible = this.snapshot?.Variables ?? Array.Empty<DebugVariable>();
+        if (frameId > 0 && frameId <= (this.snapshot?.Frames.Length ?? 0))
+        {
+            visible = this.snapshot!.Frames[frameId - 1].Variables.Concat(visible);
+        }
+
+        DebugVariable? value = visible.FirstOrDefault(variable => string.Equals(variable.Name, expression, StringComparison.OrdinalIgnoreCase));
+        if (value is not null)
+        {
+            int reference = 0;
+            if (value.Children.Length > 0)
+            {
+                reference = this.nextVariableHandle++;
+                this.variableHandles[reference] = value.Children;
+            }
+
+            this.SendResponse(requestSequence, command, new JsonObject
+            {
+                ["result"] = value.Value,
+                ["variablesReference"] = reference,
+            });
             return;
         }
 
@@ -451,6 +487,7 @@ public sealed class BlazorDebugAdapter
         {
             this.activeControl = control;
             this.activeControlDepth = this.localEngine.GetSnapshot().ExecutionStack.Count;
+            this.activeControlLine = this.GetLocalStepLine(control == "stepOut");
             if (control == "pause")
             {
                 this.pauseRequested = true;
@@ -583,10 +620,22 @@ public sealed class BlazorDebugAdapter
         return this.activeControl switch
         {
             "stepIn" => "step",
-            "next" => depth <= this.activeControlDepth ? "step" : null,
-            "stepOut" => depth < this.activeControlDepth ? "step" : null,
+            "next" => depth <= this.activeControlDepth && this.localEngine?.CurrentSourceLine != this.activeControlLine ? "step" : null,
+            "stepOut" => depth < this.activeControlDepth && this.localEngine?.CurrentSourceLine != this.activeControlLine ? "step" : null,
             _ => this.localEngine is not null && this.IsBreakpointAtLine(this.localEngine.CurrentSourceLine) ? "breakpoint" : null,
         };
+    }
+
+    private int? GetLocalStepLine(bool stepOut)
+    {
+        DebuggerSnapshot? snapshot = this.localEngine?.GetSnapshot();
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        Frame? frame = snapshot.ExecutionStack.Reverse().ElementAtOrDefault(stepOut ? 1 : 0);
+        return frame?.CurrentSourceLine;
     }
 
     private bool IsBreakpointAtLine(int line) => this.AllBreakpoints().Contains(line);
@@ -614,6 +663,7 @@ public sealed class BlazorDebugAdapter
             {
                 Name = frame.Module.Name,
                 Line = frame.CurrentSourceLine,
+                Variables = frame.Locals.OrderBy(pair => pair.Key).Select(pair => ConvertLocalVariable(pair.Key, pair.Value)).ToArray(),
             }).ToArray(),
             Variables = current.Memory.OrderBy(pair => pair.Key).Select(pair => ConvertLocalVariable(pair.Key, pair.Value)).ToArray(),
         });

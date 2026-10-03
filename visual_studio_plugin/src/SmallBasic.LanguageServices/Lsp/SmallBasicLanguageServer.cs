@@ -398,6 +398,7 @@ namespace SmallBasic.LanguageServices
             return new JsonObject
             {
                 ["name"] = symbol.Name,
+                ["detail"] = symbol.Detail,
                 ["kind"] = (int)symbol.Kind,
                 ["range"] = ToJsonRange(symbol.Range),
                 ["selectionRange"] = ToJsonRange(symbol.SelectionRange),

@@ -74,12 +74,15 @@ main().catch((error) => {
 
 async function main() {
     const targetTriple = targetFlag || hostTriple();
+    // Mobile targets bundle no sidecars: the .NET hosts do not ship for
+    // Android, and the page falls back to its two Web backends there.
+    const isAndroid = targetTriple.endsWith("-android");
     const rid = RID_BY_TRIPLE[targetTriple];
-    if (!rid) {
+    if (!rid && !isAndroid) {
         throw new Error(`Unsupported target triple: ${targetTriple}. Known triples: ${Object.keys(RID_BY_TRIPLE).join(", ")}`);
     }
 
-    console.log(`==> Staging the local playground for ${targetTriple} (${rid}) into ${STAGE_ROOT}`);
+    console.log(`==> Staging the local playground for ${targetTriple}${rid ? ` (${rid})` : ""} into ${STAGE_ROOT}`);
     ensurePrerequisites();
 
     // 1. Shared page site: playground-dist + Blazor shell + web JS backend.
@@ -105,14 +108,15 @@ async function main() {
         fs.rmSync(path.join(STAGE_RESOURCES, NET48_PAYLOAD), { recursive: true, force: true });
     }
 
-    // bin/ must hold exactly the sidecar of the current target.
-    pruneStaleSidecars(targetTriple, exeSuffix);
+    // bin/ must hold exactly the sidecar of the current target (nothing at
+    // all on Android, which has no sidecar).
+    pruneStaleSidecars(targetTriple, exeSuffix, isAndroid);
 
     // 2. Target-specific payloads.
-    if (!skipSidecars) {
+    if (!skipSidecars && !isAndroid) {
         stageSidecars(targetTriple, rid, exeSuffix);
     } else {
-        console.log("==> Skipping sidecar staging (--skip-sidecars)");
+        console.log("==> Skipping sidecar staging");
     }
 
     // 3. Manifest with hashes for CI verification (doc 10, §18.5).
@@ -316,15 +320,15 @@ function listSampleFiles(root) {
 
 /**
  * Keeps `bin/` limited to the current target's sidecar: files left behind by a
- * removed backend (Node/Blazor) or by another target triple would otherwise be
- * picked up by `bundle.externalBin` on the next package.
+ * removed backend or by another target triple would otherwise be picked up by
+ * `bundle.externalBin` on the next package. Android stages no sidecar at all.
  */
-function pruneStaleSidecars(targetTriple, exeSuffix) {
+function pruneStaleSidecars(targetTriple, exeSuffix, isAndroid = false) {
     if (!fs.existsSync(STAGE_BIN)) {
         return;
     }
 
-    const expected = new Set([`smallbasic-csharp-net8-${targetTriple}${exeSuffix}`]);
+    const expected = new Set(isAndroid ? [] : [`smallbasic-csharp-net8-${targetTriple}${exeSuffix}`]);
     for (const entry of fs.readdirSync(STAGE_BIN, { withFileTypes: true })) {
         if (entry.isFile() && !expected.has(entry.name)) {
             console.log(`==> Removing stale sidecar: ${entry.name}`);

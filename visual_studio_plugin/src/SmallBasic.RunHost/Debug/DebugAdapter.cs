@@ -15,12 +15,15 @@ using SmallBasic.RunHost.Libraries;
 public sealed class DebugAdapter
 {
     private const int ThreadId = 1;
+    private const long GlobalsReference = 1;
 
     private readonly DapStream dap;
     private readonly Dictionary<string, List<SessionBreakpoint>> breakpoints = new Dictionary<string, List<SessionBreakpoint>>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<long, ArrayValue> arrayHandles = new Dictionary<long, ArrayValue>();
+    private readonly Dictionary<long, IReadOnlyDictionary<string, BaseValue>> localHandles = new Dictionary<long, IReadOnlyDictionary<string, BaseValue>>();
 
     private SmallBasicEngine? engine;
+    private SmallBasicCompilation? compilation;
     private RuntimeLibrariesCollection? libraries;
     private string programPath = string.Empty;
     private string programName = "program.sb";
@@ -37,7 +40,8 @@ public sealed class DebugAdapter
 
     private string activeControl = "continue";
     private int activeControlDepth;
-    private long nextArrayHandle = 1;
+    private int? activeControlLine;
+    private long nextVariableHandle = GlobalsReference + 1;
 
     private TaskCompletionSource<bool> resumeSignal = NewSignal();
     private TaskCompletionSource<bool> inputSignal = NewSignal();
@@ -121,7 +125,7 @@ public sealed class DebugAdapter
                 {
                     ["supportsConfigurationDoneRequest"] = true,
                     ["supportsConditionalBreakpoints"] = true,
-                    ["supportsEvaluateForHovers"] = false,
+                    ["supportsEvaluateForHovers"] = true,
                     ["supportsStepBack"] = false,
                     ["supportsRestartRequest"] = false,
                 });
@@ -159,15 +163,7 @@ public sealed class DebugAdapter
                 break;
 
             case "scopes":
-                this.SendResponse(seq, command, new JsonObject
-                {
-                    ["scopes"] = new JsonArray(new JsonObject
-                    {
-                        ["name"] = "Globals",
-                        ["variablesReference"] = 1,
-                        ["expensive"] = false,
-                    }),
-                });
+                this.HandleScopes(seq, command, arguments);
                 break;
 
             case "variables":
@@ -184,6 +180,7 @@ public sealed class DebugAdapter
             case "next":
                 this.activeControl = "next";
                 this.activeControlDepth = this.GetStackDepth();
+                this.activeControlLine = this.GetStepLine(stepOut: false);
                 this.pauseRequested = false;
                 this.SendResponse(seq, command);
                 this.SignalResume();
@@ -192,6 +189,7 @@ public sealed class DebugAdapter
             case "stepIn":
                 this.activeControl = "stepIn";
                 this.activeControlDepth = this.GetStackDepth();
+                this.activeControlLine = this.GetStepLine(stepOut: false);
                 this.pauseRequested = false;
                 this.SendResponse(seq, command);
                 this.SignalResume();
@@ -200,6 +198,7 @@ public sealed class DebugAdapter
             case "stepOut":
                 this.activeControl = "stepOut";
                 this.activeControlDepth = this.GetStackDepth();
+                this.activeControlLine = this.GetStepLine(stepOut: true);
                 this.pauseRequested = false;
                 this.SendResponse(seq, command);
                 this.SignalResume();
@@ -216,7 +215,7 @@ public sealed class DebugAdapter
                 break;
 
             case "evaluate":
-                this.HandleEvaluate(seq, command, arguments);
+                await this.HandleEvaluateAsync(seq, command, arguments).ConfigureAwait(false);
                 break;
 
             case "terminate":
@@ -272,6 +271,8 @@ public sealed class DebugAdapter
             this.SendErrorResponse(seq, command, $"The program contains compilation errors:\n{message}");
             return;
         }
+
+        this.compilation = compilation;
 
 #if !GRAPHICS_HOST
         if (compilation.Analysis.UsesGraphicsWindow)
@@ -434,7 +435,7 @@ public sealed class DebugAdapter
         long reference = (long?)(arguments?["variablesReference"]) ?? 0;
         var variables = new JsonArray();
 
-        if (reference == 1)
+        if (reference == GlobalsReference)
         {
             DebuggerSnapshot? snapshot = this.engine?.GetSnapshot();
             if (snapshot is { })
@@ -443,6 +444,13 @@ public sealed class DebugAdapter
                 {
                     variables.Add(this.CreateVariable(pair.Key, pair.Value));
                 }
+            }
+        }
+        else if (this.localHandles.TryGetValue(reference, out IReadOnlyDictionary<string, BaseValue>? locals))
+        {
+            foreach (KeyValuePair<string, BaseValue> pair in locals.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+            {
+                variables.Add(this.CreateVariable(pair.Key, pair.Value));
             }
         }
         else if (this.arrayHandles.TryGetValue(reference, out ArrayValue? array))
@@ -456,7 +464,30 @@ public sealed class DebugAdapter
         this.SendResponse(seq, command, new JsonObject { ["variables"] = variables });
     }
 
-    private void HandleEvaluate(int seq, string command, JsonObject? arguments)
+    private void HandleScopes(int seq, string command, JsonObject? arguments)
+    {
+        int frameId = (int?)arguments?["frameId"] ?? 1;
+        Frame? frame = this.GetFrame(frameId);
+        long localsReference = frame is { } ? this.RegisterLocals(frame.Locals) : 0;
+        this.SendResponse(seq, command, new JsonObject
+        {
+            ["scopes"] = new JsonArray(
+                new JsonObject
+                {
+                    ["name"] = "Globals",
+                    ["variablesReference"] = GlobalsReference,
+                    ["expensive"] = false,
+                },
+                new JsonObject
+                {
+                    ["name"] = "Locals",
+                    ["variablesReference"] = localsReference,
+                    ["expensive"] = false,
+                }),
+        });
+    }
+
+    private async Task HandleEvaluateAsync(int seq, string command, JsonObject? arguments)
     {
         string expression = ((string?)arguments?["expression"] ?? string.Empty).Trim();
 
@@ -471,22 +502,22 @@ public sealed class DebugAdapter
             return;
         }
 
-        if (this.engine is { } runningEngine && expression.Length > 0)
+        if (this.engine is { } runningEngine && this.compilation is { } sourceCompilation && expression.Length > 0)
         {
-            IReadOnlyDictionary<string, BaseValue> memory = runningEngine.GetSnapshot().Memory;
-            if (!memory.TryGetValue(expression, out BaseValue? value))
+            CompiledExpression? compiled = sourceCompilation.CompileExpression(expression);
+            if (compiled is { })
             {
-                value = memory.FirstOrDefault(pair => string.Equals(pair.Key, expression, StringComparison.OrdinalIgnoreCase)).Value;
-            }
-
-            if (value is { })
-            {
-                this.SendResponse(seq, command, new JsonObject
+                int frameId = (int?)arguments?["frameId"] ?? 1;
+                BaseValue? value = await runningEngine.EvaluateExpressionAsync(compiled, this.GetFrame(frameId)).ConfigureAwait(false);
+                if (value is { })
                 {
-                    ["result"] = value.ToDisplayString(),
-                    ["variablesReference"] = value is ArrayValue array ? this.RegisterArray(array) : 0,
-                });
-                return;
+                    this.SendResponse(seq, command, new JsonObject
+                    {
+                        ["result"] = value.ToDisplayString(),
+                        ["variablesReference"] = value is ArrayValue array ? this.RegisterArray(array) : 0,
+                    });
+                    return;
+                }
             }
         }
 
@@ -506,9 +537,26 @@ public sealed class DebugAdapter
 
     private long RegisterArray(ArrayValue array)
     {
-        long handle = this.nextArrayHandle++;
+        long handle = this.nextVariableHandle++;
         this.arrayHandles[handle] = array;
         return handle;
+    }
+
+    private long RegisterLocals(IReadOnlyDictionary<string, BaseValue> locals)
+    {
+        long handle = this.nextVariableHandle++;
+        this.localHandles[handle] = locals;
+        return handle;
+    }
+
+    private Frame? GetFrame(int frameId)
+    {
+        if (frameId < 1 || this.engine?.GetSnapshot() is not DebuggerSnapshot snapshot)
+        {
+            return null;
+        }
+
+        return snapshot.ExecutionStack.Reverse().ElementAtOrDefault(frameId - 1);
     }
 
     private void StartRunLoop()
@@ -623,14 +671,26 @@ public sealed class DebugAdapter
             case "stepIn":
                 return "step";
             case "next":
-                return depth <= this.activeControlDepth ? "step" : null;
+                return depth <= this.activeControlDepth && this.engine?.CurrentSourceLine != this.activeControlLine ? "step" : null;
             case "stepOut":
-                return depth < this.activeControlDepth ? "step" : null;
+                return depth < this.activeControlDepth && this.engine?.CurrentSourceLine != this.activeControlLine ? "step" : null;
             default:
                 return this.engine is { } engine && await this.ShouldStopAtLineAsync(engine.CurrentSourceLine).ConfigureAwait(false)
                     ? "breakpoint"
                     : null;
         }
+    }
+
+    private int? GetStepLine(bool stepOut)
+    {
+        DebuggerSnapshot? snapshot = this.engine?.GetSnapshot();
+        if (snapshot is null)
+        {
+            return null;
+        }
+
+        Frame? frame = snapshot.ExecutionStack.Reverse().ElementAtOrDefault(stepOut ? 1 : 0);
+        return frame?.CurrentSourceLine;
     }
 
     // A line stops execution when it has a verified unconditional breakpoint, or
@@ -716,6 +776,9 @@ public sealed class DebugAdapter
 
     private void SendStopped(string reason, string? description = null)
     {
+        this.arrayHandles.Clear();
+        this.localHandles.Clear();
+        this.nextVariableHandle = GlobalsReference + 1;
         var body = new JsonObject
         {
             ["reason"] = reason,

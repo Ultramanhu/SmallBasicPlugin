@@ -225,7 +225,7 @@ function toMonacoDocumentSymbol(symbol: LanguageDocumentSymbol): monaco.language
   return {
     name: symbol.name,
     detail: symbol.detail,
-    kind: symbol.kind === "sub" ? monaco.languages.SymbolKind.Function : monaco.languages.SymbolKind.Variable,
+    kind: symbol.kind === "sub" || symbol.kind === "function" ? monaco.languages.SymbolKind.Function : monaco.languages.SymbolKind.Variable,
     range: toMonacoRange(symbol.range),
     selectionRange: toMonacoRange(symbol.selectionRange),
     children: symbol.children.map((child) => toMonacoDocumentSymbol(child)),

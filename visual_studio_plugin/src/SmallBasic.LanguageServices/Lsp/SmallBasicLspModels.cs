@@ -158,9 +158,10 @@ namespace SmallBasic.LanguageServices
 
     public sealed class SmallBasicLspDocumentSymbol
     {
-        public SmallBasicLspDocumentSymbol(string name, SmallBasicLspSymbolKind kind, SmallBasicLspRange range, SmallBasicLspRange selectionRange, IReadOnlyList<SmallBasicLspDocumentSymbol> children)
+        public SmallBasicLspDocumentSymbol(string name, string detail, SmallBasicLspSymbolKind kind, SmallBasicLspRange range, SmallBasicLspRange selectionRange, IReadOnlyList<SmallBasicLspDocumentSymbol> children)
         {
             this.Name = name;
+            this.Detail = detail;
             this.Kind = kind;
             this.Range = range;
             this.SelectionRange = selectionRange;
@@ -168,6 +169,8 @@ namespace SmallBasic.LanguageServices
         }
 
         public string Name { get; }
+
+        public string Detail { get; }
 
         public SmallBasicLspSymbolKind Kind { get; }
 

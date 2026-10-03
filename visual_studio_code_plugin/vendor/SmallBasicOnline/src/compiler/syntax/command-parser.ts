@@ -1,5 +1,5 @@
 import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { IfCommandSyntax, BaseSyntaxNode, BinaryOperatorExpressionSyntax, UnaryOperatorExpressionSyntax, ObjectAccessExpressionSyntax, ArrayAccessExpressionSyntax, InvocationExpressionSyntax, IdentifierExpressionSyntax, ParenthesisExpressionSyntax, ElseIfCommandSyntax, ElseCommandSyntax, EndIfCommandSyntax, ForCommandSyntax, ForStepClauseSyntax, EndForCommandSyntax, WhileCommandSyntax, EndWhileCommandSyntax, LabelCommandSyntax, GoToCommandSyntax, SubCommandSyntax, EndSubCommandSyntax, ExpressionCommandSyntax, ArgumentSyntax, NumberLiteralExpressionSyntax, StringLiteralExpressionSyntax } from "./syntax-nodes";
+import { IfCommandSyntax, BaseSyntaxNode, BinaryOperatorExpressionSyntax, UnaryOperatorExpressionSyntax, ObjectAccessExpressionSyntax, ArrayAccessExpressionSyntax, InvocationExpressionSyntax, IdentifierExpressionSyntax, ParenthesisExpressionSyntax, ElseIfCommandSyntax, ElseCommandSyntax, EndIfCommandSyntax, ForCommandSyntax, ForStepClauseSyntax, EndForCommandSyntax, WhileCommandSyntax, EndWhileCommandSyntax, LabelCommandSyntax, GoToCommandSyntax, SubCommandSyntax, EndSubCommandSyntax, FunctionCommandSyntax, EndFunctionCommandSyntax, DimCommandSyntax, ReturnCommandSyntax, ExpressionCommandSyntax, ArgumentSyntax, NumberLiteralExpressionSyntax, StringLiteralExpressionSyntax } from "./syntax-nodes";
 import { TokenKind, Token } from "./tokens";
 import { CompilerRange } from "./ranges";
 import { CommentCommandSyntax, TokenSyntax } from "./syntax-nodes";
@@ -70,6 +70,10 @@ export class CommandsParser {
 
                 case TokenKind.SubKeyword: this._result.push(this.parseSubCommand()); break;
                 case TokenKind.EndSubKeyword: this._result.push(this.parseEndSubCommand()); break;
+                case TokenKind.FunctionKeyword: this._result.push(this.parseFunctionCommand()); break;
+                case TokenKind.EndFunctionKeyword: this._result.push(this.parseEndFunctionCommand()); break;
+                case TokenKind.DimKeyword: this._result.push(this.parseDimCommand()); break;
+                case TokenKind.ReturnKeyword: this._result.push(this.parseReturnCommand()); break;
 
                 case TokenKind.Minus:
                 case TokenKind.NumberLiteral:
@@ -192,6 +196,54 @@ export class CommandsParser {
         const endSubToken = this.eat(TokenKind.EndSubKeyword);
 
         return new EndSubCommandSyntax(endSubToken);
+    }
+
+    private parseFunctionCommand(): FunctionCommandSyntax {
+        const functionToken = this.eat(TokenKind.FunctionKeyword);
+        const nameToken = this.eat(TokenKind.Identifier);
+        const leftParenToken = this.eat(TokenKind.LeftParen);
+        const parameterTokens: TokenSyntax[] = [];
+        const commaTokens: TokenSyntax[] = [];
+
+        if (!this.isNext(TokenKind.RightParen)) {
+            parameterTokens.push(this.eat(TokenKind.Identifier));
+            while (this.isNext(TokenKind.Comma)) {
+                commaTokens.push(this.eat(TokenKind.Comma));
+                parameterTokens.push(this.eat(TokenKind.Identifier));
+            }
+        }
+
+        const rightParenToken = this.eat(TokenKind.RightParen);
+        return new FunctionCommandSyntax(
+            functionToken,
+            nameToken,
+            leftParenToken,
+            parameterTokens,
+            commaTokens,
+            rightParenToken);
+    }
+
+    private parseEndFunctionCommand(): EndFunctionCommandSyntax {
+        return new EndFunctionCommandSyntax(this.eat(TokenKind.EndFunctionKeyword));
+    }
+
+    private parseDimCommand(): DimCommandSyntax {
+        const dimToken = this.eat(TokenKind.DimKeyword);
+        const variableTokens: TokenSyntax[] = [this.eat(TokenKind.Identifier)];
+        const commaTokens: TokenSyntax[] = [];
+
+        while (this.isNext(TokenKind.Comma)) {
+            commaTokens.push(this.eat(TokenKind.Comma));
+            variableTokens.push(this.eat(TokenKind.Identifier));
+        }
+
+        return new DimCommandSyntax(dimToken, variableTokens, commaTokens);
+    }
+
+    private parseReturnCommand(): ReturnCommandSyntax {
+        const returnToken = this.eat(TokenKind.ReturnKeyword);
+        const expression = this.parseBaseExpression();
+        return new ReturnCommandSyntax(returnToken, expression);
     }
 
     private parseExpressionCommand(): ExpressionCommandSyntax {

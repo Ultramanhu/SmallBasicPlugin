@@ -207,6 +207,9 @@ public sealed class BrowserEngineSession : IAsyncDisposable
 
     private async Task ExecuteControlAsync(string control, int startingDepth)
     {
+        Frame[] startingFrames = this.engine.GetSnapshot().ExecutionStack.Reverse().ToArray();
+        int startingFrameIndex = control == "stepOut" ? 1 : 0;
+        int? startingLine = startingFrames.ElementAtOrDefault(startingFrameIndex)?.CurrentSourceLine;
         this.view.SetStatus("Running under debugger");
         if (this.engine.State == ExecutionState.Paused)
         {
@@ -243,8 +246,8 @@ public sealed class BrowserEngineSession : IAsyncDisposable
                     int depth = this.engine.GetSnapshot().ExecutionStack.Count;
                     bool shouldStop = this.breakpoints.Contains(line)
                         || control == "stepIn"
-                        || (control == "next" && depth <= startingDepth)
-                        || (control == "stepOut" && depth < startingDepth);
+                        || (control == "next" && depth <= startingDepth && line != startingLine)
+                        || (control == "stepOut" && depth < startingDepth && line != startingLine);
                     if (shouldStop)
                     {
                         string reason = this.breakpoints.Contains(line) ? "breakpoint" : "step";
@@ -369,6 +372,7 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         {
             Name = frame.Module.Name,
             Line = frame.CurrentSourceLine,
+            Variables = frame.Locals.OrderBy(pair => pair.Key).Select(pair => ConvertVariable(pair.Key, pair.Value)).ToArray(),
         }).ToArray();
         DebugVariable[] variables = snapshot.Memory.OrderBy(pair => pair.Key).Select(pair => ConvertVariable(pair.Key, pair.Value)).ToArray();
         return new BrowserMessage

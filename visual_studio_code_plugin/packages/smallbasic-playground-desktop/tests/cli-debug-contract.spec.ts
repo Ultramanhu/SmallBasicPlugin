@@ -129,6 +129,25 @@ function startDapAdapter(target: DebugTarget): DapSession {
 }
 
 describe.skipIf(targets.length === 0)("CLI debug adapter contract (setBreakpoints before launch)", () => {
+  it.each(targets)("$name advertises the Function runtime capability", async (target) => {
+    const child = spawn(target.command, ["--capabilities"], {
+      cwd: target.cwd,
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    child.stdout.on("data", (chunk: Buffer) => { stdout += chunk.toString("utf8"); });
+    child.stderr.on("data", (chunk: Buffer) => { stderr += chunk.toString("utf8"); });
+    const exitCode = await new Promise<number | null>((resolve) => child.on("close", resolve));
+
+    expect(stderr).toBe("");
+    expect(exitCode).toBe(0);
+    expect(JSON.parse(stdout)).toEqual({
+      protocolVersion: 2,
+      capabilities: ["function-v1"]
+    });
+  });
+
   it.each(targets)(
     "$name validates the breakpoint and stops on it",
     async (target) => {

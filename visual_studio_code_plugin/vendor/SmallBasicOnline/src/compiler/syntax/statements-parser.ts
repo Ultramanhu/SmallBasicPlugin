@@ -22,6 +22,9 @@ import {
     BaseStatementSyntax,
     BaseCommandSyntax,
     StatementBlockSyntax
+    , FunctionCommandSyntax
+    , EndFunctionCommandSyntax
+    , FunctionDeclarationSyntax
 } from "./syntax-nodes";
 import { CompilerUtils } from "../utils/compiler-utils";
 
@@ -30,26 +33,42 @@ export class StatementsParser {
 
     private _mainModule: BaseStatementSyntax[] = [];
     private _subModules: SubModuleDeclarationSyntax[] = [];
+    private _functions: FunctionDeclarationSyntax[] = [];
+    private _activeProcedureKind: SyntaxKind.SubCommand | SyntaxKind.FunctionCommand | undefined;
 
     public get result(): ParseTreeSyntax {
-        return new ParseTreeSyntax(new StatementBlockSyntax(this._mainModule), this._subModules);
+        return new ParseTreeSyntax(new StatementBlockSyntax(this._mainModule), this._subModules, this._functions);
     }
 
     public constructor(private readonly _commands: ReadonlyArray<BaseCommandSyntax>, private readonly _diagnostics: Diagnostic[]) {
         let startModuleCommand: SubCommandSyntax | undefined;
+        let startFunctionCommand: FunctionCommandSyntax | undefined;
         let currentModuleStatements: BaseStatementSyntax[] = [];
 
         while (this._index < this._commands.length) {
             const current = this._commands[this._index];
             switch (current.kind) {
                 case SyntaxKind.SubCommand: {
-                    if (startModuleCommand) {
+                    if (startModuleCommand || startFunctionCommand) {
                         this.eat(current.kind);
-                        this._diagnostics.push(new Diagnostic(ErrorCode.CannotDefineASubInsideAnotherSub, current.range));
+                        this.reportNestedProcedure(current);
                     } else {
                         this._mainModule.push(...currentModuleStatements);
                         currentModuleStatements = [];
                         startModuleCommand = this.eat(current.kind) as SubCommandSyntax;
+                        this._activeProcedureKind = SyntaxKind.SubCommand;
+                    }
+                    break;
+                }
+                case SyntaxKind.FunctionCommand: {
+                    if (startModuleCommand || startFunctionCommand) {
+                        this.eat(current.kind);
+                        this.reportNestedProcedure(current);
+                    } else {
+                        this._mainModule.push(...currentModuleStatements);
+                        currentModuleStatements = [];
+                        startFunctionCommand = this.eat(current.kind) as FunctionCommandSyntax;
+                        this._activeProcedureKind = SyntaxKind.FunctionCommand;
                     }
                     break;
                 }
@@ -63,6 +82,7 @@ export class StatementsParser {
                             endModuleCommand));
 
                         startModuleCommand = undefined;
+                        this._activeProcedureKind = undefined;
                         currentModuleStatements = [];
                     } else {
                         this.eat(current.kind);
@@ -71,6 +91,28 @@ export class StatementsParser {
                             current.range,
                             CompilerUtils.commandToDisplayString(SyntaxKind.EndSubCommand),
                             CompilerUtils.commandToDisplayString(SyntaxKind.SubCommand)));
+                    }
+                    break;
+                }
+                case SyntaxKind.EndFunctionCommand: {
+                    if (startFunctionCommand) {
+                        const endFunctionCommand = this.eat(current.kind) as EndFunctionCommandSyntax;
+
+                        this._functions.push(new FunctionDeclarationSyntax(
+                            startFunctionCommand,
+                            new StatementBlockSyntax(currentModuleStatements),
+                            endFunctionCommand));
+
+                        startFunctionCommand = undefined;
+                        this._activeProcedureKind = undefined;
+                        currentModuleStatements = [];
+                    } else {
+                        this.eat(current.kind);
+                        this._diagnostics.push(new Diagnostic(
+                            ErrorCode.CannotHaveCommandWithoutPreviousCommand,
+                            current.range,
+                            CompilerUtils.commandToDisplayString(SyntaxKind.EndFunctionCommand),
+                            CompilerUtils.commandToDisplayString(SyntaxKind.FunctionCommand)));
                     }
                     break;
                 }
@@ -91,6 +133,13 @@ export class StatementsParser {
                 startModuleCommand,
                 new StatementBlockSyntax(currentModuleStatements),
                 endModuleCommand as EndSubCommandSyntax));
+        } else if (startFunctionCommand) {
+            const endFunctionCommand = this.eat(SyntaxKind.EndFunctionCommand);
+
+            this._functions.push(new FunctionDeclarationSyntax(
+                startFunctionCommand,
+                new StatementBlockSyntax(currentModuleStatements),
+                endFunctionCommand as EndFunctionCommandSyntax));
         } else {
             this._mainModule.push(...currentModuleStatements);
         }
@@ -145,6 +194,30 @@ export class StatementsParser {
             case SyntaxKind.ExpressionCommand: {
                 return this.eat(SyntaxKind.ExpressionCommand);
             }
+            case SyntaxKind.DimCommand: {
+                return this.eat(SyntaxKind.DimCommand);
+            }
+            case SyntaxKind.ReturnCommand: {
+                return this.eat(SyntaxKind.ReturnCommand);
+            }
+            case SyntaxKind.SubCommand:
+            case SyntaxKind.FunctionCommand: {
+                this.eat(current.kind);
+                this.reportNestedProcedure(current);
+                return;
+            }
+            case SyntaxKind.EndSubCommand:
+            case SyntaxKind.EndFunctionCommand: {
+                this.eat(current.kind);
+                this._diagnostics.push(new Diagnostic(
+                    ErrorCode.CannotHaveCommandWithoutPreviousCommand,
+                    current.range,
+                    CompilerUtils.commandToDisplayString(current.kind),
+                    current.kind === SyntaxKind.EndSubCommand
+                        ? CompilerUtils.commandToDisplayString(SyntaxKind.SubCommand)
+                        : CompilerUtils.commandToDisplayString(SyntaxKind.FunctionCommand)));
+                return;
+            }
             case SyntaxKind.CommentCommand: {
                 return this.eat(SyntaxKind.CommentCommand);
             }
@@ -152,6 +225,13 @@ export class StatementsParser {
                 throw new Error(`Unexpected command ${SyntaxKind[current.kind]} here`);
             }
         }
+    }
+
+    private reportNestedProcedure(current: BaseSyntaxNode): void {
+        const code = this._activeProcedureKind === SyntaxKind.SubCommand && current.kind === SyntaxKind.SubCommand
+            ? ErrorCode.CannotDefineASubInsideAnotherSub
+            : ErrorCode.CannotDefineProcedureInsideProcedure;
+        this._diagnostics.push(new Diagnostic(code, current.range));
     }
 
     private parseIfStatement(): IfStatementSyntax {

@@ -52,6 +52,46 @@ namespace SmallBasic.Compiler.Diagnostics
             this.builder.Add(new Diagnostic(DiagnosticCode.TwoSubModulesWithTheSameName, range, name.ToDisplayString()));
         }
 
+        public void ReportCannotDefineProcedureInsideProcedure(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.CannotDefineProcedureInsideProcedure, range));
+        }
+
+        public void ReportTwoProceduresWithTheSameName(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.TwoProceduresWithTheSameName, range, name.ToDisplayString()));
+        }
+
+        public void ReportProcedureConflictsWithLibrary(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.ProcedureConflictsWithLibrary, range, name.ToDisplayString()));
+        }
+
+        public void ReportDuplicateParameter(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.DuplicateParameter, range, name.ToDisplayString()));
+        }
+
+        public void ReportDuplicateLocalVariable(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.DuplicateLocalVariable, range, name.ToDisplayString()));
+        }
+
+        public void ReportDimMustBeAtProcedureLevel(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.DimMustBeAtProcedureLevel, range));
+        }
+
+        public void ReportReturnOutsideFunction(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.ReturnOutsideFunction, range));
+        }
+
+        public void ReportFunctionCannotBeEventHandler(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.FunctionCannotBeEventHandler, range));
+        }
+
         public void ReportTwoLabelsWithTheSameName(TextRange range, string label)
         {
             this.builder.Add(new Diagnostic(DiagnosticCode.TwoLabelsWithTheSameName, range, label.ToDisplayString()));

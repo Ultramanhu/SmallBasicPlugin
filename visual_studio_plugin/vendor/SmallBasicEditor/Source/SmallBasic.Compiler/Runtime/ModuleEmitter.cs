@@ -35,6 +35,7 @@ namespace SmallBasic.Compiler.Runtime
                 case BoundForStatement forStatement: this.EmitForStatement(forStatement); break;
                 case BoundLabelStatement labelStatement: this.EmitLabelStatement(labelStatement); break;
                 case BoundGoToStatement goToStatement: this.EmitGoToStatement(goToStatement); break;
+                case BoundReturnStatement returnStatement: this.EmitReturnStatement(returnStatement); break;
                 case BoundSubModuleInvocationStatement subModuleInvocationStatement: this.EmitSubModuleInvocationStatement(subModuleInvocationStatement); break;
                 case BoundLibraryMethodInvocationStatement libraryMethodInvocaationStatement: this.EmitLibraryMethodInvocationStatement(libraryMethodInvocaationStatement); break;
                 case BoundEventAssignmentStatement eventAssignmentStatement: this.EmitEventAssignmentStatement(eventAssignmentStatement); break;
@@ -171,9 +172,19 @@ namespace SmallBasic.Compiler.Runtime
             this.instructions.Add(new TransientUnconditionalGoToInstruction(statement.Label, statement.Syntax.GoToToken.Range));
         }
 
+        private void EmitReturnStatement(BoundReturnStatement statement)
+        {
+            this.EmitExpression(statement.Expression);
+            this.instructions.Add(new ReturnValueInstruction(statement.Syntax.Range));
+        }
+
         private void EmitSubModuleInvocationStatement(BoundSubModuleInvocationStatement statement)
         {
-            this.instructions.Add(new InvokeSubModuleInstruction(statement.Expression.Name, statement.Syntax.Range));
+            this.instructions.Add(new InvokeSubModuleInstruction(
+                statement.Expression.Name,
+                argumentCount: 0,
+                returnsValue: false,
+                range: statement.Syntax.Range));
         }
 
         private void EmitLibraryMethodInvocationStatement(BoundLibraryMethodInvocationStatement statement)
@@ -244,6 +255,7 @@ namespace SmallBasic.Compiler.Runtime
                 case BoundArrayAccessExpression arrayAccessExpression: this.EmitArrayAccessExpression(arrayAccessExpression); break;
                 case BoundLibraryPropertyExpression libraryPropertyExpression: this.EmitLibraryPropertyExpression(libraryPropertyExpression); break;
                 case BoundLibraryMethodInvocationExpression libraryMethodInvocationExpression: this.EmitLibraryMethodInvocationExpression(libraryMethodInvocationExpression); break;
+                case BoundSubModuleInvocationExpression subModuleInvocationExpression: this.EmitSubModuleInvocationExpression(subModuleInvocationExpression); break;
                 case BoundVariableExpression variableExpression: this.EmitVariableExpression(variableExpression); break;
                 case BoundStringLiteralExpression stringLiteralExpression: this.EmitStringLiteralExpression(stringLiteralExpression); break;
                 case BoundNumberLiteralExpression numberLiteralExpression: this.EmitNumberLiteralExpression(numberLiteralExpression); break;
@@ -392,6 +404,20 @@ namespace SmallBasic.Compiler.Runtime
             }
 
             this.instructions.Add(new MethodInvocationInstruction(expression.Method.Library.Name, expression.Method.Name, expression.Syntax.Range));
+        }
+
+        private void EmitSubModuleInvocationExpression(BoundSubModuleInvocationExpression expression)
+        {
+            foreach (BaseBoundExpression argument in expression.Arguments)
+            {
+                this.EmitExpression(argument);
+            }
+
+            this.instructions.Add(new InvokeSubModuleInstruction(
+                expression.Name,
+                expression.Arguments.Count,
+                expression.ReturnsValue,
+                expression.Syntax.Range));
         }
 
         private void EmitVariableExpression(BoundVariableExpression expression)

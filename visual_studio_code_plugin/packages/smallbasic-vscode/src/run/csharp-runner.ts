@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFile } from "node:child_process";
 import * as vscode from "vscode";
+import { supportsFunctionCapability } from "./capabilities";
 
 export interface CSharpHostCommand {
     executable: string;
@@ -47,6 +49,14 @@ export class CSharpRunner {
 
         if (!CSharpRunner.fileExists(filePath)) {
             void vscode.window.showErrorMessage(`找不到 SmallBasic 程序文件：${filePath}`);
+            return;
+        }
+
+        if (!await CSharpRunner.supportsFunctions(host)) {
+            void vscode.window.showErrorMessage(
+                "当前 SmallBasic C# 运行宿主不支持 Function/Dim/Return。" +
+                "请升级扩展内置宿主，或更新 smallbasic.csharp.runHostPath 指向的自定义宿主。"
+            );
             return;
         }
 
@@ -108,6 +118,24 @@ export class CSharpRunner {
 
     public static resolveHostPath(extensionPath: string): string | undefined {
         return CSharpRunner.resolveHostCommand(extensionPath)?.artifactPath;
+    }
+
+    public static supportsFunctions(host: CSharpHostCommand): Promise<boolean> {
+        return new Promise((resolve) => {
+            execFile(
+                host.executable,
+                [...host.argumentsPrefix, "--capabilities"],
+                { cwd: host.cwd, timeout: 5_000, windowsHide: true },
+                (error, stdout) => {
+                    if (error) {
+                        resolve(false);
+                        return;
+                    }
+
+                    resolve(supportsFunctionCapability(stdout));
+                }
+            );
+        });
     }
 
     private static toHostCommand(artifactPath: string): CSharpHostCommand {

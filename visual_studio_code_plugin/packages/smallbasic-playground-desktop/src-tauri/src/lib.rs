@@ -173,6 +173,7 @@ fn terminate_session(state: State<'_, SessionManager>, session_id: String) -> Re
 }
 
 /// Native Open dialog; the page keeps using its file input in browsers.
+#[cfg(desktop)]
 #[tauri::command]
 fn pick_program_file() -> Result<Option<ProgramFilePayload>, String> {
     let Some(path) = rfd::FileDialog::new()
@@ -192,7 +193,16 @@ fn pick_program_file() -> Result<Option<ProgramFilePayload>, String> {
     Ok(Some(ProgramFilePayload { name, content }))
 }
 
+/// Mobile shells have no native dialog backend; the page falls back to the
+/// web file input and the two Web execution backends.
+#[cfg(mobile)]
+#[tauri::command]
+fn pick_program_file() -> Result<Option<ProgramFilePayload>, String> {
+    Err("native file dialogs are only available on desktop platforms".to_string())
+}
+
 /// Native Save dialog; returns the chosen file name for the status bar.
+#[cfg(desktop)]
 #[tauri::command]
 fn save_program_file(default_name: String, source: String) -> Result<Option<ProgramFilePayload>, String> {
     let Some(path) = rfd::FileDialog::new()
@@ -214,6 +224,15 @@ fn save_program_file(default_name: String, source: String) -> Result<Option<Prog
     }))
 }
 
+#[cfg(mobile)]
+#[tauri::command]
+fn save_program_file(_default_name: String, _source: String) -> Result<Option<ProgramFilePayload>, String> {
+    Err("native file dialogs are only available on desktop platforms".to_string())
+}
+
+/// Mobile builds load this library through the Android activity, so the
+/// entry point must be annotated; desktop builds use `main.rs` instead.
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .manage(SessionManager::default())

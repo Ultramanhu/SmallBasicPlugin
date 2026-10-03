@@ -56,6 +56,10 @@ export module CompilerUtils {
             case SyntaxKind.GoToCommand: return tokenToDisplayString(TokenKind.GoToKeyword);
             case SyntaxKind.SubCommand: return tokenToDisplayString(TokenKind.SubKeyword);
             case SyntaxKind.EndSubCommand: return tokenToDisplayString(TokenKind.EndSubKeyword);
+            case SyntaxKind.FunctionCommand: return tokenToDisplayString(TokenKind.FunctionKeyword);
+            case SyntaxKind.EndFunctionCommand: return tokenToDisplayString(TokenKind.EndFunctionKeyword);
+            case SyntaxKind.DimCommand: return tokenToDisplayString(TokenKind.DimKeyword);
+            case SyntaxKind.ReturnCommand: return tokenToDisplayString(TokenKind.ReturnKeyword);
             case SyntaxKind.ExpressionCommand: return CompilerResources.SyntaxNodes_Expression;
             default: throw new Error(`Unexpected syntax kind: ${SyntaxKind[kind]}`);
         }
@@ -77,6 +81,10 @@ export module CompilerUtils {
             case TokenKind.EndWhileKeyword: return "EndWhile";
             case TokenKind.SubKeyword: return "Sub";
             case TokenKind.EndSubKeyword: return "EndSub";
+            case TokenKind.FunctionKeyword: return "Function";
+            case TokenKind.EndFunctionKeyword: return "EndFunction";
+            case TokenKind.DimKeyword: return "Dim";
+            case TokenKind.ReturnKeyword: return "Return";
 
             case TokenKind.Dot: return ".";
             case TokenKind.RightParen: return ")";

@@ -19,6 +19,14 @@ namespace SmallBasic.Compiler.Diagnostics
         UnexpectedStatementInsteadOfNewLine,
         UnexpectedTokenInsteadOfStatement,
         TwoSubModulesWithTheSameName,
+        CannotDefineProcedureInsideProcedure,
+        TwoProceduresWithTheSameName,
+        ProcedureConflictsWithLibrary,
+        DuplicateParameter,
+        DuplicateLocalVariable,
+        DimMustBeAtProcedureLevel,
+        ReturnOutsideFunction,
+        FunctionCannotBeEventHandler,
         TwoLabelsWithTheSameName,
         GoToUndefinedLabel,
         PropertyHasNoSetter,
@@ -49,6 +57,14 @@ namespace SmallBasic.Compiler.Diagnostics
                 case DiagnosticCode.UnexpectedStatementInsteadOfNewLine: return DiagnosticsResources.UnexpectedStatementInsteadOfNewLine;
                 case DiagnosticCode.UnexpectedTokenInsteadOfStatement: return DiagnosticsResources.UnexpectedTokenInsteadOfStatement;
                 case DiagnosticCode.TwoSubModulesWithTheSameName: return DiagnosticsResources.TwoSubModulesWithTheSameName;
+                case DiagnosticCode.CannotDefineProcedureInsideProcedure: return DiagnosticsResources.CannotDefineProcedureInsideProcedure;
+                case DiagnosticCode.TwoProceduresWithTheSameName: return DiagnosticsResources.TwoProceduresWithTheSameName;
+                case DiagnosticCode.ProcedureConflictsWithLibrary: return DiagnosticsResources.ProcedureConflictsWithLibrary;
+                case DiagnosticCode.DuplicateParameter: return DiagnosticsResources.DuplicateParameter;
+                case DiagnosticCode.DuplicateLocalVariable: return DiagnosticsResources.DuplicateLocalVariable;
+                case DiagnosticCode.DimMustBeAtProcedureLevel: return DiagnosticsResources.DimMustBeAtProcedureLevel;
+                case DiagnosticCode.ReturnOutsideFunction: return DiagnosticsResources.ReturnOutsideFunction;
+                case DiagnosticCode.FunctionCannotBeEventHandler: return DiagnosticsResources.FunctionCannotBeEventHandler;
                 case DiagnosticCode.TwoLabelsWithTheSameName: return DiagnosticsResources.TwoLabelsWithTheSameName;
                 case DiagnosticCode.GoToUndefinedLabel: return DiagnosticsResources.GoToUndefinedLabel;
                 case DiagnosticCode.PropertyHasNoSetter: return DiagnosticsResources.PropertyHasNoSetter;

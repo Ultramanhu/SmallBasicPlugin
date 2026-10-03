@@ -58,7 +58,7 @@ export interface LanguageSignatureHelp {
   readonly activeParameter: number;
 }
 
-export type LanguageSymbolKind = "sub" | "variable";
+export type LanguageSymbolKind = "sub" | "function" | "variable";
 
 export interface LanguageDocumentSymbol {
   readonly name: string;
@@ -76,6 +76,7 @@ export type LanguageSemanticTokenType =
   | "number"
   | "class"
   | "function"
+  | "parameter"
   | "variable";
 
 export interface LanguageSemanticToken {

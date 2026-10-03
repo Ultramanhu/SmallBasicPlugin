@@ -1,7 +1,8 @@
 # 11 SmallBasic 语言扩展：Function、作用域、Dim 与 Return
 
 > 调研与方案日期：2026-10-03  
-> 状态：待实施的详细设计  
+> 实施与验收日期：2026-10-03  
+> 状态：已实施并通过全量验收  
 > 目标版本：Language Extension v1  
 > 适用范围：C# / TypeScript 两套语言核心，JavaScript / C# / Blazor 三种运行与调试后端，Visual Studio / VS Code / Monaco Playground 三类编辑表面
 
@@ -19,7 +20,13 @@
 6. 编辑器能力以编译器符号模型为唯一语义来源；TextMate、简单词法器和正则只负责即时兜底着色或缩进，不承担作用域判断。
 7. 按“语言契约与测试夹具 → 语法/绑定 → VM → 调试 → 编辑器 → 打包”的顺序落地。估算总工作量约 24～35 人日；C# 与 TypeScript 两条线可在契约冻结后并行。
 
-### 0.1 为什么不采用语法糖降级为 Sub
+### 0.1 实施结论
+
+Language Extension v1 已按本文契约落地。两套编译器现在共同支持 `Function/EndFunction`、带括号的参数与调用、过程级 `Dim`、`Return expression`、递归、前向/互相调用以及逐调用帧的参数和局部变量；未声明变量仍按旧规则访问全局内存。JavaScript、C#、Blazor 的运行与调试路径，VS Code、Visual Studio、Monaco 的编辑能力，以及派生发布产物均已同步升级。
+
+为防止两套实现漂移，仓库新增共享一致性语料 `tests/conformance/language-extension/cases.json`，由 TypeScript 和 C# 测试读取同一份 16 案例数据。C# 生成器 XML 继续作为生成文件真相源，重新生成后与 vendor 镜像逐字节一致。外部 C# RunHost 使用 `--capabilities` 返回协议 v2 与 `function-v1`，VS Code 在运行或调试前执行握手，旧宿主会收到明确升级提示。
+
+### 0.2 为什么不采用语法糖降级为 Sub
 
 | 方案 | 优点 | 致命问题 | 结论 |
 |---|---|---|---|
@@ -530,7 +537,7 @@ TS 侧改 `visual_studio_code_plugin/packages/smallbasic-language-services/src/c
 
 ### 11.1 共享一致性测试
 
-新增仓库级 `test/conformance/language-extension/`，每个案例由 `.sb` 源码和 JSON 期望组成；TS runner 与 C# runner 读取同一份数据。期望至少包含 diagnostics、stdout、最终 globals、暂停点序列和逐帧变量快照。
+仓库级 `tests/conformance/language-extension/cases.json` 保存共享源码和期望；TS runner 与 C# runner 读取同一份数据。运行语义语料包含 diagnostics、stdout 与最终 globals，暂停点序列和逐帧变量快照由各 DAP/调试协议测试覆盖。
 
 最小案例矩阵：
 
@@ -625,12 +632,43 @@ v1 不包含：Sub 参数、裸 Return、块级 Dim、类型声明、ByRef、默
 4. 更严格的控制流分析与“可能无返回值”提示；
 5. 可选的数组复制 API，而不是改变既有参数语义。
 
-## 15. 实施前检查单
+## 15. 实施完成检查单
 
-- [ ] 产品/语言负责人确认第 2 节全部语义，尤其是隐式全局、Dim 位置、无 Return 与数组别名。
-- [ ] 确认 C# 生成器恢复方案，不直接长期维护 Generated 文件。
-- [ ] 建立至少 10 个共享 conformance 样例并让旧双引擎 runner 先跑通。
-- [ ] 定义 ProcedureSymbol、VariableSymbol、RuntimeModule、DebuggerSnapshot 的两侧等价结构。
-- [ ] 为 Blazor Web 协议分配 v2 并定义不兼容提示。
-- [ ] 定义外部 RunHost capability 名 `function-v1` 与版本握手。
-- [ ] M1～M6 每阶段明确负责人，并要求 C#/TS PR 成对合入或由 conformance 暂时阻止发散。
+- [x] 第 2 节语义已冻结为 Language Extension v1，并由正反例测试锁定隐式全局、Dim 位置、无 Return 和数组别名。
+- [x] C# 生成器 XML 已恢复为真相源，不长期手工维护 Generated 文件。
+- [x] 已建立 16 个共享 conformance 案例，两套 runner 使用相同语料。
+- [x] 两侧已实现等价的过程符号、变量存储类别、RuntimeModule 元数据和逐帧 DebuggerSnapshot。
+- [x] Blazor Web 调试协议已升级到 v2，并在页面/宿主不兼容时明确报错。
+- [x] 外部 RunHost capability 已定义为 `function-v1`；C# 与 JS 宿主均实现 `--capabilities`，VS Code C# 后端执行版本握手。
+- [x] M1～M6 已全部完成；共享 conformance、全量回归和构建门禁共同阻止 C#/TS 语义发散。
+
+## 16. 实施结果与验证记录
+
+### 16.1 已落地能力
+
+| 层级 | 实施结果 |
+|---|---|
+| Scanner / Parser / AST | 两侧新增四个关键字、Function 声明与参数、函数调用表达式、Dim、Return，并保留旧 Sub 错误码和恢复行为 |
+| Binder / 符号 | 预收集 Function/Sub 以支持前向和互相调用；检查重复名、重复参数、参数数量、Return 上下文；参数与 Dim 变量绑定到过程作用域 |
+| VM / 运行时 | 每次调用拥有独立参数/locals、求值栈基线和返回通道；支持递归、深层提前 Return、空返回值和既定数组浅别名；顶层 Dim 初始化全局变量 |
+| 调试 | TS DAP、C# DAP、Blazor/浏览器协议均提供逐帧 Parameters/Locals 与共享 Globals；evaluate 使用选中帧；Next/StepIn/StepOut 按调用深度和源码行工作 |
+| 编辑器 | TextMate/简单词法器着色，关键字/函数补全与片段，带参数签名帮助，hover，语义 parameter token，Function 折叠，DocumentSymbol/Outline/导航栏完整签名 |
+| 宿主兼容 | C#/JS RunHost 声明 `protocolVersion: 2` 和 `function-v1`；自定义 C# 宿主缺失能力时阻止启动并提示升级 |
+| 生成与发布 | 上游 XML 生成源、vendor 生成文件、诊断资源同步；VS Code/Visual Studio VSIX、三类 RunHost、Web/WASM 与 Tauri 桌面包均重新生成 |
+
+### 16.2 自动化验证
+
+2026-10-03 在 Windows / .NET 10 SDK（项目目标框架保持原值）/ Node.js 环境完成以下验证：
+
+| 门禁 | 结果 |
+|---|---|
+| `npm run typecheck` | 4 个 workspace 全部通过 |
+| `npm test` | 32 个测试文件、662 个用例全部通过；包含 453 个旧编译器用例、共享 conformance、三类 JS/Web 调试和 C# CLI DAP/能力协议 |
+| `npm run test:web` | 12 项通过，1 项 VS Code Web 工作台用例按本机环境条件跳过 |
+| `dotnet test visual_studio_plugin/SmallBasic.VisualStudio.slnx --no-restore -m:1` | 编译器/运行时 597 项、语言服务 55 项全部通过 |
+| C# generator 重跑与哈希比较 | 7 份相关 Generated/资源文件全部与 vendor 镜像一致 |
+| RunHost 能力探测 | JavaScript、net48、net8.0、net8.0-windows 均返回协议 v2 与 `function-v1` |
+| 用户示例宿主冒烟测试 | `user-sample.sb` 在 JavaScript、C# portable、Blazor 三个发布宿主均输出 `language-extension-v1` 并以 0 退出 |
+| `Build-All.ps1` | Release 全量成功；生成 RunHost、Web/WASM、VS Code VSIX、Visual Studio VSIX、桌面便携版、MSI 与 NSIS 安装包 |
+
+构建仍会输出仓库既有的 NuGet 兼容性、nullable、StyleCop、VS threading 等警告，但本次门禁没有编译错误或测试失败。`official_repo/editor/global.json` 固定旧 SDK，因此生成器从仓库根目录调用当前 SDK；该调用方式已验证可重复生成。

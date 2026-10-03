@@ -90,7 +90,7 @@ namespace SmallBasic.Vsix.Editor.Classification
             {
                 foreach (OutlineItem item in this.compilationService.GetCompilation(this.buffer).GetOutlineItems())
                 {
-                    if (item.Kind == OutlineItemKind.Procedure)
+                    if (item.Kind == OutlineItemKind.Procedure || item.Kind == OutlineItemKind.Function)
                     {
                         names.Add(item.Name);
                     }

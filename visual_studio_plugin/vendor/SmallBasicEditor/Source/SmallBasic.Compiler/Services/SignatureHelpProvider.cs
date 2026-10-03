@@ -7,6 +7,7 @@ namespace SmallBasic.Compiler.Services
     using System;
     using System.Collections.Generic;
     using System.Linq;
+    using SmallBasic.Compiler.Binding;
     using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Scanning;
     using SmallBasic.Utilities;
@@ -89,6 +90,28 @@ namespace SmallBasic.Compiler.Services
             if (!TryMatchMethodName(line, openParen, out string libraryName, out string methodName))
             {
                 return null;
+            }
+
+            if (libraryName is null)
+            {
+                var compilation = new SmallBasicCompilation(text);
+                BoundFunction function = compilation.Functions.Values.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase));
+                if (function is null)
+                {
+                    return null;
+                }
+
+                var functionParameters = function.Parameters
+                    .Select(parameter => new SignatureParameterInformation(parameter, "Parameter " + parameter))
+                    .ToArray();
+                return new SignatureHelp(
+                    new[] { new SignatureInformation(
+                        $"{function.Name}({function.Parameters.Join(", ")})",
+                        "Function",
+                        functionParameters) },
+                    activeSignature: 0,
+                    activeParameter: Math.Min(activeParameter, Math.Max(functionParameters.Length - 1, 0)));
             }
 
             if (!Libraries.Types.TryGetValue(libraryName, out Library library) ||
@@ -214,12 +237,16 @@ namespace SmallBasic.Compiler.Services
                 index--;
             }
 
-            if (methodEnd == index + 1 || index < 0 || line[index] != '.')
+            if (methodEnd == index + 1)
             {
                 return false;
             }
 
             methodName = line.Substring(index + 1, methodEnd - (index + 1));
+            if (index < 0 || line[index] != '.')
+            {
+                return true;
+            }
             index--;
 
             int libraryEnd = index + 1;

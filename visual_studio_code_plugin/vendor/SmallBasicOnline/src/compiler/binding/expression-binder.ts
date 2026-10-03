@@ -45,6 +45,7 @@ import {
     BaseExpressionSyntax
 } from "../syntax/syntax-nodes";
 import { TokenKind } from "../syntax/tokens";
+import type { ProcedureSymbol } from "./modules-binder";
 
 export class ExpressionBinder {
     private readonly _result: BaseBoundExpression;
@@ -56,7 +57,7 @@ export class ExpressionBinder {
     public constructor(
         syntax: BaseSyntaxNode,
         expectedValue: boolean,
-        private readonly _definedSubModules: { readonly [name: string]: string },
+        private readonly _definedProcedures: { readonly [name: string]: ProcedureSymbol },
         private readonly _diagnostics: Diagnostic[]) {
         this._result = this.bindExpression(syntax, expectedValue);
     }
@@ -139,16 +140,25 @@ export class ExpressionBinder {
                 return new BoundLibraryMethodInvocationExpression(method.libraryName, method.methodName, argumentsList, definition.returnsValue, hasErrors, syntax);
             }
             case BoundKind.SubModuleExpression: {
-                if (argumentsList.length !== 0) {
+                const procedure = baseExpression as BoundSubModuleExpression;
+                if (argumentsList.length !== procedure.parameters.length) {
                     hasErrors = true;
-                    this._diagnostics.push(new Diagnostic(ErrorCode.UnexpectedArgumentsCount, baseExpression.syntax.range, "0", argumentsList.length.toString()));
-                } else if (expectedValue) {
+                    this._diagnostics.push(new Diagnostic(
+                        ErrorCode.UnexpectedArgumentsCount,
+                        baseExpression.syntax.range,
+                        procedure.parameters.length.toString(),
+                        argumentsList.length.toString()));
+                } else if (expectedValue && !procedure.returnsValue) {
                     hasErrors = true;
                     this._diagnostics.push(new Diagnostic(ErrorCode.UnexpectedVoid_ExpectingValue, syntax.range));
                 }
 
-                const subModule = baseExpression as BoundSubModuleExpression;
-                return new BoundSubModuleInvocationExpression(subModule.subModuleName, hasErrors, syntax);
+                return new BoundSubModuleInvocationExpression(
+                    procedure.subModuleName,
+                    argumentsList,
+                    procedure.returnsValue,
+                    hasErrors,
+                    syntax);
             }
             default: {
                 hasErrors = true;
@@ -248,15 +258,20 @@ export class ExpressionBinder {
 
             return new BoundLibraryTypeExpression(libraryKey!, hasErrors, syntax);
         } else {
-            const subModuleName = this._definedSubModules[name.toLowerCase()];
+            const procedure = this._definedProcedures[name.toLowerCase()];
 
-            if (subModuleName !== undefined) {
+            if (procedure !== undefined) {
                 if (expectedValue) {
                     hasErrors = true;
                     this._diagnostics.push(new Diagnostic(ErrorCode.UnexpectedVoid_ExpectingValue, syntax.range));
                 }
 
-                return new BoundSubModuleExpression(subModuleName, hasErrors, syntax);
+                return new BoundSubModuleExpression(
+                    procedure.name,
+                    procedure.parameters,
+                    procedure.returnsValue,
+                    hasErrors,
+                    syntax);
             }
         }
 

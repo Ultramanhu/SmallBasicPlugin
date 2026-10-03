@@ -1,6 +1,6 @@
 [package]
 name = "smallbasic-playground-desktop"
-version = "0.1.5"
+version = "0.1.6"
 description = "Small Basic local playground - Tauri desktop shell with CLI sidecar backends"
 edition = "2021"
 rust-version = "1.77"
@@ -17,6 +17,12 @@ tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 uuid = { version = "1", features = ["v4"] }
+
+# Native dialogs exist only on desktop targets; the mobile build compiles the
+# shell without them and the page keeps its two Web backends (doc 10, §17.2).
+# Note: `cfg(desktop)` is injected by tauri-build and is invisible to Cargo's
+# dependency resolution, so the target filter must spell out the OS list.
+[target.'cfg(all(any(windows, unix), not(target_os = "android"), not(target_os = "ios")))'.dependencies]
 rfd = "0.15"
 
 [profile.release]

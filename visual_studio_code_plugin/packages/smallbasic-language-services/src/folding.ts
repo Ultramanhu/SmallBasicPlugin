@@ -1,7 +1,7 @@
 import type { LanguageFoldingRange } from "./protocol";
 import { splitLines } from "./ranges";
 
-type BlockKind = "if" | "for" | "while" | "sub";
+type BlockKind = "if" | "for" | "while" | "sub" | "function";
 
 interface OpenBlock {
   kind: BlockKind;
@@ -39,6 +39,11 @@ export function provideFoldingRanges(source: string): LanguageFoldingRange[] {
       continue;
     }
 
+    if (/^endfunction\b/i.test(line)) {
+      closeLatest(stack, "function", lineNumber, ranges);
+      continue;
+    }
+
     if (/^if\b.*\bthen\b/i.test(line) && !/^elseif\b/i.test(line)) {
       stack.push({ kind: "if", line: lineNumber });
       continue;
@@ -56,6 +61,11 @@ export function provideFoldingRanges(source: string): LanguageFoldingRange[] {
 
     if (/^sub\b\s+[^\s(]+/i.test(line)) {
       stack.push({ kind: "sub", line: lineNumber });
+      continue;
+    }
+
+    if (/^function\b\s+[^\s(]+\s*\(/i.test(line)) {
+      stack.push({ kind: "function", line: lineNumber });
     }
   }
 

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Declares the image moniker that carries the Small Basic logo. The image is
+     packed into the extension assembly's WPF resource bundle
+     (SmallBasic.Vsix.g.resources, entry "icons/SmallBasicFileIcon.png") by the
+     <Resource> item in SmallBasic.Vsix.csproj. SmallBasicIcons.pkgdef then maps
+     the .sb file extension to the moniker declared here. -->
+<ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
+  <Symbols>
+    <String Name="Resources" Value="/SmallBasic.Vsix;Component/Icons" />
+    <Guid Name="SmallBasicImagesGuid" Value="{57c89fbb-6dd2-49b1-ad07-e02f072f65b9}" />
+    <ID Name="SmallBasicFileIcon" Value="1" />
+  </Symbols>
+  <Images>
+    <Image Guid="$(SmallBasicImagesGuid)" ID="$(SmallBasicFileIcon)">
+      <Source Uri="$(Resources)/SmallBasicFileIcon.png" />
+    </Image>
+  </Images>
+  <ImageLists />
+</ImageManifest>

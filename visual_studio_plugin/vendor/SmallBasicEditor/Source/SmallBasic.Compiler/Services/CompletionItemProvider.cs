@@ -20,7 +20,7 @@ namespace SmallBasic.Compiler.Services
         {
             if (!parser.SyntaxTree.Body.Any())
             {
-                return GetItemsBeforeDot(binder, string.Empty);
+                return GetItemsBeforeDot(binder, string.Empty, position);
             }
 
             TextPosition caretPosition = position;
@@ -40,7 +40,7 @@ namespace SmallBasic.Compiler.Services
                         }
                         else
                         {
-                            return GetItemsBeforeDot(binder, identifier.IdentifierToken.Text);
+                            return GetItemsBeforeDot(binder, identifier.IdentifierToken.Text, position);
                         }
                     }
 
@@ -55,7 +55,7 @@ namespace SmallBasic.Compiler.Services
                         // completed statement, where the parser has no syntax node at the
                         // caret.  Still offer first-level names (Array, TextWindow, keywords,
                         // variables) and filter them by the word immediately before the caret.
-                        return GetItemsBeforeDot(binder, ExtractWordAtPosition(text, caretPosition));
+                        return GetItemsBeforeDot(binder, ExtractWordAtPosition(text, caretPosition), position);
                     }
             }
         }
@@ -140,13 +140,49 @@ namespace SmallBasic.Compiler.Services
             return string.IsNullOrEmpty(description) ? name : description;
         }
 
-        private static MonacoCompletionItem[] GetItemsBeforeDot(Binder binder, string prefix)
+        private static MonacoCompletionItem[] GetItemsBeforeDot(Binder binder, string prefix, TextPosition position)
         {
             var items = new List<MonacoCompletionItem>();
+            var procedureNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var variableNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var name in new VariablesAndSubModulesCollector(binder).Names.Where(name => name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
+            foreach (BoundSubModule subModule in binder.SubModules.Values.Where(module => module.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
             {
-                items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Variable, name, name));
+                procedureNames.Add(subModule.Name);
+                items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, subModule.Name, "Sub", subModule.Name + "()"));
+            }
+
+            foreach (BoundFunction function in binder.Functions.Values.Where(module => module.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
+            {
+                procedureNames.Add(function.Name);
+                string label = $"{function.Name}({function.Parameters.Join(", ")})";
+                string arguments = function.Parameters.Select((parameter, index) => $"${{{index + 1}:{parameter}}}").Join(", ");
+                items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, label, "Function", $"{function.Name}({arguments})"));
+            }
+
+            foreach (var name in new VariablesAndSubModulesCollector(binder).Names.Where(name =>
+                !procedureNames.Contains(name) && name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
+            {
+                if (variableNames.Add(name))
+                {
+                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Variable, name, name));
+                }
+            }
+
+            IEnumerable<string> currentLocals = binder.SubModules.Values
+                .Where(module => module.Syntax.Range.Contains(position))
+                .SelectMany(module => module.Locals)
+                .Concat(binder.Functions.Values
+                    .Where(function => function.Syntax.Range.Contains(position))
+                    .SelectMany(function => function.Parameters.Concat(function.Locals)));
+            foreach (string name in currentLocals
+                .Where(name => name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase))
+                .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (variableNames.Add(name))
+                {
+                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Variable, name, name));
+                }
             }
 
             foreach (var library in Libraries.Types.Values.Where(library => library.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
@@ -178,6 +214,10 @@ namespace SmallBasic.Compiler.Services
 
             addSnippet("Sub", "Sub ${1:name}", "EndSub");
             addSnippet("EndSub", "EndSub");
+            addSnippet("Function", "Function ${1:name}(${2:arguments})", "\t${3}", "EndFunction");
+            addSnippet("EndFunction", "EndFunction");
+            addSnippet("Dim", "Dim ${1:name}");
+            addSnippet("Return", "Return ${1:value}");
 
             return items.ToArray();
         }

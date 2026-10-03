@@ -40,7 +40,7 @@ VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本�
 ### 安装
 
 ```powershell
-code --install-extension build\SmallBasic.VSCode-0.1.5.vsix
+code --install-extension build\SmallBasic.VSCode-0.1.6.vsix
 ```
 
 或在扩展面板 `…` 菜单中选择「从 VSIX 安装…」。
@@ -98,7 +98,7 @@ Web 配置(JavaScript、Blazor)：
 
 ### 安装
 
-双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.5.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
+双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.6.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
 
 ### 使用
 
@@ -239,8 +239,8 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 |---|---|
 | RunHost 运行时分发 | `runhost\net48`、`runhost\net8.0`、`runhost\net8.0-windows`、`runhost\javascript`、`runhost\blazor` |
 | Web RunHost 静态站点 | `runhost\web`(浏览器内 JS / Blazor WASM 双后端，含 `samples\` 示例与 `run.cmd` 一键启动) |
-| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.5.vsix` |
-| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.5.vsix` |
+| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.6.vsix` |
+| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.6.vsix` |
 
 单独构建：
 

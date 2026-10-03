@@ -147,7 +147,7 @@ function toVsCodeDocumentSymbols(symbols: readonly LanguageDocumentSymbol[]): vs
     const documentSymbol = new vscode.DocumentSymbol(
       symbol.name,
       symbol.detail,
-      symbol.kind === "sub" ? vscode.SymbolKind.Function : vscode.SymbolKind.Variable,
+      symbol.kind === "sub" || symbol.kind === "function" ? vscode.SymbolKind.Function : vscode.SymbolKind.Variable,
       toVsCodeRangeFromDto(symbol.range),
       toVsCodeRangeFromDto(symbol.selectionRange)
     );

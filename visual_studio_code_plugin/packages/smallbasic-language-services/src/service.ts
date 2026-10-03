@@ -55,8 +55,8 @@ export class SmallBasicLanguageService {
   }
 
   public provideSignatureHelp(uri: string, source: string, version: number, position: LanguagePosition): LanguageSignatureHelp | undefined {
-    this.ensureDocument(uri, source, version);
-    return provideSignatureHelpInfo(lineTextAt(source, position.line), position.column);
+    const state = this.ensureDocument(uri, source, version);
+    return provideSignatureHelpInfo(lineTextAt(source, position.line), position.column, state.compilation);
   }
 
   public provideDocumentSymbols(uri: string, source: string, version: number): LanguageDocumentSymbol[] {

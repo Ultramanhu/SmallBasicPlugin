@@ -86,7 +86,11 @@ namespace SmallBasic.Tests.Services
                 "For Step",
                 "EndFor",
                 "Sub",
-                "EndSub");
+                "EndSub",
+                "Function",
+                "EndFunction",
+                "Dim",
+                "Return");
         }
 
         [Fact]
@@ -170,9 +174,9 @@ EndSub
 Fi$
 ";
 
-            TestForCompletionItems(code,
-                "FireEvent",
-                "File");
+            TestForCompletionItemsWithInsertText(code,
+                ("FireEvent", "FireEvent()"),
+                ("File", "File"));
         }
 
         private static void TestForCompletionItems(string text, params string[] expectedItems)

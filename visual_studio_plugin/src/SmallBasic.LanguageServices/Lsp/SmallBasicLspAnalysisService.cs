@@ -146,12 +146,13 @@ namespace SmallBasic.LanguageServices
 
         private static SmallBasicLspDocumentSymbol ToDocumentSymbol(OutlineItem item)
         {
-            SmallBasicLspSymbolKind kind = item.Kind == OutlineItemKind.Procedure
+            SmallBasicLspSymbolKind kind = item.Kind == OutlineItemKind.Procedure || item.Kind == OutlineItemKind.Function
                 ? SmallBasicLspSymbolKind.Function
                 : SmallBasicLspSymbolKind.Variable;
 
             return new SmallBasicLspDocumentSymbol(
                 item.Name,
+                item.Detail,
                 kind,
                 ToRange(item.Range),
                 ToRange(item.SelectionRange),
