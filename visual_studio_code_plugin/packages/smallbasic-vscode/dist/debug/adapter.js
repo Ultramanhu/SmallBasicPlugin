@@ -1725,6 +1725,15 @@ var CompilerRange = class _CompilerRange {
 };
 
 // ../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes.ts
+function parameterListEndRange(nameToken, parameterTokens, rightParenToken) {
+  if (rightParenToken) {
+    return rightParenToken.range;
+  }
+  if (parameterTokens.length) {
+    return parameterTokens[parameterTokens.length - 1].range;
+  }
+  return nameToken.range;
+}
 var SyntaxKind = /* @__PURE__ */ ((SyntaxKind3) => {
   SyntaxKind3[SyntaxKind3["ParseTree"] = 0] = "ParseTree";
   SyntaxKind3[SyntaxKind3["SubModuleDeclaration"] = 1] = "SubModuleDeclaration";
@@ -2055,15 +2064,39 @@ var GoToCommandSyntax = class extends BaseCommandSyntax {
   }
 };
 var SubCommandSyntax = class extends BaseCommandSyntax {
-  constructor(subToken, nameToken) {
-    super(19 /* SubCommand */, CompilerRange.combine(subToken.range, nameToken.range));
+  constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
+    super(19 /* SubCommand */, CompilerRange.combine(
+      subToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.subToken = subToken;
     this.nameToken = nameToken;
+    this.leftParenToken = leftParenToken;
+    this.parameterTokens = parameterTokens;
+    this.commaTokens = commaTokens;
+    this.rightParenToken = rightParenToken;
   }
   subToken;
   nameToken;
+  leftParenToken;
+  parameterTokens;
+  commaTokens;
+  rightParenToken;
   children() {
-    return [this.subToken, this.nameToken];
+    const children = [this.subToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
+    this.parameterTokens.forEach((parameter, index) => {
+      children.push(parameter);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
+    return children;
   }
 };
 var EndSubCommandSyntax = class extends BaseCommandSyntax {
@@ -2078,7 +2111,10 @@ var EndSubCommandSyntax = class extends BaseCommandSyntax {
 };
 var FunctionCommandSyntax = class extends BaseCommandSyntax {
   constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-    super(21 /* FunctionCommand */, CompilerRange.combine(functionToken.range, rightParenToken.range));
+    super(21 /* FunctionCommand */, CompilerRange.combine(
+      functionToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.functionToken = functionToken;
     this.nameToken = nameToken;
     this.leftParenToken = leftParenToken;
@@ -2093,14 +2129,19 @@ var FunctionCommandSyntax = class extends BaseCommandSyntax {
   commaTokens;
   rightParenToken;
   children() {
-    const children = [this.functionToken, this.nameToken, this.leftParenToken];
+    const children = [this.functionToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
     this.parameterTokens.forEach((parameter, index) => {
       children.push(parameter);
       if (index < this.commaTokens.length) {
         children.push(this.commaTokens[index]);
       }
     });
-    children.push(this.rightParenToken);
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
     return children;
   }
 };
@@ -14010,13 +14051,15 @@ var BoundReturnStatement = class extends BaseBoundStatement {
   }
 };
 var BoundSubModuleInvocationStatement = class extends BaseBoundStatement {
-  constructor(subModuleName, syntax) {
+  constructor(subModuleName, argumentsList, syntax) {
     super(8 /* SubModuleInvocationStatement */, syntax);
     this.subModuleName = subModuleName;
+    this.argumentsList = argumentsList;
   }
   subModuleName;
+  argumentsList;
   children() {
-    return [];
+    return this.argumentsList;
   }
 };
 var BoundLibraryMethodInvocationStatement = class extends BaseBoundStatement {
@@ -14602,6 +14645,15 @@ var ExpressionBinder = class {
     } else {
       const procedure = this._definedProcedures[name.toLowerCase()];
       if (procedure !== void 0) {
+        if (procedure.parameters.length === 0 && procedure.returnsValue && expectedValue) {
+          return new BoundSubModuleInvocationExpression(
+            procedure.name,
+            [],
+            true,
+            hasErrors,
+            syntax
+          );
+        }
         if (expectedValue) {
           hasErrors = true;
           this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
@@ -14854,7 +14906,14 @@ var StatementBinder = class {
       case 35 /* SubModuleInvocationExpression */: {
         const call = expression;
         if (!call.returnsValue) {
-          return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+          return new BoundSubModuleInvocationStatement(call.subModuleName, call.argumentsList, syntax);
+        }
+        break;
+      }
+      case 34 /* SubModuleExpression */: {
+        const reference = expression;
+        if (!reference.returnsValue && reference.parameters.length === 0) {
+          return new BoundSubModuleInvocationStatement(reference.subModuleName, [], syntax);
         }
         break;
       }
@@ -14875,11 +14934,12 @@ var ModulesBinder = class _ModulesBinder {
     this.constructProceduresMap(parseTree);
     this.bindModule(_ModulesBinder.MainModuleName, "program", parseTree.mainModule, []);
     parseTree.subModules.forEach((subModule) => {
+      const symbol = CompilerUtils.lookupIgnoreCase(this._definedProcedures, subModule.subCommand.nameToken.token.text);
       this.bindModule(
         subModule.subCommand.nameToken.token.text,
         "sub",
         subModule.statementsList,
-        []
+        symbol ? symbol.parameters : []
       );
     });
     parseTree.functions.forEach((func) => {
@@ -14907,23 +14967,28 @@ var ModulesBinder = class _ModulesBinder {
   }
   constructProceduresMap(parseTree) {
     parseTree.subModules.forEach((subModule) => {
-      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, []);
+      const parameters = this.collectParameterNames(subModule.subCommand.parameterTokens);
+      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, parameters);
     });
     parseTree.functions.forEach((func) => {
-      const parameters = [];
-      const seen = {};
-      func.functionCommand.parameterTokens.forEach((parameter) => {
-        const name = parameter.token.text;
-        const key = name.toLowerCase();
-        if (seen[key]) {
-          this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
-        } else {
-          seen[key] = true;
-          parameters.push(name);
-        }
-      });
+      const parameters = this.collectParameterNames(func.functionCommand.parameterTokens);
       this.addProcedure(func.functionCommand.nameToken, 1 /* Function */, parameters);
     });
+  }
+  collectParameterNames(parameterTokens) {
+    const parameters = [];
+    const seen = {};
+    parameterTokens.forEach((parameter) => {
+      const name = parameter.token.text;
+      const key = name.toLowerCase();
+      if (seen[key]) {
+        this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
+      } else {
+        seen[key] = true;
+        parameters.push(name);
+      }
+    });
+    return parameters;
   }
   addProcedure(nameToken, kind, parameters) {
     const name = nameToken.token.text;
@@ -15789,7 +15854,13 @@ var ModuleEmitter = class {
     this._instructions.push(new MethodInvocationInstruction(statement.libraryName, statement.methodName, statement.syntax.range));
   }
   emitSubModuleInvocation(statement) {
-    this._instructions.push(new InvokeSubModuleInstruction(statement.subModuleName, 0, false, statement.syntax.range));
+    statement.argumentsList.forEach((argument) => this.emitExpression(argument));
+    this._instructions.push(new InvokeSubModuleInstruction(
+      statement.subModuleName,
+      statement.argumentsList.length,
+      false,
+      statement.syntax.range
+    ));
   }
   emitVariableAssignment(statement) {
     this.emitExpression(statement.value);
@@ -16198,7 +16269,15 @@ var CommandsParser = class _CommandsParser {
   parseSubCommand() {
     const subToken = this.eat(13 /* SubKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    return new SubCommandSyntax(subToken, nameToken);
+    const parameters = this.parseOptionalParameterList();
+    return new SubCommandSyntax(
+      subToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
   }
   parseEndSubCommand() {
     const endSubToken = this.eat(14 /* EndSubKeyword */);
@@ -16207,9 +16286,28 @@ var CommandsParser = class _CommandsParser {
   parseFunctionCommand() {
     const functionToken = this.eat(15 /* FunctionKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    const leftParenToken = this.eat(21 /* LeftParen */);
+    const parameters = this.parseOptionalParameterList();
+    return new FunctionCommandSyntax(
+      functionToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
+  }
+  /**
+   * Parses an optional, parenthesized parameter list shared by `Sub` and
+   * `Function` declarations. The parentheses and the parameter list may both
+   * be omitted, so `Sub Foo`, `Sub Foo()` and `Sub Foo(A, B)` are all valid.
+   */
+  parseOptionalParameterList() {
     const parameterTokens = [];
     const commaTokens = [];
+    if (!this.isNext(21 /* LeftParen */)) {
+      return { leftParenToken: void 0, parameterTokens, commaTokens, rightParenToken: void 0 };
+    }
+    const leftParenToken = this.eat(21 /* LeftParen */);
     if (!this.isNext(20 /* RightParen */)) {
       parameterTokens.push(this.eat(38 /* Identifier */));
       while (this.isNext(24 /* Comma */)) {
@@ -16218,14 +16316,7 @@ var CommandsParser = class _CommandsParser {
       }
     }
     const rightParenToken = this.eat(20 /* RightParen */);
-    return new FunctionCommandSyntax(
-      functionToken,
-      nameToken,
-      leftParenToken,
-      parameterTokens,
-      commaTokens,
-      rightParenToken
-    );
+    return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
   }
   parseEndFunctionCommand() {
     return new EndFunctionCommandSyntax(this.eat(16 /* EndFunctionKeyword */));
@@ -17594,6 +17685,80 @@ function evaluateDebugCondition(engine, expression) {
   return evaluateDebugExpression(engine, expression)?.toBoolean();
 }
 
+// src/debug/dap.ts
+var DEBUG_THREAD_ID = 1;
+function toDapLine(protocolLine) {
+  return protocolLine + 1;
+}
+function fromDapLine(dapLine) {
+  return dapLine - 1;
+}
+function evaluateFailedMessage(expression) {
+  return `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`;
+}
+function conditionCompileFailedMessage(condition) {
+  return `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${condition}`;
+}
+function rawStoppedEvent(reason, description) {
+  return {
+    seq: 0,
+    type: "event",
+    event: "stopped",
+    body: {
+      reason,
+      threadId: DEBUG_THREAD_ID,
+      allThreadsStopped: true,
+      ...description ? { description } : {}
+    }
+  };
+}
+
+// src/common/paths.ts
+function normalizeProgramPath(filePath) {
+  return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+}
+
+// src/common/text-window.ts
+function parseConsoleInput(kind, raw) {
+  if (kind === 1 /* Number */) {
+    const parsed = Number(raw);
+    return new NumberValue(Number.isFinite(parsed) ? parsed : 0);
+  }
+  return new StringValue(raw);
+}
+var BufferedTextWindowPlugin = class {
+  inputBuffer = [];
+  foreground = 15 /* White */;
+  background = 0 /* Black */;
+  /** Kind of the pending `Read`/`ReadNumber`, cleared by {@link pushInput}. */
+  pendingInputKind;
+  inputIsNeeded(kind) {
+    this.pendingInputKind = kind;
+  }
+  checkInputBuffer() {
+    return this.inputBuffer.shift();
+  }
+  isWaitingForInput() {
+    return this.pendingInputKind !== void 0;
+  }
+  pushInput(raw) {
+    this.inputBuffer.push(parseConsoleInput(this.pendingInputKind, raw));
+    this.pendingInputKind = void 0;
+  }
+  getForegroundColor() {
+    return this.foreground;
+  }
+  setForegroundColor(color) {
+    this.foreground = color;
+  }
+  getBackgroundColor() {
+    return this.background;
+  }
+  setBackgroundColor(color) {
+    this.background = color;
+  }
+};
+
 // src/debug/engine-driver.ts
 var DebugEngineDriver = class {
   constructor(callbacks, reader, options = {}) {
@@ -17646,7 +17811,7 @@ var DebugEngineDriver = class {
   /** Verifies breakpoints against `sourcePath` and stores them for the run. */
   setBreakpoints(sourcePath, requests) {
     const verified = this.verifyBreakpoints(sourcePath, requests);
-    this.breakpointsByFile.set(normalizePath(sourcePath), verified);
+    this.breakpointsByFile.set(normalizeProgramPath(sourcePath), verified);
     return verified;
   }
   /**
@@ -17655,7 +17820,7 @@ var DebugEngineDriver = class {
    * again once the program is known.
    */
   reverifyBreakpoints(sourcePath) {
-    const current = this.breakpointsByFile.get(normalizePath(sourcePath)) ?? [];
+    const current = this.breakpointsByFile.get(normalizeProgramPath(sourcePath)) ?? [];
     if (current.length === 0) {
       return [];
     }
@@ -17663,7 +17828,7 @@ var DebugEngineDriver = class {
       sourcePath,
       current.map((breakpoint) => ({ line: breakpoint.line, condition: breakpoint.condition }))
     );
-    this.breakpointsByFile.set(normalizePath(sourcePath), verified);
+    this.breakpointsByFile.set(normalizeProgramPath(sourcePath), verified);
     return verified;
   }
   /** Starts execution; reports `entry` instead when stopping on entry. */
@@ -17916,7 +18081,7 @@ var DebugEngineDriver = class {
     if (line === void 0 || !this.engine) {
       return false;
     }
-    const fileBreakpoints = this.breakpointsByFile.get(normalizePath(this.loadedPath)) ?? [];
+    const fileBreakpoints = this.breakpointsByFile.get(normalizeProgramPath(this.loadedPath)) ?? [];
     for (const breakpoint of fileBreakpoints) {
       if (!breakpoint.verified || breakpoint.actualLine !== line) {
         continue;
@@ -17978,56 +18143,22 @@ function executableLines(compilation) {
   }
   return [...lines].sort((left, right) => left - right);
 }
-function normalizePath(filePath) {
-  return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
-}
-var DriverTextWindow = class {
+var DriverTextWindow = class extends BufferedTextWindowPlugin {
   constructor(driver) {
+    super();
     this.driver = driver;
   }
   driver;
-  inputBuffer = [];
-  foreground = 15 /* White */;
-  background = 0 /* Black */;
-  requestedInputKind;
   inputIsNeeded(kind) {
-    this.requestedInputKind = kind;
+    super.inputIsNeeded(kind);
     this.driver.notifyInputNeeded(kind);
-  }
-  checkInputBuffer() {
-    return this.inputBuffer.shift();
   }
   writeText(value, appendNewLine) {
     this.driver.emitOutput(value + (appendNewLine ? "\n" : ""));
   }
-  getForegroundColor() {
-    return this.foreground;
-  }
-  setForegroundColor(color) {
-    this.foreground = color;
-  }
-  getBackgroundColor() {
-    return this.background;
-  }
-  setBackgroundColor(color) {
-    this.background = color;
-  }
-  pushInput(raw) {
-    if (this.requestedInputKind === 1 /* Number */) {
-      const parsed = Number(raw);
-      this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
-    } else {
-      this.inputBuffer.push(new StringValue(raw));
-    }
-    this.requestedInputKind = void 0;
-  }
-  isWaitingForInput() {
-    return this.requestedInputKind !== void 0;
-  }
 };
 
 // src/debug/session.ts
-var THREAD_ID = 1;
 var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSession {
   constructor(sources) {
     super("smallbasic-debug.log");
@@ -18037,7 +18168,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
     this.driver = new DebugEngineDriver(
       {
         onOutput: (text) => this.sendEvent(new import_debugadapter.OutputEvent(text)),
-        onStopped: (reason) => this.sendEvent(new import_debugadapter.StoppedEvent(reason, THREAD_ID)),
+        onStopped: (reason) => this.sendEvent(new import_debugadapter.StoppedEvent(reason, DEBUG_THREAD_ID)),
         onInputRequested: (kind) => this.onInputRequested(kind),
         onTerminated: (exitCode) => this.endSession(exitCode)
       },
@@ -18091,18 +18222,18 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   setBreakPointsRequest(response, args) {
     const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
     const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
-      line: breakpoint.line - 1,
+      line: fromDapLine(breakpoint.line),
       condition: breakpoint.condition?.trim() || void 0
-    })) : (args.lines ?? []).map((line) => ({ line: line - 1 }));
+    })) : (args.lines ?? []).map((line) => ({ line: fromDapLine(line) }));
     const verified = sourcePath ? this.driver.setBreakpoints(sourcePath, requested) : requested.map((breakpoint) => ({ ...breakpoint, verified: false }));
     response.body = {
       breakpoints: verified.map((breakpoint) => {
         const result = {
           verified: breakpoint.verified,
-          line: (breakpoint.actualLine ?? breakpoint.line) + 1
+          line: toDapLine(breakpoint.actualLine ?? breakpoint.line)
         };
         if (!breakpoint.verified && breakpoint.condition) {
-          result.message = `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${breakpoint.condition}`;
+          result.message = conditionCompileFailedMessage(breakpoint.condition);
         }
         return result;
       })
@@ -18111,14 +18242,14 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   }
   threadsRequest(response) {
     response.body = {
-      threads: [new import_debugadapter.Thread(THREAD_ID, "Main")]
+      threads: [new import_debugadapter.Thread(DEBUG_THREAD_ID, "Main")]
     };
     this.sendResponse(response);
   }
   stackTraceRequest(response, _args) {
     const stackFrames = this.driver.frames().map((frame) => {
       const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new import_debugadapter.StackFrame(frame.id, frame.name, source, frame.line + 1, frame.column + 1);
+      return new import_debugadapter.StackFrame(frame.id, frame.name, source, toDapLine(frame.line), toDapLine(frame.column));
     });
     response.body = {
       stackFrames,
@@ -18188,7 +18319,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
       this.sendResponse(response);
       return;
     }
-    this.sendErrorResponse(response, 2002, `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`);
+    this.sendErrorResponse(response, 2002, evaluateFailedMessage(expression));
   }
   startExecutionAfterConfiguration() {
     if (!this.configurationDone || !this.loaded || this.executionStarted) {
@@ -18199,18 +18330,7 @@ var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSessi
   }
   onInputRequested(kind) {
     this.sendEvent(new import_debugadapter.OutputEvent(kind === 1 /* Number */ ? "\n[Input] \u8BF7\u8F93\u5165\u6570\u5B57\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u8F93\u5165\u6587\u672C\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n"));
-    const stopped = {
-      seq: 0,
-      type: "event",
-      event: "stopped",
-      body: {
-        reason: "pause",
-        description: "Waiting for input",
-        threadId: THREAD_ID,
-        allThreadsStopped: true
-      }
-    };
-    this.sendEvent(stopped);
+    this.sendEvent(rawStoppedEvent("pause", "Waiting for input"));
   }
   createVariable(variable) {
     return {
@@ -18236,4 +18356,3 @@ var NodeSmallBasicDebugSession = class extends SmallBasicDebugSession {
   }
 };
 import_debugadapter2.DebugSession.run(NodeSmallBasicDebugSession);
-//# sourceMappingURL=adapter.js.map

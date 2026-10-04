@@ -31,28 +31,11 @@ namespace SmallBasic.Compiler.Binding
                 switch (syntax)
                 {
                     case SubModuleStatementSyntax subModule:
-                        addProcedure(subModule.NameToken, subModule, Array.Empty<string>(), returnsValue: false);
+                        addProcedure(subModule.NameToken, subModule, collectParameters(subModule.Parameters), returnsValue: false);
                         break;
                     case FunctionStatementSyntax function:
-                        {
-                            var parameterNames = new List<string>();
-                            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                            foreach (ParameterSyntax parameter in function.Parameters)
-                            {
-                                string name = parameter.IdentifierToken.Text;
-                                if (!seen.Add(name))
-                                {
-                                    this.diagnostics.ReportDuplicateParameter(parameter.IdentifierToken.Range, name);
-                                }
-                                else
-                                {
-                                    parameterNames.Add(name);
-                                }
-                            }
-
-                            addProcedure(function.NameToken, function, parameterNames, returnsValue: true);
-                            break;
-                        }
+                        addProcedure(function.NameToken, function, collectParameters(function.Parameters), returnsValue: true);
+                        break;
                 }
             }
 
@@ -115,6 +98,26 @@ namespace SmallBasic.Compiler.Binding
             foreach (var function in this.Functions.Values)
             {
                 this.CheckForLabelErrors(function.Body);
+            }
+
+            List<string> collectParameters(IReadOnlyList<ParameterSyntax> parameterSyntaxes)
+            {
+                var parameterNames = new List<string>();
+                var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                foreach (ParameterSyntax parameter in parameterSyntaxes)
+                {
+                    string name = parameter.IdentifierToken.Text;
+                    if (!seen.Add(name))
+                    {
+                        this.diagnostics.ReportDuplicateParameter(parameter.IdentifierToken.Range, name);
+                    }
+                    else
+                    {
+                        parameterNames.Add(name);
+                    }
+                }
+
+                return parameterNames;
             }
 
             void addProcedure(
@@ -338,6 +341,21 @@ namespace SmallBasic.Compiler.Binding
                         }
 
                         break;
+                    }
+
+                case BoundSubModuleExpression subModuleReference when
+                    !subModuleReference.ReturnsValue && subModuleReference.Parameters.Count == 0:
+                    {
+                        // A no-argument Sub may be invoked without parentheses.
+                        return new BoundSubModuleInvocationStatement(
+                            syntax,
+                            new BoundSubModuleInvocationExpression(
+                                subModuleReference.Syntax,
+                                hasValue: false,
+                                hasErrors: false,
+                                subModuleReference.Name,
+                                Array.Empty<BaseBoundExpression>(),
+                                returnsValue: false));
                     }
             }
 
@@ -703,6 +721,18 @@ namespace SmallBasic.Compiler.Binding
             {
                 if (expectsValue)
                 {
+                    if (procedure.ReturnsValue && procedure.Parameters.Count == 0)
+                    {
+                        // A no-argument function may be called without parentheses.
+                        return new BoundSubModuleInvocationExpression(
+                            syntax,
+                            hasValue: true,
+                            hasErrors,
+                            procedure.Name,
+                            Array.Empty<BaseBoundExpression>(),
+                            returnsValue: true);
+                    }
+
                     return new BoundVariableExpression(syntax, hasValue: true, hasErrors, name);
                 }
 

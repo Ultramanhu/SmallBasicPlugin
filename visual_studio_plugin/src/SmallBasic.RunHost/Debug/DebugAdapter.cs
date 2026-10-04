@@ -12,12 +12,10 @@ using SmallBasic.RunHost.Libraries;
 /// stepIn/next/stepOut depth rules, variable expansion, input-through-evaluate)
 /// mirror the TypeScript adapter in visual_studio_code_plugin/packages/smallbasic-vscode/src/debug/session.ts.
 /// </summary>
-public sealed class DebugAdapter
+public sealed class DebugAdapter : DapAdapterBase
 {
-    private const int ThreadId = 1;
     private const long GlobalsReference = 1;
 
-    private readonly DapStream dap;
     private readonly Dictionary<string, List<SessionBreakpoint>> breakpoints = new Dictionary<string, List<SessionBreakpoint>>(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<long, ArrayValue> arrayHandles = new Dictionary<long, ArrayValue>();
     private readonly Dictionary<long, IReadOnlyDictionary<string, BaseValue>> localHandles = new Dictionary<long, IReadOnlyDictionary<string, BaseValue>>();
@@ -28,27 +26,16 @@ public sealed class DebugAdapter
     private string programPath = string.Empty;
     private string programName = "program.sb";
 
-    private bool stopOnEntry;
     private bool configurationDone;
     private bool runLoopStarted;
-    private bool pauseRequested;
-    private bool endSent;
 #if GRAPHICS_HOST
     private bool usesGraphics;
 #endif
-    private int waitingForInput; // 0 = not waiting, 1 = string, 2 = number
-
-    private string activeControl = "continue";
-    private int activeControlDepth;
-    private int? activeControlLine;
     private long nextVariableHandle = GlobalsReference + 1;
 
-    private TaskCompletionSource<bool> resumeSignal = NewSignal();
-    private TaskCompletionSource<bool> inputSignal = NewSignal();
-
     private DebugAdapter(DapStream dap)
+        : base(dap)
     {
-        this.dap = dap;
     }
 
     public static async Task RunAsync()
@@ -60,7 +47,36 @@ public sealed class DebugAdapter
         await adapter.MessageLoopAsync().ConfigureAwait(false);
     }
 
-    private static TaskCompletionSource<bool> NewSignal() => new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+    /// <summary>Program output goes to the debug console, where `evaluate` reads it back.</summary>
+    protected override string OutputCategory => "console";
+
+    protected override DebuggerSnapshot? CurrentSnapshot => this.engine?.GetSnapshot();
+
+    protected override int? CurrentEngineLine => this.engine?.CurrentSourceLine;
+
+    protected sealed override void OnBeforeStopped()
+    {
+        // Handles reference paused memory; a resume invalidates every handle
+        // handed out since the previous stop.
+        this.arrayHandles.Clear();
+        this.localHandles.Clear();
+        this.nextVariableHandle = GlobalsReference + 1;
+    }
+
+    protected override void DisposeEngineResources()
+    {
+        try
+        {
+            this.libraries?.Dispose();
+        }
+        catch
+        {
+            // Session teardown must still report termination if a desktop
+            // library fails while closing its UI resources.
+        }
+
+        this.libraries = null;
+    }
 
     private sealed class SessionBreakpoint
     {
@@ -75,44 +91,7 @@ public sealed class DebugAdapter
         public CompiledExpression? CompiledCondition { get; set; }
     }
 
-    private async Task MessageLoopAsync()
-    {
-        while (true)
-        {
-            JsonObject? message;
-            try
-            {
-                message = await this.dap.ReadMessageAsync().ConfigureAwait(false);
-            }
-            catch
-            {
-                return;
-            }
-
-            if (message is null)
-            {
-                return;
-            }
-
-            if ((string?)message["type"] == "request")
-            {
-                try
-                {
-                    await this.DispatchRequestAsync(message).ConfigureAwait(false);
-                }
-                catch (Exception ex)
-                {
-                    // A failing handler must not tear the adapter down; report the
-                    // failure so the host does not treat a silent exit as a crash.
-                    int failedSeq = (int?)message["seq"] ?? 0;
-                    string failedCommand = (string?)message["command"] ?? string.Empty;
-                    this.SendErrorResponse(failedSeq, failedCommand, $"SmallBasic debugger failed to handle '{failedCommand}': {ex.Message}");
-                }
-            }
-        }
-    }
-
-    private async Task DispatchRequestAsync(JsonObject request)
+    protected override async Task DispatchRequestAsync(JsonObject request)
     {
         int seq = (int?)request["seq"] ?? 0;
         string command = (string?)request["command"] ?? string.Empty;
@@ -491,14 +470,13 @@ public sealed class DebugAdapter
     {
         string expression = ((string?)arguments?["expression"] ?? string.Empty).Trim();
 
-        if (this.waitingForInput != 0 && this.libraries is { } libraries && this.engine is { } engine)
+        if (this.waitingForInput && this.libraries is { } libraries && this.engine is { } engine)
         {
             libraries.TextWindow.SetPendingInput(expression);
             engine.InputReceived();
-            this.waitingForInput = 0;
+            this.waitingForInput = false;
             this.SendResponse(seq, command, new JsonObject { ["result"] = expression, ["variablesReference"] = 0 });
-            this.inputSignal.TrySetResult(true);
-            this.inputSignal = NewSignal();
+            this.CompleteInput();
             return;
         }
 
@@ -567,137 +545,29 @@ public sealed class DebugAdapter
         }
 
         this.runLoopStarted = true;
-        Task.Run(() => this.RunEngineLoopAsync());
+        Task.Run(() => this.RunEngineLoopAsync(this.engine));
     }
 
-    private async Task RunEngineLoopAsync()
-    {
-        SmallBasicEngine engine = this.engine!;
-
-        // The engine uses source line zero as its "no line yet" sentinel, so a
-        // first line of zero never triggers a NextLine pause. Handle entry stops
-        // and breakpoints sitting on the first instruction line explicitly.
-        int firstLine = engine.GetSnapshot().ExecutionStack.Last().CurrentSourceLine;
-        if (this.stopOnEntry)
-        {
-            this.SendStopped("entry");
-            await this.WaitForResumeAsync().ConfigureAwait(false);
-        }
-        else if (this.activeControl == "continue" && await this.ShouldStopAtLineAsync(firstLine).ConfigureAwait(false))
-        {
-            this.SendStopped("breakpoint");
-            await this.WaitForResumeAsync().ConfigureAwait(false);
-        }
-
-        while (true)
-        {
 #if GRAPHICS_HOST
-            if (this.usesGraphics && GraphicsWindowLibrary.HasShutdown)
-            {
-                // The user closed the graphics window: end the session gracefully
-                // instead of failing the next graphics call on a dead dispatcher.
-                this.EndSession(0);
-                return;
-            }
+    protected override bool CheckRunLoopEnded()
+    {
+        if (this.usesGraphics && GraphicsWindowLibrary.HasShutdown)
+        {
+            // The user closed the graphics window: end the session gracefully
+            // instead of failing the next graphics call on a dead dispatcher.
+            this.EndSession(0);
+            return true;
+        }
+
+        return false;
+    }
 #endif
-
-            try
-            {
-                await engine.Execute().ConfigureAwait(false);
-            }
-            catch (Exception ex)
-            {
-                this.SendOutput($"\n[Runtime Error] {ex}\n");
-                this.EndSession(1);
-                return;
-            }
-
-            switch (engine.State)
-            {
-                case ExecutionState.Paused:
-                {
-                    string? reason = await this.ComputeStopReasonAsync().ConfigureAwait(false);
-                    if (reason is null)
-                    {
-                        engine.Continue();
-                    }
-                    else
-                    {
-                        this.SendStopped(reason);
-                        await this.WaitForResumeAsync().ConfigureAwait(false);
-                        if (engine.State == ExecutionState.Paused)
-                        {
-                            engine.Continue();
-                        }
-                    }
-
-                    break;
-                }
-
-                case ExecutionState.BlockedOnStringInput:
-                case ExecutionState.BlockedOnNumberInput:
-                {
-                    bool numeric = engine.State == ExecutionState.BlockedOnNumberInput;
-                    this.waitingForInput = numeric ? 2 : 1;
-                    this.SendOutput(numeric
-                        ? "\n[Input] Type a number in the Debug Console and press Enter.\n"
-                        : "\n[Input] Type text in the Debug Console and press Enter.\n");
-                    this.SendStopped("pause", "Waiting for input");
-                    await this.inputSignal.Task.ConfigureAwait(false);
-                    break;
-                }
-
-                case ExecutionState.Terminated:
-                    this.EndSession(0);
-                    return;
-
-                case ExecutionState.Running:
-                    break;
-            }
-        }
-    }
-
-    private async Task<string?> ComputeStopReasonAsync()
-    {
-        if (this.pauseRequested)
-        {
-            this.pauseRequested = false;
-            return "pause";
-        }
-
-        int depth = this.GetStackDepth();
-        switch (this.activeControl)
-        {
-            case "stepIn":
-                return "step";
-            case "next":
-                return depth <= this.activeControlDepth && this.engine?.CurrentSourceLine != this.activeControlLine ? "step" : null;
-            case "stepOut":
-                return depth < this.activeControlDepth && this.engine?.CurrentSourceLine != this.activeControlLine ? "step" : null;
-            default:
-                return this.engine is { } engine && await this.ShouldStopAtLineAsync(engine.CurrentSourceLine).ConfigureAwait(false)
-                    ? "breakpoint"
-                    : null;
-        }
-    }
-
-    private int? GetStepLine(bool stepOut)
-    {
-        DebuggerSnapshot? snapshot = this.engine?.GetSnapshot();
-        if (snapshot is null)
-        {
-            return null;
-        }
-
-        Frame? frame = snapshot.ExecutionStack.Reverse().ElementAtOrDefault(stepOut ? 1 : 0);
-        return frame?.CurrentSourceLine;
-    }
 
     // A line stops execution when it has a verified unconditional breakpoint, or
     // a conditional breakpoint whose condition evaluates to true. Conditions are
     // evaluated against the live program memory; failures simply fall through so
     // the program keeps running.
-    private async Task<bool> ShouldStopAtLineAsync(int line)
+    protected override async Task<bool> ShouldStopAtLineAsync(int line)
     {
         if (this.engine is null
             || !this.breakpoints.TryGetValue(this.programPath, out List<SessionBreakpoint>? fileBreakpoints))
@@ -725,172 +595,5 @@ public sealed class DebugAdapter
         }
 
         return false;
-    }
-
-    private int GetStackDepth() => this.engine?.GetSnapshot().ExecutionStack.Count ?? 0;
-
-    private async Task WaitForResumeAsync()
-    {
-        Task signal = this.resumeSignal.Task;
-        await signal.ConfigureAwait(false);
-    }
-
-    private void SignalResume()
-    {
-        this.resumeSignal.TrySetResult(true);
-        this.resumeSignal = NewSignal();
-    }
-
-    private void EndSession(int exitCode)
-    {
-        if (this.endSent)
-        {
-            return;
-        }
-
-        this.endSent = true;
-        this.SendEvent("exited", new JsonObject { ["exitCode"] = exitCode });
-        this.SendTerminated();
-        this.DisposeLibraries();
-    }
-
-    private void DisposeLibraries()
-    {
-        try
-        {
-            this.libraries?.Dispose();
-        }
-        catch
-        {
-            // Session teardown must still report termination if a desktop
-            // library fails while closing its UI resources.
-        }
-
-        this.libraries = null;
-    }
-
-    private void SendTerminated()
-    {
-        this.SendEvent("terminated");
-    }
-
-    private void SendStopped(string reason, string? description = null)
-    {
-        this.arrayHandles.Clear();
-        this.localHandles.Clear();
-        this.nextVariableHandle = GlobalsReference + 1;
-        var body = new JsonObject
-        {
-            ["reason"] = reason,
-            ["threadId"] = ThreadId,
-            ["allThreadsStopped"] = true,
-        };
-
-        if (description is { })
-        {
-            body["description"] = description;
-        }
-
-        this.SendEvent("stopped", body);
-    }
-
-    private void SendOutput(string text)
-    {
-        this.SendEvent("output", new JsonObject
-        {
-            ["category"] = "console",
-            ["output"] = text,
-        });
-    }
-
-    private void SendEvent(string eventName, JsonObject? body = null)
-    {
-        var message = new JsonObject
-        {
-            ["seq"] = 0,
-            ["type"] = "event",
-            ["event"] = eventName,
-        };
-
-        if (body is { })
-        {
-            message["body"] = body;
-        }
-
-        this.TryWrite(message);
-    }
-
-    private void SendResponse(int requestSeq, string command, JsonObject? body = null)
-    {
-        var message = new JsonObject
-        {
-            ["seq"] = 0,
-            ["type"] = "response",
-            ["request_seq"] = requestSeq,
-            ["command"] = command,
-            ["success"] = true,
-        };
-
-        if (body is { })
-        {
-            message["body"] = body;
-        }
-
-        this.TryWrite(message);
-    }
-
-    private void SendErrorResponse(int requestSeq, string command, string messageText)
-    {
-        this.TryWrite(new JsonObject
-        {
-            ["seq"] = 0,
-            ["type"] = "response",
-            ["request_seq"] = requestSeq,
-            ["command"] = command,
-            ["success"] = false,
-            ["message"] = messageText,
-        });
-    }
-
-    private void TryWrite(JsonObject message)
-    {
-        try
-        {
-            this.dap.WriteMessage(message);
-        }
-        catch
-        {
-            // The client went away; the session ends when stdin closes.
-        }
-    }
-
-    private sealed class DapTextWriter : TextWriter
-    {
-        private readonly DebugAdapter adapter;
-
-        public DapTextWriter(DebugAdapter adapter)
-        {
-            this.adapter = adapter;
-        }
-
-        public override System.Text.Encoding Encoding => System.Text.Encoding.UTF8;
-
-        public override void Write(string? value) => this.adapter.SendOutput(value ?? string.Empty);
-
-        public override void WriteLine(string? value) => this.adapter.SendOutput((value ?? string.Empty) + Environment.NewLine);
-
-        public override Task WriteAsync(string? value)
-        {
-            this.Write(value);
-            return Task.CompletedTask;
-        }
-
-        public override Task WriteLineAsync(string? value)
-        {
-            this.WriteLine(value);
-            return Task.CompletedTask;
-        }
-
-        public override Task FlushAsync() => Task.CompletedTask;
     }
 }

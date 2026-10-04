@@ -1,6 +1,26 @@
 import { CompilerRange } from "./ranges";
 import { Token } from "./tokens";
 
+/**
+ * Computes the end range of a procedure header (`Sub`/`Function`). The closing
+ * parenthesis is optional, so the header may end at the last parameter, or at
+ * the procedure name when there is no parameter list at all.
+ */
+function parameterListEndRange(
+    nameToken: TokenSyntax,
+    parameterTokens: ReadonlyArray<TokenSyntax>,
+    rightParenToken: TokenSyntax | undefined): CompilerRange {
+    if (rightParenToken) {
+        return rightParenToken.range;
+    }
+
+    if (parameterTokens.length) {
+        return parameterTokens[parameterTokens.length - 1].range;
+    }
+
+    return nameToken.range;
+}
+
 export enum SyntaxKind {
     ParseTree,
     SubModuleDeclaration,
@@ -337,12 +357,31 @@ export class GoToCommandSyntax extends BaseCommandSyntax {
 export class SubCommandSyntax extends BaseCommandSyntax {
     public constructor(
         public readonly subToken: TokenSyntax,
-        public readonly nameToken: TokenSyntax) {
-        super(SyntaxKind.SubCommand, CompilerRange.combine(subToken.range, nameToken.range));
+        public readonly nameToken: TokenSyntax,
+        public readonly leftParenToken: TokenSyntax | undefined,
+        public readonly parameterTokens: ReadonlyArray<TokenSyntax>,
+        public readonly commaTokens: ReadonlyArray<TokenSyntax>,
+        public readonly rightParenToken: TokenSyntax | undefined) {
+        super(SyntaxKind.SubCommand, CompilerRange.combine(
+            subToken.range,
+            parameterListEndRange(nameToken, parameterTokens, rightParenToken)));
     }
 
     public children(): ReadonlyArray<BaseSyntaxNode> {
-        return [this.subToken, this.nameToken];
+        const children: BaseSyntaxNode[] = [this.subToken, this.nameToken];
+        if (this.leftParenToken) {
+            children.push(this.leftParenToken);
+        }
+        this.parameterTokens.forEach((parameter, index) => {
+            children.push(parameter);
+            if (index < this.commaTokens.length) {
+                children.push(this.commaTokens[index]);
+            }
+        });
+        if (this.rightParenToken) {
+            children.push(this.rightParenToken);
+        }
+        return children;
     }
 }
 
@@ -361,22 +400,29 @@ export class FunctionCommandSyntax extends BaseCommandSyntax {
     public constructor(
         public readonly functionToken: TokenSyntax,
         public readonly nameToken: TokenSyntax,
-        public readonly leftParenToken: TokenSyntax,
+        public readonly leftParenToken: TokenSyntax | undefined,
         public readonly parameterTokens: ReadonlyArray<TokenSyntax>,
         public readonly commaTokens: ReadonlyArray<TokenSyntax>,
-        public readonly rightParenToken: TokenSyntax) {
-        super(SyntaxKind.FunctionCommand, CompilerRange.combine(functionToken.range, rightParenToken.range));
+        public readonly rightParenToken: TokenSyntax | undefined) {
+        super(SyntaxKind.FunctionCommand, CompilerRange.combine(
+            functionToken.range,
+            parameterListEndRange(nameToken, parameterTokens, rightParenToken)));
     }
 
     public children(): ReadonlyArray<BaseSyntaxNode> {
-        const children: BaseSyntaxNode[] = [this.functionToken, this.nameToken, this.leftParenToken];
+        const children: BaseSyntaxNode[] = [this.functionToken, this.nameToken];
+        if (this.leftParenToken) {
+            children.push(this.leftParenToken);
+        }
         this.parameterTokens.forEach((parameter, index) => {
             children.push(parameter);
             if (index < this.commaTokens.length) {
                 children.push(this.commaTokens[index]);
             }
         });
-        children.push(this.rightParenToken);
+        if (this.rightParenToken) {
+            children.push(this.rightParenToken);
+        }
         return children;
     }
 }

@@ -13,6 +13,8 @@ import {
 import { LanguageWorkerClient } from "../monaco/language-client";
 import { PLAYGROUND_THEME, registerSmallBasicLanguage } from "../monaco/register-language";
 import { registerSmallBasicProviders } from "../monaco/register-providers";
+import { NEW_PROGRAM_TEMPLATE } from "../common/messages";
+import { echoToConsole } from "./console-echo";
 
 interface ShellProgram {
   path: string;
@@ -243,10 +245,7 @@ shellApi.applyStaticText({
 
 const DIAGNOSTIC_OWNER = "smallbasic.language";
 const DEFAULT_PROGRAM_NAME = "program.sb";
-const NEW_FILE_TEMPLATE = [
-  "' My first Small Basic program",
-  'TextWindow.WriteLine("Hello World")'
-].join("\n");
+const NEW_FILE_TEMPLATE = NEW_PROGRAM_TEMPLATE;
 
 // Extension surface for embedders (currently the Tauri desktop shell, doc 10
 // §19). The web build defines the API but nothing registers through it, so
@@ -411,8 +410,7 @@ async function bootstrap(): Promise<void> {
   // Debug TextWindow output goes to the panel console (and stays mirrored to
   // F12); notifications fan out to both the shell statuses and the debugger.
   controller.onHostWrite = (text) => {
-    controller.appendConsole(text, 15, 0);
-    controller.mirrorToConsole(text);
+    echoToConsole(controller, text);
   };
   controller.debugListener = (event) => debug.handleEvent(event);
 

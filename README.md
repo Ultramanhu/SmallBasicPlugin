@@ -22,6 +22,7 @@ origin repository: https://github.com/sb
 | 运行程序 | CLI 三后端(JS / C# / Blazor)+ Web 双后端(JS / Blazor) | Web 双后端(JS / Blazor) | CLI 三后端(JS / C# / Blazor) |
 | 图形程序(GraphicsWindow/Shapes/Turtle) | C#(Windows)或跨平台 Blazor | Blazor WASM 在 Webview 内渲染 SVG | C# 桌面窗口或 Blazor 浏览器窗口 |
 | 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | Web 双后端(JavaScript / Blazor)；Blazor 支持图形调试 | 三后端；C#/Blazor 支持图形调试 |
+| 语言扩展(Function/Sub 参数、Dim/Return、递归) | 有 | 有 | 有 |
 | 多语言 | 支持 | 支持 | 支持 |
 
 各后端共享相同的 Small Basic 调试语义(断点吸附、单步、变量展开)；Blazor 图形调试由 RunHost 把 IDE 的 DAP 与浏览器内 WASM 解释器桥接起来。
@@ -32,6 +33,38 @@ origin repository: https://github.com/sb
 - **Visual Studio**：`SmallBasic.Vsix` 包。菜单 / 命令 / 大纲工具窗走新版扩展 SDK，补全 / 悬停 / 诊断 / 文档符号由**进程内 LSP server** 提供；分类着色、折叠、原生导航栏、调试内联值、F5 过滤器、Open Folder 调试目标由包内兼容层(MEF / DTE)承担。语言层位于独立程序集 `SmallBasic.LanguageServices`(`SmallBasic.LanguageServices.Tests` 直接引用同一程序集)。详见 [docs/design/04-VisualStudio插件设计.md](docs/design/04-VisualStudio插件设计.md)。
 
 VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本机命令行/调试宿主，`"web"` 走浏览器 Webview。Web 模式支持 JavaScript 与 Blazor；C# 需要本机进程，只支持 CLI。VS Code for the Web 没有本机进程，会把启动配置强制按 Web 模式处理。
+
+## Small Basic 语言扩展：Function、Sub 参数、Dim 与 Return
+
+在经典 Small Basic 之上，语言核心(C# 与 TypeScript 双实现，行为一致)扩展了过程式编程能力，三个运行后端(JavaScript / C# / Blazor)与三类编辑表面(VS / VS Code / Web Playground)均支持：
+
+- **`Function Name(A, B) … EndFunction`**：有返回值的过程。`Return 表达式` 立即退出并返回；执行到 `EndFunction` 仍未 `Return` 时返回空字符串。函数调用可出现在任何需要值的位置，天然支持递归与互相调用。
+- **`Sub Name(A, B) … EndSub`**：经典 Sub 现在也接受参数，实参数量精确校验。
+- **局部作用域**：参数与过程内 `Dim` 声明的变量属于本次调用的独立帧(递归安全，可遮蔽同名全局变量)；未声明变量保持 Small Basic 传统的全局行为。
+- **无参过程**：声明 `Sub F` ≡ `Sub F()`；调用 `F` ≡ `F()`、`Answer = F` ≡ `Answer = F()`。带参数的过程必须写括号并传入精确数量的实参。
+- **编辑器与调试**：关键字着色与折叠、Function 模板与带参数占位符的补全、签名帮助、大纲/导航栏显示完整签名；调试器按栈帧显示 Locals(参数 + `Dim`)与共享 Globals。
+
+样例(`test/hello/accumulate.sb`，三后端输出一致)：
+
+```smallbasic
+Total = 0                          ' undeclared names stay global
+
+Sub Accumulate(Value)              ' Subs accept parameters too
+  Total = Total + Value            ' no Dim here -> this is the global Total
+EndSub
+
+Function Factorial(N)
+  If N <= 1 Then
+    Return 1
+  EndIf
+  Return N * Factorial(N - 1)      ' recursion
+EndFunction
+
+Accumulate(3)
+TextWindow.WriteLine(Factorial(5)) ' prints 120
+```
+
+语义契约、诊断规则与双实现一致性用例详见 [docs/design/11-SmallBasic语言扩展.md](docs/design/11-SmallBasic语言扩展.md)。
 
 ## VS Code 扩展
 
@@ -199,7 +232,7 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 
 `test/` 目录提供样例：
 
-- `test/hello/` — 最小文本程序
+- `test/hello/` — 最小文本程序与语言扩展示例(`accumulate.sb`：Sub 参数、全局回退与 Function 递归)
 - `test/tutorial/` — 官方样例教程(Windows C# 图形后端或跨平台 Blazor 后端)
 - `test/tetris/` — 图形程序(Windows C# 图形后端或跨平台 Blazor 后端)
 

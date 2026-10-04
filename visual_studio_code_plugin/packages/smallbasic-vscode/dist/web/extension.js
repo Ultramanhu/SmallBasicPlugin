@@ -7270,7 +7270,11 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 init_polyfills();
-var vscode10 = __toESM(require("vscode"));
+var vscode11 = __toESM(require("vscode"));
+
+// src/common/activation.ts
+init_polyfills();
+var vscode7 = __toESM(require("vscode"));
 
 // ../smallbasic-lang-core/src/index.ts
 init_polyfills();
@@ -7395,6 +7399,15 @@ var CompilerRange = class _CompilerRange {
 };
 
 // ../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes.ts
+function parameterListEndRange(nameToken, parameterTokens, rightParenToken) {
+  if (rightParenToken) {
+    return rightParenToken.range;
+  }
+  if (parameterTokens.length) {
+    return parameterTokens[parameterTokens.length - 1].range;
+  }
+  return nameToken.range;
+}
 var SyntaxKind = /* @__PURE__ */ ((SyntaxKind3) => {
   SyntaxKind3[SyntaxKind3["ParseTree"] = 0] = "ParseTree";
   SyntaxKind3[SyntaxKind3["SubModuleDeclaration"] = 1] = "SubModuleDeclaration";
@@ -7725,15 +7738,39 @@ var GoToCommandSyntax = class extends BaseCommandSyntax {
   }
 };
 var SubCommandSyntax = class extends BaseCommandSyntax {
-  constructor(subToken, nameToken) {
-    super(19 /* SubCommand */, CompilerRange.combine(subToken.range, nameToken.range));
+  constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
+    super(19 /* SubCommand */, CompilerRange.combine(
+      subToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.subToken = subToken;
     this.nameToken = nameToken;
+    this.leftParenToken = leftParenToken;
+    this.parameterTokens = parameterTokens;
+    this.commaTokens = commaTokens;
+    this.rightParenToken = rightParenToken;
   }
   subToken;
   nameToken;
+  leftParenToken;
+  parameterTokens;
+  commaTokens;
+  rightParenToken;
   children() {
-    return [this.subToken, this.nameToken];
+    const children = [this.subToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
+    this.parameterTokens.forEach((parameter, index) => {
+      children.push(parameter);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
+    return children;
   }
 };
 var EndSubCommandSyntax = class extends BaseCommandSyntax {
@@ -7748,7 +7785,10 @@ var EndSubCommandSyntax = class extends BaseCommandSyntax {
 };
 var FunctionCommandSyntax = class extends BaseCommandSyntax {
   constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-    super(21 /* FunctionCommand */, CompilerRange.combine(functionToken.range, rightParenToken.range));
+    super(21 /* FunctionCommand */, CompilerRange.combine(
+      functionToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.functionToken = functionToken;
     this.nameToken = nameToken;
     this.leftParenToken = leftParenToken;
@@ -7763,14 +7803,19 @@ var FunctionCommandSyntax = class extends BaseCommandSyntax {
   commaTokens;
   rightParenToken;
   children() {
-    const children = [this.functionToken, this.nameToken, this.leftParenToken];
+    const children = [this.functionToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
     this.parameterTokens.forEach((parameter, index) => {
       children.push(parameter);
       if (index < this.commaTokens.length) {
         children.push(this.commaTokens[index]);
       }
     });
-    children.push(this.rightParenToken);
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
     return children;
   }
 };
@@ -19715,13 +19760,15 @@ var BoundReturnStatement = class extends BaseBoundStatement {
   }
 };
 var BoundSubModuleInvocationStatement = class extends BaseBoundStatement {
-  constructor(subModuleName, syntax) {
+  constructor(subModuleName, argumentsList, syntax) {
     super(8 /* SubModuleInvocationStatement */, syntax);
     this.subModuleName = subModuleName;
+    this.argumentsList = argumentsList;
   }
   subModuleName;
+  argumentsList;
   children() {
-    return [];
+    return this.argumentsList;
   }
 };
 var BoundLibraryMethodInvocationStatement = class extends BaseBoundStatement {
@@ -20307,6 +20354,15 @@ var ExpressionBinder = class {
     } else {
       const procedure = this._definedProcedures[name.toLowerCase()];
       if (procedure !== void 0) {
+        if (procedure.parameters.length === 0 && procedure.returnsValue && expectedValue) {
+          return new BoundSubModuleInvocationExpression(
+            procedure.name,
+            [],
+            true,
+            hasErrors,
+            syntax
+          );
+        }
         if (expectedValue) {
           hasErrors = true;
           this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
@@ -20559,7 +20615,14 @@ var StatementBinder = class {
       case 35 /* SubModuleInvocationExpression */: {
         const call = expression;
         if (!call.returnsValue) {
-          return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+          return new BoundSubModuleInvocationStatement(call.subModuleName, call.argumentsList, syntax);
+        }
+        break;
+      }
+      case 34 /* SubModuleExpression */: {
+        const reference = expression;
+        if (!reference.returnsValue && reference.parameters.length === 0) {
+          return new BoundSubModuleInvocationStatement(reference.subModuleName, [], syntax);
         }
         break;
       }
@@ -20580,11 +20643,12 @@ var ModulesBinder = class _ModulesBinder {
     this.constructProceduresMap(parseTree);
     this.bindModule(_ModulesBinder.MainModuleName, "program", parseTree.mainModule, []);
     parseTree.subModules.forEach((subModule) => {
+      const symbol = CompilerUtils.lookupIgnoreCase(this._definedProcedures, subModule.subCommand.nameToken.token.text);
       this.bindModule(
         subModule.subCommand.nameToken.token.text,
         "sub",
         subModule.statementsList,
-        []
+        symbol ? symbol.parameters : []
       );
     });
     parseTree.functions.forEach((func) => {
@@ -20612,23 +20676,28 @@ var ModulesBinder = class _ModulesBinder {
   }
   constructProceduresMap(parseTree) {
     parseTree.subModules.forEach((subModule) => {
-      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, []);
+      const parameters = this.collectParameterNames(subModule.subCommand.parameterTokens);
+      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, parameters);
     });
     parseTree.functions.forEach((func) => {
-      const parameters = [];
-      const seen = {};
-      func.functionCommand.parameterTokens.forEach((parameter) => {
-        const name = parameter.token.text;
-        const key = name.toLowerCase();
-        if (seen[key]) {
-          this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
-        } else {
-          seen[key] = true;
-          parameters.push(name);
-        }
-      });
+      const parameters = this.collectParameterNames(func.functionCommand.parameterTokens);
       this.addProcedure(func.functionCommand.nameToken, 1 /* Function */, parameters);
     });
+  }
+  collectParameterNames(parameterTokens) {
+    const parameters = [];
+    const seen = {};
+    parameterTokens.forEach((parameter) => {
+      const name = parameter.token.text;
+      const key = name.toLowerCase();
+      if (seen[key]) {
+        this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
+      } else {
+        seen[key] = true;
+        parameters.push(name);
+      }
+    });
+    return parameters;
   }
   addProcedure(nameToken, kind, parameters) {
     const name = nameToken.token.text;
@@ -21495,7 +21564,13 @@ var ModuleEmitter = class {
     this._instructions.push(new MethodInvocationInstruction(statement.libraryName, statement.methodName, statement.syntax.range));
   }
   emitSubModuleInvocation(statement) {
-    this._instructions.push(new InvokeSubModuleInstruction(statement.subModuleName, 0, false, statement.syntax.range));
+    statement.argumentsList.forEach((argument) => this.emitExpression(argument));
+    this._instructions.push(new InvokeSubModuleInstruction(
+      statement.subModuleName,
+      statement.argumentsList.length,
+      false,
+      statement.syntax.range
+    ));
   }
   emitVariableAssignment(statement) {
     this.emitExpression(statement.value);
@@ -21905,7 +21980,15 @@ var CommandsParser = class _CommandsParser {
   parseSubCommand() {
     const subToken = this.eat(13 /* SubKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    return new SubCommandSyntax(subToken, nameToken);
+    const parameters = this.parseOptionalParameterList();
+    return new SubCommandSyntax(
+      subToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
   }
   parseEndSubCommand() {
     const endSubToken = this.eat(14 /* EndSubKeyword */);
@@ -21914,9 +21997,28 @@ var CommandsParser = class _CommandsParser {
   parseFunctionCommand() {
     const functionToken = this.eat(15 /* FunctionKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    const leftParenToken = this.eat(21 /* LeftParen */);
+    const parameters = this.parseOptionalParameterList();
+    return new FunctionCommandSyntax(
+      functionToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
+  }
+  /**
+   * Parses an optional, parenthesized parameter list shared by `Sub` and
+   * `Function` declarations. The parentheses and the parameter list may both
+   * be omitted, so `Sub Foo`, `Sub Foo()` and `Sub Foo(A, B)` are all valid.
+   */
+  parseOptionalParameterList() {
     const parameterTokens = [];
     const commaTokens = [];
+    if (!this.isNext(21 /* LeftParen */)) {
+      return { leftParenToken: void 0, parameterTokens, commaTokens, rightParenToken: void 0 };
+    }
+    const leftParenToken = this.eat(21 /* LeftParen */);
     if (!this.isNext(20 /* RightParen */)) {
       parameterTokens.push(this.eat(38 /* Identifier */));
       while (this.isNext(24 /* Comma */)) {
@@ -21925,14 +22027,7 @@ var CommandsParser = class _CommandsParser {
       }
     }
     const rightParenToken = this.eat(20 /* RightParen */);
-    return new FunctionCommandSyntax(
-      functionToken,
-      nameToken,
-      leftParenToken,
-      parameterTokens,
-      commaTokens,
-      rightParenToken
-    );
+    return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
   }
   parseEndFunctionCommand() {
     return new EndFunctionCommandSyntax(this.eat(16 /* EndFunctionKeyword */));
@@ -23275,9 +23370,13 @@ function resolveDocumentationLocale(language) {
   return void 0;
 }
 
-// src/common/activation.ts
+// src/common/messages.ts
 init_polyfills();
-var vscode6 = __toESM(require("vscode"));
+var OPEN_SB_FILE_WARNING = "\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002";
+var SAVE_BEFORE_RUN_WARNING = "\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002";
+var NEW_PROGRAM_TEMPLATE = `' My first Small Basic program
+TextWindow.WriteLine("Hello World")
+`;
 
 // src/debug/inline-values.ts
 init_polyfills();
@@ -23612,7 +23711,17 @@ function collectOutlineSymbols(compilation) {
   registerScope(compilation.parseTree.mainModule, -1);
   subModules.forEach((subModule, index) => {
     const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, subModule.subCommand.nameToken.token.text);
-    registerScope(subModule.statementsList, index, new Set((metadata?.locals ?? []).map((name) => name.toLowerCase())));
+    const localNames = new Set([
+      ...metadata?.parameters ?? [],
+      ...metadata?.locals ?? []
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of subModule.subCommand.parameterTokens) {
+      const key = `${index}:${parameter.token.text.toLowerCase()}`;
+      if (!firstUses.has(key)) {
+        firstUses.set(key, { name: parameter.token.text, range: parameter.range, scopeIndex: index });
+      }
+    }
+    registerScope(subModule.statementsList, index, localNames);
   });
   functions.forEach((func, index) => {
     const scopeIndex = subModules.length + index;
@@ -23648,9 +23757,10 @@ function collectOutlineSymbols(compilation) {
   }
   const procedures = subModules.map((subModule, index) => {
     const nameToken = subModule.subCommand.nameToken;
+    const parameters = subModule.subCommand.parameterTokens;
     return {
       name: nameToken.token.text,
-      detail: `Sub ${nameToken.token.text}`,
+      detail: parameters.length ? `Sub ${nameToken.token.text}(${parameters.map((parameter) => parameter.token.text).join(", ")})` : `Sub ${nameToken.token.text}`,
       kind: "sub",
       range: subModule.range,
       selectionRange: nameToken.range,
@@ -23874,6 +23984,7 @@ var semanticTokenTypes = [
   "parameter",
   "variable"
 ];
+var mainModuleName = "<Main>";
 var keywordKinds = /* @__PURE__ */ new Set([
   1 /* IfKeyword */,
   2 /* ThenKeyword */,
@@ -23931,13 +24042,35 @@ function mapTokenType(compilation, kind, text, position) {
       if (CompilerUtils.lookupIgnoreCase(compilation.procedures, text) !== void 0) {
         return "function";
       }
-      if (compilation.parseTree.functions.some((func) => func.range.containsPosition(position) && func.functionCommand.parameterTokens.some((parameter) => parameter.token.text.toLowerCase() === text.toLowerCase()))) {
+      if (isParameterOrLocal(compilation, text, position)) {
         return "parameter";
       }
       return "variable";
     default:
       return void 0;
   }
+}
+function isParameterOrLocal(compilation, text, position) {
+  const lowered = text.toLowerCase();
+  for (const subModule of compilation.parseTree.subModules) {
+    if (subModule.range.containsPosition(position) && moduleDeclaresName(compilation, subModule.subCommand.nameToken.token.text, lowered)) {
+      return true;
+    }
+  }
+  for (const func of compilation.parseTree.functions) {
+    if (func.range.containsPosition(position) && moduleDeclaresName(compilation, func.functionCommand.nameToken.token.text, lowered)) {
+      return true;
+    }
+  }
+  const mainMetadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, mainModuleName);
+  return mainMetadata !== void 0 && containsName(mainMetadata.globals, lowered);
+}
+function moduleDeclaresName(compilation, moduleName, lowered) {
+  const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, moduleName);
+  return metadata !== void 0 && (containsName(metadata.parameters, lowered) || containsName(metadata.locals, lowered));
+}
+function containsName(names, lowered) {
+  return names.some((name) => name.toLowerCase() === lowered);
 }
 
 // ../smallbasic-language-services/src/folding.ts
@@ -24210,12 +24343,71 @@ function toVsCodeRangeFromDto(range) {
 
 // src/run/javascript-runner.ts
 init_polyfills();
-var vscode5 = __toESM(require("vscode"));
+var vscode6 = __toESM(require("vscode"));
+
+// src/common/documents.ts
+init_polyfills();
+var vscode4 = __toESM(require("vscode"));
+
+// src/common/paths.ts
+init_polyfills();
+function normalizeProgramPath(filePath) {
+  return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
+}
+function pathBaseName(value, fallback) {
+  const segments = value.replace(/\\/g, "/").split("/");
+  return segments[segments.length - 1] || fallback;
+}
+
+// src/common/documents.ts
+async function resolveDebugDocument(configuredProgram) {
+  const wanted = normalizeProgramPath(configuredProgram);
+  const open = configuredProgram ? vscode4.workspace.textDocuments.find((document) => [
+    document.fileName,
+    document.uri.fsPath,
+    document.uri.path,
+    document.uri.toString()
+  ].some((value) => normalizeProgramPath(value) === wanted) && isSmallBasicDocument(document)) : void 0;
+  if (open) {
+    return open;
+  }
+  const active = vscode4.window.activeTextEditor?.document;
+  if (active && isSmallBasicDocument(active)) {
+    return active;
+  }
+  if (!configuredProgram) {
+    return void 0;
+  }
+  try {
+    const uri = /^[a-z][a-z0-9+.-]+:/i.test(configuredProgram) ? vscode4.Uri.parse(configuredProgram) : vscode4.Uri.file(configuredProgram);
+    const document = await vscode4.workspace.openTextDocument(uri);
+    return isSmallBasicDocument(document) ? document : void 0;
+  } catch {
+    return void 0;
+  }
+}
+function documentBaseName(document) {
+  if (document.isUntitled) {
+    return "untitled.sb";
+  }
+  return pathBaseName(document.uri.path, document.fileName || "program.sb");
+}
+function analyzeProgramShape(document) {
+  try {
+    const compilation = new Compilation(document.getText());
+    return { ready: compilation.isReadyToRun, drawsShapes: compilation.kind.drawsShapes() };
+  } catch {
+    return { ready: false, drawsShapes: false };
+  }
+}
 
 // src/run/terminal-session.ts
 init_polyfills();
-var vscode4 = __toESM(require("vscode"));
-var ansiForeground = {
+var vscode5 = __toESM(require("vscode"));
+
+// src/common/ansi.ts
+init_polyfills();
+var ANSI_FOREGROUND = {
   [0 /* Black */]: 30,
   [1 /* DarkBlue */]: 34,
   [2 /* DarkGreen */]: 32,
@@ -24233,7 +24425,7 @@ var ansiForeground = {
   [14 /* Yellow */]: 93,
   [15 /* White */]: 97
 };
-var ansiBackground = {
+var ANSI_BACKGROUND = {
   [0 /* Black */]: 40,
   [1 /* DarkBlue */]: 44,
   [2 /* DarkGreen */]: 42,
@@ -24251,19 +24443,62 @@ var ansiBackground = {
   [14 /* Yellow */]: 103,
   [15 /* White */]: 107
 };
-var SmallBasicTerminalSession = class {
-  writeEmitter = new vscode4.EventEmitter();
-  closeEmitter = new vscode4.EventEmitter();
+function ansiColorize(text, foreground, background) {
+  return `\x1B[${ANSI_FOREGROUND[foreground]};${ANSI_BACKGROUND[background]}m${text}\x1B[0m`;
+}
+
+// src/common/text-window.ts
+init_polyfills();
+function parseConsoleInput(kind, raw) {
+  if (kind === 1 /* Number */) {
+    const parsed = Number(raw);
+    return new NumberValue(Number.isFinite(parsed) ? parsed : 0);
+  }
+  return new StringValue(raw);
+}
+var BufferedTextWindowPlugin = class {
   inputBuffer = [];
+  foreground = 15 /* White */;
+  background = 0 /* Black */;
+  /** Kind of the pending `Read`/`ReadNumber`, cleared by {@link pushInput}. */
+  pendingInputKind;
+  inputIsNeeded(kind) {
+    this.pendingInputKind = kind;
+  }
+  checkInputBuffer() {
+    return this.inputBuffer.shift();
+  }
+  isWaitingForInput() {
+    return this.pendingInputKind !== void 0;
+  }
+  pushInput(raw) {
+    this.inputBuffer.push(parseConsoleInput(this.pendingInputKind, raw));
+    this.pendingInputKind = void 0;
+  }
+  getForegroundColor() {
+    return this.foreground;
+  }
+  setForegroundColor(color) {
+    this.foreground = color;
+  }
+  getBackgroundColor() {
+    return this.background;
+  }
+  setBackgroundColor(color) {
+    this.background = color;
+  }
+};
+
+// src/run/terminal-session.ts
+var SmallBasicTerminalSession = class extends BufferedTextWindowPlugin {
+  writeEmitter = new vscode5.EventEmitter();
+  closeEmitter = new vscode5.EventEmitter();
   lineBuffer = [];
   engine;
   scheduled = false;
   disposed = false;
-  pendingInputKind;
   waitingForExitConfirmation = false;
   exitCode = 0;
-  foreground = 15 /* White */;
-  background = 0 /* Black */;
   onDidWrite = this.writeEmitter.event;
   onDidClose = this.closeEmitter.event;
   run(compilation) {
@@ -24295,13 +24530,7 @@ var SmallBasicTerminalSession = class {
         const line = this.lineBuffer.join("");
         this.lineBuffer.length = 0;
         this.writeEmitter.fire("\r\n");
-        if (this.pendingInputKind === 1 /* Number */) {
-          const parsed = Number(line);
-          this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
-        } else {
-          this.inputBuffer.push(new StringValue(line));
-        }
-        this.pendingInputKind = void 0;
+        this.pushInput(line);
         this.schedule(0);
         return;
       }
@@ -24317,26 +24546,8 @@ var SmallBasicTerminalSession = class {
         this.writeEmitter.fire(data);
     }
   }
-  inputIsNeeded(kind) {
-    this.pendingInputKind = kind;
-  }
-  checkInputBuffer() {
-    return this.inputBuffer.shift();
-  }
   writeText(value, appendNewLine) {
     this.writeEmitter.fire(this.colorize(value + (appendNewLine ? "\r\n" : "")));
-  }
-  getForegroundColor() {
-    return this.foreground;
-  }
-  setForegroundColor(color) {
-    this.foreground = color;
-  }
-  getBackgroundColor() {
-    return this.background;
-  }
-  setBackgroundColor(color) {
-    this.background = color;
   }
   schedule(delayMs) {
     if (this.scheduled || this.disposed) {
@@ -24377,7 +24588,7 @@ var SmallBasicTerminalSession = class {
     }
   }
   colorize(text) {
-    return `\x1B[${ansiForeground[this.foreground]};${ansiBackground[this.background]}m${text}\x1B[0m`;
+    return ansiColorize(text, this.getForegroundColor(), this.getBackgroundColor());
   }
   pauseBeforeClose(exitCode) {
     this.waitingForExitConfirmation = true;
@@ -24389,34 +24600,30 @@ var SmallBasicTerminalSession = class {
 // src/run/javascript-runner.ts
 function runJavaScriptCompilation(document, compilation) {
   if (!compilation.isReadyToRun) {
-    void vscode5.window.showErrorMessage("\u5F53\u524D\u7A0B\u5E8F\u5B58\u5728\u7F16\u8BD1\u9519\u8BEF\uFF0C\u8BF7\u5148\u4FEE\u590D\u540E\u518D\u8FD0\u884C\u3002");
+    void vscode6.window.showErrorMessage("\u5F53\u524D\u7A0B\u5E8F\u5B58\u5728\u7F16\u8BD1\u9519\u8BEF\uFF0C\u8BF7\u5148\u4FEE\u590D\u540E\u518D\u8FD0\u884C\u3002");
     return;
   }
   if (compilation.kind.drawsShapes()) {
-    void vscode5.window.showErrorMessage(
+    void vscode6.window.showErrorMessage(
       "\u5F53\u524D JS \u540E\u7AEF\u5C1A\u4E0D\u652F\u6301 GraphicsWindow/Shapes/Turtle/Controls \u56FE\u5F62\u5BBF\u4E3B\u3002\u8BF7\u4F7F\u7528 Blazor \u540E\u7AEF\u7684 Web \u6A21\u5F0F\uFF0C\u6216\u5728 Windows \u684C\u9762\u7248\u4F7F\u7528 C# \u540E\u7AEF\u3002"
     );
     return;
   }
   const session = new SmallBasicTerminalSession();
-  const terminal = vscode5.window.createTerminal({
-    name: `SmallBasic: ${documentName(document)}`,
+  const terminal = vscode6.window.createTerminal({
+    name: `SmallBasic: ${documentBaseName(document)}`,
     pty: session
   });
   terminal.show(true);
   session.run(compilation);
 }
-function documentName(document) {
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || "program.sb";
-}
 
 // src/common/activation.ts
 function activateCommon(context, platform) {
-  setDocumentationLocale(resolveDocumentationLocale(vscode6.env.language));
+  setDocumentationLocale(resolveDocumentationLocale(vscode7.env.language));
   const cache = new CompilationCache();
-  const diagnostics = vscode6.languages.createDiagnosticCollection("smallbasic");
-  const debounceMs = () => vscode6.workspace.getConfiguration("smallbasic").get("diagnostics.debounceMs", 150);
+  const diagnostics = vscode7.languages.createDiagnosticCollection("smallbasic");
+  const debounceMs = () => vscode7.workspace.getConfiguration("smallbasic").get("diagnostics.debounceMs", 150);
   const pending = /* @__PURE__ */ new Map();
   const scheduleDiagnostics = (document) => {
     if (!isSmallBasicDocument(document)) {
@@ -24435,28 +24642,28 @@ function activateCommon(context, platform) {
   registerLanguageFeatures(context, cache, diagnostics);
   registerSmallBasicInlineValues(context);
   context.subscriptions.push(
-    vscode6.debug.registerDebugAdapterDescriptorFactory("smallbasic", platform.debugAdapterFactory),
-    vscode6.debug.registerDebugConfigurationProvider(
+    vscode7.debug.registerDebugAdapterDescriptorFactory("smallbasic", platform.debugAdapterFactory),
+    vscode7.debug.registerDebugConfigurationProvider(
       "smallbasic",
       platform.debugConfigurationProvider,
-      vscode6.DebugConfigurationProviderTriggerKind.Initial
+      vscode7.DebugConfigurationProviderTriggerKind.Initial
     )
   );
-  for (const document of vscode6.workspace.textDocuments) {
+  for (const document of vscode7.workspace.textDocuments) {
     scheduleDiagnostics(document);
   }
   const subscriptions = [
-    vscode6.workspace.onDidOpenTextDocument(scheduleDiagnostics),
-    vscode6.workspace.onDidChangeTextDocument((event) => {
+    vscode7.workspace.onDidOpenTextDocument(scheduleDiagnostics),
+    vscode7.workspace.onDidChangeTextDocument((event) => {
       cache.delete(event.document.uri);
       scheduleDiagnostics(event.document);
       if (shouldTriggerSuggest(event)) {
         setTimeout(() => {
-          void vscode6.commands.executeCommand("editor.action.triggerSuggest");
+          void vscode7.commands.executeCommand("editor.action.triggerSuggest");
         }, 0);
       }
     }),
-    vscode6.workspace.onDidCloseTextDocument((document) => {
+    vscode7.workspace.onDidCloseTextDocument((document) => {
       const key = document.uri.toString();
       const existing = pending.get(key);
       if (existing) {
@@ -24466,10 +24673,10 @@ function activateCommon(context, platform) {
       cache.delete(document.uri);
       diagnostics.delete(document.uri);
     }),
-    vscode6.commands.registerCommand("smallbasic.newFile", async (resource) => {
+    vscode7.commands.registerCommand("smallbasic.newFile", async (resource) => {
       await createNewFile(resource);
     }),
-    vscode6.commands.registerCommand("smallbasic.runJavaScript", async () => {
+    vscode7.commands.registerCommand("smallbasic.runJavaScript", async () => {
       if (platform.runJavaScript) {
         await platform.runJavaScript();
       } else {
@@ -24478,67 +24685,63 @@ function activateCommon(context, platform) {
     })
   ];
   if (platform.runCSharp) {
-    subscriptions.push(vscode6.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
+    subscriptions.push(vscode7.commands.registerCommand("smallbasic.runCSharp", platform.runCSharp));
   }
   if (platform.runBlazor) {
-    subscriptions.push(vscode6.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
+    subscriptions.push(vscode7.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
   }
   context.subscriptions.push(...subscriptions);
 }
 async function createNewFile(resource) {
   const folder = await resolveTargetFolder(resource);
   if (!folder) {
-    const document2 = await vscode6.workspace.openTextDocument({
+    const document2 = await vscode7.workspace.openTextDocument({
       language: "smallbasic",
-      content: `' My first SmallBasic program
-TextWindow.WriteLine("Hello World")
-`
+      content: NEW_PROGRAM_TEMPLATE
     });
-    await vscode6.window.showTextDocument(document2, { preview: false });
+    await vscode7.window.showTextDocument(document2, { preview: false });
     return;
   }
   const file = await nextAvailableFile(folder);
-  await vscode6.workspace.fs.writeFile(
+  await vscode7.workspace.fs.writeFile(
     file,
-    new TextEncoder().encode(`' My first SmallBasic program
-TextWindow.WriteLine("Hello World")
-`)
+    new TextEncoder().encode(NEW_PROGRAM_TEMPLATE)
   );
-  const document = await vscode6.workspace.openTextDocument(file);
-  await vscode6.window.showTextDocument(document, { preview: false });
+  const document = await vscode7.workspace.openTextDocument(file);
+  await vscode7.window.showTextDocument(document, { preview: false });
 }
 async function resolveTargetFolder(resource) {
   if (resource) {
     try {
-      const stat = await vscode6.workspace.fs.stat(resource);
-      return stat.type === vscode6.FileType.Directory ? resource : vscode6.Uri.joinPath(resource, "..");
+      const stat = await vscode7.workspace.fs.stat(resource);
+      return stat.type === vscode7.FileType.Directory ? resource : vscode7.Uri.joinPath(resource, "..");
     } catch {
-      return vscode6.Uri.joinPath(resource, "..");
+      return vscode7.Uri.joinPath(resource, "..");
     }
   }
-  return vscode6.workspace.workspaceFolders?.[0]?.uri;
+  return vscode7.workspace.workspaceFolders?.[0]?.uri;
 }
 async function nextAvailableFile(folder) {
   for (let index = 1; index < 1e3; index += 1) {
-    const candidate = vscode6.Uri.joinPath(folder, `Untitled-${index}.sb`);
+    const candidate = vscode7.Uri.joinPath(folder, `Untitled-${index}.sb`);
     try {
-      await vscode6.workspace.fs.stat(candidate);
+      await vscode7.workspace.fs.stat(candidate);
     } catch {
       return candidate;
     }
   }
-  return vscode6.Uri.joinPath(folder, `Untitled-${Date.now()}.sb`);
+  return vscode7.Uri.joinPath(folder, `Untitled-${Date.now()}.sb`);
 }
 async function runActiveDocument(cache, diagnostics) {
-  const editor = vscode6.window.activeTextEditor;
+  const editor = vscode7.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode6.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+    void vscode7.window.showWarningMessage(OPEN_SB_FILE_WARNING);
     return;
   }
   if (!editor.document.isUntitled) {
     const saved = await editor.document.save();
     if (!saved) {
-      void vscode6.window.showWarningMessage("\u8FD0\u884C\u524D\u9700\u8981\u5148\u4FDD\u5B58\u5F53\u524D\u6587\u4EF6\u3002");
+      void vscode7.window.showWarningMessage(SAVE_BEFORE_RUN_WARNING);
       return;
     }
   }
@@ -24550,7 +24753,7 @@ function shouldTriggerSuggest(event) {
   if (!isSmallBasicDocument(event.document)) {
     return false;
   }
-  const editor = vscode6.window.activeTextEditor;
+  const editor = vscode7.window.activeTextEditor;
   if (!editor || editor.document.uri.toString() !== event.document.uri.toString()) {
     return false;
   }
@@ -24566,11 +24769,11 @@ function shouldTriggerSuggest(event) {
 
 // src/web/blazor-webview.ts
 init_polyfills();
-var vscode8 = __toESM(require("vscode"));
+var vscode9 = __toESM(require("vscode"));
 
 // src/web/webview-panel.ts
 init_polyfills();
-var vscode7 = __toESM(require("vscode"));
+var vscode8 = __toESM(require("vscode"));
 
 // src/web/webview-html.ts
 init_polyfills();
@@ -24658,24 +24861,24 @@ var ENTRY_SEGMENTS = ["_framework", "blazor.webassembly.js"];
 var DIST_SEGMENTS = ["dist"];
 var JAVASCRIPT_SEGMENTS = [...DIST_SEGMENTS, "web-runhost.js"];
 function blazorPayloadEntry(context) {
-  return vscode7.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS, ...ENTRY_SEGMENTS);
+  return vscode8.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS, ...ENTRY_SEGMENTS);
 }
 function javascriptPayloadEntry(context) {
-  return vscode7.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
+  return vscode8.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
 }
 async function resolveBlazorPayload(context) {
-  const root = vscode7.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS);
+  const root = vscode8.Uri.joinPath(context.extensionUri, ...PAYLOAD_SEGMENTS);
   try {
-    await vscode7.workspace.fs.stat(vscode7.Uri.joinPath(root, ...ENTRY_SEGMENTS));
+    await vscode8.workspace.fs.stat(vscode8.Uri.joinPath(root, ...ENTRY_SEGMENTS));
     return root;
   } catch {
     return void 0;
   }
 }
 async function resolveJavaScriptPayload(context) {
-  const javascript = vscode7.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
+  const javascript = vscode8.Uri.joinPath(context.extensionUri, ...JAVASCRIPT_SEGMENTS);
   try {
-    await vscode7.workspace.fs.stat(javascript);
+    await vscode8.workspace.fs.stat(javascript);
     return javascript;
   } catch {
     return void 0;
@@ -24693,13 +24896,13 @@ var BlazorWebviewHost = class {
   constructor(context, options) {
     this.payloadRoot = options.payloadRoot;
     this.logSink = options.log;
-    this.panel = vscode7.window.createWebviewPanel(
+    this.panel = vscode8.window.createWebviewPanel(
       options.viewType,
       options.title,
-      vscode7.ViewColumn.Beside,
+      vscode8.ViewColumn.Beside,
       {
         enableScripts: true,
-        localResourceRoots: [options.payloadRoot, vscode7.Uri.joinPath(context.extensionUri, ...DIST_SEGMENTS)],
+        localResourceRoots: [options.payloadRoot, vscode8.Uri.joinPath(context.extensionUri, ...DIST_SEGMENTS)],
         // Keeps the WebAssembly runtime (and therefore the graphics scene) alive
         // while the user switches between editors.
         retainContextWhenHidden: true
@@ -24729,11 +24932,11 @@ var BlazorWebviewHost = class {
   }
   onMessage(handler) {
     this.handlers.add(handler);
-    return new vscode7.Disposable(() => this.handlers.delete(handler));
+    return new vscode8.Disposable(() => this.handlers.delete(handler));
   }
   onDispose(handler) {
     this.disposeHandlers.add(handler);
-    return new vscode7.Disposable(() => this.disposeHandlers.delete(handler));
+    return new vscode8.Disposable(() => this.disposeHandlers.delete(handler));
   }
   post(message) {
     if (!this.disposed) {
@@ -24831,7 +25034,7 @@ var BlazorWebviewHost = class {
   }
   /** Keeps webview resource requests inside runhost/blazor/wwwroot. */
   resolvePayloadResources(requestedPath) {
-    return payloadResourceCandidates(requestedPath).map((candidate) => vscode7.Uri.joinPath(this.payloadRoot, ...candidate.split("/")));
+    return payloadResourceCandidates(requestedPath).map((candidate) => vscode8.Uri.joinPath(this.payloadRoot, ...candidate.split("/")));
   }
   /**
    * The original path is retained as a development fallback so an unstaged
@@ -24842,7 +25045,7 @@ var BlazorWebviewHost = class {
     let lastError;
     for (const resource of resources) {
       try {
-        return await vscode7.workspace.fs.readFile(resource);
+        return await vscode8.workspace.fs.readFile(resource);
       } catch (error) {
         lastError = error;
       }
@@ -24862,14 +25065,14 @@ var pendingRun;
 async function runInWebview(context, name, source, backend) {
   const root = await resolveBlazorPayload(context);
   if (!root) {
-    void vscode8.window.showErrorMessage(
+    void vscode9.window.showErrorMessage(
       `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${blazorPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_code_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
     );
     return;
   }
   const javascript = await resolveJavaScriptPayload(context);
   if (!javascript) {
-    void vscode8.window.showErrorMessage(
+    void vscode9.window.showErrorMessage(
       `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF1A${javascriptPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002`
     );
     return;
@@ -24884,7 +25087,7 @@ function ensurePanel(context, root, javascript) {
   if (panel && !panel.isDisposed) {
     return panel;
   }
-  output ??= vscode8.window.createOutputChannel(OUTPUT_CHANNEL);
+  output ??= vscode9.window.createOutputChannel(OUTPUT_CHANNEL);
   const host = new BlazorWebviewHost(context, {
     viewType: RUN_VIEW_TYPE,
     title: RUN_TITLE,
@@ -24917,7 +25120,7 @@ function handleRunMessage(message) {
     case "failed":
       output?.appendLine(message.text ?? "[webview] unknown failure");
       output?.show(true);
-      void vscode8.window.showErrorMessage(
+      void vscode9.window.showErrorMessage(
         `Small Basic Web \u6A21\u5F0F\u8FD0\u884C\u5931\u8D25\uFF0C\u8BE6\u60C5\u89C1\u8F93\u51FA\u9762\u677F\u201C${OUTPUT_CHANNEL}\u201D\u3002`
       );
       return;
@@ -24942,7 +25145,7 @@ function handleNotify(json) {
   if (notify.type === "terminated") {
     const exitCode = notify.exitCode ?? 0;
     output?.appendLine(exitCode === 0 ? "[state] completed" : `[state] exited with code ${exitCode}`);
-    vscode8.window.setStatusBarMessage(
+    vscode9.window.setStatusBarMessage(
       exitCode === 0 ? "Small Basic: \u8FD0\u884C\u5B8C\u6210" : `Small Basic: \u9000\u51FA\u7801 ${exitCode}`,
       5e3
     );
@@ -24967,7 +25170,7 @@ init_polyfills();
 
 // src/web/inline-factory.ts
 init_polyfills();
-var vscode9 = __toESM(require("vscode"));
+var vscode10 = __toESM(require("vscode"));
 
 // src/web/debug-broker.ts
 init_polyfills();
@@ -25337,12 +25540,12 @@ var WebDebugSourceAccessor = class {
       document.uri.toString()
     ]) {
       if (alias) {
-        this.aliases.set(this.normalize(alias), this.canonicalPath);
+        this.aliases.set(normalizeProgramPath(alias), this.canonicalPath);
       }
     }
   }
   resolvePath(filePath) {
-    return this.aliases.get(this.normalize(filePath)) ?? filePath;
+    return this.aliases.get(normalizeProgramPath(filePath)) ?? filePath;
   }
   basename(filePath) {
     const normalized = filePath.replace(/\\/g, "/");
@@ -25354,15 +25557,42 @@ var WebDebugSourceAccessor = class {
     }
     return this.source;
   }
-  normalize(value) {
-    return value.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
-  }
 };
 
 // src/web/webview-debug-adapter.ts
 init_polyfills();
 var import_debugadapter = __toESM(require_main());
-var THREAD_ID = 1;
+
+// src/debug/dap.ts
+init_polyfills();
+var DEBUG_THREAD_ID = 1;
+function toDapLine(protocolLine) {
+  return protocolLine + 1;
+}
+function fromDapLine(dapLine) {
+  return dapLine - 1;
+}
+function evaluateFailedMessage(expression) {
+  return `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`;
+}
+function conditionCompileFailedMessage(condition) {
+  return `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${condition}`;
+}
+function rawStoppedEvent(reason, description) {
+  return {
+    seq: 0,
+    type: "event",
+    event: "stopped",
+    body: {
+      reason,
+      threadId: DEBUG_THREAD_ID,
+      allThreadsStopped: true,
+      ...description ? { description } : {}
+    }
+  };
+}
+
+// src/web/webview-debug-adapter.ts
 var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession {
   constructor(broker, sources, options) {
     super("smallbasic-web-debug.log");
@@ -25404,9 +25634,9 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
   }
   async setBreakPointsRequest(response, args) {
     const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
-      line: Math.max(0, breakpoint.line - 1),
+      line: Math.max(0, fromDapLine(breakpoint.line)),
       condition: breakpoint.condition?.trim() || void 0
-    })) : (args.lines ?? []).map((line) => ({ line: Math.max(0, line - 1), condition: void 0 }));
+    })) : (args.lines ?? []).map((line) => ({ line: Math.max(0, fromDapLine(line)), condition: void 0 }));
     try {
       const validated = await this.broker.setBreakpoints(
         requested.map((entry) => entry.line),
@@ -25418,17 +25648,17 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
           const actual = validated.find((candidate) => candidate >= entry.line);
           const result = {
             verified: actual !== void 0,
-            line: (actual ?? entry.line) + 1
+            line: toDapLine(actual ?? entry.line)
           };
           if (actual === void 0) {
-            result.message = entry.condition ? `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${entry.condition}` : "\u8BE5\u884C\u53CA\u4E4B\u540E\u6CA1\u6709\u53EF\u6267\u884C\u7684 Small Basic \u8BED\u53E5\u3002";
+            result.message = entry.condition ? conditionCompileFailedMessage(entry.condition) : "\u8BE5\u884C\u53CA\u4E4B\u540E\u6CA1\u6709\u53EF\u6267\u884C\u7684 Small Basic \u8BED\u53E5\u3002";
           }
           return result;
         })
       };
     } catch (error) {
       response.body = {
-        breakpoints: requested.map((entry) => ({ verified: false, line: entry.line + 1 }))
+        breakpoints: requested.map((entry) => ({ verified: false, line: toDapLine(entry.line) }))
       };
       this.emitDiagnostic(error);
     }
@@ -25440,7 +25670,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
   }
   threadsRequest(response) {
     response.body = {
-      threads: [new import_debugadapter.Thread(THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
+      threads: [new import_debugadapter.Thread(DEBUG_THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
     };
     this.sendResponse(response);
   }
@@ -25449,7 +25679,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
     const rawFrames = snapshot && snapshot.frames.length > 0 ? snapshot.frames : snapshot ? [{ name: "Program", line: snapshot.line }] : [];
     const frames = rawFrames.map((frame, index) => {
       const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new import_debugadapter.StackFrame(index + 1, frame.name || "Program", source, frame.line + 1, 1);
+      return new import_debugadapter.StackFrame(index + 1, frame.name || "Program", source, toDapLine(frame.line), 1);
     });
     response.body = { stackFrames: frames, totalFrames: frames.length };
     this.sendResponse(response);
@@ -25512,7 +25742,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
       this.sendResponse(response);
       return;
     }
-    this.sendErrorResponse(response, 2002, `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`);
+    this.sendErrorResponse(response, 2002, evaluateFailedMessage(expression));
   }
   async disconnectRequest(response, _args) {
     await this.broker.terminate().catch(() => void 0);
@@ -25559,18 +25789,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
    * waits. Sending the raw event keeps every adapter consistent.
    */
   sendStopped(reason, description) {
-    const stopped = {
-      seq: 0,
-      type: "event",
-      event: "stopped",
-      body: {
-        reason,
-        threadId: THREAD_ID,
-        allThreadsStopped: true,
-        ...description ? { description } : {}
-      }
-    };
-    this.sendEvent(stopped);
+    this.sendEvent(rawStoppedEvent(reason, description));
   }
   resetVariableHandles() {
     this.variableHandles.reset();
@@ -25610,44 +25829,10 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
 var DEBUG_VIEW_TYPE = "smallbasic.web.debug";
 var DEBUG_TITLE = "Small Basic (Web Debug)";
 var DEBUG_OUTPUT_CHANNEL = "SmallBasic (Web Debug)";
-async function resolveDebugDocument(configuredProgram) {
-  const normalize = (value) => value.replace(/\\/g, "/").toLowerCase();
-  const wanted = normalize(configuredProgram);
-  const open = configuredProgram ? vscode9.workspace.textDocuments.find((document) => [
-    document.fileName,
-    document.uri.fsPath,
-    document.uri.path,
-    document.uri.toString()
-  ].some((value) => normalize(value) === wanted) && isSmallBasicDocument(document)) : void 0;
-  if (open) {
-    return open;
-  }
-  const active = vscode9.window.activeTextEditor?.document;
-  if (active && isSmallBasicDocument(active)) {
-    return active;
-  }
-  if (!configuredProgram) {
-    return void 0;
-  }
-  try {
-    const uri = /^[a-z][a-z0-9+.-]*:/i.test(configuredProgram) ? vscode9.Uri.parse(configuredProgram) : vscode9.Uri.file(configuredProgram);
-    const document = await vscode9.workspace.openTextDocument(uri);
-    return isSmallBasicDocument(document) ? document : void 0;
-  } catch {
-    return void 0;
-  }
-}
-function documentBaseName(document) {
-  if (document.isUntitled) {
-    return "untitled.sb";
-  }
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || document.fileName || "program.sb";
-}
 async function createWebInlineAdapter(context, session) {
   const backend = session.configuration.backend;
   if (backend === "csharp") {
-    void vscode9.window.showErrorMessage(
+    void vscode10.window.showErrorMessage(
       "Web \u6A21\u5F0F\u65E0\u6CD5\u542F\u52A8\u672C\u673A C# RunHost\uFF1ATextWindow \u7A0B\u5E8F\u8BF7\u7528 JavaScript \u540E\u7AEF\uFF0C\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u7528 Blazor \u540E\u7AEF\uFF08\u4E24\u8005\u90FD\u5728 Webview \u5185\u8FD0\u884C\uFF09\u3002"
     );
     return void 0;
@@ -25656,23 +25841,23 @@ async function createWebInlineAdapter(context, session) {
   const configuredProgram = typeof session.configuration.program === "string" ? session.configuration.program : "";
   const document = await resolveDebugDocument(configuredProgram);
   if (!document) {
-    void vscode9.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
+    void vscode10.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
     return void 0;
   }
   const sources = new WebDebugSourceAccessor(document, configuredProgram);
   const root = await resolveBlazorPayload(context);
   if (!root) {
-    void vscode9.window.showErrorMessage(
+    void vscode10.window.showErrorMessage(
       `\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF Blazor \u8F7D\u8377\uFF1A${blazorPayloadEntry(context).toString()}\u3002\u8BF7\u5148\u6267\u884C runhost\\Build-RunHost.ps1\uFF0C\u7136\u540E npm run stage:blazor\uFF08\u6216 visual_studio_plugin\\build\\Package-Vsix.ps1\uFF09\u628A\u8F7D\u8377\u653E\u8FDB\u6269\u5C55\u76EE\u5F55\u3002`
     );
     return void 0;
   }
   const javascript = await resolveJavaScriptPayload(context);
   if (!javascript) {
-    void vscode9.window.showErrorMessage("\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF08dist/web-runhost.js\uFF09\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002");
+    void vscode10.window.showErrorMessage("\u672A\u627E\u5230\u6D4F\u89C8\u5668\u7AEF JavaScript \u8F7D\u8377\uFF08dist/web-runhost.js\uFF09\u3002\u8BF7\u5148\u6267\u884C npm run build\u3002");
     return void 0;
   }
-  const output2 = vscode9.window.createOutputChannel(DEBUG_OUTPUT_CHANNEL);
+  const output2 = vscode10.window.createOutputChannel(DEBUG_OUTPUT_CHANNEL);
   const host = new BlazorWebviewHost(context, {
     viewType: DEBUG_VIEW_TYPE,
     title: DEBUG_TITLE,
@@ -25698,7 +25883,7 @@ async function createWebInlineAdapter(context, session) {
       output2.dispose();
     }
   });
-  return new vscode9.DebugAdapterInlineImplementation(adapter);
+  return new vscode10.DebugAdapterInlineImplementation(adapter);
 }
 
 // src/web/debug-factory.ts
@@ -25757,9 +25942,9 @@ function activate(context) {
 function deactivate() {
 }
 async function runWebActiveDocument(context, backend) {
-  const editor = vscode10.window.activeTextEditor;
+  const editor = vscode11.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode10.window.showWarningMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u3002");
+    void vscode11.window.showWarningMessage(OPEN_SB_FILE_WARNING);
     return;
   }
   const document = editor.document;
@@ -25769,22 +25954,22 @@ async function runWebActiveDocument(context, backend) {
   await runInWebview(context, documentBaseName(document), document.getText(), backend);
 }
 function warnWhenJavaScriptWouldDo(document) {
-  const shape = analyze(document);
+  const shape = analyzeProgramShape(document);
   if (!shape.ready || shape.drawsShapes) {
     return;
   }
-  void vscode10.window.setStatusBarMessage(
+  void vscode11.window.setStatusBarMessage(
     "Small Basic \u63D0\u793A\uFF1A\u8BE5\u7A0B\u5E8F\u53EA\u4F7F\u7528 TextWindow\uFF0CJavaScript \u540E\u7AEF\u542F\u52A8\u66F4\u5FEB\u3002",
     8e3
   );
 }
 function createWebDebugConfigurationProvider(context) {
   const activeDocument = () => {
-    const document = vscode10.window.activeTextEditor?.document;
+    const document = vscode11.window.activeTextEditor?.document;
     return document && isSmallBasicDocument(document) ? document : void 0;
   };
   const createConfig = (document) => {
-    const shape = analyze(document);
+    const shape = analyzeProgramShape(document);
     const backend = shape.ready && shape.drawsShapes ? "blazor" : "javascript";
     return {
       type: "smallbasic",
@@ -25812,26 +25997,26 @@ function createWebDebugConfigurationProvider(context) {
       const document = activeDocument();
       const program = (typeof config.program === "string" ? config.program.trim() : "") || document?.fileName || document?.uri.toString() || "";
       if (!program) {
-        void vscode10.window.showErrorMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
+        void vscode11.window.showErrorMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
         return void 0;
       }
-      const target = document ?? await openProgram(program);
-      const shape = target ? analyze(target) : { ready: false, drawsShapes: false };
+      const target = await resolveDebugDocument(program);
+      const shape = target ? analyzeProgramShape(target) : { ready: false, drawsShapes: false };
       const routing = routeWebDebugRequest(
         { backend: config.backend, noDebug: config.noDebug === true },
         shape.ready && shape.drawsShapes
       );
       if (routing.kind === "reject") {
-        void vscode10.window.showErrorMessage(routing.message);
+        void vscode11.window.showErrorMessage(routing.message);
         return void 0;
       }
       if (routing.kind === "run-in-webview") {
         if (!target) {
-          void vscode10.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
+          void vscode11.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
           return void 0;
         }
         if (routing.note) {
-          void vscode10.window.setStatusBarMessage(routing.note, 8e3);
+          void vscode11.window.setStatusBarMessage(routing.note, 8e3);
         }
         await runInWebview(context, documentBaseName(target), target.getText(), routing.backend);
         return void 0;
@@ -25841,25 +26026,6 @@ function createWebDebugConfigurationProvider(context) {
       return config;
     }
   };
-}
-async function openProgram(program) {
-  if (!program) {
-    return void 0;
-  }
-  try {
-    const document = await vscode10.workspace.openTextDocument(vscode10.Uri.parse(program));
-    return isSmallBasicDocument(document) ? document : void 0;
-  } catch {
-    return void 0;
-  }
-}
-function analyze(document) {
-  try {
-    const compilation = new Compilation(document.getText());
-    return { ready: compilation.isReadyToRun, drawsShapes: compilation.kind.drawsShapes() };
-  } catch {
-    return { ready: false, drawsShapes: false };
-  }
 }
 /*! Bundled license information:
 
@@ -25877,4 +26043,3 @@ buffer/index.js:
 punycode/punycode.js:
   (*! https://mths.be/punycode v1.4.1 by @mathias *)
 */
-//# sourceMappingURL=extension.js.map

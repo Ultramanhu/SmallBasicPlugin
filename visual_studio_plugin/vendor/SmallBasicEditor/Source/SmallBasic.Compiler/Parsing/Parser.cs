@@ -66,6 +66,7 @@ namespace SmallBasic.Compiler.Parsing
         {
             var subToken = this.Eat(TokenKind.Sub);
             var nameToken = this.Eat(TokenKind.Identifier);
+            this.ParseOptionalParameters(subToken.Range.Start.Line, out Token leftParenToken, out List<ParameterSyntax> parameters, out Token rightParenToken);
             this.RunToEndOfLine();
 
             var statements = this.ParseStatementsExcept(TokenKind.Sub, TokenKind.Function, TokenKind.EndSub);
@@ -78,16 +79,14 @@ namespace SmallBasic.Compiler.Parsing
             var endSubToken = this.Eat(TokenKind.EndSub);
             this.RunToEndOfLine();
 
-            return new SubModuleStatementSyntax(subToken, nameToken, statements, endSubToken);
+            return new SubModuleStatementSyntax(subToken, nameToken, leftParenToken, parameters, rightParenToken, statements, endSubToken);
         }
 
         private FunctionStatementSyntax ParseFunctionDeclaration()
         {
             var functionToken = this.Eat(TokenKind.Function);
             var nameToken = this.Eat(TokenKind.Identifier);
-            var leftParenToken = this.Eat(TokenKind.LeftParen);
-            var parameters = this.ParseParameters(functionToken.Range.Start.Line);
-            var rightParenToken = this.Eat(TokenKind.RightParen);
+            this.ParseOptionalParameters(functionToken.Range.Start.Line, out Token leftParenToken, out List<ParameterSyntax> parameters, out Token rightParenToken);
             this.RunToEndOfLine();
 
             var statements = this.ParseStatementsExcept(TokenKind.Sub, TokenKind.Function, TokenKind.EndFunction);
@@ -108,6 +107,34 @@ namespace SmallBasic.Compiler.Parsing
                 rightParenToken,
                 statements,
                 endFunctionToken);
+        }
+
+        /// <summary>
+        /// Parses the optional parenthesized parameter list of a <c>Sub</c> or
+        /// <c>Function</c> declaration. Both the parentheses and the parameter
+        /// list may be omitted, so <c>Sub F</c>, <c>Sub F()</c> and
+        /// <c>Sub F(A, B)</c> are all accepted.
+        /// </summary>
+        private void ParseOptionalParameters(
+            int declarationLine,
+            out Token leftParenToken,
+            out List<ParameterSyntax> parameters,
+            out Token rightParenToken)
+        {
+            leftParenToken = null;
+            rightParenToken = null;
+            parameters = new List<ParameterSyntax>();
+
+            if (this.index >= this.tokens.Count
+                || this.tokens[this.index].Range.Start.Line != declarationLine
+                || this.Peek() != TokenKind.LeftParen)
+            {
+                return;
+            }
+
+            leftParenToken = this.Eat(TokenKind.LeftParen);
+            parameters = this.ParseParameters(declarationLine);
+            rightParenToken = this.Eat(TokenKind.RightParen);
         }
 
         private List<ParameterSyntax> ParseParameters(int declarationLine)

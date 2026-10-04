@@ -4,7 +4,7 @@ using SmallBasic.Compiler.Runtime;
 
 namespace SmallBasic.RunHost.Libraries;
 
-public sealed class TextWindowLibrary : ITextWindowLibrary
+public sealed class TextWindowLibrary : TextWindowLibraryBase
 {
     private readonly TextReader input;
     private readonly TextWriter output;
@@ -12,7 +12,6 @@ public sealed class TextWindowLibrary : ITextWindowLibrary
     private string backgroundColorName = "Black";
     private string foregroundColorName = "White";
     private string title = "SmallBasic";
-    private string pendingInput = string.Empty;
 
     public TextWindowLibrary(TextReader input, TextWriter output)
     {
@@ -20,9 +19,9 @@ public sealed class TextWindowLibrary : ITextWindowLibrary
         this.output = output;
     }
 
-    public string Get_BackgroundColor() => this.backgroundColorName;
+    public override string Get_BackgroundColor() => this.backgroundColorName;
 
-    public void Set_BackgroundColor(string value)
+    public override void Set_BackgroundColor(string value)
     {
         if (TryNormalizeColorName(value, out var name))
         {
@@ -30,9 +29,9 @@ public sealed class TextWindowLibrary : ITextWindowLibrary
         }
     }
 
-    public string Get_ForegroundColor() => this.foregroundColorName;
+    public override string Get_ForegroundColor() => this.foregroundColorName;
 
-    public void Set_ForegroundColor(string value)
+    public override void Set_ForegroundColor(string value)
     {
         if (TryNormalizeColorName(value, out var name))
         {
@@ -40,11 +39,11 @@ public sealed class TextWindowLibrary : ITextWindowLibrary
         }
     }
 
-    public string Get_Title() => this.title;
+    public override string Get_Title() => this.title;
 
-    public void Set_Title(string value) => this.title = value;
+    public override void Set_Title(string value) => this.title = value;
 
-    public void Clear()
+    public override void Clear()
     {
         if (ReferenceEquals(this.output, Console.Out) && !Console.IsOutputRedirected)
         {
@@ -52,36 +51,16 @@ public sealed class TextWindowLibrary : ITextWindowLibrary
         }
     }
 
-    public string Read()
-    {
-        var value = this.pendingInput;
-        this.pendingInput = string.Empty;
-        return value;
-    }
-
-    public decimal ReadNumber()
-    {
-        var value = this.Read();
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.CurrentCulture, out var number)
-            ? number
-            : 0m;
-    }
-
-    public async Task Write(string data)
+    public override async Task Write(string data)
     {
         await this.output.WriteAsync(data).ConfigureAwait(false);
         await this.output.FlushAsync().ConfigureAwait(false);
     }
 
-    public async Task WriteLine(string data)
+    public override async Task WriteLine(string data)
     {
         await this.output.WriteLineAsync(data).ConfigureAwait(false);
         await this.output.FlushAsync().ConfigureAwait(false);
-    }
-
-    public void SetPendingInput(string value)
-    {
-        this.pendingInput = value;
     }
 
     private static bool TryNormalizeColorName(string value, out string normalized)

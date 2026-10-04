@@ -52,11 +52,12 @@ export class ModulesBinder {
         this.bindModule(ModulesBinder.MainModuleName, "program", parseTree.mainModule, []);
 
         parseTree.subModules.forEach(subModule => {
+            const symbol = CompilerUtils.lookupIgnoreCase(this._definedProcedures, subModule.subCommand.nameToken.token.text);
             this.bindModule(
                 subModule.subCommand.nameToken.token.text,
                 "sub",
                 subModule.statementsList,
-                []);
+                symbol ? symbol.parameters : []);
         });
 
         parseTree.functions.forEach(func => {
@@ -70,26 +71,32 @@ export class ModulesBinder {
 
     private constructProceduresMap(parseTree: ParseTreeSyntax): void {
         parseTree.subModules.forEach(subModule => {
-            this.addProcedure(subModule.subCommand.nameToken, ProcedureKind.Sub, []);
+            const parameters = this.collectParameterNames(subModule.subCommand.parameterTokens);
+            this.addProcedure(subModule.subCommand.nameToken, ProcedureKind.Sub, parameters);
         });
 
         parseTree.functions.forEach(func => {
-            const parameters: string[] = [];
-            const seen: { [name: string]: boolean } = {};
-
-            func.functionCommand.parameterTokens.forEach(parameter => {
-                const name = parameter.token.text;
-                const key = name.toLowerCase();
-                if (seen[key]) {
-                    this._diagnostics.push(new Diagnostic(ErrorCode.DuplicateParameter, parameter.range, name));
-                } else {
-                    seen[key] = true;
-                    parameters.push(name);
-                }
-            });
-
+            const parameters = this.collectParameterNames(func.functionCommand.parameterTokens);
             this.addProcedure(func.functionCommand.nameToken, ProcedureKind.Function, parameters);
         });
+    }
+
+    private collectParameterNames(parameterTokens: ReadonlyArray<TokenSyntax>): string[] {
+        const parameters: string[] = [];
+        const seen: { [name: string]: boolean } = {};
+
+        parameterTokens.forEach(parameter => {
+            const name = parameter.token.text;
+            const key = name.toLowerCase();
+            if (seen[key]) {
+                this._diagnostics.push(new Diagnostic(ErrorCode.DuplicateParameter, parameter.range, name));
+            } else {
+                seen[key] = true;
+                parameters.push(name);
+            }
+        });
+
+        return parameters;
     }
 
     private addProcedure(nameToken: TokenSyntax, kind: ProcedureKind, parameters: ReadonlyArray<string>): void {

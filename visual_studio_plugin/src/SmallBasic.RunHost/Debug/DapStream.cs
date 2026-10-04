@@ -9,7 +9,7 @@ using System.Text.Json.Nodes;
 /// over a pair of streams. All sends are serialized so concurrent writers on the
 /// message loop and the engine run loop cannot interleave frames.
 /// </summary>
-internal sealed class DapStream
+public sealed class DapStream
 {
     private readonly Stream input;
     private readonly Stream output;

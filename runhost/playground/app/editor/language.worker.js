@@ -306,6 +306,15 @@ var CompilerRange = class _CompilerRange {
 };
 
 // ../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes.ts
+function parameterListEndRange(nameToken, parameterTokens, rightParenToken) {
+  if (rightParenToken) {
+    return rightParenToken.range;
+  }
+  if (parameterTokens.length) {
+    return parameterTokens[parameterTokens.length - 1].range;
+  }
+  return nameToken.range;
+}
 var SyntaxKind = /* @__PURE__ */ ((SyntaxKind3) => {
   SyntaxKind3[SyntaxKind3["ParseTree"] = 0] = "ParseTree";
   SyntaxKind3[SyntaxKind3["SubModuleDeclaration"] = 1] = "SubModuleDeclaration";
@@ -583,13 +592,33 @@ var GoToCommandSyntax = class extends BaseCommandSyntax {
   }
 };
 var SubCommandSyntax = class extends BaseCommandSyntax {
-  constructor(subToken, nameToken) {
-    super(19 /* SubCommand */, CompilerRange.combine(subToken.range, nameToken.range));
+  constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
+    super(19 /* SubCommand */, CompilerRange.combine(
+      subToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.subToken = subToken;
     this.nameToken = nameToken;
+    this.leftParenToken = leftParenToken;
+    this.parameterTokens = parameterTokens;
+    this.commaTokens = commaTokens;
+    this.rightParenToken = rightParenToken;
   }
   children() {
-    return [this.subToken, this.nameToken];
+    const children = [this.subToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
+    this.parameterTokens.forEach((parameter, index) => {
+      children.push(parameter);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
+    return children;
   }
 };
 var EndSubCommandSyntax = class extends BaseCommandSyntax {
@@ -603,7 +632,10 @@ var EndSubCommandSyntax = class extends BaseCommandSyntax {
 };
 var FunctionCommandSyntax = class extends BaseCommandSyntax {
   constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-    super(21 /* FunctionCommand */, CompilerRange.combine(functionToken.range, rightParenToken.range));
+    super(21 /* FunctionCommand */, CompilerRange.combine(
+      functionToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.functionToken = functionToken;
     this.nameToken = nameToken;
     this.leftParenToken = leftParenToken;
@@ -612,14 +644,19 @@ var FunctionCommandSyntax = class extends BaseCommandSyntax {
     this.rightParenToken = rightParenToken;
   }
   children() {
-    const children = [this.functionToken, this.nameToken, this.leftParenToken];
+    const children = [this.functionToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
     this.parameterTokens.forEach((parameter, index) => {
       children.push(parameter);
       if (index < this.commaTokens.length) {
         children.push(this.commaTokens[index]);
       }
     });
-    children.push(this.rightParenToken);
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
     return children;
   }
 };
@@ -12444,12 +12481,13 @@ var BoundReturnStatement = class extends BaseBoundStatement {
   }
 };
 var BoundSubModuleInvocationStatement = class extends BaseBoundStatement {
-  constructor(subModuleName, syntax) {
+  constructor(subModuleName, argumentsList, syntax) {
     super(8 /* SubModuleInvocationStatement */, syntax);
     this.subModuleName = subModuleName;
+    this.argumentsList = argumentsList;
   }
   children() {
-    return [];
+    return this.argumentsList;
   }
 };
 var BoundLibraryMethodInvocationStatement = class extends BaseBoundStatement {
@@ -12968,6 +13006,15 @@ var ExpressionBinder = class {
     } else {
       const procedure = this._definedProcedures[name.toLowerCase()];
       if (procedure !== void 0) {
+        if (procedure.parameters.length === 0 && procedure.returnsValue && expectedValue) {
+          return new BoundSubModuleInvocationExpression(
+            procedure.name,
+            [],
+            true,
+            hasErrors,
+            syntax
+          );
+        }
         if (expectedValue) {
           hasErrors = true;
           this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
@@ -13216,7 +13263,14 @@ var StatementBinder = class {
       case 35 /* SubModuleInvocationExpression */: {
         const call = expression;
         if (!call.returnsValue) {
-          return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+          return new BoundSubModuleInvocationStatement(call.subModuleName, call.argumentsList, syntax);
+        }
+        break;
+      }
+      case 34 /* SubModuleExpression */: {
+        const reference = expression;
+        if (!reference.returnsValue && reference.parameters.length === 0) {
+          return new BoundSubModuleInvocationStatement(reference.subModuleName, [], syntax);
         }
         break;
       }
@@ -13237,11 +13291,12 @@ var ModulesBinder = class _ModulesBinder {
     this.constructProceduresMap(parseTree);
     this.bindModule(_ModulesBinder.MainModuleName, "program", parseTree.mainModule, []);
     parseTree.subModules.forEach((subModule) => {
+      const symbol = CompilerUtils.lookupIgnoreCase(this._definedProcedures, subModule.subCommand.nameToken.token.text);
       this.bindModule(
         subModule.subCommand.nameToken.token.text,
         "sub",
         subModule.statementsList,
-        []
+        symbol ? symbol.parameters : []
       );
     });
     parseTree.functions.forEach((func) => {
@@ -13268,23 +13323,28 @@ var ModulesBinder = class _ModulesBinder {
   }
   constructProceduresMap(parseTree) {
     parseTree.subModules.forEach((subModule) => {
-      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, []);
+      const parameters = this.collectParameterNames(subModule.subCommand.parameterTokens);
+      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, parameters);
     });
     parseTree.functions.forEach((func) => {
-      const parameters = [];
-      const seen = {};
-      func.functionCommand.parameterTokens.forEach((parameter) => {
-        const name = parameter.token.text;
-        const key = name.toLowerCase();
-        if (seen[key]) {
-          this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
-        } else {
-          seen[key] = true;
-          parameters.push(name);
-        }
-      });
+      const parameters = this.collectParameterNames(func.functionCommand.parameterTokens);
       this.addProcedure(func.functionCommand.nameToken, 1 /* Function */, parameters);
     });
+  }
+  collectParameterNames(parameterTokens) {
+    const parameters = [];
+    const seen = {};
+    parameterTokens.forEach((parameter) => {
+      const name = parameter.token.text;
+      const key = name.toLowerCase();
+      if (seen[key]) {
+        this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
+      } else {
+        seen[key] = true;
+        parameters.push(name);
+      }
+    });
+    return parameters;
   }
   addProcedure(nameToken, kind, parameters) {
     const name = nameToken.token.text;
@@ -13959,7 +14019,13 @@ var ModuleEmitter = class {
     this._instructions.push(new MethodInvocationInstruction(statement.libraryName, statement.methodName, statement.syntax.range));
   }
   emitSubModuleInvocation(statement) {
-    this._instructions.push(new InvokeSubModuleInstruction(statement.subModuleName, 0, false, statement.syntax.range));
+    statement.argumentsList.forEach((argument) => this.emitExpression(argument));
+    this._instructions.push(new InvokeSubModuleInstruction(
+      statement.subModuleName,
+      statement.argumentsList.length,
+      false,
+      statement.syntax.range
+    ));
   }
   emitVariableAssignment(statement) {
     this.emitExpression(statement.value);
@@ -14366,7 +14432,15 @@ var CommandsParser = class _CommandsParser {
   parseSubCommand() {
     const subToken = this.eat(13 /* SubKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    return new SubCommandSyntax(subToken, nameToken);
+    const parameters = this.parseOptionalParameterList();
+    return new SubCommandSyntax(
+      subToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
   }
   parseEndSubCommand() {
     const endSubToken = this.eat(14 /* EndSubKeyword */);
@@ -14375,9 +14449,28 @@ var CommandsParser = class _CommandsParser {
   parseFunctionCommand() {
     const functionToken = this.eat(15 /* FunctionKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    const leftParenToken = this.eat(21 /* LeftParen */);
+    const parameters = this.parseOptionalParameterList();
+    return new FunctionCommandSyntax(
+      functionToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
+  }
+  /**
+   * Parses an optional, parenthesized parameter list shared by `Sub` and
+   * `Function` declarations. The parentheses and the parameter list may both
+   * be omitted, so `Sub Foo`, `Sub Foo()` and `Sub Foo(A, B)` are all valid.
+   */
+  parseOptionalParameterList() {
     const parameterTokens = [];
     const commaTokens = [];
+    if (!this.isNext(21 /* LeftParen */)) {
+      return { leftParenToken: void 0, parameterTokens, commaTokens, rightParenToken: void 0 };
+    }
+    const leftParenToken = this.eat(21 /* LeftParen */);
     if (!this.isNext(20 /* RightParen */)) {
       parameterTokens.push(this.eat(38 /* Identifier */));
       while (this.isNext(24 /* Comma */)) {
@@ -14386,14 +14479,7 @@ var CommandsParser = class _CommandsParser {
       }
     }
     const rightParenToken = this.eat(20 /* RightParen */);
-    return new FunctionCommandSyntax(
-      functionToken,
-      nameToken,
-      leftParenToken,
-      parameterTokens,
-      commaTokens,
-      rightParenToken
-    );
+    return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
   }
   parseEndFunctionCommand() {
     return new EndFunctionCommandSyntax(this.eat(16 /* EndFunctionKeyword */));
@@ -15958,7 +16044,17 @@ function collectOutlineSymbols(compilation) {
   registerScope(compilation.parseTree.mainModule, -1);
   subModules.forEach((subModule, index) => {
     const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, subModule.subCommand.nameToken.token.text);
-    registerScope(subModule.statementsList, index, new Set((metadata?.locals ?? []).map((name) => name.toLowerCase())));
+    const localNames = new Set([
+      ...metadata?.parameters ?? [],
+      ...metadata?.locals ?? []
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of subModule.subCommand.parameterTokens) {
+      const key = `${index}:${parameter.token.text.toLowerCase()}`;
+      if (!firstUses.has(key)) {
+        firstUses.set(key, { name: parameter.token.text, range: parameter.range, scopeIndex: index });
+      }
+    }
+    registerScope(subModule.statementsList, index, localNames);
   });
   functions.forEach((func, index) => {
     const scopeIndex = subModules.length + index;
@@ -15994,9 +16090,10 @@ function collectOutlineSymbols(compilation) {
   }
   const procedures = subModules.map((subModule, index) => {
     const nameToken = subModule.subCommand.nameToken;
+    const parameters = subModule.subCommand.parameterTokens;
     return {
       name: nameToken.token.text,
-      detail: `Sub ${nameToken.token.text}`,
+      detail: parameters.length ? `Sub ${nameToken.token.text}(${parameters.map((parameter) => parameter.token.text).join(", ")})` : `Sub ${nameToken.token.text}`,
       kind: "sub",
       range: subModule.range,
       selectionRange: nameToken.range,
@@ -16205,6 +16302,7 @@ function provideSignatureHelpInfo(lineText, character, compilation) {
 }
 
 // ../smallbasic-language-services/src/semantic-tokens.ts
+var mainModuleName = "<Main>";
 var keywordKinds = /* @__PURE__ */ new Set([
   1 /* IfKeyword */,
   2 /* ThenKeyword */,
@@ -16262,13 +16360,35 @@ function mapTokenType(compilation, kind, text, position) {
       if (CompilerUtils.lookupIgnoreCase(compilation.procedures, text) !== void 0) {
         return "function";
       }
-      if (compilation.parseTree.functions.some((func) => func.range.containsPosition(position) && func.functionCommand.parameterTokens.some((parameter) => parameter.token.text.toLowerCase() === text.toLowerCase()))) {
+      if (isParameterOrLocal(compilation, text, position)) {
         return "parameter";
       }
       return "variable";
     default:
       return void 0;
   }
+}
+function isParameterOrLocal(compilation, text, position) {
+  const lowered = text.toLowerCase();
+  for (const subModule of compilation.parseTree.subModules) {
+    if (subModule.range.containsPosition(position) && moduleDeclaresName(compilation, subModule.subCommand.nameToken.token.text, lowered)) {
+      return true;
+    }
+  }
+  for (const func of compilation.parseTree.functions) {
+    if (func.range.containsPosition(position) && moduleDeclaresName(compilation, func.functionCommand.nameToken.token.text, lowered)) {
+      return true;
+    }
+  }
+  const mainMetadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, mainModuleName);
+  return mainMetadata !== void 0 && containsName(mainMetadata.globals, lowered);
+}
+function moduleDeclaresName(compilation, moduleName, lowered) {
+  const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, moduleName);
+  return metadata !== void 0 && (containsName(metadata.parameters, lowered) || containsName(metadata.locals, lowered));
+}
+function containsName(names, lowered) {
+  return names.some((name) => name.toLowerCase() === lowered);
 }
 
 // ../smallbasic-language-services/src/folding.ts
@@ -16509,7 +16629,13 @@ function collectIdentifierTokens(compilation) {
     const declaration = subModule;
     const scope2 = declaration.subCommand.nameToken.token.text;
     const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, scope2);
-    const locals = new Set((metadata?.locals ?? []).map((name) => name.toLowerCase()));
+    const locals = new Set([
+      ...metadata?.parameters ?? [],
+      ...metadata?.locals ?? []
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of declaration.subCommand.parameterTokens) {
+      pushVariable(parameter, scope2, locals);
+    }
     visit(declaration.statementsList, scope2, locals);
   }
   for (const func of compilation.parseTree.functions) {

@@ -1,4 +1,3 @@
-using System.Globalization;
 using SmallBasic.Compiler.Runtime;
 using SmallBasic.Editor.Libraries;
 using SmallBasic.RunHost.Libraries;
@@ -18,7 +17,7 @@ public sealed class BrowserLibraries : IEngineLibraries, IDisposable
     private readonly MathLibrary math = new();
     private readonly BrowserMouseLibrary mouse;
     private readonly UnsupportedNetworkLibrary network = new();
-    private readonly BrowserProgramLibrary program = new();
+    private readonly ProgramLibrary program = new();
     private readonly UnsupportedSoundLibrary sound = new();
     private readonly StackLibrary stack = new();
     private readonly TextLibrary text = new();
@@ -66,20 +65,12 @@ public sealed class BrowserLibraries : IEngineLibraries, IDisposable
     public void Dispose() => this.timer.Dispose();
 }
 
-public sealed class BrowserProgramLibrary : IProgramLibrary
-{
-    public Task Delay(decimal milliSeconds) => Task.Delay(Math.Max(0, (int)milliSeconds));
-    public void End() => throw new InvalidOperationException("Program.End is lowered by the compiler.");
-    public void Pause() => throw new InvalidOperationException("Program.Pause is lowered by the compiler.");
-}
-
-public sealed class BrowserTextWindowLibrary : ITextWindowLibrary
+public sealed class BrowserTextWindowLibrary : TextWindowLibraryBase
 {
     private readonly RuntimeViewModel view;
     private string backgroundColor = "Black";
     private string foregroundColor = "White";
     private string title = "Small Basic";
-    private string pendingInput = string.Empty;
 
     public BrowserTextWindowLibrary(RuntimeViewModel view)
     {
@@ -88,30 +79,16 @@ public sealed class BrowserTextWindowLibrary : ITextWindowLibrary
 
     public event Action<string>? Output;
 
-    public string Get_BackgroundColor() => this.backgroundColor;
-    public void Set_BackgroundColor(string value) => this.backgroundColor = value;
-    public string Get_ForegroundColor() => this.foregroundColor;
-    public void Set_ForegroundColor(string value) => this.foregroundColor = value;
-    public string Get_Title() => this.title;
-    public void Set_Title(string value) => this.title = value;
-    public void Clear() => this.view.ClearText();
+    public override string Get_BackgroundColor() => this.backgroundColor;
+    public override void Set_BackgroundColor(string value) => this.backgroundColor = value;
+    public override string Get_ForegroundColor() => this.foregroundColor;
+    public override void Set_ForegroundColor(string value) => this.foregroundColor = value;
+    public override string Get_Title() => this.title;
+    public override void Set_Title(string value) => this.title = value;
+    public override void Clear() => this.view.ClearText();
 
-    public string Read()
-    {
-        string result = this.pendingInput;
-        this.pendingInput = string.Empty;
-        return result;
-    }
-
-    public decimal ReadNumber()
-    {
-        string value = this.Read();
-        return decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out decimal result) ? result : 0;
-    }
-
-    public Task Write(string data) { this.view.AppendText(data); this.Output?.Invoke(data); return Task.CompletedTask; }
-    public Task WriteLine(string data) { string line = data + Environment.NewLine; this.view.AppendText(line); this.Output?.Invoke(line); return Task.CompletedTask; }
-    public void SetPendingInput(string value) => this.pendingInput = value;
+    public override Task Write(string data) { this.view.AppendText(data); this.Output?.Invoke(data); return Task.CompletedTask; }
+    public override Task WriteLine(string data) { string line = data + Environment.NewLine; this.view.AppendText(line); this.Output?.Invoke(line); return Task.CompletedTask; }
 }
 
 public sealed class BrowserImageListLibrary : IImageListLibrary

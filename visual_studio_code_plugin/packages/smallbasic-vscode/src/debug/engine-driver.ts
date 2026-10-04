@@ -9,12 +9,11 @@ import {
   ExecutionEngine,
   ExecutionMode,
   ExecutionState,
-  ITextWindowLibraryPlugin,
-  NumberValue,
-  StringValue,
-  TextWindowColor,
   ValueKind
 } from "smallbasic-lang-core";
+import { normalizeProgramPath } from "../common/paths";
+import { BufferedTextWindowPlugin } from "../common/text-window";
+import type { WebDebugVariable } from "../web/debug-protocol";
 
 /**
  * Host-agnostic Small Basic debug engine.
@@ -86,11 +85,7 @@ export interface DebugSnapshot {
 }
 
 /** Recursive variable shape published by the web debug protocol. */
-export interface DebugVariableTree {
-  name: string;
-  value: string;
-  children: DebugVariableTree[];
-}
+export type DebugVariableTree = WebDebugVariable;
 
 export interface DebugDriverCallbacks {
   /** TextWindow output (already carries its newline). */
@@ -168,7 +163,7 @@ export class DebugEngineDriver {
   /** Verifies breakpoints against `sourcePath` and stores them for the run. */
   public setBreakpoints(sourcePath: string, requests: readonly DebugBreakpointRequest[]): DebugBreakpoint[] {
     const verified = this.verifyBreakpoints(sourcePath, requests);
-    this.breakpointsByFile.set(normalizePath(sourcePath), verified);
+    this.breakpointsByFile.set(normalizeProgramPath(sourcePath), verified);
     return verified;
   }
 
@@ -178,7 +173,7 @@ export class DebugEngineDriver {
    * again once the program is known.
    */
   public reverifyBreakpoints(sourcePath: string): DebugBreakpoint[] {
-    const current = this.breakpointsByFile.get(normalizePath(sourcePath)) ?? [];
+    const current = this.breakpointsByFile.get(normalizeProgramPath(sourcePath)) ?? [];
     if (current.length === 0) {
       return [];
     }
@@ -187,7 +182,7 @@ export class DebugEngineDriver {
       sourcePath,
       current.map((breakpoint) => ({ line: breakpoint.line, condition: breakpoint.condition }))
     );
-    this.breakpointsByFile.set(normalizePath(sourcePath), verified);
+    this.breakpointsByFile.set(normalizeProgramPath(sourcePath), verified);
     return verified;
   }
 
@@ -507,7 +502,7 @@ export class DebugEngineDriver {
       return false;
     }
 
-    const fileBreakpoints = this.breakpointsByFile.get(normalizePath(this.loadedPath)) ?? [];
+    const fileBreakpoints = this.breakpointsByFile.get(normalizeProgramPath(this.loadedPath)) ?? [];
     for (const breakpoint of fileBreakpoints) {
       if (!breakpoint.verified || breakpoint.actualLine !== line) {
         continue;
@@ -584,59 +579,17 @@ function executableLines(compilation: Compilation): number[] {
   return [...lines].sort((left, right) => left - right);
 }
 
-function normalizePath(filePath: string): string {
-  return filePath.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
-}
-
-class DriverTextWindow implements ITextWindowLibraryPlugin {
-  private readonly inputBuffer: BaseValue[] = [];
-  private foreground = TextWindowColor.White;
-  private background = TextWindowColor.Black;
-  private requestedInputKind: ValueKind | undefined;
-
-  public constructor(private readonly driver: DebugEngineDriver) {}
-
-  public inputIsNeeded(kind: ValueKind): void {
-    this.requestedInputKind = kind;
-    this.driver.notifyInputNeeded(kind);
+class DriverTextWindow extends BufferedTextWindowPlugin {
+  public constructor(private readonly driver: DebugEngineDriver) {
+    super();
   }
 
-  public checkInputBuffer(): BaseValue | undefined {
-    return this.inputBuffer.shift();
+  public override inputIsNeeded(kind: ValueKind): void {
+    super.inputIsNeeded(kind);
+    this.driver.notifyInputNeeded(kind);
   }
 
   public writeText(value: string, appendNewLine: boolean): void {
     this.driver.emitOutput(value + (appendNewLine ? "\n" : ""));
-  }
-
-  public getForegroundColor(): TextWindowColor {
-    return this.foreground;
-  }
-
-  public setForegroundColor(color: TextWindowColor): void {
-    this.foreground = color;
-  }
-
-  public getBackgroundColor(): TextWindowColor {
-    return this.background;
-  }
-
-  public setBackgroundColor(color: TextWindowColor): void {
-    this.background = color;
-  }
-
-  public pushInput(raw: string): void {
-    if (this.requestedInputKind === ValueKind.Number) {
-      const parsed = Number(raw);
-      this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
-    } else {
-      this.inputBuffer.push(new StringValue(raw));
-    }
-
-    this.requestedInputKind = undefined;
-  }
-
-  public isWaitingForInput(): boolean {
-    return this.requestedInputKind !== undefined;
   }
 }

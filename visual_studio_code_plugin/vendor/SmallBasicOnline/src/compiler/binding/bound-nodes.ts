@@ -173,12 +173,13 @@ export class BoundReturnStatement extends BaseBoundStatement {
 export class BoundSubModuleInvocationStatement extends BaseBoundStatement {
     public constructor(
         public readonly subModuleName: string,
+        public readonly argumentsList: ReadonlyArray<BaseBoundExpression>,
         syntax: BaseSyntaxNode) {
         super(BoundKind.SubModuleInvocationStatement, syntax);
     }
 
     public children(): ReadonlyArray<BaseBoundNode> {
-        return [];
+        return this.argumentsList;
     }
 }
 

@@ -1,10 +1,10 @@
 import * as vscode from "vscode";
-import { Compilation } from "smallbasic-lang-core";
 import { activateCommon } from "../common/activation";
+import { analyzeProgramShape, documentBaseName, resolveDebugDocument } from "../common/documents";
+import { OPEN_SB_FILE_WARNING } from "../common/messages";
 import { isSmallBasicDocument } from "../language/providers";
 import { runInWebview, type WebviewBackend } from "./blazor-webview";
 import { SmallBasicWebDebugAdapterFactory } from "./debug-factory";
-import { documentBaseName } from "./inline-factory";
 import { routeWebDebugRequest } from "./run-routing";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -29,7 +29,7 @@ async function runWebActiveDocument(
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode.window.showWarningMessage("请先打开一个 SmallBasic (.sb) 文件。");
+    void vscode.window.showWarningMessage(OPEN_SB_FILE_WARNING);
     return;
   }
 
@@ -42,7 +42,7 @@ async function runWebActiveDocument(
 }
 
 function warnWhenJavaScriptWouldDo(document: vscode.TextDocument): void {
-  const shape = analyze(document);
+  const shape = analyzeProgramShape(document);
   if (!shape.ready || shape.drawsShapes) {
     return;
   }
@@ -74,7 +74,7 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
   };
 
   const createConfig = (document: vscode.TextDocument): vscode.DebugConfiguration => {
-    const shape = analyze(document);
+    const shape = analyzeProgramShape(document);
     const backend = shape.ready && shape.drawsShapes ? "blazor" : "javascript";
     return {
       type: "smallbasic",
@@ -119,8 +119,8 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
         return undefined;
       }
 
-      const target = document ?? await openProgram(program);
-      const shape = target ? analyze(target) : { ready: false, drawsShapes: false };
+      const target = await resolveDebugDocument(program);
+      const shape = target ? analyzeProgramShape(target) : { ready: false, drawsShapes: false };
       const routing = routeWebDebugRequest(
         { backend: config.backend, noDebug: config.noDebug === true },
         shape.ready && shape.drawsShapes
@@ -152,33 +152,4 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
       return config;
     }
   };
-}
-
-/** Opens the configured program when it is not the active document (remote URIs included). */
-async function openProgram(program: string): Promise<vscode.TextDocument | undefined> {
-  if (!program) {
-    return undefined;
-  }
-
-  try {
-    const document = await vscode.workspace.openTextDocument(vscode.Uri.parse(program));
-    return isSmallBasicDocument(document) ? document : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-interface ProgramShape {
-  ready: boolean;
-  /** Whether the program needs the Blazor backend (GraphicsWindow/Shapes/Turtle). */
-  drawsShapes: boolean;
-}
-
-function analyze(document: vscode.TextDocument): ProgramShape {
-  try {
-    const compilation = new Compilation(document.getText());
-    return { ready: compilation.isReadyToRun, drawsShapes: compilation.kind.drawsShapes() };
-  } catch {
-    return { ready: false, drawsShapes: false };
-  }
 }

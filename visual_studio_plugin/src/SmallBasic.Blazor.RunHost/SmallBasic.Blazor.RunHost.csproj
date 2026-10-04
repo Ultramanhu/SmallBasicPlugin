@@ -28,9 +28,11 @@
     <ProjectReference Include="..\SmallBasic.Blazor.Shared\SmallBasic.Blazor.Shared.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
     <Compile Include="..\SmallBasic.RunHost\Debug\DapStream.cs" Link="Debug\DapStream.cs" />
-    <Compile Include="..\SmallBasic.RunHost\Libraries\ProgramLibrary.cs" Link="Libraries\ProgramLibrary.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Debug\DapAdapterBase.cs" Link="Debug\DapAdapterBase.cs" />
+    <Compile Include="..\SmallBasic.RunHost\EngineRunLoop.cs" Link="EngineRunLoop.cs" />
     <Compile Include="..\SmallBasic.RunHost\Libraries\RuntimeLibrariesCollection.cs" Link="Libraries\RuntimeLibrariesCollection.cs" />
     <Compile Include="..\SmallBasic.RunHost\Libraries\TextWindowLibrary.cs" Link="Libraries\TextWindowLibrary.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\TextWindowLibraryBase.cs" Link="Libraries\TextWindowLibraryBase.cs" />
     <Compile Include="..\SmallBasic.RunHost\Libraries\UnsupportedLibraries.cs" Link="Libraries\UnsupportedLibraries.cs" />
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ArrayLibrary.cs" Link="Libraries\Imported\ArrayLibrary.cs" />
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\ClockLibrary.cs" Link="Libraries\Imported\ClockLibrary.cs" />

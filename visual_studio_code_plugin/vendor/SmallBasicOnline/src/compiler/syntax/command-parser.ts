@@ -188,8 +188,15 @@ export class CommandsParser {
     private parseSubCommand(): SubCommandSyntax {
         const subToken = this.eat(TokenKind.SubKeyword);
         const nameToken = this.eat(TokenKind.Identifier);
+        const parameters = this.parseOptionalParameterList();
 
-        return new SubCommandSyntax(subToken, nameToken);
+        return new SubCommandSyntax(
+            subToken,
+            nameToken,
+            parameters.leftParenToken,
+            parameters.parameterTokens,
+            parameters.commaTokens,
+            parameters.rightParenToken);
     }
 
     private parseEndSubCommand(): EndSubCommandSyntax {
@@ -201,10 +208,36 @@ export class CommandsParser {
     private parseFunctionCommand(): FunctionCommandSyntax {
         const functionToken = this.eat(TokenKind.FunctionKeyword);
         const nameToken = this.eat(TokenKind.Identifier);
-        const leftParenToken = this.eat(TokenKind.LeftParen);
+        const parameters = this.parseOptionalParameterList();
+
+        return new FunctionCommandSyntax(
+            functionToken,
+            nameToken,
+            parameters.leftParenToken,
+            parameters.parameterTokens,
+            parameters.commaTokens,
+            parameters.rightParenToken);
+    }
+
+    /**
+     * Parses an optional, parenthesized parameter list shared by `Sub` and
+     * `Function` declarations. The parentheses and the parameter list may both
+     * be omitted, so `Sub Foo`, `Sub Foo()` and `Sub Foo(A, B)` are all valid.
+     */
+    private parseOptionalParameterList(): {
+        leftParenToken: TokenSyntax | undefined;
+        parameterTokens: TokenSyntax[];
+        commaTokens: TokenSyntax[];
+        rightParenToken: TokenSyntax | undefined;
+    } {
         const parameterTokens: TokenSyntax[] = [];
         const commaTokens: TokenSyntax[] = [];
 
+        if (!this.isNext(TokenKind.LeftParen)) {
+            return { leftParenToken: undefined, parameterTokens, commaTokens, rightParenToken: undefined };
+        }
+
+        const leftParenToken = this.eat(TokenKind.LeftParen);
         if (!this.isNext(TokenKind.RightParen)) {
             parameterTokens.push(this.eat(TokenKind.Identifier));
             while (this.isNext(TokenKind.Comma)) {
@@ -214,13 +247,7 @@ export class CommandsParser {
         }
 
         const rightParenToken = this.eat(TokenKind.RightParen);
-        return new FunctionCommandSyntax(
-            functionToken,
-            nameToken,
-            leftParenToken,
-            parameterTokens,
-            commaTokens,
-            rightParenToken);
+        return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
     }
 
     private parseEndFunctionCommand(): EndFunctionCommandSyntax {

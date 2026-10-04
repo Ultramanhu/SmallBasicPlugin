@@ -38,6 +38,13 @@
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\StackLibrary.cs" Link="Runtime\Imported\StackLibrary.cs" />
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TextLibrary.cs" Link="Runtime\Imported\TextLibrary.cs" />
     <Compile Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Editor\Libraries\TimerLibrary.cs" Link="Runtime\Imported\TimerLibrary.cs" />
+    <!-- ProgramLibrary and TextWindowLibraryBase are the console RunHost's own
+         sources, linked here so the browser runtime shares one implementation
+         (ProgramLibrary also comes to SmallBasic.Blazor.RunHost through this
+         project reference instead of a second compiled copy). -->
+    <Compile Include="..\SmallBasic.RunHost\Libraries\ProgramLibrary.cs" Link="Runtime\Imported\ProgramLibrary.cs" />
+    <Compile Include="..\SmallBasic.RunHost\Libraries\TextWindowLibraryBase.cs" Link="Runtime\Imported\TextWindowLibraryBase.cs" />
+    <Compile Include="..\SmallBasic.RunHost\EngineRunLoop.cs" Link="Runtime\Imported\EngineRunLoop.cs" />
     <Compile Include="..\SmallBasic.RunHost\Libraries\UnsupportedLibraries.cs" Link="Runtime\Imported\UnsupportedLibraries.cs" />
   </ItemGroup>
 </Project>

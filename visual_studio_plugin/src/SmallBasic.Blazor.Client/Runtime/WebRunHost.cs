@@ -32,7 +32,7 @@ public sealed class WebRunRequest
 /// </summary>
 public static class WebRunHost
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = JsonDefaults.Web;
 
     private static readonly Channel<WebRunRequest> Requests = Channel.CreateUnbounded<WebRunRequest>();
 

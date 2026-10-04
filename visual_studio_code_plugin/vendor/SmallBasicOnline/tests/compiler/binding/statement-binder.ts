@@ -505,9 +505,16 @@ Clock`,
             new Diagnostic(ErrorCode.UnassignedExpressionStatement, CompilerRange.fromValues(1, 0, 1, 1)));
     });
     
-    it("reports error on invalid expression statements - submodule", () => {
+    it("calls a no-argument submodule without parentheses", () => {
         verifyCompilationErrors(`
 Sub x
+EndSub
+x`);
+    });
+
+    it("reports error on invalid expression statements - submodule with parameters", () => {
+        verifyCompilationErrors(`
+Sub x(a)
 EndSub
 x`,
             // x

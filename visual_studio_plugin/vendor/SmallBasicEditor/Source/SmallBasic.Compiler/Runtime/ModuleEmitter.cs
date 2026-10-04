@@ -180,9 +180,14 @@ namespace SmallBasic.Compiler.Runtime
 
         private void EmitSubModuleInvocationStatement(BoundSubModuleInvocationStatement statement)
         {
+            foreach (BaseBoundExpression argument in statement.Expression.Arguments)
+            {
+                this.EmitExpression(argument);
+            }
+
             this.instructions.Add(new InvokeSubModuleInstruction(
                 statement.Expression.Name,
-                argumentCount: 0,
+                statement.Expression.Arguments.Count,
                 returnsValue: false,
                 range: statement.Syntax.Range));
         }

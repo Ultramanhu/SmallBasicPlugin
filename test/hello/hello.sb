@@ -8,14 +8,28 @@ s1 = "3"
 s2 = s1 * 1
 TextWindow.WriteLine(s2)
 
-i = 1
+i = 10
 
-Sub MySub
+Sub MySub(i)
+	Dim j
 	TextWindow.WriteLine("MySub:" + i)
-	i = i + 1
-	If i < 10 Then
-		MySub()
+	j = i + 1
+	If j < 10 Then
+		MySub(j)
 	EndIf
 EndSub
 
-MySub()
+MySub(0)
+
+Function MyFunc(i)
+	Dim j
+	TextWindow.WriteLine("MyFunc:" + i)
+	j = i + 1
+	If j < 10 Then
+		Return MyFunc(j)
+	EndIf
+	Return i
+EndFunction
+
+Ret = MyFunc(0)
+TextWindow.WriteLine("MyFunc Ret:" + Ret)

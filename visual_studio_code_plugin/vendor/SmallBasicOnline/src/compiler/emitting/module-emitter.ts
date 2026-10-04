@@ -154,7 +154,12 @@ export class ModuleEmitter {
     }
 
     private emitSubModuleInvocation(statement: BoundSubModuleInvocationStatement): void {
-        this._instructions.push(new InvokeSubModuleInstruction(statement.subModuleName, 0, false, statement.syntax.range));
+        statement.argumentsList.forEach(argument => this.emitExpression(argument));
+        this._instructions.push(new InvokeSubModuleInstruction(
+            statement.subModuleName,
+            statement.argumentsList.length,
+            false,
+            statement.syntax.range));
     }
 
     private emitVariableAssignment(statement: BoundVariableAssignmentStatement): void {

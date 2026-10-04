@@ -33,6 +33,9 @@ $ErrorActionPreference = "Stop"
 # This script lives inside the RunHost distribution folder it produces.
 $outputRoot = $PSScriptRoot
 $repoRoot = Split-Path -Parent $PSScriptRoot
+
+# Shared build helpers (version handling, the web site's required-file list).
+Import-Module (Join-Path $repoRoot "tools\common.psm1") -Force
 $projectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
 $blazorProjectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
 $vscodeRoot = Join-Path $repoRoot "visual_studio_code_plugin"
@@ -61,18 +64,6 @@ if ($Clean) {
             Remove-Item $target -Recurse -Force
         }
     }
-}
-
-# [System.IO.Path]::GetRelativePath needs .NET Core; Windows PowerShell 5.1
-# ships .NET Framework and would fail the sample staging below.
-function Get-RelativePathString([string]$BasePath, [string]$Path) {
-    $fullBase = [System.IO.Path]::GetFullPath($BasePath).TrimEnd('\', '/') + [System.IO.Path]::DirectorySeparatorChar
-    $fullPath = [System.IO.Path]::GetFullPath($Path)
-    if (-not $fullPath.StartsWith($fullBase, [System.StringComparison]::OrdinalIgnoreCase)) {
-        throw "Path '$Path' is not under '$BasePath'."
-    }
-
-    return $fullPath.Substring($fullBase.Length)
 }
 
 $blazorDestination = Join-Path $outputRoot "blazor"
@@ -166,77 +157,18 @@ if (-not $SkipWeb) {
     Copy-Item (Join-Path $playgroundDist "*") $webDestination -Recurse -Force
 
     # Stage the repository samples so the page can offer them in its program list
-    # (samples/index.json). Programs that draw are flagged so the shell preselects
-    # the Blazor backend for them.
-    $samplesRoot = Join-Path $webDestination "samples"
-    Remove-Item $samplesRoot -Recurse -Force -ErrorAction SilentlyContinue
-    New-Item -ItemType Directory -Force -Path $samplesRoot | Out-Null
-    $testRoot = Join-Path $repoRoot "test"
-    $sampleEntries = @()
-    $defaultSample = "test/hello/hello.sb"
-    if (Test-Path $testRoot) {
-        # Skip samples inside dot-prefixed folders (.git, .vs, .kilo, ...), which
-        # are tooling/worktree artifacts rather than real samples.
-        foreach ($sample in Get-ChildItem $testRoot -Recurse -File -Filter "*.sb" |
-            Where-Object {
-                $relative = Get-RelativePathString $testRoot $_.FullName
-                $directory = Split-Path -Path $relative -Parent
-                -not ($directory -and ($directory -split '[\\/]' | Where-Object { $_ -like '.*' }))
-            } |
-            Sort-Object FullName) {
-            $relativePath = (Get-RelativePathString $testRoot $sample.FullName).Replace("\", "/")
-            $target = Join-Path $samplesRoot $relativePath
-            New-Item -ItemType Directory -Force -Path (Split-Path -Parent $target) | Out-Null
-            Copy-Item $sample.FullName $target -Force
-
-            $usesGraphics = (Select-String -Path $sample.FullName -Pattern "(?i)\b(GraphicsWindow|Shapes|Turtle)\s*[\.\(]" -Quiet) -eq $true
-            $sampleEntries += [ordered]@{
-                name     = "test/$relativePath"
-                path     = "samples/$relativePath"
-                graphics = $usesGraphics
-            }
-        }
+    # (samples/index.json). tools\stage-samples.mjs is the single implementation,
+    # shared with the staged desktop playground.
+    & node (Join-Path $repoRoot "tools\stage-samples.mjs") $webDestination
+    if ($LASTEXITCODE -ne 0) {
+        throw "Sample staging failed with exit code $LASTEXITCODE."
     }
-
-    if ($sampleEntries.Count -eq 0) {
-        Write-Warning "No .sb samples were found under $testRoot; runhost/web will fall back to its built-in program."
-    }
-    elseif (-not ($sampleEntries | Where-Object { $_.name -eq $defaultSample })) {
-        $defaultSample = $sampleEntries[0].name
-    }
-
-    $sampleManifest = [ordered]@{
-        default = $defaultSample
-        items   = @($sampleEntries)
-    } | ConvertTo-Json -Depth 4
-    # WriteAllText writes UTF-8 without a BOM on both Windows PowerShell 5.1
-    # (which lacks the utf8NoBOM encoding switch) and pwsh.
-    [System.IO.File]::WriteAllText((Join-Path $samplesRoot "index.json"), $sampleManifest)
 
     # A process that serves the previous copy (for example a running
     # 'node web\serve.mjs') keeps the old directory alive and makes the copy
-    # silently land in a deleted folder; fail loudly instead.
-    foreach ($required in @(
-        "index.html",
-        "runhost.html",
-        "playground.html",
-        "app.css",
-        "shell-core.js",
-        "runhost-page.js",
-        "playground.js",
-        "smallbasic-js.js",
-        "editor\editor.worker.js",
-        "editor\language.worker.js",
-        "editor\onig.wasm",
-        "editor\language-configuration.json",
-        "editor\grammar\smallbasic.tmLanguage.json",
-        "editor\snippets\smallbasic.json",
-        "third-party-notices.txt",
-        "run.bat",
-        "run.ps1",
-        "samples\index.json",
-        "_framework\blazor.webassembly.js"
-    )) {
+    # silently land in a deleted folder; fail loudly instead. The list is the
+    # shared tools\web-site-files.json (also asserted by Build-Plugin.ps1).
+    foreach ($required in (Read-RequiredWebSiteFiles -RepositoryRoot $repoRoot)) {
         if (-not (Test-Path (Join-Path $webDestination $required))) {
             throw "The web RunHost is incomplete: '$required' is missing from $webDestination. Stop anything serving that folder (for example 'node serve.mjs') and build again."
         }

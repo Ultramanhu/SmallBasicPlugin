@@ -149,7 +149,17 @@ namespace SmallBasic.Compiler.Services
             foreach (BoundSubModule subModule in binder.SubModules.Values.Where(module => module.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
             {
                 procedureNames.Add(subModule.Name);
-                items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, subModule.Name, "Sub", subModule.Name + "()"));
+                string[] subModuleParameters = subModule.Syntax.Parameters.Select(parameter => parameter.IdentifierToken.Text).ToArray();
+                if (subModuleParameters.Length == 0)
+                {
+                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, subModule.Name, "Sub", subModule.Name + "()"));
+                }
+                else
+                {
+                    string subModuleLabel = $"{subModule.Name}({subModuleParameters.Join(", ")})";
+                    string subModuleArguments = subModuleParameters.Select((parameter, index) => $"${{{index + 1}:{parameter}}}").Join(", ");
+                    items.Add(new MonacoCompletionItem(MonacoCompletionItemKind.Method, subModuleLabel, "Sub", $"{subModule.Name}({subModuleArguments})"));
+                }
             }
 
             foreach (BoundFunction function in binder.Functions.Values.Where(module => module.Name.StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)))
@@ -171,7 +181,7 @@ namespace SmallBasic.Compiler.Services
 
             IEnumerable<string> currentLocals = binder.SubModules.Values
                 .Where(module => module.Syntax.Range.Contains(position))
-                .SelectMany(module => module.Locals)
+                .SelectMany(module => module.Syntax.Parameters.Select(parameter => parameter.IdentifierToken.Text).Concat(module.Locals))
                 .Concat(binder.Functions.Values
                     .Where(function => function.Syntax.Range.Contains(position))
                     .SelectMany(function => function.Parameters.Concat(function.Locals)));

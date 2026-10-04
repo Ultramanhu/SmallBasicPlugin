@@ -274,10 +274,19 @@ TextWindow.WriteLine").VerifyDiagnostics(
         }
 
         [Fact]
-        public void ItReportsStandAloneSubModule()
+        public void ItInvokesNoArgumentSubModuleWithoutParentheses()
         {
             new SmallBasicCompilation(@"
 Sub x
+EndSub
+x").VerifyDiagnostics();
+        }
+
+        [Fact]
+        public void ItReportsStandAloneSubModuleWithParameters()
+        {
+            new SmallBasicCompilation(@"
+Sub x(a)
 EndSub
 x").VerifyDiagnostics(
                 // x

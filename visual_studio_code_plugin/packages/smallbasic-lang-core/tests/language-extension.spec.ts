@@ -116,4 +116,76 @@ describe("SmallBasic language extension v1", () => {
     expect(conflict.diagnostics.map((diagnostic) => diagnostic.code))
       .toContain(ErrorCode.ProcedureConflictsWithLibrary);
   });
+
+  it("executes subroutines with parameters", () => {
+    verifyRuntimeResult([
+      "Sub Greet(Name)",
+      '  TextWindow.WriteLine("Hi " + Name)',
+      "EndSub",
+      'Greet("Ada")',
+      'Greet("Lin")'
+    ].join("\n"), [], ["Hi Ada", "Hi Lin"]);
+  });
+
+  it("keeps subroutine parameters and Dim locals in the call frame", () => {
+    verifyRuntimeResult([
+      "Total = 0",
+      "Sub Accumulate(Value)",
+      "  Dim Doubled",
+      "  Doubled = Value * 2",
+      "  Total = Total + Doubled",
+      "EndSub",
+      "Accumulate(3)",
+      "Accumulate(4)",
+      'TextWindow.WriteLine("[" + Doubled + "]")',
+      "TextWindow.WriteLine(Total)"
+    ].join("\n"), [], ["[]", "14"]);
+  });
+
+  it("calls a no-argument subroutine without parentheses", () => {
+    verifyRuntimeResult([
+      "Counter = 0",
+      "Sub Increment",
+      "  Counter = Counter + 1",
+      "EndSub",
+      "Increment",
+      "Increment()",
+      "TextWindow.WriteLine(Counter)"
+    ].join("\n"), [], ["2"]);
+  });
+
+  it("declares and calls a no-argument function without parentheses", () => {
+    verifyRuntimeResult([
+      "Function Answer",
+      "  Return 42",
+      "EndFunction",
+      "TextWindow.WriteLine(Answer)",
+      "TextWindow.WriteLine(Answer())"
+    ].join("\n"), [], ["42", "42"]);
+  });
+
+  it("accepts empty parentheses on procedure declarations", () => {
+    verifyRuntimeResult([
+      "Sub Ping()",
+      '  TextWindow.WriteLine("pong")',
+      "EndSub",
+      "Function Zero()",
+      "  Return 0",
+      "EndFunction",
+      "Ping()",
+      "TextWindow.WriteLine(Zero())"
+    ].join("\n"), [], ["pong", "0"]);
+  });
+
+  it("reports a subroutine argument count mismatch", () => {
+    const compilation = new Compilation([
+      "Sub Show(Value)",
+      "  TextWindow.WriteLine(Value)",
+      "EndSub",
+      "Show(1, 2)"
+    ].join("\n"));
+
+    expect(compilation.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.UnexpectedArgumentsCount);
+  });
 });

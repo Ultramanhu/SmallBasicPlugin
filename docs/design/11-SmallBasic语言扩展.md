@@ -80,7 +80,10 @@ Language Extension v1 已按本文契约落地。两套编译器现在共同支�
 以下 EBNF 中关键字不区分大小写，换行仍是语句终止符：
 
 ```ebnf
-function-declaration = "Function", identifier, "(", [ parameter-list ], ")", newline,
+sub-declaration      = "Sub", identifier, [ "(", [ parameter-list ], ")" ], newline,
+                       { statement }, "EndSub", newline ;
+
+function-declaration = "Function", identifier, [ "(", [ parameter-list ], ")" ], newline,
                        { statement }, "EndFunction", newline ;
 
 parameter-list       = identifier, { ",", identifier } ;
@@ -89,20 +92,19 @@ dim-statement        = "Dim", identifier, { ",", identifier }, newline ;
 
 return-statement     = "Return", expression, newline ;
 
-function-call        = identifier, "(", [ argument-list ], ")" ;
+procedure-call       = identifier, [ "(", [ argument-list ], ")" ] ;
 argument-list        = expression, { ",", expression } ;
 ```
 
 v1 的明确边界：
 
-- `Function` 只能在文件顶层声明，与 `Sub` 一样不允许嵌套。
-- 函数声明必须写括号；无参函数写成 `Function F()`。
-- 函数调用必须写括号；不支持省略括号、命名参数、可选参数、默认值、参数类型或重载。
-- 参数只允许标识符列表，实参数量必须精确匹配。
+- `Sub` / `Function` 只能在文件顶层声明，不允许嵌套。
+- `Sub` 与 `Function` 都支持参数列表；解析器对参数括号与参数列表都做可选处理，因此 `Sub F`、`Sub F()`、`Sub F(A, B)` 以及 `Function F`、`Function F()`、`Function F(A, B)` 都合法。
+- 无参过程既可以写成 `F` 也可以写成 `F()`：不带括号的裸名等价于零实参调用（`Sub` 用于语句，`Function` 用于表达式；`Answer = F` 等价于 `Answer = F()`）。带参数的过程必须写括号并传入精确数量的实参。
+- 不支持命名参数、可选参数、默认值、参数类型或重载。
 - `Dim` v1 不带初始化表达式；`Dim A = 1` 留给后续版本。
 - `Return` v1 必须带表达式，而且只允许出现在 `Function` 内。`Sub` 中的裸 `Return` / `Exit Sub` 不属于本期范围。
-- 保留现有无参 `Sub Name ... EndSub` 与 `Name()` 调用语法，不在本期给 Sub 增加参数。
-- `Function` 不能作为事件处理器；标准库事件仍只能绑定无参 `Sub`。
+- `Function` 不能作为事件处理器；标准库事件仍只能绑定 `Sub`。
 
 ### 2.2 作用域和名称解析
 
@@ -113,7 +115,7 @@ v1 的最小作用域单位是 Program、Sub 和 Function，不引入 If/For/Whi
 | 顶层 `Dim G` | 全局 Program | 整个程序 | 空字符串值 |
 | 顶层未声明变量 | 全局 Program | 整个程序 | 首次读取仍为空字符串，保持旧行为 |
 | Sub/Function 中 `Dim L` | 当前过程的本次调用帧 | 进入过程到返回 | 空字符串值 |
-| Function 参数 | 当前函数的本次调用帧 | 进入函数到返回 | 对应实参值 |
+| Sub/Function 参数 | 当前过程的本次调用帧 | 进入过程到返回 | 对应实参值 |
 | 过程内未由参数或 `Dim` 声明的名字 | 全局 Program | 整个程序 | 保持旧 Small Basic 隐式全局行为 |
 
 解析顺序固定为：
@@ -622,11 +624,13 @@ Web E2E 与完整打包可作为合并门禁；开发内循环至少运行受影
 
 ## 14. 本期不做与后续演进
 
-v1 不包含：Sub 参数、裸 Return、块级 Dim、类型声明、ByRef、默认/可选/命名参数、函数重载、跨文件模块、闭包、异步函数、尾调用优化。它们不应阻塞本期，但当前设计为其保留了扩展点：统一 ProcedureSymbol、显式 StorageKind、RuntimeModule metadata 与逐帧调试模型。
+v1 不包含：裸 Return、块级 Dim、类型声明、ByRef、默认/可选/命名参数、函数重载、跨文件模块、闭包、异步函数、尾调用优化。它们不应阻塞本期，但当前设计为其保留了扩展点：统一 ProcedureSymbol、显式 StorageKind、RuntimeModule metadata 与逐帧调试模型。
+
+（Sub 参数与过程声明/无参调用的可选括号已在 v1.1 补齐，见 §16.3。）
 
 后续优先级建议：
 
-1. Sub 参数与裸 Return；
+1. 裸 Return；
 2. 真正块级 Dim；
 3. Rename / workspace symbols；
 4. 更严格的控制流分析与“可能无返回值”提示；
@@ -672,3 +676,25 @@ v1 不包含：Sub 参数、裸 Return、块级 Dim、类型声明、ByRef、默
 | `Build-All.ps1` | Release 全量成功；生成 RunHost、Web/WASM、VS Code VSIX、Visual Studio VSIX、桌面便携版、MSI 与 NSIS 安装包 |
 
 构建仍会输出仓库既有的 NuGet 兼容性、nullable、StyleCop、VS threading 等警告，但本次门禁没有编译错误或测试失败。`official_repo/editor/global.json` 固定旧 SDK，因此生成器从仓库根目录调用当前 SDK；该调用方式已验证可重复生成。
+
+### 16.3 v1.1：Sub 参数、可选括号与局部变量着色
+
+在 v1 基础上补齐了三项能力，两套编译器与编辑器表面同步实现：
+
+| 能力 | 说明 |
+|---|---|
+| Sub 参数 | `Sub Name(A, B) ... EndSub` 与 `Function` 完全同构：参数进入过程符号表与逐调用帧局部内存，实参数量精确校验（`UnexpectedArgumentsCount`），重复参数报 `DuplicateParameter`；运行/调试时参数与 `Dim` 局部变量都出现在该帧的 Locals。 |
+| 可选括号 | 过程声明对括号与参数列表做可选处理（`Sub F` ≡ `Sub F()`，`Function F` ≡ `Function F()`）；无参过程调用同样可省略括号（`Increment` ≡ `Increment()`，`answer = F` ≡ `answer = F()`），带参数的过程仍必须写括号。 |
+| 局部变量着色 | `Dim` 声明的变量与过程参数使用同一种语义着色：VS Code/Monaco 语义令牌映射为 `parameter`（声明与引用一致），VS 端签名、补全、大纲、Hover 同步显示参数签名。 |
+
+验证记录（2026-10-04，Windows / Node.js / .NET 10 SDK）：
+
+| 门禁 | 结果 |
+|---|---|
+| `npm run typecheck` | 全部 workspace 通过 |
+| `npm test` | 33 个测试文件、677 项全部通过；新增 Sub 参数、可选括号一致性用例与 `parameter` 着色断言；此前因预置 `runhost/playground` C# 侧车二进制未重建而失败的 2 项 `cli-debug-contract` 用例，在按源码重建全部宿主后已通过 |
+| `dotnet build SmallBasic.VisualStudio.slnx` | 0 错误 |
+| `dotnet test SmallBasic.VisualStudio.slnx` | 编译器/运行时 604 项、语言服务 55 项全部通过（含读取同一份 20 案例共享语料的一致性测试） |
+| 共享语料 | `tests/conformance/language-extension/cases.json` 由 16 例扩充到 20 例，TS 与 C# runner 同时验证 |
+| `test/hello/hello.sb` 冒烟（2026-10-05） | 带 `Sub` 参数递归、`Function` 参数递归与 `Return` 的样例在三后端（`runhost/javascript`、`runhost/net8.0`、`runhost/blazor`）编译零诊断，输出逐行一致；C# 宿主 `--capabilities` 返回协议 v2 与 `function-v1` |
+| 派生产物重建（2026-10-05） | `runhost/{net48,net8.0-windows,net8.0,javascript,blazor,web}`、VS Code VSIX、Visual Studio VSIX、`runhost/playground`（win-x64 侧车 + 便携 exe + MSI/NSIS 安装包）均按当前源码重新生成；`bundles\` 中 2026-10-03 产出的 Linux/Android 跨平台安装包仍为旧编译器，如需分发须重跑 `Build-PlaygroundApp.ps1 -BundleTargets …` |

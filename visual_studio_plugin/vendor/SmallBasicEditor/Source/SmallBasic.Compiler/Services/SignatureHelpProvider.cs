@@ -97,21 +97,40 @@ namespace SmallBasic.Compiler.Services
                 var compilation = new SmallBasicCompilation(text);
                 BoundFunction function = compilation.Functions.Values.FirstOrDefault(candidate =>
                     string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase));
-                if (function is null)
+                if (function is not null)
                 {
-                    return null;
+                    var functionParameters = function.Parameters
+                        .Select(parameter => new SignatureParameterInformation(parameter, "Parameter " + parameter))
+                        .ToArray();
+                    return new SignatureHelp(
+                        new[] { new SignatureInformation(
+                            $"{function.Name}({function.Parameters.Join(", ")})",
+                            "Function",
+                            functionParameters) },
+                        activeSignature: 0,
+                        activeParameter: Math.Min(activeParameter, Math.Max(functionParameters.Length - 1, 0)));
                 }
 
-                var functionParameters = function.Parameters
-                    .Select(parameter => new SignatureParameterInformation(parameter, "Parameter " + parameter))
-                    .ToArray();
-                return new SignatureHelp(
-                    new[] { new SignatureInformation(
-                        $"{function.Name}({function.Parameters.Join(", ")})",
-                        "Function",
-                        functionParameters) },
-                    activeSignature: 0,
-                    activeParameter: Math.Min(activeParameter, Math.Max(functionParameters.Length - 1, 0)));
+                BoundSubModule subModule = compilation.SubModules.Values.FirstOrDefault(candidate =>
+                    string.Equals(candidate.Name, methodName, StringComparison.OrdinalIgnoreCase));
+                if (subModule is not null)
+                {
+                    string[] subModuleParameters = subModule.Syntax.Parameters
+                        .Select(parameter => parameter.IdentifierToken.Text)
+                        .ToArray();
+                    var subModuleParameterInfos = subModuleParameters
+                        .Select(parameter => new SignatureParameterInformation(parameter, "Parameter " + parameter))
+                        .ToArray();
+                    return new SignatureHelp(
+                        new[] { new SignatureInformation(
+                            $"{subModule.Name}({subModuleParameters.Join(", ")})",
+                            "Sub",
+                            subModuleParameterInfos) },
+                        activeSignature: 0,
+                        activeParameter: Math.Min(activeParameter, Math.Max(subModuleParameterInfos.Length - 1, 0)));
+                }
+
+                return null;
             }
 
             if (!Libraries.Types.TryGetValue(libraryName, out Library library) ||

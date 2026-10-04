@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { Compilation } from "smallbasic-lang-core";
+import { documentBaseName } from "../common/documents";
 import { SmallBasicTerminalSession } from "./terminal-session";
 
 /** Runs an already compiled JavaScript program in a VS Code pseudoterminal. */
@@ -22,15 +23,10 @@ export function runJavaScriptCompilation(
 
   const session = new SmallBasicTerminalSession();
   const terminal = vscode.window.createTerminal({
-    name: `SmallBasic: ${documentName(document)}`,
+    name: `SmallBasic: ${documentBaseName(document)}`,
     pty: session
   });
 
   terminal.show(true);
   session.run(compilation);
-}
-
-function documentName(document: vscode.TextDocument): string {
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || "program.sb";
 }

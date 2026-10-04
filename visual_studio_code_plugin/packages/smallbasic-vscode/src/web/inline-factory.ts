@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { isSmallBasicDocument } from "../language/providers";
+import { documentBaseName, resolveDebugDocument } from "../common/documents";
 import { WebDebugSessionBroker } from "./debug-broker";
 import { WebDebugSourceAccessor } from "./source-accessor";
 import { BlazorWebviewHost, blazorPayloadEntry, resolveBlazorPayload, resolveJavaScriptPayload } from "./webview-panel";
@@ -24,52 +24,6 @@ import { WebviewDebugSession, type WebviewDebugBackend } from "./webview-debug-a
 const DEBUG_VIEW_TYPE = "smallbasic.web.debug";
 const DEBUG_TITLE = "Small Basic (Web Debug)";
 const DEBUG_OUTPUT_CHANNEL = "SmallBasic (Web Debug)";
-
-/** Resolves the `program` of a launch configuration to an open/loadable document. */
-export async function resolveDebugDocument(configuredProgram: string): Promise<vscode.TextDocument | undefined> {
-  const normalize = (value: string): string => value.replace(/\\/g, "/").toLowerCase();
-  const wanted = normalize(configuredProgram);
-  const open = configuredProgram
-    ? vscode.workspace.textDocuments.find((document) => [
-        document.fileName,
-        document.uri.fsPath,
-        document.uri.path,
-        document.uri.toString()
-      ].some((value) => normalize(value) === wanted) && isSmallBasicDocument(document))
-    : undefined;
-  if (open) {
-    return open;
-  }
-
-  const active = vscode.window.activeTextEditor?.document;
-  if (active && isSmallBasicDocument(active)) {
-    return active;
-  }
-
-  if (!configuredProgram) {
-    return undefined;
-  }
-
-  try {
-    const uri = /^[a-z][a-z0-9+.-]*:/i.test(configuredProgram)
-      ? vscode.Uri.parse(configuredProgram)
-      : vscode.Uri.file(configuredProgram);
-    const document = await vscode.workspace.openTextDocument(uri);
-    return isSmallBasicDocument(document) ? document : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-/** File name of a document, used as the program name in the webview page. */
-export function documentBaseName(document: vscode.TextDocument): string {
-  if (document.isUntitled) {
-    return "untitled.sb";
-  }
-
-  const segments = document.uri.path.split("/");
-  return segments[segments.length - 1] || document.fileName || "program.sb";
-}
 
 /** Creates the inline adapter for a web-mode debug session, or undefined on error. */
 export async function createWebInlineAdapter(

@@ -1,8 +1,9 @@
 using System.Globalization;
 using System.IO;
+using SmallBasic.Compiler;
+using SmallBasic.RunHost;
 using SmallBasic.RunHost.Debug;
 using SmallBasic.RunHost.Libraries;
-using SmallBasic.Compiler;
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
@@ -65,39 +66,12 @@ var engine = new SmallBasicEngine(compilation, libraries)
 
 try
 {
-    while (true)
-    {
-        switch (engine.State)
-        {
-            case ExecutionState.Running:
-                await engine.Execute().ConfigureAwait(false);
-                if (engine.State == ExecutionState.Running)
-                {
-                    // Event-only programs have no active frame between input
-                    // or timer callbacks. Avoid a hot polling loop while still
-                    // giving queued events prompt interpreter-thread service.
-                    await Task.Delay(1).ConfigureAwait(false);
-                }
-
-                break;
-            case ExecutionState.BlockedOnStringInput:
-                libraries.TextWindow.SetPendingInput(await Console.In.ReadLineAsync().ConfigureAwait(false) ?? string.Empty);
-                engine.InputReceived();
-                break;
-            case ExecutionState.BlockedOnNumberInput:
-                libraries.TextWindow.SetPendingInput(await Console.In.ReadLineAsync().ConfigureAwait(false) ?? "0");
-                engine.InputReceived();
-                break;
-            case ExecutionState.Paused:
-                engine.Continue();
-                break;
-            case ExecutionState.Terminated:
-                PauseAndExit(0, pauseOnExit);
-                break;
-            default:
-                throw new InvalidOperationException($"Unexpected engine state: {engine.State}");
-        }
-    }
+    await EngineRunLoop.RunAsync(
+        engine,
+        number => ReadConsoleLineAsync(number),
+        line => libraries.TextWindow.SetPendingInput(line),
+        runningDelayMs: 1).ConfigureAwait(false);
+    PauseAndExit(0, pauseOnExit);
 }
 catch (NotSupportedException ex)
 {
@@ -108,6 +82,12 @@ catch (Exception ex)
 {
     Console.Error.WriteLine(ex);
     PauseAndExit(4, pauseOnExit);
+}
+
+static async Task<string?> ReadConsoleLineAsync(bool number)
+{
+    string? line = await Console.In.ReadLineAsync().ConfigureAwait(false);
+    return line ?? (number ? "0" : string.Empty);
 }
 
 static void PauseAndExit(int code, bool pauseOnExit)

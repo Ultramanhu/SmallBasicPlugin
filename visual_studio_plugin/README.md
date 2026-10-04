@@ -17,6 +17,36 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 - Debugging with the C#, JavaScript, or Blazor backend: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack
 - Localized Document
 
+## Language extension: `Function`, `Sub` parameters, `Dim` and `Return`
+
+Beyond classic Small Basic, the language core (C# and TypeScript implementations kept behavior-identical) adds procedural programming. All three run backends (JavaScript / C# / Blazor) support it:
+
+- **`Function Name(A, B) … EndFunction`** — a value-returning procedure. `Return expression` exits immediately; reaching `EndFunction` without `Return` yields the empty string. Calls work anywhere a value is expected, including recursion and mutual calls.
+- **`Sub Name(A, B) … EndSub`** — classic Subs now accept parameters, with the argument count checked exactly.
+- **Local scope** — parameters and `Dim`-declared variables live in a per-call frame (recursion-safe, may shadow globals); undeclared names keep the classic global behavior.
+- **Parameterless procedures** — declared as `Sub F` ≡ `Sub F()`; called as `F` ≡ `F()` and `Answer = F` ≡ `Answer = F()`. Procedures with parameters require parentheses and an exact argument count.
+- **Editor & debugger** — keyword coloring and folding, Function snippets and completions with parameter placeholders, signature help, outline/navigation bar with full signatures, and per-frame Locals (parameters + `Dim`) beside the shared Globals while debugging.
+
+Sample (`test/hello/accumulate.sb`):
+
+```smallbasic
+Total = 0                          ' undeclared names stay global
+
+Sub Accumulate(Value)              ' Subs accept parameters too
+  Total = Total + Value            ' no Dim here -> this is the global Total
+EndSub
+
+Function Factorial(N)
+  If N <= 1 Then
+    Return 1
+  EndIf
+  Return N * Factorial(N - 1)      ' recursion
+EndFunction
+
+Accumulate(3)
+TextWindow.WriteLine(Factorial(5)) ' prints 120
+```
+
 ## Requirements
 
 - Visual Studio 2022 (17.14+, amd64 / arm64) or Visual Studio 2026

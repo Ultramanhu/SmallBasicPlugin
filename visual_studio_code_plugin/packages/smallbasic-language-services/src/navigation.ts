@@ -112,7 +112,13 @@ function collectIdentifierTokens(compilation: Compilation): IdentifierToken[] {
     const declaration = subModule as SubModuleDeclarationSyntax;
     const scope = declaration.subCommand.nameToken.token.text;
     const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, scope);
-    const locals = new Set((metadata?.locals ?? []).map((name) => name.toLowerCase()));
+    const locals = new Set([
+      ...(metadata?.parameters ?? []),
+      ...(metadata?.locals ?? [])
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of declaration.subCommand.parameterTokens) {
+      pushVariable(parameter, scope, locals);
+    }
     visit(declaration.statementsList, scope, locals);
   }
 

@@ -30,6 +30,16 @@
 /** Bumped whenever the wire shape changes incompatibly. */
 export const DEBUG_PROTOCOL_VERSION = 2;
 
+/**
+ * `terminated` event exit codes on this protocol: 0 success, 1 runtime error
+ * (the JavaScript `DebugEngineDriver`), 2 load failure (invalid launch payload
+ * or compile error at load). The Blazor runtime reports runtime errors as 4
+ * (its CLI exit-code convention); consumers only branch on zero/non-zero.
+ */
+export const WEB_EXIT_SUCCESS = 0;
+export const WEB_EXIT_RUNTIME_ERROR = 1;
+export const WEB_EXIT_LOAD_FAILURE = 2;
+
 /** Milliseconds a `setBreakpoints` / `terminate` round trip may take. */
 export const DEBUG_REQUEST_TIMEOUT_MS = 15_000;
 
@@ -297,7 +307,8 @@ function lineOf(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) ? Math.max(0, Math.trunc(value)) : 0;
 }
 
-function toLines(value: unknown): number[] {
+/** Filters and clamps a wire value into the 0-based lines the protocol carries. */
+export function toLines(value: unknown): number[] {
   if (!Array.isArray(value)) {
     return [];
   }

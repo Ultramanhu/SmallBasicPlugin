@@ -111,6 +111,13 @@ namespace SmallBasic.Compiler.Services
                 {
                     return SubModuleHover(subModule);
                 }
+
+                ParameterSyntax parameter = subModule.Syntax.Parameters
+                    .FirstOrDefault(candidate => candidate.IdentifierToken.Range.Contains(position));
+                if (!parameter.IsDefault())
+                {
+                    return ParameterHover(parameter.IdentifierToken.Text);
+                }
             }
 
             BaseSyntaxNode node = parser.SyntaxTree.FindNodeAt(position);
@@ -162,6 +169,14 @@ namespace SmallBasic.Compiler.Services
                 .FirstOrDefault(subModule => subModule.Syntax.Range.Contains(position));
             if (!containingSubModule.IsDefault())
             {
+                string parameterName = containingSubModule.Syntax.Parameters
+                    .Select(parameter => parameter.IdentifierToken.Text)
+                    .FirstOrDefault(parameter => string.Equals(parameter, name, StringComparison.OrdinalIgnoreCase));
+                if (!parameterName.IsDefault())
+                {
+                    return ParameterHover(parameterName);
+                }
+
                 string localName = containingSubModule.Locals
                     .FirstOrDefault(local => string.Equals(local, name, StringComparison.OrdinalIgnoreCase));
                 if (!localName.IsDefault())
@@ -179,11 +194,17 @@ namespace SmallBasic.Compiler.Services
             "User-defined function",
         };
 
-        private static string[] SubModuleHover(BoundSubModule subModule) => new[]
+        private static string[] SubModuleHover(BoundSubModule subModule)
         {
-            $"Sub {subModule.Name}",
-            "User-defined subroutine",
-        };
+            var parameters = subModule.Syntax.Parameters.Select(parameter => parameter.IdentifierToken.Text).ToArray();
+            return new[]
+            {
+                parameters.Length == 0
+                    ? $"Sub {subModule.Name}"
+                    : $"Sub {subModule.Name}({parameters.Join(", ")})",
+                "User-defined subroutine",
+            };
+        }
 
         private static string[] ParameterHover(string name) => new[]
         {

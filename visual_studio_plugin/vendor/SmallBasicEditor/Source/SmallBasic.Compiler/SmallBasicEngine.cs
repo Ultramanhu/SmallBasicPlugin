@@ -73,7 +73,7 @@ namespace SmallBasic.Compiler
                 this.EmitAndSaveModule(
                     subModule.Name,
                     RuntimeModuleKind.Sub,
-                    Array.Empty<string>(),
+                    subModule.Syntax.Parameters.Select(parameter => parameter.IdentifierToken.Text).ToArray(),
                     subModule.Locals,
                     subModule.Body,
                     subModule.Syntax);

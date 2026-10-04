@@ -118,6 +118,7 @@ describe("SmallBasicLanguageService document state", () => {
     const tokens = service.provideSemanticTokens(URI, source, 1);
     expect(tokens.find((token) => token.line === 0 && token.column === 13)?.type).toBe("parameter");
     expect(tokens.find((token) => token.line === 2 && token.column === 11)?.type).toBe("parameter");
-    expect(tokens.find((token) => token.line === 1 && token.column === 6)?.type).toBe("variable");
+    // `Dim` locals share the parameter color so scoped variables are consistent.
+    expect(tokens.find((token) => token.line === 1 && token.column === 6)?.type).toBe("parameter");
   });
 });

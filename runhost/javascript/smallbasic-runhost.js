@@ -317,6 +317,15 @@ var CompilerRange = class _CompilerRange {
 };
 
 // ../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes.ts
+function parameterListEndRange(nameToken, parameterTokens, rightParenToken) {
+  if (rightParenToken) {
+    return rightParenToken.range;
+  }
+  if (parameterTokens.length) {
+    return parameterTokens[parameterTokens.length - 1].range;
+  }
+  return nameToken.range;
+}
 var SyntaxKind = /* @__PURE__ */ ((SyntaxKind3) => {
   SyntaxKind3[SyntaxKind3["ParseTree"] = 0] = "ParseTree";
   SyntaxKind3[SyntaxKind3["SubModuleDeclaration"] = 1] = "SubModuleDeclaration";
@@ -647,15 +656,39 @@ var GoToCommandSyntax = class extends BaseCommandSyntax {
   }
 };
 var SubCommandSyntax = class extends BaseCommandSyntax {
-  constructor(subToken, nameToken) {
-    super(19 /* SubCommand */, CompilerRange.combine(subToken.range, nameToken.range));
+  constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
+    super(19 /* SubCommand */, CompilerRange.combine(
+      subToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.subToken = subToken;
     this.nameToken = nameToken;
+    this.leftParenToken = leftParenToken;
+    this.parameterTokens = parameterTokens;
+    this.commaTokens = commaTokens;
+    this.rightParenToken = rightParenToken;
   }
   subToken;
   nameToken;
+  leftParenToken;
+  parameterTokens;
+  commaTokens;
+  rightParenToken;
   children() {
-    return [this.subToken, this.nameToken];
+    const children = [this.subToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
+    this.parameterTokens.forEach((parameter, index) => {
+      children.push(parameter);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
+    return children;
   }
 };
 var EndSubCommandSyntax = class extends BaseCommandSyntax {
@@ -670,7 +703,10 @@ var EndSubCommandSyntax = class extends BaseCommandSyntax {
 };
 var FunctionCommandSyntax = class extends BaseCommandSyntax {
   constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-    super(21 /* FunctionCommand */, CompilerRange.combine(functionToken.range, rightParenToken.range));
+    super(21 /* FunctionCommand */, CompilerRange.combine(
+      functionToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
     this.functionToken = functionToken;
     this.nameToken = nameToken;
     this.leftParenToken = leftParenToken;
@@ -685,14 +721,19 @@ var FunctionCommandSyntax = class extends BaseCommandSyntax {
   commaTokens;
   rightParenToken;
   children() {
-    const children = [this.functionToken, this.nameToken, this.leftParenToken];
+    const children = [this.functionToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
     this.parameterTokens.forEach((parameter, index) => {
       children.push(parameter);
       if (index < this.commaTokens.length) {
         children.push(this.commaTokens[index]);
       }
     });
-    children.push(this.rightParenToken);
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
     return children;
   }
 };
@@ -12602,13 +12643,15 @@ var BoundReturnStatement = class extends BaseBoundStatement {
   }
 };
 var BoundSubModuleInvocationStatement = class extends BaseBoundStatement {
-  constructor(subModuleName, syntax) {
+  constructor(subModuleName, argumentsList, syntax) {
     super(8 /* SubModuleInvocationStatement */, syntax);
     this.subModuleName = subModuleName;
+    this.argumentsList = argumentsList;
   }
   subModuleName;
+  argumentsList;
   children() {
-    return [];
+    return this.argumentsList;
   }
 };
 var BoundLibraryMethodInvocationStatement = class extends BaseBoundStatement {
@@ -13194,6 +13237,15 @@ var ExpressionBinder = class {
     } else {
       const procedure = this._definedProcedures[name.toLowerCase()];
       if (procedure !== void 0) {
+        if (procedure.parameters.length === 0 && procedure.returnsValue && expectedValue) {
+          return new BoundSubModuleInvocationExpression(
+            procedure.name,
+            [],
+            true,
+            hasErrors,
+            syntax
+          );
+        }
         if (expectedValue) {
           hasErrors = true;
           this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
@@ -13446,7 +13498,14 @@ var StatementBinder = class {
       case 35 /* SubModuleInvocationExpression */: {
         const call = expression;
         if (!call.returnsValue) {
-          return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+          return new BoundSubModuleInvocationStatement(call.subModuleName, call.argumentsList, syntax);
+        }
+        break;
+      }
+      case 34 /* SubModuleExpression */: {
+        const reference = expression;
+        if (!reference.returnsValue && reference.parameters.length === 0) {
+          return new BoundSubModuleInvocationStatement(reference.subModuleName, [], syntax);
         }
         break;
       }
@@ -13467,11 +13526,12 @@ var ModulesBinder = class _ModulesBinder {
     this.constructProceduresMap(parseTree);
     this.bindModule(_ModulesBinder.MainModuleName, "program", parseTree.mainModule, []);
     parseTree.subModules.forEach((subModule) => {
+      const symbol = CompilerUtils.lookupIgnoreCase(this._definedProcedures, subModule.subCommand.nameToken.token.text);
       this.bindModule(
         subModule.subCommand.nameToken.token.text,
         "sub",
         subModule.statementsList,
-        []
+        symbol ? symbol.parameters : []
       );
     });
     parseTree.functions.forEach((func) => {
@@ -13499,23 +13559,28 @@ var ModulesBinder = class _ModulesBinder {
   }
   constructProceduresMap(parseTree) {
     parseTree.subModules.forEach((subModule) => {
-      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, []);
+      const parameters = this.collectParameterNames(subModule.subCommand.parameterTokens);
+      this.addProcedure(subModule.subCommand.nameToken, 0 /* Sub */, parameters);
     });
     parseTree.functions.forEach((func) => {
-      const parameters = [];
-      const seen = {};
-      func.functionCommand.parameterTokens.forEach((parameter) => {
-        const name = parameter.token.text;
-        const key = name.toLowerCase();
-        if (seen[key]) {
-          this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
-        } else {
-          seen[key] = true;
-          parameters.push(name);
-        }
-      });
+      const parameters = this.collectParameterNames(func.functionCommand.parameterTokens);
       this.addProcedure(func.functionCommand.nameToken, 1 /* Function */, parameters);
     });
+  }
+  collectParameterNames(parameterTokens) {
+    const parameters = [];
+    const seen = {};
+    parameterTokens.forEach((parameter) => {
+      const name = parameter.token.text;
+      const key = name.toLowerCase();
+      if (seen[key]) {
+        this._diagnostics.push(new Diagnostic(17 /* DuplicateParameter */, parameter.range, name));
+      } else {
+        seen[key] = true;
+        parameters.push(name);
+      }
+    });
+    return parameters;
   }
   addProcedure(nameToken, kind, parameters) {
     const name = nameToken.token.text;
@@ -14381,7 +14446,13 @@ var ModuleEmitter = class {
     this._instructions.push(new MethodInvocationInstruction(statement.libraryName, statement.methodName, statement.syntax.range));
   }
   emitSubModuleInvocation(statement) {
-    this._instructions.push(new InvokeSubModuleInstruction(statement.subModuleName, 0, false, statement.syntax.range));
+    statement.argumentsList.forEach((argument) => this.emitExpression(argument));
+    this._instructions.push(new InvokeSubModuleInstruction(
+      statement.subModuleName,
+      statement.argumentsList.length,
+      false,
+      statement.syntax.range
+    ));
   }
   emitVariableAssignment(statement) {
     this.emitExpression(statement.value);
@@ -14790,7 +14861,15 @@ var CommandsParser = class _CommandsParser {
   parseSubCommand() {
     const subToken = this.eat(13 /* SubKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    return new SubCommandSyntax(subToken, nameToken);
+    const parameters = this.parseOptionalParameterList();
+    return new SubCommandSyntax(
+      subToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
   }
   parseEndSubCommand() {
     const endSubToken = this.eat(14 /* EndSubKeyword */);
@@ -14799,9 +14878,28 @@ var CommandsParser = class _CommandsParser {
   parseFunctionCommand() {
     const functionToken = this.eat(15 /* FunctionKeyword */);
     const nameToken = this.eat(38 /* Identifier */);
-    const leftParenToken = this.eat(21 /* LeftParen */);
+    const parameters = this.parseOptionalParameterList();
+    return new FunctionCommandSyntax(
+      functionToken,
+      nameToken,
+      parameters.leftParenToken,
+      parameters.parameterTokens,
+      parameters.commaTokens,
+      parameters.rightParenToken
+    );
+  }
+  /**
+   * Parses an optional, parenthesized parameter list shared by `Sub` and
+   * `Function` declarations. The parentheses and the parameter list may both
+   * be omitted, so `Sub Foo`, `Sub Foo()` and `Sub Foo(A, B)` are all valid.
+   */
+  parseOptionalParameterList() {
     const parameterTokens = [];
     const commaTokens = [];
+    if (!this.isNext(21 /* LeftParen */)) {
+      return { leftParenToken: void 0, parameterTokens, commaTokens, rightParenToken: void 0 };
+    }
+    const leftParenToken = this.eat(21 /* LeftParen */);
     if (!this.isNext(20 /* RightParen */)) {
       parameterTokens.push(this.eat(38 /* Identifier */));
       while (this.isNext(24 /* Comma */)) {
@@ -14810,14 +14908,7 @@ var CommandsParser = class _CommandsParser {
       }
     }
     const rightParenToken = this.eat(20 /* RightParen */);
-    return new FunctionCommandSyntax(
-      functionToken,
-      nameToken,
-      leftParenToken,
-      parameterTokens,
-      commaTokens,
-      rightParenToken
-    );
+    return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
   }
   parseEndFunctionCommand() {
     return new EndFunctionCommandSyntax(this.eat(16 /* EndFunctionKeyword */));
@@ -16124,13 +16215,7 @@ var HoverService;
   }
 })(HoverService || (HoverService = {}));
 
-// src/run/capabilities.ts
-var RUN_HOST_CAPABILITIES = Object.freeze({
-  protocolVersion: 2,
-  capabilities: Object.freeze(["function-v1"])
-});
-
-// src/runhost/main.ts
+// src/common/ansi.ts
 var ANSI_FOREGROUND = {
   [0 /* Black */]: 30,
   [1 /* DarkBlue */]: 34,
@@ -16167,19 +16252,100 @@ var ANSI_BACKGROUND = {
   [14 /* Yellow */]: 103,
   [15 /* White */]: 107
 };
+function ansiColorize(text, foreground, background) {
+  return `\x1B[${ANSI_FOREGROUND[foreground]};${ANSI_BACKGROUND[background]}m${text}\x1B[0m`;
+}
+
+// src/common/async.ts
+function sleep(milliseconds) {
+  return new Promise((resolve) => setTimeout(resolve, milliseconds));
+}
+
+// src/common/errors.ts
+function describeError(error, includeStack = false) {
+  if (error instanceof Error) {
+    if (includeStack && error.stack) {
+      return error.stack;
+    }
+    return error.message;
+  }
+  return String(error);
+}
 var UnsupportedLibraryError = class extends Error {
 };
-var NodeTextWindowPlugin = class {
+function createUnsupportedPlugin(message) {
+  return new Proxy({}, {
+    get(_target, property) {
+      if (property === "then") {
+        return void 0;
+      }
+      throw new UnsupportedLibraryError(message);
+    }
+  });
+}
+
+// src/common/text-window.ts
+function parseConsoleInput(kind, raw) {
+  if (kind === 1 /* Number */) {
+    const parsed = Number(raw);
+    return new NumberValue(Number.isFinite(parsed) ? parsed : 0);
+  }
+  return new StringValue(raw);
+}
+var BufferedTextWindowPlugin = class {
   inputBuffer = [];
+  foreground = 15 /* White */;
+  background = 0 /* Black */;
+  /** Kind of the pending `Read`/`ReadNumber`, cleared by {@link pushInput}. */
+  pendingInputKind;
+  inputIsNeeded(kind) {
+    this.pendingInputKind = kind;
+  }
+  checkInputBuffer() {
+    return this.inputBuffer.shift();
+  }
+  isWaitingForInput() {
+    return this.pendingInputKind !== void 0;
+  }
+  pushInput(raw) {
+    this.inputBuffer.push(parseConsoleInput(this.pendingInputKind, raw));
+    this.pendingInputKind = void 0;
+  }
+  getForegroundColor() {
+    return this.foreground;
+  }
+  setForegroundColor(color) {
+    this.foreground = color;
+  }
+  getBackgroundColor() {
+    return this.background;
+  }
+  setBackgroundColor(color) {
+    this.background = color;
+  }
+};
+
+// src/run/capabilities.ts
+var RUN_HOST_CAPABILITIES = Object.freeze({
+  protocolVersion: 2,
+  capabilities: Object.freeze(["function-v1"])
+});
+
+// src/runhost/exit-codes.ts
+var EXIT_SUCCESS = 0;
+var EXIT_COMPILE_ERROR = 1;
+var EXIT_UNSUPPORTED_LIBRARY = 3;
+var EXIT_RUNTIME_ERROR = 4;
+
+// src/runhost/main.ts
+var NodeTextWindowPlugin = class extends BufferedTextWindowPlugin {
   pendingLines = [];
   lineWaiters = [];
   isTTY = process.stdout.isTTY === true;
   inputInterface;
   stdinClosed = false;
-  pendingKind;
-  foreground = 15 /* White */;
-  background = 0 /* Black */;
   constructor() {
+    super();
     this.inputInterface = readline.createInterface({
       input: process.stdin,
       terminal: process.stdin.isTTY === true
@@ -16200,30 +16366,9 @@ var NodeTextWindowPlugin = class {
       }
     });
   }
-  inputIsNeeded(kind) {
-    this.pendingKind = kind;
-  }
-  checkInputBuffer() {
-    return this.inputBuffer.shift();
-  }
   writeText(value, appendNewLine) {
     const text = value + (appendNewLine ? "\n" : "");
-    process.stdout.write(this.isTTY ? `\x1B[${ANSI_FOREGROUND[this.foreground]};${ANSI_BACKGROUND[this.background]}m${text}\x1B[0m` : text);
-  }
-  getForegroundColor() {
-    return this.foreground;
-  }
-  setForegroundColor(color) {
-    this.foreground = color;
-  }
-  getBackgroundColor() {
-    return this.background;
-  }
-  setBackgroundColor(color) {
-    this.background = color;
-  }
-  isWaitingForInput() {
-    return this.pendingKind !== void 0;
+    process.stdout.write(this.isTTY ? ansiColorize(text, this.getForegroundColor(), this.getBackgroundColor()) : text);
   }
   readLine() {
     return new Promise((resolve) => {
@@ -16239,27 +16384,7 @@ var NodeTextWindowPlugin = class {
       this.lineWaiters.push(resolve);
     });
   }
-  pushInput(raw) {
-    if (this.pendingKind === 1 /* Number */) {
-      const parsed = Number(raw);
-      this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
-    } else {
-      this.inputBuffer.push(new StringValue(raw));
-    }
-    this.pendingKind = void 0;
-  }
 };
-function createUnsupportedPlugin(libraryName) {
-  const message = `${libraryName} is not supported by the JavaScript SmallBasic run host yet.`;
-  return new Proxy({}, {
-    get(_target, property) {
-      if (property === "then") {
-        return void 0;
-      }
-      throw new UnsupportedLibraryError(message);
-    }
-  });
-}
 function tryParseArguments(args) {
   const pauseOnExit = args.some((value) => value.toLowerCase() === "--pause");
   if (args.length >= 3 && args[0].toLowerCase() === "run") {
@@ -16290,9 +16415,6 @@ function pauseAndExit(code, pauseOnExit) {
     });
   });
 }
-function sleep(milliseconds) {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
 async function main() {
   const rawArguments = process.argv.slice(2);
   if (rawArguments.length === 1 && rawArguments[0].toLowerCase() === "--capabilities") {
@@ -16303,14 +16425,14 @@ async function main() {
   const arguments_ = tryParseArguments(rawArguments);
   if (!arguments_) {
     process.stderr.write("Usage: smallbasic-runhost run --file <program.sb> [--pause] | smallbasic-runhost --capabilities\n");
-    await pauseAndExit(1, true);
+    await pauseAndExit(EXIT_COMPILE_ERROR, true);
     return;
   }
   const { filePath, pauseOnExit } = arguments_;
   if (!import_node_fs.default.existsSync(filePath)) {
     process.stderr.write(`SmallBasic source file not found: ${filePath}
 `);
-    await pauseAndExit(1, pauseOnExit);
+    await pauseAndExit(EXIT_COMPILE_ERROR, pauseOnExit);
     return;
   }
   let source = import_node_fs.default.readFileSync(filePath, "utf8");
@@ -16320,14 +16442,18 @@ async function main() {
   const compilation = new Compilation(source);
   if (!compilation.isReadyToRun) {
     process.stderr.write(compilation.diagnostics.map((item) => item.toString()).join("\n") + "\n");
-    await pauseAndExit(1, pauseOnExit);
+    await pauseAndExit(EXIT_COMPILE_ERROR, pauseOnExit);
     return;
   }
   const engine = new ExecutionEngine4(compilation);
   const textWindow = new NodeTextWindowPlugin();
   engine.libraries.TextWindow.plugin = textWindow;
-  engine.libraries.GraphicsWindow.plugin = createUnsupportedPlugin("GraphicsWindow");
-  engine.libraries.Shapes.plugin = createUnsupportedPlugin("Shapes");
+  engine.libraries.GraphicsWindow.plugin = createUnsupportedPlugin(
+    "GraphicsWindow is not supported by the JavaScript SmallBasic run host yet."
+  );
+  engine.libraries.Shapes.plugin = createUnsupportedPlugin(
+    "Shapes is not supported by the JavaScript SmallBasic run host yet."
+  );
   try {
     while (true) {
       engine.execute(0 /* RunToEnd */);
@@ -16350,9 +16476,9 @@ async function main() {
             process.stderr.write(`
 [Runtime Error] ${engine.exception.toString()}
 `);
-            await pauseAndExit(1, pauseOnExit);
+            await pauseAndExit(EXIT_RUNTIME_ERROR, pauseOnExit);
           }
-          await pauseAndExit(0, pauseOnExit);
+          await pauseAndExit(EXIT_SUCCESS, pauseOnExit);
           return;
         default:
           throw new Error(`Unexpected execution state: ${ExecutionState[engine.state]}`);
@@ -16362,13 +16488,13 @@ async function main() {
     if (error instanceof UnsupportedLibraryError) {
       process.stderr.write(`${error.message}
 `);
-      await pauseAndExit(3, pauseOnExit);
+      await pauseAndExit(EXIT_UNSUPPORTED_LIBRARY, pauseOnExit);
       return;
     }
-    process.stderr.write(error instanceof Error ? `${error.stack ?? error.message}
-` : `${String(error)}
+    process.stderr.write(`${describeError(error, true)}
 `);
-    await pauseAndExit(4, pauseOnExit);
+    await pauseAndExit(EXIT_RUNTIME_ERROR, pauseOnExit);
   }
 }
 void main();
+//# sourceMappingURL=runhost.js.map

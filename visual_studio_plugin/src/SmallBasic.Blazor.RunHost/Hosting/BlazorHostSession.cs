@@ -7,7 +7,7 @@ namespace SmallBasic.Blazor.RunHost.Hosting;
 
 public sealed class BlazorHostSession
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = JsonDefaults.Web;
     private readonly Channel<BrowserMessage> messages = Channel.CreateUnbounded<BrowserMessage>();
     private readonly SemaphoreSlim sendLock = new(1, 1);
     private readonly TaskCompletionSource<bool> connected = new(TaskCreationOptions.RunContinuationsAsynchronously);

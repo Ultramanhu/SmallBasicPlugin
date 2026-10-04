@@ -25,12 +25,12 @@ $ErrorActionPreference = 'Stop'
 $pluginRoot = Split-Path -Parent $PSScriptRoot
 $repositoryRoot = Split-Path -Parent $pluginRoot
 
+# Shared build helpers (version.json handling).
+Import-Module (Join-Path $repositoryRoot "tools\common.psm1") -Force
+
 # version.json is the single source of truth shared with the Visual Studio
 # extension; refresh the derived files before building and packaging.
-& node (Join-Path $repositoryRoot "tools\sync-version.mjs")
-if ($LASTEXITCODE -ne 0) {
-    throw "Version synchronization failed with exit code $LASTEXITCODE."
-}
+Sync-RepoVersion -RepositoryRoot $repositoryRoot
 
 # scripts/stage-runhost.mjs copies the RunHost payload out of
 # visual_studio_plugin/src/SmallBasic.RunHost/bin/<Configuration>, so the

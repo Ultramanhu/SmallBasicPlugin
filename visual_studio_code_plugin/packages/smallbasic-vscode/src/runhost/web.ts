@@ -1,18 +1,18 @@
 import {
-  BaseValue,
   Compilation,
   ExecutionEngine,
   ExecutionMode,
   ExecutionState,
   IGraphicsWindowLibraryPlugin,
   IShapesLibraryPlugin,
-  ITextWindowLibraryPlugin,
-  NumberValue,
-  StringValue,
   TextWindowColor,
   ValueKind
 } from "smallbasic-lang-core";
+import { sleep } from "../common/async";
+import { createUnsupportedPlugin, describeError, UnsupportedLibraryError } from "../common/errors";
+import { BufferedTextWindowPlugin } from "../common/text-window";
 import { BrowserDebugSession, type DebugEventSink } from "./web-debug";
+import { EXIT_COMPILE_ERROR, EXIT_RUNTIME_ERROR, EXIT_SUCCESS, EXIT_UNSUPPORTED_LIBRARY } from "./exit-codes";
 
 /**
  * Browser (no server, no Node.js) run host for SmallBasic programs.
@@ -26,11 +26,8 @@ import { BrowserDebugSession, type DebugEventSink } from "./web-debug";
  * backend owns graphics.
  */
 
-/** Exit codes shared with the Node.js run host. */
-export const EXIT_SUCCESS = 0;
-export const EXIT_COMPILE_ERROR = 1;
-export const EXIT_UNSUPPORTED_LIBRARY = 3;
-export const EXIT_RUNTIME_ERROR = 4;
+/** Exit codes shared with the Node.js run host (`./exit-codes`). */
+export { EXIT_COMPILE_ERROR, EXIT_RUNTIME_ERROR, EXIT_SUCCESS, EXIT_UNSUPPORTED_LIBRARY };
 
 export type InputKind = "string" | "number";
 
@@ -45,54 +42,21 @@ export interface IWebRunHostBridge {
   writeError(text: string): void;
 }
 
-class UnsupportedLibraryError extends Error {}
-
-class WebTextWindowPlugin implements ITextWindowLibraryPlugin {
-  private readonly inputBuffer: BaseValue[] = [];
+class WebTextWindowPlugin extends BufferedTextWindowPlugin {
   private readonly bridge: IWebRunHostBridge;
-  private pendingKind: ValueKind | undefined;
   private pendingRead: ((line: string) => void) | undefined;
-  private foreground = TextWindowColor.White;
-  private background = TextWindowColor.Black;
 
   public constructor(bridge: IWebRunHostBridge) {
+    super();
     this.bridge = bridge;
   }
 
-  public inputIsNeeded(kind: ValueKind): void {
-    this.pendingKind = kind;
-  }
-
-  public checkInputBuffer(): BaseValue | undefined {
-    return this.inputBuffer.shift();
-  }
-
   public writeText(value: string, appendNewLine: boolean): void {
-    this.bridge.writeText(value, appendNewLine, this.foreground, this.background);
-  }
-
-  public getForegroundColor(): TextWindowColor {
-    return this.foreground;
-  }
-
-  public setForegroundColor(color: TextWindowColor): void {
-    this.foreground = color;
-  }
-
-  public getBackgroundColor(): TextWindowColor {
-    return this.background;
-  }
-
-  public setBackgroundColor(color: TextWindowColor): void {
-    this.background = color;
-  }
-
-  public isWaitingForInput(): boolean {
-    return this.pendingKind !== undefined;
+    this.bridge.writeText(value, appendNewLine, this.getForegroundColor(), this.getBackgroundColor());
   }
 
   public readLine(): Promise<string> {
-    const kind: InputKind = this.pendingKind === ValueKind.Number ? "number" : "string";
+    const kind: InputKind = this.pendingInputKind === ValueKind.Number ? "number" : "string";
     return new Promise<string>((resolve) => {
       let settled = false;
       const finish = (line: string): void => {
@@ -117,42 +81,6 @@ class WebTextWindowPlugin implements ITextWindowLibraryPlugin {
       pending("");
     }
   }
-
-  public pushInput(raw: string): void {
-    if (this.pendingKind === ValueKind.Number) {
-      const parsed = Number(raw);
-      this.inputBuffer.push(new NumberValue(Number.isFinite(parsed) ? parsed : 0));
-    } else {
-      this.inputBuffer.push(new StringValue(raw));
-    }
-
-    this.pendingKind = undefined;
-  }
-}
-
-function createUnsupportedPlugin<T>(libraryName: string): T {
-  const message = `${libraryName} 由 Blazor WASM 后端提供，JavaScript 后端只支持 TextWindow，请切换到 Blazor 后端。`;
-  return new Proxy({} as Record<string | symbol, unknown>, {
-    get(_target: Record<string | symbol, unknown>, property: string | symbol): unknown {
-      if (property === "then") {
-        return undefined;
-      }
-
-      throw new UnsupportedLibraryError(message);
-    }
-  }) as unknown as T;
-}
-
-function sleep(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
-
-function describe(error: unknown): string {
-  if (error instanceof Error) {
-    return error.stack ?? error.message;
-  }
-
-  return String(error);
 }
 
 let activeEngine: ExecutionEngine | undefined;
@@ -178,8 +106,12 @@ export async function runJavaScript(source: string, bridge: IWebRunHostBridge): 
   const engine = new ExecutionEngine(compilation);
   const plugin = new WebTextWindowPlugin(bridge);
   engine.libraries.TextWindow.plugin = plugin;
-  engine.libraries.GraphicsWindow.plugin = createUnsupportedPlugin<IGraphicsWindowLibraryPlugin>("GraphicsWindow");
-  engine.libraries.Shapes.plugin = createUnsupportedPlugin<IShapesLibraryPlugin>("Shapes");
+  engine.libraries.GraphicsWindow.plugin = createUnsupportedPlugin<IGraphicsWindowLibraryPlugin>(
+    "GraphicsWindow 由 Blazor WASM 后端提供，JavaScript 后端只支持 TextWindow，请切换到 Blazor 后端。"
+  );
+  engine.libraries.Shapes.plugin = createUnsupportedPlugin<IShapesLibraryPlugin>(
+    "Shapes 由 Blazor WASM 后端提供，JavaScript 后端只支持 TextWindow，请切换到 Blazor 后端。"
+  );
 
   activeEngine = engine;
   activePlugin = plugin;
@@ -245,7 +177,7 @@ export async function runJavaScript(source: string, bridge: IWebRunHostBridge): 
       return EXIT_UNSUPPORTED_LIBRARY;
     }
 
-    bridge.writeError(describe(error));
+    bridge.writeError(describeError(error, true));
     return EXIT_RUNTIME_ERROR;
   } finally {
     activeEngine = undefined;

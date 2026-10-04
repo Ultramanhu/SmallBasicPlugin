@@ -23,12 +23,12 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $repositoryRoot = Split-Path -Parent $repoRoot
 $projectRoot = Join-Path $repoRoot "src\SmallBasic.Vsix"
 
+# Shared build helpers (version.json handling).
+Import-Module (Join-Path $repositoryRoot "tools\common.psm1") -Force
+
 # version.json is the single source of truth shared with the VS Code extension.
 # Regenerate the VSIX manifest and VersionInfo.g.cs before building.
-& node (Join-Path $repositoryRoot "tools\sync-version.mjs")
-if ($LASTEXITCODE -ne 0) {
-    throw "Version synchronization failed with exit code $LASTEXITCODE."
-}
+Sync-RepoVersion -RepositoryRoot $repositoryRoot
 
 if (-not $SkipRunHost) {
     $runHostBuildScript = Join-Path $repositoryRoot "runhost\Build-RunHost.ps1"
@@ -43,7 +43,7 @@ if (-not $SkipRunHost) {
     }
 }
 
-$version = [string]((Get-Content -LiteralPath (Join-Path $repositoryRoot "version.json") -Raw | ConvertFrom-Json).version)
+$version = Get-RepoVersion -RepositoryRoot $repositoryRoot
 if ([string]::IsNullOrWhiteSpace($PackageName)) {
     $PackageName = "SmallBasic.Vsix.$version.vsix"
 }

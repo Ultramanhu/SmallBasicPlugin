@@ -1,6 +1,7 @@
 using SmallBasic.Blazor.Shared;
 using SmallBasic.Compiler;
 using SmallBasic.Compiler.Runtime;
+using SmallBasic.RunHost;
 
 namespace SmallBasic.Blazor.Client.Runtime;
 
@@ -110,38 +111,20 @@ public sealed class BrowserEngineSession : IAsyncDisposable
 
     private async Task RunToEndAsync()
     {
-        while (true)
-        {
-            switch (this.engine.State)
+        await EngineRunLoop.RunAsync(
+            this.engine,
+            number =>
             {
-                case ExecutionState.Running:
-                    await this.engine.Execute();
-                    if (this.engine.State == ExecutionState.Running)
-                    {
-                        await Task.Delay(10);
-                    }
+                this.view.SetStatus(number ? "Waiting for a number" : "Waiting for input");
+                return this.view.RequestInputAsync(number);
+            },
+            line => this.libraries.TextWindow.SetPendingInput(line),
+            inputReceived: () => this.view.SetStatus("Running"));
 
-                    break;
-                case ExecutionState.BlockedOnStringInput:
-                case ExecutionState.BlockedOnNumberInput:
-                    bool number = this.engine.State == ExecutionState.BlockedOnNumberInput;
-                    this.view.SetStatus(number ? "Waiting for a number" : "Waiting for input");
-                    string input = await this.view.RequestInputAsync(number);
-                    this.libraries.TextWindow.SetPendingInput(input);
-                    this.engine.InputReceived();
-                    this.view.SetStatus("Running");
-                    break;
-                case ExecutionState.Paused:
-                    this.engine.Continue();
-                    break;
-                case ExecutionState.Terminated:
-                    // The web shell's Stop button terminates through the same path,
-                    // so it must not read as a normal completion.
-                    this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
-                    await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
-                    return;
-            }
-        }
+        // The web shell's Stop button terminates through the same path,
+        // so it must not read as a normal completion.
+        this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
+        await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
     }
 
     private async Task RunDebugAsync()

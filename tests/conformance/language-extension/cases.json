@@ -205,5 +205,61 @@
       "GraphicsWindow.KeyDown = Handler"
     ],
     "diagnostics": ["FunctionCannotBeEventHandler"]
+  },
+  {
+    "name": "subroutine with parameters",
+    "source": [
+      "Sub Greet(Name)",
+      "  TextWindow.WriteLine(\"Hi \" + Name)",
+      "EndSub",
+      "Greet(\"Ada\")",
+      "Greet(\"Lin\")"
+    ],
+    "stdout": ["Hi Ada", "Hi Lin"],
+    "globals": {}
+  },
+  {
+    "name": "subroutine parameters and Dim locals stay in the call frame",
+    "source": [
+      "Total = 0",
+      "Sub Accumulate(Value)",
+      "  Dim Doubled",
+      "  Doubled = Value * 2",
+      "  Total = Total + Doubled",
+      "EndSub",
+      "Accumulate(3)",
+      "Accumulate(4)",
+      "TextWindow.WriteLine(Total)"
+    ],
+    "stdout": ["14"],
+    "globals": { "Total": "14" }
+  },
+  {
+    "name": "no-argument procedures accept optional parentheses",
+    "source": [
+      "Counter = 0",
+      "Sub Increment",
+      "  Counter = Counter + 1",
+      "EndSub",
+      "Function Answer",
+      "  Return 42",
+      "EndFunction",
+      "Increment",
+      "Increment()",
+      "TextWindow.WriteLine(Counter)",
+      "TextWindow.WriteLine(Answer)"
+    ],
+    "stdout": ["2", "42"],
+    "globals": { "Counter": "2" }
+  },
+  {
+    "name": "subroutine argument count diagnostic",
+    "source": [
+      "Sub Show(Value)",
+      "  TextWindow.WriteLine(Value)",
+      "EndSub",
+      "Show(1, 2)"
+    ],
+    "diagnostics": ["UnexpectedArgumentsCount"]
   }
 ]

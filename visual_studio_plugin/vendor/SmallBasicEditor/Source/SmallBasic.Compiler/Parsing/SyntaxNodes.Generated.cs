@@ -280,18 +280,37 @@ namespace SmallBasic.Compiler.Parsing
 
     internal sealed class SubModuleStatementSyntax : BaseStatementSyntax
     {
-        public SubModuleStatementSyntax(Token subToken, Token nameToken, StatementBlockSyntax body, Token endSubToken)
+        public SubModuleStatementSyntax(Token subToken, Token nameToken, Token leftParenToken, IReadOnlyList<ParameterSyntax> parameters, Token rightParenToken, StatementBlockSyntax body, Token endSubToken)
         {
             Debug.Assert(!subToken.IsDefault(), "'subToken' must not be null.");
             Debug.Assert(subToken.Kind == TokenKind.Sub, "'subToken' must have a TokenKind of 'Sub'.");
             Debug.Assert(!nameToken.IsDefault(), "'nameToken' must not be null.");
             Debug.Assert(nameToken.Kind == TokenKind.Identifier, "'nameToken' must have a TokenKind of 'Identifier'.");
+            if (!leftParenToken.IsDefault())
+            {
+                Debug.Assert(leftParenToken.Kind == TokenKind.LeftParen, "'leftParenToken' must have a TokenKind of 'LeftParen'.");
+            }
+
+            Debug.Assert(!parameters.IsDefault(), "'parameters' must not be null.");
+            if (!rightParenToken.IsDefault())
+            {
+                Debug.Assert(rightParenToken.Kind == TokenKind.RightParen, "'rightParenToken' must have a TokenKind of 'RightParen'.");
+            }
+
             Debug.Assert(!body.IsDefault(), "'body' must not be null.");
             Debug.Assert(!endSubToken.IsDefault(), "'endSubToken' must not be null.");
             Debug.Assert(endSubToken.Kind == TokenKind.EndSub, "'endSubToken' must have a TokenKind of 'EndSub'.");
 
             this.SubToken = subToken;
             this.NameToken = nameToken;
+            this.LeftParenToken = leftParenToken;
+            this.Parameters = parameters;
+            foreach (var child in this.Parameters)
+            {
+                child.Parent = this;
+            }
+
+            this.RightParenToken = rightParenToken;
             this.Body = body;
             this.Body.Parent = this;
             this.EndSubToken = endSubToken;
@@ -301,6 +320,12 @@ namespace SmallBasic.Compiler.Parsing
 
         public Token NameToken { get; private set; }
 
+        public Token LeftParenToken { get; private set; }
+
+        public IReadOnlyList<ParameterSyntax> Parameters { get; private set; }
+
+        public Token RightParenToken { get; private set; }
+
         public StatementBlockSyntax Body { get; private set; }
 
         public Token EndSubToken { get; private set; }
@@ -309,6 +334,11 @@ namespace SmallBasic.Compiler.Parsing
         {
             get
             {
+                foreach (var child in this.Parameters)
+                {
+                    yield return child;
+                }
+
                 yield return this.Body;
             }
         }
@@ -391,11 +421,17 @@ namespace SmallBasic.Compiler.Parsing
             Debug.Assert(functionToken.Kind == TokenKind.Function, "'functionToken' must have a TokenKind of 'Function'.");
             Debug.Assert(!nameToken.IsDefault(), "'nameToken' must not be null.");
             Debug.Assert(nameToken.Kind == TokenKind.Identifier, "'nameToken' must have a TokenKind of 'Identifier'.");
-            Debug.Assert(!leftParenToken.IsDefault(), "'leftParenToken' must not be null.");
-            Debug.Assert(leftParenToken.Kind == TokenKind.LeftParen, "'leftParenToken' must have a TokenKind of 'LeftParen'.");
+            if (!leftParenToken.IsDefault())
+            {
+                Debug.Assert(leftParenToken.Kind == TokenKind.LeftParen, "'leftParenToken' must have a TokenKind of 'LeftParen'.");
+            }
+
             Debug.Assert(!parameters.IsDefault(), "'parameters' must not be null.");
-            Debug.Assert(!rightParenToken.IsDefault(), "'rightParenToken' must not be null.");
-            Debug.Assert(rightParenToken.Kind == TokenKind.RightParen, "'rightParenToken' must have a TokenKind of 'RightParen'.");
+            if (!rightParenToken.IsDefault())
+            {
+                Debug.Assert(rightParenToken.Kind == TokenKind.RightParen, "'rightParenToken' must have a TokenKind of 'RightParen'.");
+            }
+
             Debug.Assert(!body.IsDefault(), "'body' must not be null.");
             Debug.Assert(!endFunctionToken.IsDefault(), "'endFunctionToken' must not be null.");
             Debug.Assert(endFunctionToken.Kind == TokenKind.EndFunction, "'endFunctionToken' must have a TokenKind of 'EndFunction'.");

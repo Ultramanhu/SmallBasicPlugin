@@ -50,7 +50,6 @@ const BLAZOR_RUNHOST_CSPROJ = path.join(
     REPO_ROOT, "visual_studio_plugin", "src", "SmallBasic.Blazor.RunHost", "SmallBasic.Blazor.RunHost.csproj");
 const CSHARP_RUNHOST_CSPROJ = path.join(
     REPO_ROOT, "visual_studio_plugin", "src", "SmallBasic.RunHost", "SmallBasic.RunHost.csproj");
-const TEST_ROOT = path.join(REPO_ROOT, "test");
 
 const RID_BY_TRIPLE = {
     "x86_64-pc-windows-msvc": "win-x64",
@@ -262,60 +261,10 @@ function injectDesktopScriptTag(htmlPath) {
 }
 
 function stageSamples() {
-    const samplesRoot = path.join(STAGE_APP, "samples");
-    fs.rmSync(samplesRoot, { recursive: true, force: true });
-    fs.mkdirSync(samplesRoot, { recursive: true });
-
-    const entries = [];
-    if (fs.existsSync(TEST_ROOT)) {
-        for (const file of listSampleFiles(TEST_ROOT)) {
-            const relative = path.relative(TEST_ROOT, file).split(path.sep).join("/");
-            const target = path.join(samplesRoot, relative);
-            fs.mkdirSync(path.dirname(target), { recursive: true });
-            fs.copyFileSync(file, target);
-
-            const source = fs.readFileSync(file, "utf8");
-            entries.push({
-                name: `test/${relative}`,
-                path: `samples/${relative}`,
-                graphics: /\b(GraphicsWindow|Shapes|Turtle)\s*[\.\(]/i.test(source)
-            });
-        }
-    }
-
-    if (entries.length === 0) {
-        console.warn("No .sb samples were found under test/; the playground falls back to its built-in program.");
-    }
-
-    let defaultSample = "test/hello/hello.sb";
-    if (!entries.some((entry) => entry.name === defaultSample) && entries.length > 0) {
-        defaultSample = entries[0].name;
-    }
-
-    fs.writeFileSync(
-        path.join(samplesRoot, "index.json"),
-        JSON.stringify({ default: defaultSample, items: entries }, null, 2));
-}
-
-function listSampleFiles(root) {
-    const found = [];
-    const visit = (directory) => {
-        for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
-            if (entry.name.startsWith(".")) {
-                continue;
-            }
-
-            const full = path.join(directory, entry.name);
-            if (entry.isDirectory()) {
-                visit(full);
-            } else if (entry.isFile() && entry.name.endsWith(".sb")) {
-                found.push(full);
-            }
-        }
-    };
-
-    visit(root);
-    return found.sort();
+    // tools/stage-samples.mjs is the single sample-staging implementation,
+    // shared with the runhost/web static site (runhost/Build-RunHost.ps1).
+    console.log("==> Staging samples (tools/stage-samples.mjs)");
+    run("node", [path.join(REPO_ROOT, "tools", "stage-samples.mjs"), STAGE_APP]);
 }
 
 /**

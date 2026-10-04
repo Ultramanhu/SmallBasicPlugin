@@ -1,4 +1,5 @@
 import * as vscode from "vscode";
+import { normalizeProgramPath } from "../common/paths";
 import type { DebugSourceAccessor } from "../debug/session";
 
 export class WebDebugSourceAccessor implements DebugSourceAccessor {
@@ -17,13 +18,13 @@ export class WebDebugSourceAccessor implements DebugSourceAccessor {
       document.uri.toString()
     ]) {
       if (alias) {
-        this.aliases.set(this.normalize(alias), this.canonicalPath);
+        this.aliases.set(normalizeProgramPath(alias), this.canonicalPath);
       }
     }
   }
 
   public resolvePath(filePath: string): string {
-    return this.aliases.get(this.normalize(filePath)) ?? filePath;
+    return this.aliases.get(normalizeProgramPath(filePath)) ?? filePath;
   }
 
   public basename(filePath: string): string {
@@ -37,9 +38,5 @@ export class WebDebugSourceAccessor implements DebugSourceAccessor {
     }
 
     return this.source;
-  }
-
-  private normalize(value: string): string {
-    return value.replace(/\\/g, "/").replace(/\/+$/g, "").toLowerCase();
   }
 }

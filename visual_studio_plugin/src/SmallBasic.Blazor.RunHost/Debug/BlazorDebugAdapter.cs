@@ -1,5 +1,4 @@
 using System.Text.Json.Nodes;
-using System.Text;
 using System.Threading.Channels;
 using SmallBasic.Blazor.RunHost.Hosting;
 using SmallBasic.Blazor.Shared;
@@ -10,10 +9,13 @@ using SmallBasic.RunHost.Libraries;
 
 namespace SmallBasic.Blazor.RunHost.Debug;
 
-public sealed class BlazorDebugAdapter
+/// <summary>
+/// DAP adapter of the Blazor backend: text programs run on a local
+/// <see cref="SmallBasicEngine"/>, graphics programs are served as browser WASM
+/// sessions whose web debug protocol messages are relayed to DAP.
+/// </summary>
+public sealed class BlazorDebugAdapter : DapAdapterBase
 {
-    private const int ThreadId = 1;
-    private readonly DapStream dap = new(Console.OpenStandardInput(), Console.OpenStandardOutput());
     private readonly BlazorRuntimeServer server;
     private readonly bool noOpen;
     private readonly Dictionary<string, int[]> breakpoints = new(StringComparer.OrdinalIgnoreCase);
@@ -23,56 +25,45 @@ public sealed class BlazorDebugAdapter
     private BrowserMessage? snapshot;
     private string programPath = string.Empty;
     private int[] executableLines = Array.Empty<int>();
-    private int nextSequence = 1;
     private int nextVariableHandle = 2;
-    private bool waitingForInput;
     private bool disconnected;
     private bool configurationDone;
     private RuntimeLibrariesCollection? localLibraries;
     private SmallBasicEngine? localEngine;
-    private bool stopOnEntry;
     private bool localLoopStarted;
-    private bool localEndSent;
-    private string activeControl = "continue";
-    private int activeControlDepth;
-    private int? activeControlLine;
-    private bool pauseRequested;
-    private TaskCompletionSource<bool> resumeSignal = NewSignal();
-    private TaskCompletionSource<bool> inputSignal = NewSignal();
 
     public BlazorDebugAdapter(BlazorRuntimeServer server, bool noOpen)
+        : base(new DapStream(Console.OpenStandardInput(), Console.OpenStandardOutput()))
     {
         this.server = server;
         this.noOpen = noOpen;
     }
 
-    public async Task RunAsync()
+    protected override bool IsSessionDisconnected => this.disconnected;
+
+    protected override string WaitingForInputDescription => "Waiting for TextWindow input";
+
+    protected override DebuggerSnapshot? CurrentSnapshot => this.localEngine?.GetSnapshot();
+
+    protected override int? CurrentEngineLine => this.localEngine?.CurrentSourceLine;
+
+    protected override Task<bool> ShouldStopAtLineAsync(int line)
+        => Task.FromResult(this.AllBreakpoints().Contains(line));
+
+    protected override void DisposeEngineResources()
     {
-        while (!this.disconnected)
-        {
-            JsonObject? request;
-            try
-            {
-                request = await this.dap.ReadMessageAsync();
-            }
-            catch
-            {
-                return;
-            }
-
-            if (request is null)
-            {
-                return;
-            }
-
-            if ((string?)request["type"] == "request")
-            {
-                await this.DispatchAsync(request);
-            }
-        }
+        this.localLibraries?.Dispose();
+        this.localLibraries = null;
     }
 
-    private async Task DispatchAsync(JsonObject request)
+    protected override Task OnEngineRunningAsync() => Task.Delay(10);
+
+    public async Task RunAsync()
+    {
+        await this.MessageLoopAsync().ConfigureAwait(false);
+    }
+
+    protected override async Task DispatchRequestAsync(JsonObject request)
     {
         int requestSequence = (int?)request["seq"] ?? 0;
         string command = (string?)request["command"] ?? string.Empty;
@@ -94,7 +85,7 @@ public sealed class BlazorDebugAdapter
                 this.HandleLaunch(requestSequence, command, arguments);
                 break;
             case "setBreakpoints":
-                await this.HandleSetBreakpointsAsync(requestSequence, command, arguments);
+                await this.HandleSetBreakpointsAsync(requestSequence, command, arguments).ConfigureAwait(false);
                 break;
             case "setExceptionBreakpoints":
             case "setFunctionBreakpoints":
@@ -122,33 +113,33 @@ public sealed class BlazorDebugAdapter
                 break;
             case "continue":
                 this.SendResponse(requestSequence, command, new JsonObject { ["allThreadsContinued"] = true });
-                await this.SendControlAsync("continue");
+                await this.SendControlAsync("continue").ConfigureAwait(false);
                 break;
             case "next":
                 this.SendResponse(requestSequence, command);
-                await this.SendControlAsync("next");
+                await this.SendControlAsync("next").ConfigureAwait(false);
                 break;
             case "stepIn":
                 this.SendResponse(requestSequence, command);
-                await this.SendControlAsync("stepIn");
+                await this.SendControlAsync("stepIn").ConfigureAwait(false);
                 break;
             case "stepOut":
                 this.SendResponse(requestSequence, command);
-                await this.SendControlAsync("stepOut");
+                await this.SendControlAsync("stepOut").ConfigureAwait(false);
                 break;
             case "pause":
                 this.SendResponse(requestSequence, command);
-                await this.SendControlAsync("pause");
+                await this.SendControlAsync("pause").ConfigureAwait(false);
                 break;
             case "evaluate":
-                await this.HandleEvaluateAsync(requestSequence, command, arguments);
+                await this.HandleEvaluateAsync(requestSequence, command, arguments).ConfigureAwait(false);
                 break;
             case "disconnect":
             case "terminate":
                 this.SendResponse(requestSequence, command);
                 if (this.session is not null)
                 {
-                    await this.session.SendAsync(new HostMessage { Type = "stop" });
+                    await this.session.SendAsync(new HostMessage { Type = "stop" }).ConfigureAwait(false);
                 }
 
                 this.localEngine?.Terminate();
@@ -195,7 +186,7 @@ public sealed class BlazorDebugAdapter
         this.executableLines = this.compilation.GetExecutableLines().OrderBy(line => line).ToArray();
         if (!this.compilation.Analysis.UsesGraphicsWindow)
         {
-            this.localLibraries = new RuntimeLibrariesCollection(TextReader.Null, new AdapterTextWriter(this), enableGraphics: false);
+            this.localLibraries = new RuntimeLibrariesCollection(TextReader.Null, new DapTextWriter(this), enableGraphics: false);
             this.localEngine = new SmallBasicEngine(this.compilation, this.localLibraries) { Mode = ExecutionMode.NextLine };
         }
         else
@@ -283,7 +274,7 @@ public sealed class BlazorDebugAdapter
         this.SendResponse(requestSequence, command, new JsonObject { ["breakpoints"] = response });
         if (this.session is not null)
         {
-            await this.session.SendAsync(new HostMessage { Type = "breakpoints", Breakpoints = this.AllBreakpoints() });
+            await this.session.SendAsync(new HostMessage { Type = "breakpoints", Breakpoints = this.AllBreakpoints() }).ConfigureAwait(false);
         }
     }
 
@@ -364,14 +355,13 @@ public sealed class BlazorDebugAdapter
             this.localEngine.InputReceived();
             this.waitingForInput = false;
             this.SendResponse(requestSequence, command, new JsonObject { ["result"] = expression, ["variablesReference"] = 0 });
-            this.inputSignal.TrySetResult(true);
-            this.inputSignal = NewSignal();
+            this.CompleteInput();
             return;
         }
 
         if (this.waitingForInput && this.session is not null)
         {
-            await this.session.SendAsync(new HostMessage { Type = "input", Text = expression });
+            await this.session.SendAsync(new HostMessage { Type = "input", Text = expression }).ConfigureAwait(false);
             this.waitingForInput = false;
             this.SendResponse(requestSequence, command, new JsonObject { ["result"] = expression, ["variablesReference"] = 0 });
             return;
@@ -423,8 +413,8 @@ public sealed class BlazorDebugAdapter
         {
             try
             {
-                await active.WaitUntilReadyAsync();
-                await active.SendAsync(new HostMessage { Type = "start", Breakpoints = this.AllBreakpoints() });
+                await active.WaitUntilReadyAsync().ConfigureAwait(false);
+                await active.SendAsync(new HostMessage { Type = "start", Breakpoints = this.AllBreakpoints() }).ConfigureAwait(false);
             }
             catch (Exception ex)
             {
@@ -440,7 +430,7 @@ public sealed class BlazorDebugAdapter
         {
             while (true)
             {
-                BrowserMessage message = await active.ReadAsync();
+                BrowserMessage message = await active.ReadAsync().ConfigureAwait(false);
                 switch (message.Type)
                 {
                     case "output":
@@ -487,7 +477,7 @@ public sealed class BlazorDebugAdapter
         {
             this.activeControl = control;
             this.activeControlDepth = this.localEngine.GetSnapshot().ExecutionStack.Count;
-            this.activeControlLine = this.GetLocalStepLine(control == "stepOut");
+            this.activeControlLine = this.GetStepLine(control == "stepOut");
             if (control == "pause")
             {
                 this.pauseRequested = true;
@@ -499,8 +489,7 @@ public sealed class BlazorDebugAdapter
             else
             {
                 this.pauseRequested = false;
-                this.resumeSignal.TrySetResult(true);
-                this.resumeSignal = NewSignal();
+                this.SignalResume();
             }
 
             return;
@@ -514,13 +503,11 @@ public sealed class BlazorDebugAdapter
                 Control = control,
                 Depth = this.snapshot?.Frames.Length ?? 0,
                 Breakpoints = this.AllBreakpoints(),
-            });
+            }).ConfigureAwait(false);
         }
     }
 
     private int[] AllBreakpoints() => this.breakpoints.Values.SelectMany(lines => lines).Distinct().ToArray();
-
-    private static TaskCompletionSource<bool> NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     private void StartLocalLoop()
     {
@@ -530,121 +517,12 @@ public sealed class BlazorDebugAdapter
         }
 
         this.localLoopStarted = true;
-        _ = Task.Run(this.RunLocalLoopAsync);
+        _ = Task.Run(() => this.RunEngineLoopAsync(this.localEngine));
     }
 
-    private async Task RunLocalLoopAsync()
-    {
-        SmallBasicEngine engine = this.localEngine!;
-        int firstLine = engine.GetSnapshot().ExecutionStack.Last().CurrentSourceLine;
-        if (this.stopOnEntry)
-        {
-            this.CaptureLocalSnapshot("entry", firstLine);
-            this.SendStopped("entry");
-            await this.WaitForLocalResumeAsync();
-        }
-        else if (this.IsBreakpointAtLine(firstLine))
-        {
-            this.CaptureLocalSnapshot("breakpoint", firstLine);
-            this.SendStopped("breakpoint");
-            await this.WaitForLocalResumeAsync();
-        }
+    protected override bool CheckRunLoopEnded() => this.disconnected;
 
-        while (!this.disconnected)
-        {
-            try
-            {
-                await engine.Execute();
-            }
-            catch (Exception ex)
-            {
-                this.SendOutput($"\n[Runtime Error] {ex}\n");
-                this.EndLocalSession(1);
-                return;
-            }
-
-            switch (engine.State)
-            {
-                case ExecutionState.Paused:
-                {
-                    string? reason = this.ComputeLocalStopReason();
-                    if (reason is null)
-                    {
-                        engine.Continue();
-                    }
-                    else
-                    {
-                        this.CaptureLocalSnapshot(reason);
-                        this.SendStopped(reason);
-                        await this.WaitForLocalResumeAsync();
-                        if (engine.State == ExecutionState.Paused)
-                        {
-                            engine.Continue();
-                        }
-                    }
-
-                    break;
-                }
-                case ExecutionState.BlockedOnStringInput:
-                case ExecutionState.BlockedOnNumberInput:
-                {
-                    bool number = engine.State == ExecutionState.BlockedOnNumberInput;
-                    this.waitingForInput = true;
-                    this.CaptureLocalSnapshot("pause");
-                    this.SendOutput(number
-                        ? "\n[Input] Type a number in the Debug Console and press Enter.\n"
-                        : "\n[Input] Type text in the Debug Console and press Enter.\n");
-                    this.SendStopped("pause", "Waiting for TextWindow input");
-                    await this.inputSignal.Task;
-                    break;
-                }
-                case ExecutionState.Terminated:
-                    this.EndLocalSession(0);
-                    return;
-                case ExecutionState.Running:
-                    await Task.Delay(10);
-                    break;
-            }
-        }
-    }
-
-    private string? ComputeLocalStopReason()
-    {
-        if (this.pauseRequested)
-        {
-            this.pauseRequested = false;
-            return "pause";
-        }
-
-        int depth = this.localEngine?.GetSnapshot().ExecutionStack.Count ?? 0;
-        return this.activeControl switch
-        {
-            "stepIn" => "step",
-            "next" => depth <= this.activeControlDepth && this.localEngine?.CurrentSourceLine != this.activeControlLine ? "step" : null,
-            "stepOut" => depth < this.activeControlDepth && this.localEngine?.CurrentSourceLine != this.activeControlLine ? "step" : null,
-            _ => this.localEngine is not null && this.IsBreakpointAtLine(this.localEngine.CurrentSourceLine) ? "breakpoint" : null,
-        };
-    }
-
-    private int? GetLocalStepLine(bool stepOut)
-    {
-        DebuggerSnapshot? snapshot = this.localEngine?.GetSnapshot();
-        if (snapshot is null)
-        {
-            return null;
-        }
-
-        Frame? frame = snapshot.ExecutionStack.Reverse().ElementAtOrDefault(stepOut ? 1 : 0);
-        return frame?.CurrentSourceLine;
-    }
-
-    private bool IsBreakpointAtLine(int line) => this.AllBreakpoints().Contains(line);
-
-    private async Task WaitForLocalResumeAsync()
-    {
-        Task signal = this.resumeSignal.Task;
-        await signal;
-    }
+    protected override void OnStopping(string reason, int? lineOverride) => this.CaptureLocalSnapshot(reason, lineOverride);
 
     private void CaptureLocalSnapshot(string reason, int? lineOverride = null)
     {
@@ -678,54 +556,6 @@ public sealed class BlazorDebugAdapter
                 ? array.OrderBy(pair => pair.Key).Select(pair => ConvertLocalVariable(pair.Key, pair.Value)).ToArray()
                 : Array.Empty<DebugVariable>(),
         };
-
-    private void EndLocalSession(int exitCode)
-    {
-        if (this.localEndSent)
-        {
-            return;
-        }
-
-        this.localEndSent = true;
-        this.localLibraries?.Dispose();
-        this.localLibraries = null;
-        this.SendEvent("exited", new JsonObject { ["exitCode"] = exitCode });
-        this.SendEvent("terminated");
-    }
-
-    private sealed class AdapterTextWriter : TextWriter
-    {
-        private readonly BlazorDebugAdapter adapter;
-
-        public AdapterTextWriter(BlazorDebugAdapter adapter)
-        {
-            this.adapter = adapter;
-        }
-
-        public override Encoding Encoding => Encoding.UTF8;
-
-        public override void Write(char value) => this.adapter.SendOutput(value.ToString());
-
-        public override void Write(string? value)
-        {
-            if (value is not null)
-            {
-                this.adapter.SendOutput(value);
-            }
-        }
-
-        public override Task WriteAsync(string? value)
-        {
-            this.Write(value);
-            return Task.CompletedTask;
-        }
-
-        public override Task WriteLineAsync(string? value)
-        {
-            this.adapter.SendOutput((value ?? string.Empty) + Environment.NewLine);
-            return Task.CompletedTask;
-        }
-    }
 
     /// <summary>
     /// Loads the compilation for a source path when <c>launch</c> has not run
@@ -765,71 +595,5 @@ public sealed class BlazorDebugAdapter
         }
 
         return string.Equals(Path.GetFullPath(left), Path.GetFullPath(right), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
-    }
-
-    private void SendStopped(string reason, string? description = null)
-    {
-        var body = new JsonObject
-        {
-            ["reason"] = reason,
-            ["threadId"] = ThreadId,
-            ["allThreadsStopped"] = true,
-        };
-        if (description is not null)
-        {
-            body["description"] = description;
-        }
-
-        this.SendEvent("stopped", body);
-    }
-
-    private void SendOutput(string text) => this.SendEvent("output", new JsonObject { ["category"] = "stdout", ["output"] = text });
-
-    private void SendEvent(string eventName, JsonObject? body = null)
-    {
-        var message = new JsonObject
-        {
-            ["seq"] = Interlocked.Increment(ref this.nextSequence),
-            ["type"] = "event",
-            ["event"] = eventName,
-        };
-        if (body is not null)
-        {
-            message["body"] = body;
-        }
-
-        this.dap.WriteMessage(message);
-    }
-
-    private void SendResponse(int requestSequence, string command, JsonObject? body = null)
-    {
-        var message = new JsonObject
-        {
-            ["seq"] = Interlocked.Increment(ref this.nextSequence),
-            ["type"] = "response",
-            ["request_seq"] = requestSequence,
-            ["success"] = true,
-            ["command"] = command,
-        };
-        if (body is not null)
-        {
-            message["body"] = body;
-        }
-
-        this.dap.WriteMessage(message);
-    }
-
-    private void SendErrorResponse(int requestSequence, string command, string messageText)
-    {
-        this.dap.WriteMessage(new JsonObject
-        {
-            ["seq"] = Interlocked.Increment(ref this.nextSequence),
-            ["type"] = "response",
-            ["request_seq"] = requestSequence,
-            ["success"] = false,
-            ["command"] = command,
-            ["message"] = messageText,
-            ["body"] = new JsonObject { ["error"] = new JsonObject { ["format"] = messageText } },
-        });
     }
 }

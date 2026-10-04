@@ -24,7 +24,7 @@ public sealed class WebShellTransport : IRunHostTransport
     /// </summary>
     private static readonly TimeSpan FlushInterval = TimeSpan.FromMilliseconds(50);
 
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = JsonDefaults.Web;
 
     private readonly IJSRuntime js;
     private readonly Channel<HostMessage> commands = Channel.CreateUnbounded<HostMessage>();

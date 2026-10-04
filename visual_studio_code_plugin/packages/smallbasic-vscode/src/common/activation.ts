@@ -1,5 +1,6 @@
 import * as vscode from "vscode";
 import { resolveDocumentationLocale, setDocumentationLocale } from "smallbasic-lang-core";
+import { OPEN_SB_FILE_WARNING, NEW_PROGRAM_TEMPLATE, SAVE_BEFORE_RUN_WARNING } from "./messages";
 import { registerSmallBasicInlineValues } from "../debug/inline-values";
 import { CompilationCache } from "../language/compilation-cache";
 import { isSmallBasicDocument, publishDiagnostics, registerLanguageFeatures } from "../language/providers";
@@ -106,7 +107,7 @@ async function createNewFile(resource?: vscode.Uri): Promise<void> {
   if (!folder) {
     const document = await vscode.workspace.openTextDocument({
       language: "smallbasic",
-      content: "' My first SmallBasic program\nTextWindow.WriteLine(\"Hello World\")\n"
+      content: NEW_PROGRAM_TEMPLATE
     });
     await vscode.window.showTextDocument(document, { preview: false });
     return;
@@ -115,7 +116,7 @@ async function createNewFile(resource?: vscode.Uri): Promise<void> {
   const file = await nextAvailableFile(folder);
   await vscode.workspace.fs.writeFile(
     file,
-    new TextEncoder().encode("' My first SmallBasic program\nTextWindow.WriteLine(\"Hello World\")\n")
+    new TextEncoder().encode(NEW_PROGRAM_TEMPLATE)
   );
 
   const document = await vscode.workspace.openTextDocument(file);
@@ -154,14 +155,14 @@ async function runActiveDocument(
 ): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode.window.showWarningMessage("请先打开一个 SmallBasic (.sb) 文件。");
+    void vscode.window.showWarningMessage(OPEN_SB_FILE_WARNING);
     return;
   }
 
   if (!editor.document.isUntitled) {
     const saved = await editor.document.save();
     if (!saved) {
-      void vscode.window.showWarningMessage("运行前需要先保存当前文件。");
+      void vscode.window.showWarningMessage(SAVE_BEFORE_RUN_WARNING);
       return;
     }
   }

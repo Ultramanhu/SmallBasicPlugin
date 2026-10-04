@@ -1,6 +1,6 @@
 import { ValueKind } from "smallbasic-lang-core";
 import { DebugEngineDriver, type DebugSnapshot } from "../debug/engine-driver";
-import { DEBUG_PROTOCOL_VERSION } from "../web/debug-protocol";
+import { DEBUG_PROTOCOL_VERSION, toLines, WEB_EXIT_LOAD_FAILURE } from "../web/debug-protocol";
 
 /**
  * Browser-side debug session of the JavaScript backend for `mode: "web"`.
@@ -14,9 +14,6 @@ import { DEBUG_PROTOCOL_VERSION } from "../web/debug-protocol";
  * translates between the protocol and the driver, exactly like
  * `src/debug/session.ts` translates between DAP and the driver.
  */
-
-/** Matches `EXIT_UNSUPPORTED_LIBRARY`/compile failures of the other backends. */
-const EXIT_COMPILE_ERROR = 2;
 
 /** Version of the web debug protocol (mirrors `debug-protocol.ts`). */
 const PROTOCOL_VERSION = DEBUG_PROTOCOL_VERSION;
@@ -66,7 +63,7 @@ export class BrowserDebugSession {
     const request = parseJson<LaunchRequest>(json);
     if (!request || typeof request.source !== "string") {
       this.emit({ type: "error", message: "无效的调试启动请求。" });
-      this.emit({ type: "terminated", exitCode: EXIT_COMPILE_ERROR });
+      this.emit({ type: "terminated", exitCode: WEB_EXIT_LOAD_FAILURE });
       return;
     }
 
@@ -103,7 +100,7 @@ export class BrowserDebugSession {
       this.driver.load(PROGRAM_PATH);
     } catch (error) {
       this.emit({ type: "error", message: error instanceof Error ? error.message : String(error) });
-      this.emit({ type: "terminated", exitCode: EXIT_COMPILE_ERROR });
+      this.emit({ type: "terminated", exitCode: WEB_EXIT_LOAD_FAILURE });
       return;
     }
 
@@ -214,16 +211,6 @@ export class BrowserDebugSession {
   private emit(message: Record<string, unknown>): void {
     this.sink.notify(JSON.stringify({ protocolVersion: PROTOCOL_VERSION, sessionId: this.sessionId, ...message }));
   }
-}
-
-function toLines(value: unknown): number[] {
-  if (!Array.isArray(value)) {
-    return [];
-  }
-
-  return value
-    .filter((entry): entry is number => typeof entry === "number" && Number.isFinite(entry))
-    .map((entry) => Math.max(0, Math.trunc(entry)));
 }
 
 function parseJson<T>(json: string): T | undefined {

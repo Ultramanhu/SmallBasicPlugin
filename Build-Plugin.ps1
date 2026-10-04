@@ -58,7 +58,10 @@ $vscodeRoot = Join-Path $repoRoot 'visual_studio_code_plugin'
 $runHostRoot = Join-Path $repoRoot 'runhost'
 $stagedPlayground = Join-Path $runHostRoot 'playground'
 
-$version = [string]((Get-Content -LiteralPath (Join-Path $repoRoot 'version.json') -Raw | ConvertFrom-Json).version)
+# Shared build helpers (version.json handling, the web site's required files).
+Import-Module (Join-Path $repoRoot 'tools\common.psm1') -Force
+
+$version = Get-RepoVersion -RepositoryRoot $repoRoot
 
 $results = [System.Collections.Generic.List[object]]::new()
 $failures = [System.Collections.Generic.List[string]]::new()
@@ -305,19 +308,9 @@ Invoke-Check 'RunHost distribution' {
 
 if (-not $SkipWeb) {
     Invoke-Check 'runhost\web static site' {
-        Assert-Files (Join-Path $runHostRoot 'web') @(
-            'index.html',
-            'runhost.html',
-            'playground.html',
-            'playground.js',
-            'shell-core.js',
-            'smallbasic-js.js',
-            'samples\index.json',
-            'editor\editor.worker.js',
-            'editor\language.worker.js',
-            'editor\onig.wasm',
-            '_framework\blazor.webassembly.js'
-        ) 'runhost\web'
+        # The same list Build-RunHost.ps1 asserts when staging the site
+        # (tools\web-site-files.json), so the verifier cannot drift from it.
+        Assert-Files (Join-Path $runHostRoot 'web') (Read-RequiredWebSiteFiles -RepositoryRoot $repoRoot) 'runhost\web'
     }
 }
 else {
@@ -335,11 +328,11 @@ if (Test-Path -LiteralPath $stagedManifest) {
         Assert-FileExists (Join-Path $stagedPlayground 'app\desktop.js') 'staged desktop bridge'
 
         $suffix = if ($triple -like '*windows*') { '.exe' } else { '' }
-        foreach ($base in @('smallbasic-node', 'smallbasic-csharp', 'smallbasic-blazor')) {
-            $sidecar = Join-Path $stagedPlayground "bin\$base-$triple$suffix"
-            if (-not (Test-Path -LiteralPath $sidecar)) {
-                throw "staged sidecar missing for ${triple}: $base-$triple$suffix"
-            }
+        # The Node and Blazor CLI backends were removed on 2026-10-03; the only
+        # staged sidecar is the .NET 8 host (see stage-playground.mjs).
+        $sidecar = Join-Path $stagedPlayground "bin\smallbasic-csharp-net8-$triple$suffix"
+        if (-not (Test-Path -LiteralPath $sidecar)) {
+            throw "staged sidecar missing for ${triple}: smallbasic-csharp-net8-$triple$suffix"
         }
     }
 }

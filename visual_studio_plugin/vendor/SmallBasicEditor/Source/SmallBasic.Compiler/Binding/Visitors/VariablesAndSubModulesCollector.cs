@@ -6,6 +6,7 @@ namespace SmallBasic.Compiler.Binding
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
 
     internal sealed class VariablesAndSubModulesCollector : BaseBoundNodeVisitor
     {
@@ -17,7 +18,10 @@ namespace SmallBasic.Compiler.Binding
             this.Visit(binder.MainModule);
             foreach (var subModule in binder.SubModules.Values)
             {
-                this.VisitProcedure(subModule.Body, subModule.Locals);
+                var subModuleLocals = new List<string>(
+                    subModule.Syntax.Parameters.Select(parameter => parameter.IdentifierToken.Text));
+                subModuleLocals.AddRange(subModule.Locals);
+                this.VisitProcedure(subModule.Body, subModuleLocals);
             }
 
             foreach (var function in binder.Functions.Values)

@@ -14,13 +14,19 @@ import {
 import { DebugProtocol } from "@vscode/debugprotocol";
 import { ValueKind } from "smallbasic-lang-core";
 import {
+  conditionCompileFailedMessage,
+  DEBUG_THREAD_ID,
+  evaluateFailedMessage,
+  fromDapLine,
+  rawStoppedEvent,
+  toDapLine
+} from "./dap";
+import {
   DebugEngineDriver,
   type DebugBreakpoint,
   type DebugBreakpointRequest,
   type DebugVariableValue
 } from "./engine-driver";
-
-const THREAD_ID = 1;
 
 /** Resolves source paths for the debugger (local file system or in-memory). */
 export interface DebugSourceAccessor {
@@ -64,7 +70,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     this.driver = new DebugEngineDriver(
       {
         onOutput: (text) => this.sendEvent(new OutputEvent(text)),
-        onStopped: (reason) => this.sendEvent(new StoppedEvent(reason, THREAD_ID)),
+        onStopped: (reason) => this.sendEvent(new StoppedEvent(reason, DEBUG_THREAD_ID)),
         onInputRequested: (kind) => this.onInputRequested(kind),
         onTerminated: (exitCode) => this.endSession(exitCode)
       },
@@ -130,10 +136,10 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
     const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
     const requested: DebugBreakpointRequest[] = args.breakpoints
       ? args.breakpoints.map((breakpoint) => ({
-          line: breakpoint.line - 1,
+          line: fromDapLine(breakpoint.line),
           condition: breakpoint.condition?.trim() || undefined
         }))
-      : (args.lines ?? []).map((line) => ({ line: line - 1 }));
+      : (args.lines ?? []).map((line) => ({ line: fromDapLine(line) }));
     const verified: DebugBreakpoint[] = sourcePath
       ? this.driver.setBreakpoints(sourcePath, requested)
       : requested.map((breakpoint) => ({ ...breakpoint, verified: false }));
@@ -142,10 +148,10 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       breakpoints: verified.map((breakpoint) => {
         const result: DebugProtocol.Breakpoint = {
           verified: breakpoint.verified,
-          line: (breakpoint.actualLine ?? breakpoint.line) + 1
+          line: toDapLine(breakpoint.actualLine ?? breakpoint.line)
         };
         if (!breakpoint.verified && breakpoint.condition) {
-          result.message = `无法编译条件: ${breakpoint.condition}`;
+          result.message = conditionCompileFailedMessage(breakpoint.condition);
         }
         return result;
       })
@@ -156,7 +162,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
 
   protected override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
     response.body = {
-      threads: [new Thread(THREAD_ID, "Main")]
+      threads: [new Thread(DEBUG_THREAD_ID, "Main")]
     };
     this.sendResponse(response);
   }
@@ -167,7 +173,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
   ): void {
     const stackFrames = this.driver.frames().map((frame) => {
       const source = new Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new StackFrame(frame.id, frame.name, source, frame.line + 1, frame.column + 1);
+      return new StackFrame(frame.id, frame.name, source, toDapLine(frame.line), toDapLine(frame.column));
     });
 
     response.body = {
@@ -284,7 +290,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
       return;
     }
 
-    this.sendErrorResponse(response, 2002, `无法计算表达式: ${expression}`);
+    this.sendErrorResponse(response, 2002, evaluateFailedMessage(expression));
   }
 
   private startExecutionAfterConfiguration(): void {
@@ -298,18 +304,7 @@ export class SmallBasicDebugSession extends LoggingDebugSession {
 
   private onInputRequested(kind: ValueKind): void {
     this.sendEvent(new OutputEvent(kind === ValueKind.Number ? "\n[Input] 请输入数字后在 Debug Console 中按回车。\n" : "\n[Input] 请输入文本后在 Debug Console 中按回车。\n"));
-    const stopped: DebugProtocol.StoppedEvent = {
-      seq: 0,
-      type: "event",
-      event: "stopped",
-      body: {
-        reason: "pause",
-        description: "Waiting for input",
-        threadId: THREAD_ID,
-        allThreadsStopped: true
-      }
-    };
-    this.sendEvent(stopped);
+    this.sendEvent(rawStoppedEvent("pause", "Waiting for input"));
   }
 
   private createVariable(variable: DebugVariableValue): DebugProtocol.Variable {

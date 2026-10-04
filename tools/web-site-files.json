@@ -1,0 +1,24 @@
+{
+  "description": "Required files of the runhost/web static site. runhost/Build-RunHost.ps1 fails the staging when one of them is missing, and Build-Plugin.ps1 re-asserts the same list against the finished site.",
+  "required": [
+    "index.html",
+    "runhost.html",
+    "playground.html",
+    "app.css",
+    "shell-core.js",
+    "runhost-page.js",
+    "playground.js",
+    "smallbasic-js.js",
+    "editor/editor.worker.js",
+    "editor/language.worker.js",
+    "editor/onig.wasm",
+    "editor/language-configuration.json",
+    "editor/grammar/smallbasic.tmLanguage.json",
+    "editor/snippets/smallbasic.json",
+    "third-party-notices.txt",
+    "run.bat",
+    "run.ps1",
+    "samples/index.json",
+    "_framework/blazor.webassembly.js"
+  ]
+}

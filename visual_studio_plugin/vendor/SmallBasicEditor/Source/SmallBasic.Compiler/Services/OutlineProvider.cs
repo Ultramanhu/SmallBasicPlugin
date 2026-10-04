@@ -83,14 +83,17 @@ namespace SmallBasic.Compiler.Services
             {
                 if (statement is SubModuleStatementSyntax subModule)
                 {
+                    Token[] parameterTokens = subModule.Parameters.Select(parameter => parameter.IdentifierToken).ToArray();
                     procedures.Add(new ProcedureInfo(
                         subModule.NameToken.Text,
-                        $"Sub {subModule.NameToken.Text}",
+                        parameterTokens.Length == 0
+                            ? $"Sub {subModule.NameToken.Text}"
+                            : $"Sub {subModule.NameToken.Text}({string.Join(", ", parameterTokens.Select(parameter => parameter.Text))})",
                         OutlineItemKind.Procedure,
                         subModule.NameToken.Range,
                         subModule.Range,
                         subModule.Body,
-                        Array.Empty<Token>()));
+                        parameterTokens));
                     procedureNames.Add(subModule.NameToken.Text);
                 }
                 else if (statement is FunctionStatementSyntax function)

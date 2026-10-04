@@ -2,6 +2,11 @@
   "default": "test/hello/hello.sb",
   "items": [
     {
+      "name": "test/hello/accumulate.sb",
+      "path": "samples/hello/accumulate.sb",
+      "graphics": false
+    },
+    {
       "name": "test/hello/hello.sb",
       "path": "samples/hello/hello.sb",
       "graphics": false

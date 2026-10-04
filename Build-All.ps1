@@ -50,15 +50,15 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = $PSScriptRoot
 
+# Shared build helpers (version.json handling).
+Import-Module (Join-Path $repoRoot "tools\common.psm1") -Force
+
 # Propagate version.json into every generated file (extension manifests,
 # generated C# constant and README) before any artifact is built.
 Write-Host "=== Sync version (version.json) ===" -ForegroundColor Yellow
-& node (Join-Path $repoRoot "tools\sync-version.mjs")
-if ($LASTEXITCODE -ne 0) {
-    throw "Version synchronization failed with exit code $LASTEXITCODE."
-}
+Sync-RepoVersion -RepositoryRoot $repoRoot
 
-$version = [string]((Get-Content -LiteralPath (Join-Path $repoRoot "version.json") -Raw | ConvertFrom-Json).version)
+$version = Get-RepoVersion -RepositoryRoot $repoRoot
 
 # Every RunHost distribution folder exposes its own Build-RunHost.ps1 script.
 # Register new ones here when additional hosts are added.

@@ -1,6 +1,8 @@
 import * as vscode from "vscode";
 import { Compilation } from "smallbasic-lang-core";
 import { activateCommon } from "./common/activation";
+import { analyzeProgramShape, documentBaseName, resolveDebugDocument } from "./common/documents";
+import { blazorHostMissing, csharpHostMissing, SAVE_BEFORE_RUN_WARNING } from "./common/messages";
 import { selectDefaultDebugBackend } from "./debug/backend-selection";
 import { SmallBasicDebugAdapterFactory } from "./debug/factory";
 import { isSmallBasicDocument } from "./language/providers";
@@ -8,7 +10,6 @@ import { CSharpRunner } from "./run/csharp-runner";
 import { BlazorRunner } from "./run/blazor-runner";
 import { runJavaScriptCompilation } from "./run/javascript-runner";
 import { runInWebview } from "./web/blazor-webview";
-import { documentBaseName } from "./web/inline-factory";
 import { routeWebDebugRequest } from "./web/run-routing";
 
 export function activate(context: vscode.ExtensionContext): void {
@@ -93,8 +94,9 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
       }
 
       if (config.mode === "web") {
-        const document = await openProgram(program);
-        const drawsShapes = document ? analyze(document) : false;
+        const document = await resolveDebugDocument(program);
+        const shape = document ? analyzeProgramShape(document) : undefined;
+        const drawsShapes = shape?.ready === true && shape.drawsShapes === true;
         const routing = routeWebDebugRequest(
           { backend: config.backend, noDebug: config.noDebug === true },
           drawsShapes
@@ -133,14 +135,14 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
       }
 
       if (config.backend === "javascript" && config.noDebug === true) {
-        const document = await openProgram(program);
+        const document = await resolveDebugDocument(program);
         if (!document) {
           void vscode.window.showErrorMessage("无法打开要运行的 SmallBasic 文件。请检查 launch.json 中的 program。");
           return undefined;
         }
 
         if (!document.isUntitled && document.isDirty && !(await document.save())) {
-          void vscode.window.showWarningMessage("运行前需要先保存当前文件。");
+          void vscode.window.showWarningMessage(SAVE_BEFORE_RUN_WARNING);
           return undefined;
         }
 
@@ -155,10 +157,7 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
         }
 
         if (!CSharpRunner.resolveHostCommand(extensionPath)) {
-          void vscode.window.showErrorMessage(
-            "未找到可用的 SmallBasic C# 运行宿主。请安装 .NET 8、重新安装完整扩展，" +
-            "或在 smallbasic.csharp.runHostPath 中指定宿主路径。"
-          );
+          void vscode.window.showErrorMessage(csharpHostMissing("运行"));
           return undefined;
         }
       }
@@ -170,10 +169,7 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
         }
 
         if (!BlazorRunner.resolveHostCommand(extensionPath)) {
-          void vscode.window.showErrorMessage(
-            "未找到 Small Basic Blazor RunHost。请安装 .NET 8 / ASP.NET Core 8 Runtime、重新安装完整扩展，" +
-            "或在 smallbasic.blazor.runHostPath 中指定宿主路径。"
-          );
+          void vscode.window.showErrorMessage(blazorHostMissing("运行"));
           return undefined;
         }
       }
@@ -182,37 +178,4 @@ function createDebugConfigurationProvider(context: vscode.ExtensionContext): vsc
       return config;
     }
   };
-}
-
-async function openProgram(program: string): Promise<vscode.TextDocument | undefined> {
-  const normalize = (value: string): string => value.replace(/\\/g, "/").toLowerCase();
-  const wanted = normalize(program);
-  const open = vscode.workspace.textDocuments.find((document) => [
-    document.fileName,
-    document.uri.fsPath,
-    document.uri.path,
-    document.uri.toString()
-  ].some((value) => normalize(value) === wanted));
-  if (open && isSmallBasicDocument(open)) {
-    return open;
-  }
-
-  try {
-    const uri = /^[a-z][a-z0-9+.-]*:\/\//i.test(program)
-      ? vscode.Uri.parse(program)
-      : vscode.Uri.file(program);
-    const document = await vscode.workspace.openTextDocument(uri);
-    return isSmallBasicDocument(document) ? document : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-function analyze(document: vscode.TextDocument): boolean {
-  try {
-    const compilation = new Compilation(document.getText());
-    return compilation.isReadyToRun && compilation.kind.drawsShapes();
-  } catch {
-    return false;
-  }
 }

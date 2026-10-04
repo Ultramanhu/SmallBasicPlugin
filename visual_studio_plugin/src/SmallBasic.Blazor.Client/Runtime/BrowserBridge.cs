@@ -8,7 +8,7 @@ namespace SmallBasic.Blazor.Client.Runtime;
 
 public sealed class BrowserBridge : IRunHostTransport
 {
-    private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions JsonOptions = JsonDefaults.Web;
     private readonly ClientWebSocket socket = new();
     private readonly SemaphoreSlim sendLock = new(1, 1);
     private readonly Channel<HostMessage> commands = Channel.CreateUnbounded<HostMessage>();

@@ -261,6 +261,19 @@ export class ExpressionBinder {
             const procedure = this._definedProcedures[name.toLowerCase()];
 
             if (procedure !== undefined) {
+                // A no-argument function may be called without parentheses when a
+                // value is expected (e.g. `Answer = Empty`). Event handler
+                // assignments bind in a non-value context, so `Handler` still
+                // resolves to a procedure reference there.
+                if (procedure.parameters.length === 0 && procedure.returnsValue && expectedValue) {
+                    return new BoundSubModuleInvocationExpression(
+                        procedure.name,
+                        [],
+                        true,
+                        hasErrors,
+                        syntax);
+                }
+
                 if (expectedValue) {
                     hasErrors = true;
                     this._diagnostics.push(new Diagnostic(ErrorCode.UnexpectedVoid_ExpectingValue, syntax.range));

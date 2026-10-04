@@ -1152,7 +1152,7 @@ namespace SmallBasic.Compiler.Binding
 
     internal sealed class BoundSubModuleInvocationExpression : BaseBoundExpression
     {
-        public BoundSubModuleInvocationExpression(InvocationExpressionSyntax syntax, bool hasValue, bool hasErrors, string name, IReadOnlyList<BaseBoundExpression> arguments, bool returnsValue)
+        public BoundSubModuleInvocationExpression(BaseExpressionSyntax syntax, bool hasValue, bool hasErrors, string name, IReadOnlyList<BaseBoundExpression> arguments, bool returnsValue)
             : base(hasValue, hasErrors)
         {
             Debug.Assert(!syntax.IsDefault(), "'syntax' must not be null.");
@@ -1166,7 +1166,7 @@ namespace SmallBasic.Compiler.Binding
             this.ReturnsValue = returnsValue;
         }
 
-        public InvocationExpressionSyntax Syntax { get; private set; }
+        public BaseExpressionSyntax Syntax { get; private set; }
 
         public string Name { get; private set; }
 

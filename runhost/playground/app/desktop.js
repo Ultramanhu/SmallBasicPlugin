@@ -172,6 +172,26 @@ function resolveCliBackends(capabilities) {
   ];
 }
 
+// visual_studio_code_plugin/packages/smallbasic-vscode/src/common/errors.ts
+function describeError(error, includeStack = false) {
+  if (error instanceof Error) {
+    if (includeStack && error.stack) {
+      return error.stack;
+    }
+    return error.message;
+  }
+  return String(error);
+}
+
+// visual_studio_code_plugin/packages/smallbasic-vscode/src/debug/dap.ts
+var DEBUG_THREAD_ID = 1;
+function toDapLine(protocolLine) {
+  return protocolLine + 1;
+}
+function fromDapLine(dapLine) {
+  return dapLine - 1;
+}
+
 // visual_studio_code_plugin/packages/smallbasic-playground-desktop/src/local-cli-debug-transport.ts
 var REQUEST_TIMEOUT_MS = 1e4;
 var VARIABLE_CHILDREN_LIMIT = 100;
@@ -228,7 +248,7 @@ var LocalCliDebugTransport = class {
       }
     } catch (error) {
       if (!this.disposed) {
-        this.sinks.emit({ type: "error", message: describe(error) });
+        this.sinks.emit({ type: "error", message: describeError(error) });
       }
     }
   }
@@ -254,11 +274,11 @@ var LocalCliDebugTransport = class {
   async setBreakpoints(breakpoints) {
     const body = await this.request("setBreakpoints", {
       source: { name: this.programName, path: this.session?.programPath ?? this.programName },
-      lines: breakpoints.map((line) => line + 1),
-      breakpoints: breakpoints.map((line) => ({ line: line + 1 }))
+      lines: breakpoints.map(toDapLine),
+      breakpoints: breakpoints.map((line) => ({ line: toDapLine(line) }))
     });
     const declared = Array.isArray(body.breakpoints) ? body.breakpoints : [];
-    const validated = declared.filter((item) => item.verified === true && typeof item.line === "number").map((item) => item.line - 1);
+    const validated = declared.filter((item) => item.verified === true && typeof item.line === "number").map((item) => fromDapLine(item.line));
     if (validated.length > 0) {
       this.sinks.emit({ type: "breakpointsValidated", breakpoints: validated });
     }
@@ -282,19 +302,19 @@ var LocalCliDebugTransport = class {
     void depth;
     switch (control) {
       case "pause":
-        await this.request("pause", { threadId: 1 });
+        await this.request("pause", { threadId: DEBUG_THREAD_ID });
         break;
       case "continue":
-        await this.request("continue", { threadId: 1 });
+        await this.request("continue", { threadId: DEBUG_THREAD_ID });
         break;
       case "next":
-        await this.request("next", { threadId: 1 });
+        await this.request("next", { threadId: DEBUG_THREAD_ID });
         break;
       case "stepIn":
-        await this.request("stepIn", { threadId: 1 });
+        await this.request("stepIn", { threadId: DEBUG_THREAD_ID });
         break;
       case "stepOut":
-        await this.request("stepOut", { threadId: 1 });
+        await this.request("stepOut", { threadId: DEBUG_THREAD_ID });
         break;
     }
   }
@@ -348,7 +368,7 @@ var LocalCliDebugTransport = class {
       case "breakpoint": {
         const breakpoint = body.breakpoint ?? {};
         if (breakpoint.verified === true && typeof breakpoint.line === "number" && breakpoint.line > 0) {
-          this.sinks.emit({ type: "breakpointsValidated", breakpoints: [breakpoint.line - 1] });
+          this.sinks.emit({ type: "breakpointsValidated", breakpoints: [fromDapLine(breakpoint.line)] });
         }
         break;
       }
@@ -371,12 +391,12 @@ var LocalCliDebugTransport = class {
     let frames = [];
     let variables = [];
     try {
-      const stack = await this.request("stackTrace", { threadId: 1, levels: 20 });
+      const stack = await this.request("stackTrace", { threadId: DEBUG_THREAD_ID, levels: 20 });
       frames = this.toFrames(stack);
       variables = await this.collectVariables(frames);
     } catch {
     }
-    const line = typeof body.line === "number" && body.line > 0 ? body.line - 1 : frames[0]?.line ?? 0;
+    const line = typeof body.line === "number" && body.line > 0 ? fromDapLine(body.line) : frames[0]?.line ?? 0;
     if (waitingForInput) {
       this.sinks.emit({
         type: "input",
@@ -405,7 +425,7 @@ var LocalCliDebugTransport = class {
       }
       frames.push({
         name: typeof frame.name === "string" ? frame.name : "Main",
-        line: frame.line - 1
+        line: fromDapLine(frame.line)
       });
     }
     return frames;
@@ -491,8 +511,11 @@ function formatDapError(message) {
   const body = message.body ?? {};
   return body.error?.format || message.message || "The CLI debug adapter rejected the request.";
 }
-function describe(error) {
-  return error instanceof Error ? error.message : String(error);
+
+// visual_studio_code_plugin/packages/smallbasic-vscode/src/playground/console-echo.ts
+function echoToConsole(controller, text) {
+  controller.appendConsole(text, 15, 0);
+  controller.mirrorToConsole(text);
 }
 
 // visual_studio_code_plugin/packages/smallbasic-playground-desktop/src/desktop-entry.ts
@@ -529,10 +552,7 @@ async function activateDesktopPlayground() {
         // Route protocol events through the shared notification path so the
         // CLI sessions drive the same status bar as the Web sessions.
         emit: (event) => context.notify(event),
-        onOutput: (text) => {
-          context.controller.appendConsole(text, 15, 0);
-          context.controller.mirrorToConsole(text);
-        }
+        onOutput: (text) => echoToConsole(context.controller, text)
       }))
     );
   }
@@ -587,7 +607,7 @@ var CliRunSession = class {
       controller.setSessionInputVisible(false);
       controller.setRunning(false);
       controller.setStatus("Failed");
-      controller.showRuntimeDiagnostics(describe2(error));
+      controller.showRuntimeDiagnostics(describeError(error));
     }
   }
   async stop() {
@@ -603,7 +623,7 @@ var CliRunSession = class {
       return;
     }
     void this.bridge.sendInput(this.info.sessionId, text).catch((error) => {
-      this.context.controller.showRuntimeDiagnostics(describe2(error));
+      this.context.controller.showRuntimeDiagnostics(describeError(error));
     });
   }
   /** First edit during a session terminates it (same rule as debugging). */
@@ -636,8 +656,7 @@ var CliRunSession = class {
     const controller = this.context.controller;
     switch (event.kind) {
       case "stdout":
-        controller.appendConsole(event.text, 15, 0);
-        controller.mirrorToConsole(event.text);
+        echoToConsole(controller, event.text);
         break;
       case "stderr":
         controller.appendConsole(event.text, 15, 0);
@@ -663,9 +682,6 @@ function sessionExitStatus(exitCode, stopped) {
 }
 function usesGraphics(source) {
   return /\b(GraphicsWindow|Shapes|Turtle)\s*[\.(]/i.test(source || "");
-}
-function describe2(error) {
-  return error instanceof Error ? error.message : String(error);
 }
 void activateDesktopPlayground();
 export {

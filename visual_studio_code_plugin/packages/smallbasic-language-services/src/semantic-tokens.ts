@@ -3,7 +3,9 @@ import {
   CompilerPosition,
   CompilerUtils,
   RuntimeLibraries,
-  TokenKind
+  TokenKind,
+  type FunctionDeclarationSyntax,
+  type SubModuleDeclarationSyntax
 } from "smallbasic-lang-core";
 import type { LanguageSemanticToken, LanguageSemanticTokenType } from "./protocol";
 
@@ -17,6 +19,8 @@ export const semanticTokenTypes: readonly LanguageSemanticTokenType[] = [
   "parameter",
   "variable"
 ] as const;
+
+const mainModuleName = "<Main>";
 
 const keywordKinds = new Set<TokenKind>([
   TokenKind.IfKeyword,
@@ -81,13 +85,48 @@ function mapTokenType(compilation: Compilation, kind: TokenKind, text: string, p
       if (CompilerUtils.lookupIgnoreCase(compilation.procedures, text) !== undefined) {
         return "function";
       }
-      if (compilation.parseTree.functions.some((func) =>
-        func.range.containsPosition(position)
-        && func.functionCommand.parameterTokens.some((parameter) => parameter.token.text.toLowerCase() === text.toLowerCase()))) {
+      if (isParameterOrLocal(compilation, text, position)) {
         return "parameter";
       }
       return "variable";
     default:
       return undefined;
   }
+}
+
+/**
+ * Reports whether the identifier at `position` names a procedure parameter, a
+ * procedure-level `Dim` local, or a `Dim`-declared global. Parameters and `Dim`
+ * variables share the local-variable color so that declarations and their
+ * usages are consistently highlighted.
+ */
+function isParameterOrLocal(compilation: Compilation, text: string, position: CompilerPosition): boolean {
+  const lowered = text.toLowerCase();
+
+  for (const subModule of compilation.parseTree.subModules as ReadonlyArray<SubModuleDeclarationSyntax>) {
+    if (subModule.range.containsPosition(position)
+      && moduleDeclaresName(compilation, subModule.subCommand.nameToken.token.text, lowered)) {
+      return true;
+    }
+  }
+
+  for (const func of compilation.parseTree.functions as ReadonlyArray<FunctionDeclarationSyntax>) {
+    if (func.range.containsPosition(position)
+      && moduleDeclaresName(compilation, func.functionCommand.nameToken.token.text, lowered)) {
+      return true;
+    }
+  }
+
+  const mainMetadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, mainModuleName);
+  return mainMetadata !== undefined && containsName(mainMetadata.globals, lowered);
+}
+
+function moduleDeclaresName(compilation: Compilation, moduleName: string, lowered: string): boolean {
+  const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, moduleName);
+  return metadata !== undefined
+    && (containsName(metadata.parameters, lowered) || containsName(metadata.locals, lowered));
+}
+
+function containsName(names: ReadonlyArray<string>, lowered: string): boolean {
+  return names.some((name) => name.toLowerCase() === lowered);
 }

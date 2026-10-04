@@ -11,6 +11,8 @@
  * Line conversions are centralised here: the web protocol is 0-based, DAP is
  * 1-based (both CLI adapters run with linesStartAt1).
  */
+import { describeError } from "../../smallbasic-vscode/src/common/errors";
+import { DEBUG_THREAD_ID, fromDapLine, toDapLine } from "../../smallbasic-vscode/src/debug/dap";
 import type { CliBackendId, DesktopBridge, SessionEvent, SessionStartInfo } from "./desktop-bridge";
 import type {
   DebugCommand,
@@ -119,7 +121,7 @@ export class LocalCliDebugTransport implements DebugTransport {
       }
     } catch (error) {
       if (!this.disposed) {
-        this.sinks.emit({ type: "error", message: describe(error) });
+        this.sinks.emit({ type: "error", message: describeError(error) });
       }
     }
   }
@@ -151,8 +153,8 @@ export class LocalCliDebugTransport implements DebugTransport {
   private async setBreakpoints(breakpoints: readonly number[]): Promise<void> {
     const body = await this.request("setBreakpoints", {
       source: { name: this.programName, path: this.session?.programPath ?? this.programName },
-      lines: breakpoints.map((line) => line + 1),
-      breakpoints: breakpoints.map((line) => ({ line: line + 1 }))
+      lines: breakpoints.map(toDapLine),
+      breakpoints: breakpoints.map((line) => ({ line: toDapLine(line) }))
     });
 
     const declared = Array.isArray((body as { breakpoints?: unknown }).breakpoints)
@@ -160,7 +162,7 @@ export class LocalCliDebugTransport implements DebugTransport {
       : [];
     const validated = declared
       .filter((item) => item.verified === true && typeof item.line === "number")
-      .map((item) => (item.line as number) - 1);
+      .map((item) => fromDapLine(item.line as number));
     if (validated.length > 0) {
       this.sinks.emit({ type: "breakpointsValidated", breakpoints: validated });
     }
@@ -190,19 +192,19 @@ export class LocalCliDebugTransport implements DebugTransport {
     void depth;
     switch (control) {
       case "pause":
-        await this.request("pause", { threadId: 1 });
+        await this.request("pause", { threadId: DEBUG_THREAD_ID });
         break;
       case "continue":
-        await this.request("continue", { threadId: 1 });
+        await this.request("continue", { threadId: DEBUG_THREAD_ID });
         break;
       case "next":
-        await this.request("next", { threadId: 1 });
+        await this.request("next", { threadId: DEBUG_THREAD_ID });
         break;
       case "stepIn":
-        await this.request("stepIn", { threadId: 1 });
+        await this.request("stepIn", { threadId: DEBUG_THREAD_ID });
         break;
       case "stepOut":
-        await this.request("stepOut", { threadId: 1 });
+        await this.request("stepOut", { threadId: DEBUG_THREAD_ID });
         break;
     }
   }
@@ -264,7 +266,7 @@ export class LocalCliDebugTransport implements DebugTransport {
       case "breakpoint": {
         const breakpoint = (body.breakpoint ?? {}) as Record<string, unknown>;
         if (breakpoint.verified === true && typeof breakpoint.line === "number" && breakpoint.line > 0) {
-          this.sinks.emit({ type: "breakpointsValidated", breakpoints: [breakpoint.line - 1] });
+          this.sinks.emit({ type: "breakpointsValidated", breakpoints: [fromDapLine(breakpoint.line)] });
         }
         break;
       }
@@ -289,7 +291,7 @@ export class LocalCliDebugTransport implements DebugTransport {
     let frames: DebugStackFrame[] = [];
     let variables: DebugVariable[] = [];
     try {
-      const stack = await this.request("stackTrace", { threadId: 1, levels: 20 });
+      const stack = await this.request("stackTrace", { threadId: DEBUG_THREAD_ID, levels: 20 });
       frames = this.toFrames(stack);
       variables = await this.collectVariables(frames);
     } catch {
@@ -297,7 +299,7 @@ export class LocalCliDebugTransport implements DebugTransport {
     }
 
     const line = typeof body.line === "number" && body.line > 0
-      ? body.line - 1
+      ? fromDapLine(body.line)
       : frames[0]?.line ?? 0;
 
     if (waitingForInput) {
@@ -331,7 +333,7 @@ export class LocalCliDebugTransport implements DebugTransport {
 
       frames.push({
         name: typeof frame.name === "string" ? frame.name : "Main",
-        line: frame.line - 1
+        line: fromDapLine(frame.line)
       });
     }
     return frames;
@@ -434,8 +436,4 @@ export class LocalCliDebugTransport implements DebugTransport {
 function formatDapError(message: DapMessage): string {
   const body = (message.body ?? {}) as { error?: { format?: string } };
   return body.error?.format || message.message || "The CLI debug adapter rejected the request.";
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }

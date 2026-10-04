@@ -11,11 +11,17 @@ import {
   Thread
 } from "@vscode/debugadapter";
 import { DebugProtocol } from "@vscode/debugprotocol";
+import {
+  conditionCompileFailedMessage,
+  DEBUG_THREAD_ID,
+  evaluateFailedMessage,
+  fromDapLine,
+  rawStoppedEvent,
+  toDapLine
+} from "../debug/dap";
 import type { DebugSourceAccessor } from "../debug/session";
 import type { WebDebugEvent, WebDebugFrame, WebDebugVariable } from "./debug-protocol";
 import type { WebDebugSessionBroker } from "./debug-broker";
-
-const THREAD_ID = 1;
 
 export type WebviewDebugBackend = "javascript" | "blazor";
 
@@ -98,10 +104,10 @@ export class WebviewDebugSession extends LoggingDebugSession {
   ): Promise<void> {
     const requested = args.breakpoints
       ? args.breakpoints.map((breakpoint) => ({
-          line: Math.max(0, breakpoint.line - 1),
+          line: Math.max(0, fromDapLine(breakpoint.line)),
           condition: breakpoint.condition?.trim() || undefined
         }))
-      : (args.lines ?? []).map((line) => ({ line: Math.max(0, line - 1), condition: undefined }));
+      : (args.lines ?? []).map((line) => ({ line: Math.max(0, fromDapLine(line)), condition: undefined }));
 
     try {
       const validated = await this.broker.setBreakpoints(
@@ -114,11 +120,11 @@ export class WebviewDebugSession extends LoggingDebugSession {
           const actual = validated.find((candidate) => candidate >= entry.line);
           const result: DebugProtocol.Breakpoint = {
             verified: actual !== undefined,
-            line: (actual ?? entry.line) + 1
+            line: toDapLine(actual ?? entry.line)
           };
           if (actual === undefined) {
             result.message = entry.condition
-              ? `无法编译条件: ${entry.condition}`
+              ? conditionCompileFailedMessage(entry.condition)
               : "该行及之后没有可执行的 Small Basic 语句。";
           }
 
@@ -127,7 +133,7 @@ export class WebviewDebugSession extends LoggingDebugSession {
       };
     } catch (error) {
       response.body = {
-        breakpoints: requested.map((entry) => ({ verified: false, line: entry.line + 1 }))
+        breakpoints: requested.map((entry) => ({ verified: false, line: toDapLine(entry.line) }))
       };
       this.emitDiagnostic(error);
     }
@@ -145,7 +151,7 @@ export class WebviewDebugSession extends LoggingDebugSession {
 
   protected override threadsRequest(response: DebugProtocol.ThreadsResponse): void {
     response.body = {
-      threads: [new Thread(THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
+      threads: [new Thread(DEBUG_THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
     };
     this.sendResponse(response);
   }
@@ -160,7 +166,7 @@ export class WebviewDebugSession extends LoggingDebugSession {
       : snapshot ? [{ name: "Program", line: snapshot.line }] : [];
     const frames = rawFrames.map((frame, index) => {
       const source = new Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new StackFrame(index + 1, frame.name || "Program", source, frame.line + 1, 1);
+      return new StackFrame(index + 1, frame.name || "Program", source, toDapLine(frame.line), 1);
     });
 
     response.body = { stackFrames: frames, totalFrames: frames.length };
@@ -259,7 +265,7 @@ export class WebviewDebugSession extends LoggingDebugSession {
       return;
     }
 
-    this.sendErrorResponse(response, 2002, `无法计算表达式: ${expression}`);
+    this.sendErrorResponse(response, 2002, evaluateFailedMessage(expression));
   }
 
   protected override async disconnectRequest(
@@ -314,18 +320,7 @@ export class WebviewDebugSession extends LoggingDebugSession {
    * waits. Sending the raw event keeps every adapter consistent.
    */
   private sendStopped(reason: string, description?: string): void {
-    const stopped: DebugProtocol.StoppedEvent = {
-      seq: 0,
-      type: "event",
-      event: "stopped",
-      body: {
-        reason,
-        threadId: THREAD_ID,
-        allThreadsStopped: true,
-        ...(description ? { description } : {})
-      }
-    };
-    this.sendEvent(stopped);
+    this.sendEvent(rawStoppedEvent(reason, description));
   }
 
   private resetVariableHandles(): void {

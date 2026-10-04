@@ -4,6 +4,7 @@ using SmallBasic.Blazor.RunHost.Debug;
 using SmallBasic.Blazor.RunHost.Hosting;
 using SmallBasic.Compiler;
 using SmallBasic.Compiler.Runtime;
+using SmallBasic.RunHost;
 using SmallBasic.RunHost.Libraries;
 
 CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
@@ -100,40 +101,21 @@ static async Task<int> RunInConsoleAsync(SmallBasicCompilation compilation, bool
     var engine = new SmallBasicEngine(compilation, libraries) { Mode = ExecutionMode.RunToEnd };
     try
     {
-        while (true)
+        await EngineRunLoop.RunAsync(
+            engine,
+            _ => Console.In.ReadLineAsync(),
+            line => libraries.TextWindow.SetPendingInput(line));
+        if (pauseOnExit)
         {
-            switch (engine.State)
+            Console.WriteLine();
+            Console.WriteLine("按任意键继续...");
+            if (!Console.IsInputRedirected)
             {
-                case ExecutionState.Running:
-                    await engine.Execute();
-                    if (engine.State == ExecutionState.Running)
-                    {
-                        await Task.Delay(10);
-                    }
-
-                    break;
-                case ExecutionState.BlockedOnStringInput:
-                case ExecutionState.BlockedOnNumberInput:
-                    libraries.TextWindow.SetPendingInput(await Console.In.ReadLineAsync() ?? string.Empty);
-                    engine.InputReceived();
-                    break;
-                case ExecutionState.Paused:
-                    engine.Continue();
-                    break;
-                case ExecutionState.Terminated:
-                    if (pauseOnExit)
-                    {
-                        Console.WriteLine();
-                        Console.WriteLine("按任意键继续...");
-                        if (!Console.IsInputRedirected)
-                        {
-                            Console.ReadKey(true);
-                        }
-                    }
-
-                    return 0;
+                Console.ReadKey(true);
             }
         }
+
+        return 0;
     }
     catch (Exception ex)
     {

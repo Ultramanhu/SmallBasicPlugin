@@ -230,7 +230,16 @@ export class StatementBinder {
             case BoundKind.SubModuleInvocationExpression: {
                 const call = expression as BoundSubModuleInvocationExpression;
                 if (!call.returnsValue) {
-                    return new BoundSubModuleInvocationStatement(call.subModuleName, syntax);
+                    return new BoundSubModuleInvocationStatement(call.subModuleName, call.argumentsList, syntax);
+                }
+                break;
+            }
+
+            case BoundKind.SubModuleExpression: {
+                const reference = expression as BoundSubModuleExpression;
+                // A no-argument Sub may be called without parentheses.
+                if (!reference.returnsValue && reference.parameters.length === 0) {
+                    return new BoundSubModuleInvocationStatement(reference.subModuleName, [], syntax);
                 }
                 break;
             }

@@ -105,7 +105,17 @@ export function collectOutlineSymbols(compilation: Compilation): OutlineSymbol[]
   registerScope(compilation.parseTree.mainModule, -1);
   subModules.forEach((subModule: SubModuleDeclarationSyntax, index: number) => {
     const metadata = CompilerUtils.lookupIgnoreCase(compilation.moduleMetadata, subModule.subCommand.nameToken.token.text);
-    registerScope(subModule.statementsList, index, new Set((metadata?.locals ?? []).map((name) => name.toLowerCase())));
+    const localNames = new Set([
+      ...(metadata?.parameters ?? []),
+      ...(metadata?.locals ?? [])
+    ].map((name) => name.toLowerCase()));
+    for (const parameter of subModule.subCommand.parameterTokens) {
+      const key = `${index}:${parameter.token.text.toLowerCase()}`;
+      if (!firstUses.has(key)) {
+        firstUses.set(key, { name: parameter.token.text, range: parameter.range, scopeIndex: index });
+      }
+    }
+    registerScope(subModule.statementsList, index, localNames);
   });
   functions.forEach((func: FunctionDeclarationSyntax, index: number) => {
     const scopeIndex = subModules.length + index;
@@ -144,9 +154,12 @@ export function collectOutlineSymbols(compilation: Compilation): OutlineSymbol[]
 
   const procedures = subModules.map((subModule: SubModuleDeclarationSyntax, index: number): OutlineSymbol => {
     const nameToken = subModule.subCommand.nameToken;
+    const parameters = subModule.subCommand.parameterTokens;
     return {
       name: nameToken.token.text,
-      detail: `Sub ${nameToken.token.text}`,
+      detail: parameters.length
+        ? `Sub ${nameToken.token.text}(${parameters.map((parameter) => parameter.token.text).join(", ")})`
+        : `Sub ${nameToken.token.text}`,
       kind: "sub",
       range: subModule.range,
       selectionRange: nameToken.range,

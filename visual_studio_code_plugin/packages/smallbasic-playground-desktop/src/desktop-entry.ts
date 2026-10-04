@@ -17,6 +17,8 @@ import {
 } from "./desktop-bridge";
 import { resolveCliBackends, type CliBackendDescriptor } from "./backend-capabilities";
 import { LocalCliDebugTransport } from "./local-cli-debug-transport";
+import { describeError } from "../../smallbasic-vscode/src/common/errors";
+import { echoToConsole } from "../../smallbasic-vscode/src/playground/console-echo";
 import type {
   PlaygroundContext,
   PlaygroundGlobalApi,
@@ -58,10 +60,7 @@ export async function activateDesktopPlayground(): Promise<void> {
         // Route protocol events through the shared notification path so the
         // CLI sessions drive the same status bar as the Web sessions.
         emit: (event) => context.notify(event),
-        onOutput: (text) => {
-          context.controller.appendConsole(text, 15, 0);
-          context.controller.mirrorToConsole(text);
-        }
+        onOutput: (text) => echoToConsole(context.controller, text)
       }))
     );
   }
@@ -133,7 +132,7 @@ class CliRunSession {
       controller.setSessionInputVisible(false);
       controller.setRunning(false);
       controller.setStatus("Failed");
-      controller.showRuntimeDiagnostics(describe(error));
+      controller.showRuntimeDiagnostics(describeError(error));
     }
   }
 
@@ -153,7 +152,7 @@ class CliRunSession {
     }
 
     void this.bridge.sendInput(this.info.sessionId, text).catch((error: unknown) => {
-      this.context.controller.showRuntimeDiagnostics(describe(error));
+      this.context.controller.showRuntimeDiagnostics(describeError(error));
     });
   }
 
@@ -193,8 +192,7 @@ class CliRunSession {
     const controller = this.context.controller;
     switch (event.kind) {
       case "stdout":
-        controller.appendConsole(event.text, 15, 0);
-        controller.mirrorToConsole(event.text);
+        echoToConsole(controller, event.text);
         break;
       case "stderr":
         controller.appendConsole(event.text, 15, 0);
@@ -223,10 +221,6 @@ function sessionExitStatus(exitCode: number | null, stopped: boolean): string {
 
 function usesGraphics(source: string): boolean {
   return /\b(GraphicsWindow|Shapes|Turtle)\s*[\.(]/i.test(source || "");
-}
-
-function describe(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
 }
 
 void activateDesktopPlayground();

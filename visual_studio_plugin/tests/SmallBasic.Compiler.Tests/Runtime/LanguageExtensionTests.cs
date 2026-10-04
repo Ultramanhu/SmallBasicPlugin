@@ -104,11 +104,96 @@ observed = source[""changed""]").VerifyRealRuntime().ConfigureAwait(false);
         [InlineData("Function F(A)\nReturn A\nEndFunction\nx = F()", DiagnosticCode.UnexpectedArgumentsCount)]
         [InlineData("Function Math()\nReturn 1\nEndFunction", DiagnosticCode.ProcedureConflictsWithLibrary)]
         [InlineData("Sub Outer\nFunction Inner()\nReturn 1\nEndFunction\nEndSub", DiagnosticCode.CannotDefineProcedureInsideProcedure)]
+        [InlineData("Sub S(A, A)\nEndSub", DiagnosticCode.DuplicateParameter)]
+        [InlineData("Sub S(A)\nEndSub\nS(1, 2)", DiagnosticCode.UnexpectedArgumentsCount)]
         public void ItReportsInvalidFunctionAndScopeUsage(string source, DiagnosticCode expected)
         {
             var compilation = new SmallBasicCompilation(source);
 
             compilation.Diagnostics.Select(diagnostic => diagnostic.Code).Should().Contain(expected);
+        }
+
+        [Fact]
+        public async Task ItExecutesSubroutinesWithParameters()
+        {
+            SmallBasicEngine engine = await new SmallBasicCompilation(@"
+Sub Accumulate(Value)
+  Dim Doubled
+  Doubled = Value * 2
+  Total = Total + Doubled
+EndSub
+
+Total = 0
+Accumulate(3)
+Accumulate(4)").VerifyRealRuntime().ConfigureAwait(false);
+
+            DebuggerSnapshot snapshot = engine.GetSnapshot();
+            snapshot.Memory["Total"].ToDisplayString().Should().Be("14");
+            snapshot.Memory.Keys.Should().NotContain(new[] { "Value", "Doubled" });
+        }
+
+        [Fact]
+        public async Task ItCallsNoArgumentProceduresWithoutParentheses()
+        {
+            SmallBasicEngine engine = await new SmallBasicCompilation(@"
+Counter = 0
+Sub Increment
+  Counter = Counter + 1
+EndSub
+
+Function Answer
+  Return 42
+EndFunction
+
+Increment
+Increment()
+result = Answer").VerifyRealRuntime().ConfigureAwait(false);
+
+            DebuggerSnapshot snapshot = engine.GetSnapshot();
+            snapshot.Memory["Counter"].ToDisplayString().Should().Be("2");
+            snapshot.Memory["result"].ToDisplayString().Should().Be("42");
+        }
+
+        [Fact]
+        public async Task ItAcceptsEmptyParenthesesOnProcedureDeclarations()
+        {
+            SmallBasicEngine engine = await new SmallBasicCompilation(@"
+Sub Ping()
+  Pinged = ""yes""
+EndSub
+
+Function Zero()
+  Return 0
+EndFunction
+
+Ping()
+result = Zero()").VerifyRealRuntime().ConfigureAwait(false);
+
+            DebuggerSnapshot snapshot = engine.GetSnapshot();
+            snapshot.Memory["Pinged"].ToDisplayString().Should().Be("yes");
+            snapshot.Memory["result"].ToDisplayString().Should().Be("0");
+        }
+
+        [Fact]
+        public void ItProvidesSubroutineCompletionSignatureAndOutlineInformation()
+        {
+            string source = "Sub Show(Value)\n  Dim Copy\n  Copy = Value\nEndSub\nSho";
+            var compilation = new SmallBasicCompilation(source);
+
+            MonacoCompletionItem completion = compilation.ProvideCompletionItems((4, 3))
+                .Single(item => item.label == "Show(Value)");
+            completion.insertText.value.Should().Be("Show(${1:Value})");
+
+            SignatureHelp signature = SignatureHelpProvider.Provide(
+                "Sub Show(Value)\n  Dim Copy\n  Copy = Value\nEndSub\nShow(",
+                (4, 5));
+            signature.Signatures.Single().Label.Should().Be("Show(Value)");
+            signature.ActiveParameter.Should().Be(0);
+
+            OutlineItem sub = compilation.GetOutlineItems().Single(item => item.Name == "Show");
+            sub.Kind.Should().Be(OutlineItemKind.Procedure);
+            sub.Detail.Should().Be("Sub Show(Value)");
+            sub.Children.Select(child => child.Name).Should().Equal("Value", "Copy");
         }
 
         [Fact]
