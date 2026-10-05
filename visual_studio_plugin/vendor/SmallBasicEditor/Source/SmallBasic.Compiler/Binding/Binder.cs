@@ -1,4 +1,4 @@
-﻿// <copyright file="Binder.cs" company="MIT License">
+// <copyright file="Binder.cs" company="MIT License">
 // Licensed under the MIT License. See LICENSE file in the project root for license information.
 // </copyright>
 
@@ -20,6 +20,8 @@ namespace SmallBasic.Compiler.Binding
         private readonly IReadOnlyDictionary<string, ProcedureSymbol> definedProcedures;
 
         private bool currentReturnsValue;
+
+        private int loopDepth;
 
         public Binder(StatementBlockSyntax syntaxTree, DiagnosticBag diagnostics, bool isRunningOnDesktop)
         {
@@ -206,6 +208,7 @@ namespace SmallBasic.Compiler.Binding
                 case IfStatementSyntax ifStatement: return this.BindIfStatement(ifStatement);
                 case WhileStatementSyntax whileStatement: return this.BindWhileStatement(whileStatement);
                 case ForStatementSyntax forStatement: return this.BindForStatement(forStatement);
+                case LoopControlStatementSyntax loopControlStatement: return this.BindLoopControlStatement(loopControlStatement);
                 case ExpressionStatementSyntax expressionStatement: return this.BindExpressionStatement(expressionStatement);
                 case ReturnStatementSyntax returnStatement: return this.BindReturnStatement(returnStatement);
 
@@ -278,9 +281,46 @@ namespace SmallBasic.Compiler.Binding
         private BoundWhileStatement BindWhileStatement(WhileStatementSyntax syntax)
         {
             BaseBoundExpression expression = this.BindExpression(syntax.Condition);
-            BoundStatementBlock body = this.BindStatementBlock(syntax.Body);
+            BoundStatementBlock body = this.BindLoopBody(syntax.Body);
 
             return new BoundWhileStatement(syntax, expression, body);
+        }
+
+        private BoundLoopControlStatement BindLoopControlStatement(LoopControlStatementSyntax syntax)
+        {
+            if (this.loopDepth == 0)
+            {
+                if (syntax.ControlToken.Kind == TokenKind.Break)
+                {
+                    this.diagnostics.ReportBreakOutsideLoop(syntax.ControlToken.Range);
+                }
+                else
+                {
+                    this.diagnostics.ReportContinueOutsideLoop(syntax.ControlToken.Range);
+                }
+            }
+
+            return new BoundLoopControlStatement(syntax, syntax.ControlToken.Kind);
+        }
+
+        /// <summary>
+        /// Binds the body of a <c>While</c>/<c>For</c> loop. The loop counter is
+        /// what lets <c>Break</c>/<c>Continue</c> know whether they are nested
+        /// inside a loop at all; it is scoped to the loop body so that a
+        /// <c>Break</c> in a procedure that merely follows a loop is still
+        /// reported as being outside of a loop.
+        /// </summary>
+        private BoundStatementBlock BindLoopBody(StatementBlockSyntax syntax)
+        {
+            this.loopDepth++;
+            try
+            {
+                return this.BindStatementBlock(syntax);
+            }
+            finally
+            {
+                this.loopDepth--;
+            }
         }
 
         private BoundForStatement BindForStatement(ForStatementSyntax syntax)
@@ -296,7 +336,7 @@ namespace SmallBasic.Compiler.Binding
                 stepExpression = this.BindExpression(syntax.StepClauseOpt.Expression);
             }
 
-            BoundStatementBlock body = this.BindStatementBlock(syntax.Body);
+            BoundStatementBlock body = this.BindLoopBody(syntax.Body);
 
             return new BoundForStatement(syntax, identifier, fromExpression, toExpression, stepExpression, body);
         }
@@ -475,6 +515,8 @@ namespace SmallBasic.Compiler.Binding
                 case TokenKind.Minus:
                 case TokenKind.Multiply:
                 case TokenKind.Divide:
+                case TokenKind.Backslash:
+                case TokenKind.Mod:
                     return new BoundBinaryExpression(syntax, hasValue: true, left.HasErrors || right.HasErrors, syntax.OperatorToken.Kind, left, right);
                 default:
                     throw ExceptionUtilities.UnexpectedValue(syntax.OperatorToken.Kind);

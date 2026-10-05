@@ -340,27 +340,29 @@
     SyntaxKind3[SyntaxKind3["EndForCommand"] = 14] = "EndForCommand";
     SyntaxKind3[SyntaxKind3["WhileCommand"] = 15] = "WhileCommand";
     SyntaxKind3[SyntaxKind3["EndWhileCommand"] = 16] = "EndWhileCommand";
-    SyntaxKind3[SyntaxKind3["LabelCommand"] = 17] = "LabelCommand";
-    SyntaxKind3[SyntaxKind3["GoToCommand"] = 18] = "GoToCommand";
-    SyntaxKind3[SyntaxKind3["SubCommand"] = 19] = "SubCommand";
-    SyntaxKind3[SyntaxKind3["EndSubCommand"] = 20] = "EndSubCommand";
-    SyntaxKind3[SyntaxKind3["FunctionCommand"] = 21] = "FunctionCommand";
-    SyntaxKind3[SyntaxKind3["EndFunctionCommand"] = 22] = "EndFunctionCommand";
-    SyntaxKind3[SyntaxKind3["DimCommand"] = 23] = "DimCommand";
-    SyntaxKind3[SyntaxKind3["ReturnCommand"] = 24] = "ReturnCommand";
-    SyntaxKind3[SyntaxKind3["ExpressionCommand"] = 25] = "ExpressionCommand";
-    SyntaxKind3[SyntaxKind3["CommentCommand"] = 26] = "CommentCommand";
-    SyntaxKind3[SyntaxKind3["UnaryOperatorExpression"] = 27] = "UnaryOperatorExpression";
-    SyntaxKind3[SyntaxKind3["BinaryOperatorExpression"] = 28] = "BinaryOperatorExpression";
-    SyntaxKind3[SyntaxKind3["ObjectAccessExpression"] = 29] = "ObjectAccessExpression";
-    SyntaxKind3[SyntaxKind3["ArrayAccessExpression"] = 30] = "ArrayAccessExpression";
-    SyntaxKind3[SyntaxKind3["Argument"] = 31] = "Argument";
-    SyntaxKind3[SyntaxKind3["InvocationExpression"] = 32] = "InvocationExpression";
-    SyntaxKind3[SyntaxKind3["ParenthesisExpression"] = 33] = "ParenthesisExpression";
-    SyntaxKind3[SyntaxKind3["IdentifierExpression"] = 34] = "IdentifierExpression";
-    SyntaxKind3[SyntaxKind3["NumberLiteralExpression"] = 35] = "NumberLiteralExpression";
-    SyntaxKind3[SyntaxKind3["StringLiteralExpression"] = 36] = "StringLiteralExpression";
-    SyntaxKind3[SyntaxKind3["Token"] = 37] = "Token";
+    SyntaxKind3[SyntaxKind3["BreakCommand"] = 17] = "BreakCommand";
+    SyntaxKind3[SyntaxKind3["ContinueCommand"] = 18] = "ContinueCommand";
+    SyntaxKind3[SyntaxKind3["LabelCommand"] = 19] = "LabelCommand";
+    SyntaxKind3[SyntaxKind3["GoToCommand"] = 20] = "GoToCommand";
+    SyntaxKind3[SyntaxKind3["SubCommand"] = 21] = "SubCommand";
+    SyntaxKind3[SyntaxKind3["EndSubCommand"] = 22] = "EndSubCommand";
+    SyntaxKind3[SyntaxKind3["FunctionCommand"] = 23] = "FunctionCommand";
+    SyntaxKind3[SyntaxKind3["EndFunctionCommand"] = 24] = "EndFunctionCommand";
+    SyntaxKind3[SyntaxKind3["DimCommand"] = 25] = "DimCommand";
+    SyntaxKind3[SyntaxKind3["ReturnCommand"] = 26] = "ReturnCommand";
+    SyntaxKind3[SyntaxKind3["ExpressionCommand"] = 27] = "ExpressionCommand";
+    SyntaxKind3[SyntaxKind3["CommentCommand"] = 28] = "CommentCommand";
+    SyntaxKind3[SyntaxKind3["UnaryOperatorExpression"] = 29] = "UnaryOperatorExpression";
+    SyntaxKind3[SyntaxKind3["BinaryOperatorExpression"] = 30] = "BinaryOperatorExpression";
+    SyntaxKind3[SyntaxKind3["ObjectAccessExpression"] = 31] = "ObjectAccessExpression";
+    SyntaxKind3[SyntaxKind3["ArrayAccessExpression"] = 32] = "ArrayAccessExpression";
+    SyntaxKind3[SyntaxKind3["Argument"] = 33] = "Argument";
+    SyntaxKind3[SyntaxKind3["InvocationExpression"] = 34] = "InvocationExpression";
+    SyntaxKind3[SyntaxKind3["ParenthesisExpression"] = 35] = "ParenthesisExpression";
+    SyntaxKind3[SyntaxKind3["IdentifierExpression"] = 36] = "IdentifierExpression";
+    SyntaxKind3[SyntaxKind3["NumberLiteralExpression"] = 37] = "NumberLiteralExpression";
+    SyntaxKind3[SyntaxKind3["StringLiteralExpression"] = 38] = "StringLiteralExpression";
+    SyntaxKind3[SyntaxKind3["Token"] = 39] = "Token";
     return SyntaxKind3;
   })(SyntaxKind || {});
   var BaseSyntaxNode = class {
@@ -627,9 +629,29 @@
       return [this.endWhileToken];
     }
   };
+  var BreakCommandSyntax = class extends BaseCommandSyntax {
+    constructor(breakToken) {
+      super(17 /* BreakCommand */, breakToken.range);
+      this.breakToken = breakToken;
+    }
+    breakToken;
+    children() {
+      return [this.breakToken];
+    }
+  };
+  var ContinueCommandSyntax = class extends BaseCommandSyntax {
+    constructor(continueToken) {
+      super(18 /* ContinueCommand */, continueToken.range);
+      this.continueToken = continueToken;
+    }
+    continueToken;
+    children() {
+      return [this.continueToken];
+    }
+  };
   var LabelCommandSyntax = class extends BaseCommandSyntax {
     constructor(labelToken, colonToken) {
-      super(17 /* LabelCommand */, CompilerRange.combine(labelToken.range, colonToken.range));
+      super(19 /* LabelCommand */, CompilerRange.combine(labelToken.range, colonToken.range));
       this.labelToken = labelToken;
       this.colonToken = colonToken;
     }
@@ -641,7 +663,7 @@
   };
   var GoToCommandSyntax = class extends BaseCommandSyntax {
     constructor(goToToken, labelToken) {
-      super(18 /* GoToCommand */, CompilerRange.combine(goToToken.range, labelToken.range));
+      super(20 /* GoToCommand */, CompilerRange.combine(goToToken.range, labelToken.range));
       this.goToToken = goToToken;
       this.labelToken = labelToken;
     }
@@ -653,7 +675,7 @@
   };
   var SubCommandSyntax = class extends BaseCommandSyntax {
     constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-      super(19 /* SubCommand */, CompilerRange.combine(
+      super(21 /* SubCommand */, CompilerRange.combine(
         subToken.range,
         parameterListEndRange(nameToken, parameterTokens, rightParenToken)
       ));
@@ -689,7 +711,7 @@
   };
   var EndSubCommandSyntax = class extends BaseCommandSyntax {
     constructor(endSubToken) {
-      super(20 /* EndSubCommand */, endSubToken.range);
+      super(22 /* EndSubCommand */, endSubToken.range);
       this.endSubToken = endSubToken;
     }
     endSubToken;
@@ -699,7 +721,7 @@
   };
   var FunctionCommandSyntax = class extends BaseCommandSyntax {
     constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-      super(21 /* FunctionCommand */, CompilerRange.combine(
+      super(23 /* FunctionCommand */, CompilerRange.combine(
         functionToken.range,
         parameterListEndRange(nameToken, parameterTokens, rightParenToken)
       ));
@@ -735,7 +757,7 @@
   };
   var EndFunctionCommandSyntax = class extends BaseCommandSyntax {
     constructor(endFunctionToken) {
-      super(22 /* EndFunctionCommand */, endFunctionToken.range);
+      super(24 /* EndFunctionCommand */, endFunctionToken.range);
       this.endFunctionToken = endFunctionToken;
     }
     endFunctionToken;
@@ -745,7 +767,7 @@
   };
   var DimCommandSyntax = class extends BaseCommandSyntax {
     constructor(dimToken, variableTokens, commaTokens) {
-      super(23 /* DimCommand */, variableTokens.length ? CompilerRange.combine(dimToken.range, variableTokens[variableTokens.length - 1].range) : dimToken.range);
+      super(25 /* DimCommand */, variableTokens.length ? CompilerRange.combine(dimToken.range, variableTokens[variableTokens.length - 1].range) : dimToken.range);
       this.dimToken = dimToken;
       this.variableTokens = variableTokens;
       this.commaTokens = commaTokens;
@@ -766,7 +788,7 @@
   };
   var ReturnCommandSyntax = class extends BaseCommandSyntax {
     constructor(returnToken, expression) {
-      super(24 /* ReturnCommand */, CompilerRange.combine(returnToken.range, expression.range));
+      super(26 /* ReturnCommand */, CompilerRange.combine(returnToken.range, expression.range));
       this.returnToken = returnToken;
       this.expression = expression;
     }
@@ -778,7 +800,7 @@
   };
   var ExpressionCommandSyntax = class extends BaseCommandSyntax {
     constructor(expression) {
-      super(25 /* ExpressionCommand */, expression.range);
+      super(27 /* ExpressionCommand */, expression.range);
       this.expression = expression;
     }
     expression;
@@ -788,7 +810,7 @@
   };
   var CommentCommandSyntax = class extends BaseCommandSyntax {
     constructor(commentToken) {
-      super(26 /* CommentCommand */, commentToken.range);
+      super(28 /* CommentCommand */, commentToken.range);
       this.commentToken = commentToken;
     }
     commentToken;
@@ -815,7 +837,7 @@
   };
   var UnaryOperatorExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(operatorToken, expression) {
-      super(27 /* UnaryOperatorExpression */, CompilerRange.combine(operatorToken.range, expression.range));
+      super(29 /* UnaryOperatorExpression */, CompilerRange.combine(operatorToken.range, expression.range));
       this.operatorToken = operatorToken;
       this.expression = expression;
     }
@@ -827,7 +849,7 @@
   };
   var BinaryOperatorExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(leftExpression, operatorToken, rightExpression) {
-      super(28 /* BinaryOperatorExpression */, CompilerRange.combine(leftExpression.range, rightExpression.range));
+      super(30 /* BinaryOperatorExpression */, CompilerRange.combine(leftExpression.range, rightExpression.range));
       this.leftExpression = leftExpression;
       this.operatorToken = operatorToken;
       this.rightExpression = rightExpression;
@@ -841,7 +863,7 @@
   };
   var ObjectAccessExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(baseExpression, dotToken, identifierToken) {
-      super(29 /* ObjectAccessExpression */, CompilerRange.combine(baseExpression.range, identifierToken.range));
+      super(31 /* ObjectAccessExpression */, CompilerRange.combine(baseExpression.range, identifierToken.range));
       this.baseExpression = baseExpression;
       this.dotToken = dotToken;
       this.identifierToken = identifierToken;
@@ -855,7 +877,7 @@
   };
   var ArrayAccessExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(baseExpression, leftBracketToken, indexExpression, rightBracketToken) {
-      super(30 /* ArrayAccessExpression */, CompilerRange.combine(baseExpression.range, rightBracketToken.range));
+      super(32 /* ArrayAccessExpression */, CompilerRange.combine(baseExpression.range, rightBracketToken.range));
       this.baseExpression = baseExpression;
       this.leftBracketToken = leftBracketToken;
       this.indexExpression = indexExpression;
@@ -871,7 +893,7 @@
   };
   var ArgumentSyntax = class extends BaseSyntaxNode {
     constructor(expression, commaOpt) {
-      super(31 /* Argument */, commaOpt ? CompilerRange.combine(expression.range, commaOpt.range) : expression.range);
+      super(33 /* Argument */, commaOpt ? CompilerRange.combine(expression.range, commaOpt.range) : expression.range);
       this.expression = expression;
       this.commaOpt = commaOpt;
     }
@@ -883,7 +905,7 @@
   };
   var InvocationExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(baseExpression, leftParenToken, argumentsList, rightParenToken) {
-      super(32 /* InvocationExpression */, CompilerRange.combine(baseExpression.range, rightParenToken.range));
+      super(34 /* InvocationExpression */, CompilerRange.combine(baseExpression.range, rightParenToken.range));
       this.baseExpression = baseExpression;
       this.leftParenToken = leftParenToken;
       this.argumentsList = argumentsList;
@@ -899,7 +921,7 @@
   };
   var ParenthesisExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(leftParenToken, expression, rightParenToken) {
-      super(33 /* ParenthesisExpression */, CompilerRange.combine(leftParenToken.range, rightParenToken.range));
+      super(35 /* ParenthesisExpression */, CompilerRange.combine(leftParenToken.range, rightParenToken.range));
       this.leftParenToken = leftParenToken;
       this.expression = expression;
       this.rightParenToken = rightParenToken;
@@ -913,7 +935,7 @@
   };
   var IdentifierExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(identifierToken) {
-      super(34 /* IdentifierExpression */, identifierToken.range);
+      super(36 /* IdentifierExpression */, identifierToken.range);
       this.identifierToken = identifierToken;
     }
     identifierToken;
@@ -923,7 +945,7 @@
   };
   var StringLiteralExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(stringToken) {
-      super(36 /* StringLiteralExpression */, stringToken.range);
+      super(38 /* StringLiteralExpression */, stringToken.range);
       this.stringToken = stringToken;
     }
     stringToken;
@@ -933,7 +955,7 @@
   };
   var NumberLiteralExpressionSyntax = class extends BaseExpressionSyntax {
     constructor(numberToken) {
-      super(35 /* NumberLiteralExpression */, numberToken.range);
+      super(37 /* NumberLiteralExpression */, numberToken.range);
       this.numberToken = numberToken;
     }
     numberToken;
@@ -943,7 +965,7 @@
   };
   var TokenSyntax = class extends BaseSyntaxNode {
     constructor(token) {
-      super(37 /* Token */, token.range);
+      super(39 /* Token */, token.range);
       this.token = token;
     }
     token;
@@ -1005,67 +1027,73 @@
         case 16 /* EndWhileCommand */:
           this.visitEndWhileCommand(node);
           break;
-        case 17 /* LabelCommand */:
+        case 17 /* BreakCommand */:
+          this.visitBreakCommand(node);
+          break;
+        case 18 /* ContinueCommand */:
+          this.visitContinueCommand(node);
+          break;
+        case 19 /* LabelCommand */:
           this.visitLabelCommand(node);
           break;
-        case 18 /* GoToCommand */:
+        case 20 /* GoToCommand */:
           this.visitGoToCommand(node);
           break;
-        case 19 /* SubCommand */:
+        case 21 /* SubCommand */:
           this.visitSubCommand(node);
           break;
-        case 20 /* EndSubCommand */:
+        case 22 /* EndSubCommand */:
           this.visitEndSubCommand(node);
           break;
-        case 21 /* FunctionCommand */:
+        case 23 /* FunctionCommand */:
           this.visitFunctionCommand(node);
           break;
-        case 22 /* EndFunctionCommand */:
+        case 24 /* EndFunctionCommand */:
           this.visitEndFunctionCommand(node);
           break;
-        case 23 /* DimCommand */:
+        case 25 /* DimCommand */:
           this.visitDimCommand(node);
           break;
-        case 24 /* ReturnCommand */:
+        case 26 /* ReturnCommand */:
           this.visitReturnCommand(node);
           break;
-        case 25 /* ExpressionCommand */:
+        case 27 /* ExpressionCommand */:
           this.visitExpressionCommand(node);
           break;
-        case 26 /* CommentCommand */:
+        case 28 /* CommentCommand */:
           this.visitCommentCommand(node);
           break;
-        case 27 /* UnaryOperatorExpression */:
+        case 29 /* UnaryOperatorExpression */:
           this.visitUnaryOperatorExpression(node);
           break;
-        case 28 /* BinaryOperatorExpression */:
+        case 30 /* BinaryOperatorExpression */:
           this.visitBinaryOperatorExpression(node);
           break;
-        case 29 /* ObjectAccessExpression */:
+        case 31 /* ObjectAccessExpression */:
           this.visitObjectAccessExpression(node);
           break;
-        case 30 /* ArrayAccessExpression */:
+        case 32 /* ArrayAccessExpression */:
           this.visitArrayAccessExpression(node);
           break;
-        case 31 /* Argument */:
+        case 33 /* Argument */:
           this.visitArgument(node);
           break;
-        case 32 /* InvocationExpression */:
+        case 34 /* InvocationExpression */:
           this.visitInvocationExpression(node);
           break;
-        case 33 /* ParenthesisExpression */:
+        case 35 /* ParenthesisExpression */:
           this.visitParenthesisExpression(node);
           break;
-        case 34 /* IdentifierExpression */:
+        case 36 /* IdentifierExpression */:
           this.visitIdentifierExpression(node);
           break;
-        case 35 /* NumberLiteralExpression */:
+        case 37 /* NumberLiteralExpression */:
           this.visitNumberLiteralExpression(node);
           break;
-        case 36 /* StringLiteralExpression */:
+        case 38 /* StringLiteralExpression */:
           this.visitStringLiteralExpression(node);
           break;
-        case 37 /* Token */:
+        case 39 /* Token */:
           this.visitToken(node);
           break;
         default:
@@ -1121,6 +1149,12 @@
       this.defaultVisit(node);
     }
     visitEndWhileCommand(node) {
+      this.defaultVisit(node);
+    }
+    visitBreakCommand(node) {
+      this.defaultVisit(node);
+    }
+    visitContinueCommand(node) {
       this.defaultVisit(node);
     }
     visitLabelCommand(node) {
@@ -1206,35 +1240,39 @@
     TokenKind2[TokenKind2["GoToKeyword"] = 10] = "GoToKeyword";
     TokenKind2[TokenKind2["WhileKeyword"] = 11] = "WhileKeyword";
     TokenKind2[TokenKind2["EndWhileKeyword"] = 12] = "EndWhileKeyword";
-    TokenKind2[TokenKind2["SubKeyword"] = 13] = "SubKeyword";
-    TokenKind2[TokenKind2["EndSubKeyword"] = 14] = "EndSubKeyword";
-    TokenKind2[TokenKind2["FunctionKeyword"] = 15] = "FunctionKeyword";
-    TokenKind2[TokenKind2["EndFunctionKeyword"] = 16] = "EndFunctionKeyword";
-    TokenKind2[TokenKind2["DimKeyword"] = 17] = "DimKeyword";
-    TokenKind2[TokenKind2["ReturnKeyword"] = 18] = "ReturnKeyword";
-    TokenKind2[TokenKind2["Dot"] = 19] = "Dot";
-    TokenKind2[TokenKind2["RightParen"] = 20] = "RightParen";
-    TokenKind2[TokenKind2["LeftParen"] = 21] = "LeftParen";
-    TokenKind2[TokenKind2["RightSquareBracket"] = 22] = "RightSquareBracket";
-    TokenKind2[TokenKind2["LeftSquareBracket"] = 23] = "LeftSquareBracket";
-    TokenKind2[TokenKind2["Comma"] = 24] = "Comma";
-    TokenKind2[TokenKind2["Equal"] = 25] = "Equal";
-    TokenKind2[TokenKind2["NotEqual"] = 26] = "NotEqual";
-    TokenKind2[TokenKind2["Plus"] = 27] = "Plus";
-    TokenKind2[TokenKind2["Minus"] = 28] = "Minus";
-    TokenKind2[TokenKind2["Multiply"] = 29] = "Multiply";
-    TokenKind2[TokenKind2["Divide"] = 30] = "Divide";
-    TokenKind2[TokenKind2["Colon"] = 31] = "Colon";
-    TokenKind2[TokenKind2["LessThan"] = 32] = "LessThan";
-    TokenKind2[TokenKind2["GreaterThan"] = 33] = "GreaterThan";
-    TokenKind2[TokenKind2["LessThanOrEqual"] = 34] = "LessThanOrEqual";
-    TokenKind2[TokenKind2["GreaterThanOrEqual"] = 35] = "GreaterThanOrEqual";
-    TokenKind2[TokenKind2["Or"] = 36] = "Or";
-    TokenKind2[TokenKind2["And"] = 37] = "And";
-    TokenKind2[TokenKind2["Identifier"] = 38] = "Identifier";
-    TokenKind2[TokenKind2["NumberLiteral"] = 39] = "NumberLiteral";
-    TokenKind2[TokenKind2["StringLiteral"] = 40] = "StringLiteral";
-    TokenKind2[TokenKind2["Comment"] = 41] = "Comment";
+    TokenKind2[TokenKind2["BreakKeyword"] = 13] = "BreakKeyword";
+    TokenKind2[TokenKind2["ContinueKeyword"] = 14] = "ContinueKeyword";
+    TokenKind2[TokenKind2["SubKeyword"] = 15] = "SubKeyword";
+    TokenKind2[TokenKind2["EndSubKeyword"] = 16] = "EndSubKeyword";
+    TokenKind2[TokenKind2["FunctionKeyword"] = 17] = "FunctionKeyword";
+    TokenKind2[TokenKind2["EndFunctionKeyword"] = 18] = "EndFunctionKeyword";
+    TokenKind2[TokenKind2["DimKeyword"] = 19] = "DimKeyword";
+    TokenKind2[TokenKind2["ReturnKeyword"] = 20] = "ReturnKeyword";
+    TokenKind2[TokenKind2["Dot"] = 21] = "Dot";
+    TokenKind2[TokenKind2["RightParen"] = 22] = "RightParen";
+    TokenKind2[TokenKind2["LeftParen"] = 23] = "LeftParen";
+    TokenKind2[TokenKind2["RightSquareBracket"] = 24] = "RightSquareBracket";
+    TokenKind2[TokenKind2["LeftSquareBracket"] = 25] = "LeftSquareBracket";
+    TokenKind2[TokenKind2["Comma"] = 26] = "Comma";
+    TokenKind2[TokenKind2["Equal"] = 27] = "Equal";
+    TokenKind2[TokenKind2["NotEqual"] = 28] = "NotEqual";
+    TokenKind2[TokenKind2["Plus"] = 29] = "Plus";
+    TokenKind2[TokenKind2["Minus"] = 30] = "Minus";
+    TokenKind2[TokenKind2["Multiply"] = 31] = "Multiply";
+    TokenKind2[TokenKind2["Divide"] = 32] = "Divide";
+    TokenKind2[TokenKind2["Backslash"] = 33] = "Backslash";
+    TokenKind2[TokenKind2["Colon"] = 34] = "Colon";
+    TokenKind2[TokenKind2["LessThan"] = 35] = "LessThan";
+    TokenKind2[TokenKind2["GreaterThan"] = 36] = "GreaterThan";
+    TokenKind2[TokenKind2["LessThanOrEqual"] = 37] = "LessThanOrEqual";
+    TokenKind2[TokenKind2["GreaterThanOrEqual"] = 38] = "GreaterThanOrEqual";
+    TokenKind2[TokenKind2["Or"] = 39] = "Or";
+    TokenKind2[TokenKind2["And"] = 40] = "And";
+    TokenKind2[TokenKind2["Mod"] = 41] = "Mod";
+    TokenKind2[TokenKind2["Identifier"] = 42] = "Identifier";
+    TokenKind2[TokenKind2["NumberLiteral"] = 43] = "NumberLiteral";
+    TokenKind2[TokenKind2["StringLiteral"] = 44] = "StringLiteral";
+    TokenKind2[TokenKind2["Comment"] = 45] = "Comment";
     return TokenKind2;
   })(TokenKind || {});
   var Token = class {
@@ -1321,23 +1359,27 @@
           return tokenToDisplayString(11 /* WhileKeyword */);
         case 16 /* EndWhileCommand */:
           return tokenToDisplayString(12 /* EndWhileKeyword */);
-        case 17 /* LabelCommand */:
+        case 17 /* BreakCommand */:
+          return tokenToDisplayString(13 /* BreakKeyword */);
+        case 18 /* ContinueCommand */:
+          return tokenToDisplayString(14 /* ContinueKeyword */);
+        case 19 /* LabelCommand */:
           return CompilerResources.SyntaxNodes_Label;
-        case 18 /* GoToCommand */:
+        case 20 /* GoToCommand */:
           return tokenToDisplayString(10 /* GoToKeyword */);
-        case 19 /* SubCommand */:
-          return tokenToDisplayString(13 /* SubKeyword */);
-        case 20 /* EndSubCommand */:
-          return tokenToDisplayString(14 /* EndSubKeyword */);
-        case 21 /* FunctionCommand */:
-          return tokenToDisplayString(15 /* FunctionKeyword */);
-        case 22 /* EndFunctionCommand */:
-          return tokenToDisplayString(16 /* EndFunctionKeyword */);
-        case 23 /* DimCommand */:
-          return tokenToDisplayString(17 /* DimKeyword */);
-        case 24 /* ReturnCommand */:
-          return tokenToDisplayString(18 /* ReturnKeyword */);
-        case 25 /* ExpressionCommand */:
+        case 21 /* SubCommand */:
+          return tokenToDisplayString(15 /* SubKeyword */);
+        case 22 /* EndSubCommand */:
+          return tokenToDisplayString(16 /* EndSubKeyword */);
+        case 23 /* FunctionCommand */:
+          return tokenToDisplayString(17 /* FunctionKeyword */);
+        case 24 /* EndFunctionCommand */:
+          return tokenToDisplayString(18 /* EndFunctionKeyword */);
+        case 25 /* DimCommand */:
+          return tokenToDisplayString(19 /* DimKeyword */);
+        case 26 /* ReturnCommand */:
+          return tokenToDisplayString(20 /* ReturnKeyword */);
+        case 27 /* ExpressionCommand */:
           return CompilerResources.SyntaxNodes_Expression;
         default:
           throw new Error(`Unexpected syntax kind: ${SyntaxKind[kind]}`);
@@ -1370,63 +1412,71 @@
           return "While";
         case 12 /* EndWhileKeyword */:
           return "EndWhile";
-        case 13 /* SubKeyword */:
+        case 13 /* BreakKeyword */:
+          return "Break";
+        case 14 /* ContinueKeyword */:
+          return "Continue";
+        case 15 /* SubKeyword */:
           return "Sub";
-        case 14 /* EndSubKeyword */:
+        case 16 /* EndSubKeyword */:
           return "EndSub";
-        case 15 /* FunctionKeyword */:
+        case 17 /* FunctionKeyword */:
           return "Function";
-        case 16 /* EndFunctionKeyword */:
+        case 18 /* EndFunctionKeyword */:
           return "EndFunction";
-        case 17 /* DimKeyword */:
+        case 19 /* DimKeyword */:
           return "Dim";
-        case 18 /* ReturnKeyword */:
+        case 20 /* ReturnKeyword */:
           return "Return";
-        case 19 /* Dot */:
+        case 21 /* Dot */:
           return ".";
-        case 20 /* RightParen */:
+        case 22 /* RightParen */:
           return ")";
-        case 21 /* LeftParen */:
+        case 23 /* LeftParen */:
           return "(";
-        case 22 /* RightSquareBracket */:
+        case 24 /* RightSquareBracket */:
           return "]";
-        case 23 /* LeftSquareBracket */:
+        case 25 /* LeftSquareBracket */:
           return "[";
-        case 24 /* Comma */:
+        case 26 /* Comma */:
           return ",";
-        case 25 /* Equal */:
+        case 27 /* Equal */:
           return "=";
-        case 26 /* NotEqual */:
+        case 28 /* NotEqual */:
           return "<>";
-        case 27 /* Plus */:
+        case 29 /* Plus */:
           return "+";
-        case 28 /* Minus */:
+        case 30 /* Minus */:
           return "-";
-        case 29 /* Multiply */:
+        case 31 /* Multiply */:
           return "*";
-        case 30 /* Divide */:
+        case 32 /* Divide */:
           return "/";
-        case 31 /* Colon */:
+        case 33 /* Backslash */:
+          return "\\";
+        case 34 /* Colon */:
           return ":";
-        case 32 /* LessThan */:
+        case 35 /* LessThan */:
           return "<";
-        case 33 /* GreaterThan */:
+        case 36 /* GreaterThan */:
           return ">";
-        case 34 /* LessThanOrEqual */:
+        case 37 /* LessThanOrEqual */:
           return "<=";
-        case 35 /* GreaterThanOrEqual */:
+        case 38 /* GreaterThanOrEqual */:
           return ">=";
-        case 36 /* Or */:
+        case 39 /* Or */:
           return "Or";
-        case 37 /* And */:
+        case 40 /* And */:
           return "And";
-        case 38 /* Identifier */:
+        case 41 /* Mod */:
+          return "Mod";
+        case 42 /* Identifier */:
           return CompilerResources.SyntaxNodes_Identifier;
-        case 39 /* NumberLiteral */:
+        case 43 /* NumberLiteral */:
           return CompilerResources.SyntaxNodes_NumberLiteral;
-        case 40 /* StringLiteral */:
+        case 44 /* StringLiteral */:
           return CompilerResources.SyntaxNodes_StringLiteral;
-        case 41 /* Comment */:
+        case 45 /* Comment */:
           return CompilerResources.SyntaxNodes_Comment;
         default:
           throw new Error(`Unrecognized token kind: ${TokenKind[kind]}`);
@@ -1458,6 +1508,8 @@
     DiagnosticsResources2.DuplicateLocalVariable = "The local variable '{0}' is already declared in this procedure.";
     DiagnosticsResources2.DimMustBeAtProcedureLevel = "Dim declarations must be direct children of the program, Sub, or Function body.";
     DiagnosticsResources2.ReturnOutsideFunction = "Return can only be used inside a Function.";
+    DiagnosticsResources2.BreakOutsideLoop = "Break can only be used inside a While or For loop.";
+    DiagnosticsResources2.ContinueOutsideLoop = "Continue can only be used inside a While or For loop.";
     DiagnosticsResources2.FunctionCannotBeEventHandler = "A Function cannot be assigned as an event handler. Use a parameterless Sub instead.";
     DiagnosticsResources2.LabelDoesNotExist = "No label with the name '{0}' exists in the same module.";
     DiagnosticsResources2.UnassignedExpressionStatement = "This value is not assigned to anything. Did you mean to assign it to a variable?";
@@ -1506,24 +1558,26 @@
     ErrorCode2[ErrorCode2["DuplicateLocalVariable"] = 18] = "DuplicateLocalVariable";
     ErrorCode2[ErrorCode2["DimMustBeAtProcedureLevel"] = 19] = "DimMustBeAtProcedureLevel";
     ErrorCode2[ErrorCode2["ReturnOutsideFunction"] = 20] = "ReturnOutsideFunction";
-    ErrorCode2[ErrorCode2["FunctionCannotBeEventHandler"] = 21] = "FunctionCannotBeEventHandler";
-    ErrorCode2[ErrorCode2["LabelDoesNotExist"] = 22] = "LabelDoesNotExist";
-    ErrorCode2[ErrorCode2["UnassignedExpressionStatement"] = 23] = "UnassignedExpressionStatement";
-    ErrorCode2[ErrorCode2["InvalidExpressionStatement"] = 24] = "InvalidExpressionStatement";
-    ErrorCode2[ErrorCode2["UnexpectedVoid_ExpectingValue"] = 25] = "UnexpectedVoid_ExpectingValue";
-    ErrorCode2[ErrorCode2["UnsupportedArrayBaseExpression"] = 26] = "UnsupportedArrayBaseExpression";
-    ErrorCode2[ErrorCode2["UnsupportedCallBaseExpression"] = 27] = "UnsupportedCallBaseExpression";
-    ErrorCode2[ErrorCode2["UnexpectedArgumentsCount"] = 28] = "UnexpectedArgumentsCount";
-    ErrorCode2[ErrorCode2["PropertyHasNoSetter"] = 29] = "PropertyHasNoSetter";
-    ErrorCode2[ErrorCode2["AssigningNonSubModuleToEvent"] = 30] = "AssigningNonSubModuleToEvent";
-    ErrorCode2[ErrorCode2["UnsupportedDotBaseExpression"] = 31] = "UnsupportedDotBaseExpression";
-    ErrorCode2[ErrorCode2["LibraryMemberNotFound"] = 32] = "LibraryMemberNotFound";
-    ErrorCode2[ErrorCode2["ValueIsNotAssignable"] = 33] = "ValueIsNotAssignable";
-    ErrorCode2[ErrorCode2["CannotUseAnArrayAsAnIndexToAnotherArray"] = 34] = "CannotUseAnArrayAsAnIndexToAnotherArray";
-    ErrorCode2[ErrorCode2["CannotUseOperatorWithAnArray"] = 35] = "CannotUseOperatorWithAnArray";
-    ErrorCode2[ErrorCode2["CannotUseOperatorWithAString"] = 36] = "CannotUseOperatorWithAString";
-    ErrorCode2[ErrorCode2["CannotDivideByZero"] = 37] = "CannotDivideByZero";
-    ErrorCode2[ErrorCode2["PoppingAnEmptyStack"] = 38] = "PoppingAnEmptyStack";
+    ErrorCode2[ErrorCode2["BreakOutsideLoop"] = 21] = "BreakOutsideLoop";
+    ErrorCode2[ErrorCode2["ContinueOutsideLoop"] = 22] = "ContinueOutsideLoop";
+    ErrorCode2[ErrorCode2["FunctionCannotBeEventHandler"] = 23] = "FunctionCannotBeEventHandler";
+    ErrorCode2[ErrorCode2["LabelDoesNotExist"] = 24] = "LabelDoesNotExist";
+    ErrorCode2[ErrorCode2["UnassignedExpressionStatement"] = 25] = "UnassignedExpressionStatement";
+    ErrorCode2[ErrorCode2["InvalidExpressionStatement"] = 26] = "InvalidExpressionStatement";
+    ErrorCode2[ErrorCode2["UnexpectedVoid_ExpectingValue"] = 27] = "UnexpectedVoid_ExpectingValue";
+    ErrorCode2[ErrorCode2["UnsupportedArrayBaseExpression"] = 28] = "UnsupportedArrayBaseExpression";
+    ErrorCode2[ErrorCode2["UnsupportedCallBaseExpression"] = 29] = "UnsupportedCallBaseExpression";
+    ErrorCode2[ErrorCode2["UnexpectedArgumentsCount"] = 30] = "UnexpectedArgumentsCount";
+    ErrorCode2[ErrorCode2["PropertyHasNoSetter"] = 31] = "PropertyHasNoSetter";
+    ErrorCode2[ErrorCode2["AssigningNonSubModuleToEvent"] = 32] = "AssigningNonSubModuleToEvent";
+    ErrorCode2[ErrorCode2["UnsupportedDotBaseExpression"] = 33] = "UnsupportedDotBaseExpression";
+    ErrorCode2[ErrorCode2["LibraryMemberNotFound"] = 34] = "LibraryMemberNotFound";
+    ErrorCode2[ErrorCode2["ValueIsNotAssignable"] = 35] = "ValueIsNotAssignable";
+    ErrorCode2[ErrorCode2["CannotUseAnArrayAsAnIndexToAnotherArray"] = 36] = "CannotUseAnArrayAsAnIndexToAnotherArray";
+    ErrorCode2[ErrorCode2["CannotUseOperatorWithAnArray"] = 37] = "CannotUseOperatorWithAnArray";
+    ErrorCode2[ErrorCode2["CannotUseOperatorWithAString"] = 38] = "CannotUseOperatorWithAString";
+    ErrorCode2[ErrorCode2["CannotDivideByZero"] = 39] = "CannotDivideByZero";
+    ErrorCode2[ErrorCode2["PoppingAnEmptyStack"] = 40] = "PoppingAnEmptyStack";
     return ErrorCode2;
   })(ErrorCode || {});
   var Diagnostic = class {
@@ -1611,7 +1665,7 @@
         case 1 /* Number */:
           return new _NumberValue(this.value + other.value);
         case 2 /* Array */:
-          engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(27 /* Plus */)));
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Plus */)));
           return this;
         default:
           throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
@@ -1621,12 +1675,12 @@
       other = other.tryConvertToNumber();
       switch (other.kind) {
         case 0 /* String */:
-          engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(28 /* Minus */)));
+          engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
           return this;
         case 1 /* Number */:
           return new _NumberValue(this.value - other.value);
         case 2 /* Array */:
-          engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(28 /* Minus */)));
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
           return this;
         default:
           throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
@@ -1636,12 +1690,12 @@
       other = other.tryConvertToNumber();
       switch (other.kind) {
         case 0 /* String */:
-          engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Multiply */)));
+          engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
           return this;
         case 1 /* Number */:
           return new _NumberValue(this.value * other.value);
         case 2 /* Array */:
-          engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Multiply */)));
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
           return this;
         default:
           throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
@@ -1651,18 +1705,55 @@
       other = other.tryConvertToNumber();
       switch (other.kind) {
         case 0 /* String */:
-          engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Divide */)));
+          engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
           return this;
         case 1 /* Number */:
           const otherValue = other.value;
           if (otherValue === 0) {
-            engine.terminate(new Diagnostic(37 /* CannotDivideByZero */, instruction.sourceRange));
+            engine.terminate(new Diagnostic(39 /* CannotDivideByZero */, instruction.sourceRange));
             return this;
           } else {
             return new _NumberValue(this.value / otherValue);
           }
         case 2 /* Array */:
-          engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Divide */)));
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
+          return this;
+        default:
+          throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
+      }
+    }
+    // Integer division (A \ B) truncates the real quotient toward zero. A zero
+    // divisor yields 0 instead of terminating, matching the shared extension
+    // contract for the arithmetic operators added by Arithmetic Extension v1.
+    integerDivide(other, engine, instruction) {
+      other = other.tryConvertToNumber();
+      switch (other.kind) {
+        case 0 /* String */:
+          engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
+          return this;
+        case 1 /* Number */:
+          const otherValue = other.value;
+          return new _NumberValue(otherValue === 0 ? 0 : Math.trunc(this.value / otherValue));
+        case 2 /* Array */:
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
+          return this;
+        default:
+          throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
+      }
+    }
+    // A Mod B keeps the sign of the dividend (truncated remainder), like the
+    // C# and JavaScript % operators. A zero divisor yields 0.
+    modulo(other, engine, instruction) {
+      other = other.tryConvertToNumber();
+      switch (other.kind) {
+        case 0 /* String */:
+          engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
+          return this;
+        case 1 /* Number */:
+          const otherValue = other.value;
+          return new _NumberValue(otherValue === 0 ? 0 : this.value % otherValue);
+        case 2 /* Array */:
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
           return this;
         default:
           throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
@@ -1737,7 +1828,7 @@
         case 1 /* Number */:
           return new _StringValue(this.value + other.value.toString());
         case 2 /* Array */:
-          engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(27 /* Plus */)));
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Plus */)));
           return this;
         default:
           throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
@@ -1746,7 +1837,7 @@
     subtract(other, engine, instruction) {
       const thisConverted = this.tryConvertToNumber();
       if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-        engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(28 /* Minus */)));
+        engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
         return this;
       } else {
         return thisConverted.subtract(other, engine, instruction);
@@ -1755,7 +1846,7 @@
     multiply(other, engine, instruction) {
       const thisConverted = this.tryConvertToNumber();
       if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-        engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Multiply */)));
+        engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
         return this;
       } else {
         return thisConverted.multiply(other, engine, instruction);
@@ -1764,10 +1855,28 @@
     divide(other, engine, instruction) {
       const thisConverted = this.tryConvertToNumber();
       if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-        engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Divide */)));
+        engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
         return this;
       } else {
         return thisConverted.divide(other, engine, instruction);
+      }
+    }
+    integerDivide(other, engine, instruction) {
+      const thisConverted = this.tryConvertToNumber();
+      if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
+        engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
+        return this;
+      } else {
+        return thisConverted.integerDivide(other, engine, instruction);
+      }
+    }
+    modulo(other, engine, instruction) {
+      const thisConverted = this.tryConvertToNumber();
+      if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
+        engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
+        return this;
+      } else {
+        return thisConverted.modulo(other, engine, instruction);
       }
     }
   };
@@ -1976,19 +2085,27 @@
       return false;
     }
     add(_, engine, instruction) {
-      engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(27 /* Plus */)));
+      engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Plus */)));
       return this;
     }
     subtract(_, engine, instruction) {
-      engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(28 /* Minus */)));
+      engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
       return this;
     }
     multiply(_, engine, instruction) {
-      engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Multiply */)));
+      engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
       return this;
     }
     divide(_, engine, instruction) {
-      engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Divide */)));
+      engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
+      return this;
+    }
+    integerDivide(_, engine, instruction) {
+      engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
+      return this;
+    }
+    modulo(_, engine, instruction) {
+      engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
       return this;
     }
   };
@@ -2104,7 +2221,7 @@
       if (this._stacks[stackName] && this._stacks[stackName].length) {
         engine.pushEvaluationStack(this._stacks[stackName].pop());
       } else {
-        engine.terminate(new Diagnostic(38 /* PoppingAnEmptyStack */, range));
+        engine.terminate(new Diagnostic(40 /* PoppingAnEmptyStack */, range));
       }
     }
     methods = {
@@ -11057,6 +11174,12 @@
     DocumentationResources2.Math_Remainder = "Divides the first number by the second and returns the remainder.";
     DocumentationResources2.Math_Remainder_Dividend = "The number to divide.";
     DocumentationResources2.Math_Remainder_Divisor = "The number that divides.";
+    DocumentationResources2.Math_Div = "Divides the first number by the second and returns the integer part of the quotient (truncated toward zero). For example, Math.Div(7, 2) returns 3 and Math.Div(-7, 2) returns -3. Dividing by zero returns 0.";
+    DocumentationResources2.Math_Div_Dividend = "The number to divide.";
+    DocumentationResources2.Math_Div_Divisor = "The number that divides.";
+    DocumentationResources2.Math_Mod = "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero returns 0.";
+    DocumentationResources2.Math_Mod_Dividend = "The number to divide.";
+    DocumentationResources2.Math_Mod_Divisor = "The number that divides.";
     DocumentationResources2.Math_Cos = "Gets the cosine of the given angle in radians.";
     DocumentationResources2.Math_Cos_Angle = "The angle whose cosine is needed (in radians).";
     DocumentationResources2.Math_Sin = "Gets the sine of the given angle in radians.";
@@ -11752,6 +11875,8 @@
       {
         Abs: new MethodMetadata("Math", "Abs", true, ["Number"]),
         Remainder: new MethodMetadata("Math", "Remainder", true, ["Dividend", "Divisor"]),
+        Div: new MethodMetadata("Math", "Div", true, ["Dividend", "Divisor"]),
+        Mod: new MethodMetadata("Math", "Mod", true, ["Dividend", "Divisor"]),
         Cos: new MethodMetadata("Math", "Cos", true, ["Angle"]),
         Sin: new MethodMetadata("Math", "Sin", true, ["Angle"]),
         Tan: new MethodMetadata("Math", "Tan", true, ["Angle"]),
@@ -11900,7 +12025,7 @@
     executeRemainder(engine, _, range) {
       return this.executeCalculation(engine, (dividend, divisor) => {
         if (divisor === 0) {
-          engine.terminate(new Diagnostic(37 /* CannotDivideByZero */, range));
+          engine.terminate(new Diagnostic(39 /* CannotDivideByZero */, range));
           return 0;
         }
         return dividend % divisor;
@@ -11909,6 +12034,11 @@
     methods = {
       Abs: { execute: (engine) => this.executeCalculation(engine, Math.abs) },
       Remainder: { execute: this.executeRemainder.bind(this) },
+      // Math.Div / Math.Mod follow the Arithmetic Extension v1 contract: the
+      // same semantics as the \ and Mod operators, with a zero divisor
+      // yielding 0 on every backend (unlike the legacy Remainder above).
+      Div: { execute: (engine) => this.executeCalculation(engine, (dividend, divisor) => divisor === 0 ? 0 : Math.trunc(dividend / divisor)) },
+      Mod: { execute: (engine) => this.executeCalculation(engine, (dividend, divisor) => divisor === 0 ? 0 : dividend % divisor) },
       Cos: { execute: (engine) => this.executeCalculation(engine, Math.cos) },
       Sin: { execute: (engine) => this.executeCalculation(engine, Math.sin) },
       Tan: { execute: (engine) => this.executeCalculation(engine, Math.tan) },
@@ -12490,41 +12620,44 @@
     BoundKind2[BoundKind2["IfStatement"] = 2] = "IfStatement";
     BoundKind2[BoundKind2["WhileStatement"] = 3] = "WhileStatement";
     BoundKind2[BoundKind2["ForStatement"] = 4] = "ForStatement";
-    BoundKind2[BoundKind2["LabelStatement"] = 5] = "LabelStatement";
-    BoundKind2[BoundKind2["GoToStatement"] = 6] = "GoToStatement";
-    BoundKind2[BoundKind2["ReturnStatement"] = 7] = "ReturnStatement";
-    BoundKind2[BoundKind2["SubModuleInvocationStatement"] = 8] = "SubModuleInvocationStatement";
-    BoundKind2[BoundKind2["LibraryMethodInvocationStatement"] = 9] = "LibraryMethodInvocationStatement";
-    BoundKind2[BoundKind2["EventAssignmentStatement"] = 10] = "EventAssignmentStatement";
-    BoundKind2[BoundKind2["VariableAssignmentStatement"] = 11] = "VariableAssignmentStatement";
-    BoundKind2[BoundKind2["PropertyAssignmentStatement"] = 12] = "PropertyAssignmentStatement";
-    BoundKind2[BoundKind2["ArrayAssignmentStatement"] = 13] = "ArrayAssignmentStatement";
-    BoundKind2[BoundKind2["InvalidExpressionStatement"] = 14] = "InvalidExpressionStatement";
-    BoundKind2[BoundKind2["NegationExpression"] = 15] = "NegationExpression";
-    BoundKind2[BoundKind2["OrExpression"] = 16] = "OrExpression";
-    BoundKind2[BoundKind2["AndExpression"] = 17] = "AndExpression";
-    BoundKind2[BoundKind2["NotEqualExpression"] = 18] = "NotEqualExpression";
-    BoundKind2[BoundKind2["EqualExpression"] = 19] = "EqualExpression";
-    BoundKind2[BoundKind2["LessThanExpression"] = 20] = "LessThanExpression";
-    BoundKind2[BoundKind2["GreaterThanExpression"] = 21] = "GreaterThanExpression";
-    BoundKind2[BoundKind2["LessThanOrEqualExpression"] = 22] = "LessThanOrEqualExpression";
-    BoundKind2[BoundKind2["GreaterThanOrEqualExpression"] = 23] = "GreaterThanOrEqualExpression";
-    BoundKind2[BoundKind2["AdditionExpression"] = 24] = "AdditionExpression";
-    BoundKind2[BoundKind2["SubtractionExpression"] = 25] = "SubtractionExpression";
-    BoundKind2[BoundKind2["MultiplicationExpression"] = 26] = "MultiplicationExpression";
-    BoundKind2[BoundKind2["DivisionExpression"] = 27] = "DivisionExpression";
-    BoundKind2[BoundKind2["ArrayAccessExpression"] = 28] = "ArrayAccessExpression";
-    BoundKind2[BoundKind2["LibraryTypeExpression"] = 29] = "LibraryTypeExpression";
-    BoundKind2[BoundKind2["LibraryPropertyExpression"] = 30] = "LibraryPropertyExpression";
-    BoundKind2[BoundKind2["LibraryMethodExpression"] = 31] = "LibraryMethodExpression";
-    BoundKind2[BoundKind2["LibraryEventExpression"] = 32] = "LibraryEventExpression";
-    BoundKind2[BoundKind2["LibraryMethodInvocationExpression"] = 33] = "LibraryMethodInvocationExpression";
-    BoundKind2[BoundKind2["SubModuleExpression"] = 34] = "SubModuleExpression";
-    BoundKind2[BoundKind2["SubModuleInvocationExpression"] = 35] = "SubModuleInvocationExpression";
-    BoundKind2[BoundKind2["VariableExpression"] = 36] = "VariableExpression";
-    BoundKind2[BoundKind2["StringLiteralExpression"] = 37] = "StringLiteralExpression";
-    BoundKind2[BoundKind2["NumberLiteralExpression"] = 38] = "NumberLiteralExpression";
-    BoundKind2[BoundKind2["ParenthesisExpression"] = 39] = "ParenthesisExpression";
+    BoundKind2[BoundKind2["LoopControlStatement"] = 5] = "LoopControlStatement";
+    BoundKind2[BoundKind2["LabelStatement"] = 6] = "LabelStatement";
+    BoundKind2[BoundKind2["GoToStatement"] = 7] = "GoToStatement";
+    BoundKind2[BoundKind2["ReturnStatement"] = 8] = "ReturnStatement";
+    BoundKind2[BoundKind2["SubModuleInvocationStatement"] = 9] = "SubModuleInvocationStatement";
+    BoundKind2[BoundKind2["LibraryMethodInvocationStatement"] = 10] = "LibraryMethodInvocationStatement";
+    BoundKind2[BoundKind2["EventAssignmentStatement"] = 11] = "EventAssignmentStatement";
+    BoundKind2[BoundKind2["VariableAssignmentStatement"] = 12] = "VariableAssignmentStatement";
+    BoundKind2[BoundKind2["PropertyAssignmentStatement"] = 13] = "PropertyAssignmentStatement";
+    BoundKind2[BoundKind2["ArrayAssignmentStatement"] = 14] = "ArrayAssignmentStatement";
+    BoundKind2[BoundKind2["InvalidExpressionStatement"] = 15] = "InvalidExpressionStatement";
+    BoundKind2[BoundKind2["NegationExpression"] = 16] = "NegationExpression";
+    BoundKind2[BoundKind2["OrExpression"] = 17] = "OrExpression";
+    BoundKind2[BoundKind2["AndExpression"] = 18] = "AndExpression";
+    BoundKind2[BoundKind2["NotEqualExpression"] = 19] = "NotEqualExpression";
+    BoundKind2[BoundKind2["EqualExpression"] = 20] = "EqualExpression";
+    BoundKind2[BoundKind2["LessThanExpression"] = 21] = "LessThanExpression";
+    BoundKind2[BoundKind2["GreaterThanExpression"] = 22] = "GreaterThanExpression";
+    BoundKind2[BoundKind2["LessThanOrEqualExpression"] = 23] = "LessThanOrEqualExpression";
+    BoundKind2[BoundKind2["GreaterThanOrEqualExpression"] = 24] = "GreaterThanOrEqualExpression";
+    BoundKind2[BoundKind2["AdditionExpression"] = 25] = "AdditionExpression";
+    BoundKind2[BoundKind2["SubtractionExpression"] = 26] = "SubtractionExpression";
+    BoundKind2[BoundKind2["MultiplicationExpression"] = 27] = "MultiplicationExpression";
+    BoundKind2[BoundKind2["DivisionExpression"] = 28] = "DivisionExpression";
+    BoundKind2[BoundKind2["IntegerDivisionExpression"] = 29] = "IntegerDivisionExpression";
+    BoundKind2[BoundKind2["ModuloExpression"] = 30] = "ModuloExpression";
+    BoundKind2[BoundKind2["ArrayAccessExpression"] = 31] = "ArrayAccessExpression";
+    BoundKind2[BoundKind2["LibraryTypeExpression"] = 32] = "LibraryTypeExpression";
+    BoundKind2[BoundKind2["LibraryPropertyExpression"] = 33] = "LibraryPropertyExpression";
+    BoundKind2[BoundKind2["LibraryMethodExpression"] = 34] = "LibraryMethodExpression";
+    BoundKind2[BoundKind2["LibraryEventExpression"] = 35] = "LibraryEventExpression";
+    BoundKind2[BoundKind2["LibraryMethodInvocationExpression"] = 36] = "LibraryMethodInvocationExpression";
+    BoundKind2[BoundKind2["SubModuleExpression"] = 37] = "SubModuleExpression";
+    BoundKind2[BoundKind2["SubModuleInvocationExpression"] = 38] = "SubModuleInvocationExpression";
+    BoundKind2[BoundKind2["VariableExpression"] = 39] = "VariableExpression";
+    BoundKind2[BoundKind2["StringLiteralExpression"] = 40] = "StringLiteralExpression";
+    BoundKind2[BoundKind2["NumberLiteralExpression"] = 41] = "NumberLiteralExpression";
+    BoundKind2[BoundKind2["ParenthesisExpression"] = 42] = "ParenthesisExpression";
     return BoundKind2;
   })(BoundKind || {});
   var BaseBoundNode = class {
@@ -12608,9 +12741,19 @@
       return children;
     }
   };
+  var BoundLoopControlStatement = class extends BaseBoundStatement {
+    constructor(loopKind, syntax) {
+      super(5 /* LoopControlStatement */, syntax);
+      this.loopKind = loopKind;
+    }
+    loopKind;
+    children() {
+      return [];
+    }
+  };
   var BoundLabelStatement = class extends BaseBoundStatement {
     constructor(labelName, syntax) {
-      super(5 /* LabelStatement */, syntax);
+      super(6 /* LabelStatement */, syntax);
       this.labelName = labelName;
     }
     labelName;
@@ -12620,7 +12763,7 @@
   };
   var BoundGoToStatement = class extends BaseBoundStatement {
     constructor(labelName, syntax) {
-      super(6 /* GoToStatement */, syntax);
+      super(7 /* GoToStatement */, syntax);
       this.labelName = labelName;
     }
     labelName;
@@ -12630,7 +12773,7 @@
   };
   var BoundReturnStatement = class extends BaseBoundStatement {
     constructor(expression, syntax) {
-      super(7 /* ReturnStatement */, syntax);
+      super(8 /* ReturnStatement */, syntax);
       this.expression = expression;
     }
     expression;
@@ -12640,7 +12783,7 @@
   };
   var BoundSubModuleInvocationStatement = class extends BaseBoundStatement {
     constructor(subModuleName, argumentsList, syntax) {
-      super(8 /* SubModuleInvocationStatement */, syntax);
+      super(9 /* SubModuleInvocationStatement */, syntax);
       this.subModuleName = subModuleName;
       this.argumentsList = argumentsList;
     }
@@ -12652,7 +12795,7 @@
   };
   var BoundLibraryMethodInvocationStatement = class extends BaseBoundStatement {
     constructor(libraryName, methodName, argumentsList, syntax) {
-      super(9 /* LibraryMethodInvocationStatement */, syntax);
+      super(10 /* LibraryMethodInvocationStatement */, syntax);
       this.libraryName = libraryName;
       this.methodName = methodName;
       this.argumentsList = argumentsList;
@@ -12666,7 +12809,7 @@
   };
   var BoundEventAssignmentStatement = class extends BaseBoundStatement {
     constructor(libraryName, eventName, subModuleName, syntax) {
-      super(10 /* EventAssignmentStatement */, syntax);
+      super(11 /* EventAssignmentStatement */, syntax);
       this.libraryName = libraryName;
       this.eventName = eventName;
       this.subModuleName = subModuleName;
@@ -12680,7 +12823,7 @@
   };
   var BoundVariableAssignmentStatement = class extends BaseBoundStatement {
     constructor(variableName, value, syntax) {
-      super(11 /* VariableAssignmentStatement */, syntax);
+      super(12 /* VariableAssignmentStatement */, syntax);
       this.variableName = variableName;
       this.value = value;
     }
@@ -12692,7 +12835,7 @@
   };
   var BoundPropertyAssignmentStatement = class extends BaseBoundStatement {
     constructor(libraryName, propertyName, value, syntax) {
-      super(12 /* PropertyAssignmentStatement */, syntax);
+      super(13 /* PropertyAssignmentStatement */, syntax);
       this.libraryName = libraryName;
       this.propertyName = propertyName;
       this.value = value;
@@ -12706,7 +12849,7 @@
   };
   var BoundArrayAssignmentStatement = class extends BaseBoundStatement {
     constructor(arrayName, indices, value, syntax) {
-      super(13 /* ArrayAssignmentStatement */, syntax);
+      super(14 /* ArrayAssignmentStatement */, syntax);
       this.arrayName = arrayName;
       this.indices = indices;
       this.value = value;
@@ -12720,7 +12863,7 @@
   };
   var BoundInvalidExpressionStatement = class extends BaseBoundStatement {
     constructor(expression, syntax) {
-      super(14 /* InvalidExpressionStatement */, syntax);
+      super(15 /* InvalidExpressionStatement */, syntax);
       this.expression = expression;
     }
     expression;
@@ -12741,7 +12884,7 @@
   };
   var BoundNegationExpression = class extends BaseBoundExpression {
     constructor(expression, hasErrors, syntax) {
-      super(15 /* NegationExpression */, true, hasErrors, syntax);
+      super(16 /* NegationExpression */, true, hasErrors, syntax);
       this.expression = expression;
     }
     expression;
@@ -12751,7 +12894,7 @@
   };
   var BoundOrExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(16 /* OrExpression */, true, hasErrors, syntax);
+      super(17 /* OrExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12763,7 +12906,7 @@
   };
   var BoundAndExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(17 /* AndExpression */, true, hasErrors, syntax);
+      super(18 /* AndExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12775,7 +12918,7 @@
   };
   var BoundNotEqualExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(18 /* NotEqualExpression */, true, hasErrors, syntax);
+      super(19 /* NotEqualExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12787,7 +12930,7 @@
   };
   var BoundEqualExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(19 /* EqualExpression */, true, hasErrors, syntax);
+      super(20 /* EqualExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12799,7 +12942,7 @@
   };
   var BoundLessThanExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(20 /* LessThanExpression */, true, hasErrors, syntax);
+      super(21 /* LessThanExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12811,7 +12954,7 @@
   };
   var BoundGreaterThanExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(21 /* GreaterThanExpression */, true, hasErrors, syntax);
+      super(22 /* GreaterThanExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12823,7 +12966,7 @@
   };
   var BoundLessThanOrEqualExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(22 /* LessThanOrEqualExpression */, true, hasErrors, syntax);
+      super(23 /* LessThanOrEqualExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12835,7 +12978,7 @@
   };
   var BoundGreaterThanOrEqualExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(23 /* GreaterThanOrEqualExpression */, true, hasErrors, syntax);
+      super(24 /* GreaterThanOrEqualExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12847,7 +12990,7 @@
   };
   var BoundAdditionExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(24 /* AdditionExpression */, true, hasErrors, syntax);
+      super(25 /* AdditionExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12859,7 +13002,7 @@
   };
   var BoundSubtractionExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(25 /* SubtractionExpression */, true, hasErrors, syntax);
+      super(26 /* SubtractionExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12871,7 +13014,7 @@
   };
   var BoundMultiplicationExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(26 /* MultiplicationExpression */, true, hasErrors, syntax);
+      super(27 /* MultiplicationExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12883,7 +13026,31 @@
   };
   var BoundDivisionExpression = class extends BaseBoundExpression {
     constructor(leftExpression, rightExpression, hasErrors, syntax) {
-      super(27 /* DivisionExpression */, true, hasErrors, syntax);
+      super(28 /* DivisionExpression */, true, hasErrors, syntax);
+      this.leftExpression = leftExpression;
+      this.rightExpression = rightExpression;
+    }
+    leftExpression;
+    rightExpression;
+    children() {
+      return [this.leftExpression, this.rightExpression];
+    }
+  };
+  var BoundIntegerDivisionExpression = class extends BaseBoundExpression {
+    constructor(leftExpression, rightExpression, hasErrors, syntax) {
+      super(29 /* IntegerDivisionExpression */, true, hasErrors, syntax);
+      this.leftExpression = leftExpression;
+      this.rightExpression = rightExpression;
+    }
+    leftExpression;
+    rightExpression;
+    children() {
+      return [this.leftExpression, this.rightExpression];
+    }
+  };
+  var BoundModuloExpression = class extends BaseBoundExpression {
+    constructor(leftExpression, rightExpression, hasErrors, syntax) {
+      super(30 /* ModuloExpression */, true, hasErrors, syntax);
       this.leftExpression = leftExpression;
       this.rightExpression = rightExpression;
     }
@@ -12895,7 +13062,7 @@
   };
   var BoundArrayAccessExpression = class extends BaseBoundExpression {
     constructor(arrayName, indices, hasErrors, syntax) {
-      super(28 /* ArrayAccessExpression */, true, hasErrors, syntax);
+      super(31 /* ArrayAccessExpression */, true, hasErrors, syntax);
       this.arrayName = arrayName;
       this.indices = indices;
     }
@@ -12907,7 +13074,7 @@
   };
   var BoundLibraryTypeExpression = class extends BaseBoundExpression {
     constructor(libraryName, hasErrors, syntax) {
-      super(29 /* LibraryTypeExpression */, false, hasErrors, syntax);
+      super(32 /* LibraryTypeExpression */, false, hasErrors, syntax);
       this.libraryName = libraryName;
     }
     libraryName;
@@ -12917,7 +13084,7 @@
   };
   var BoundLibraryPropertyExpression = class extends BaseBoundExpression {
     constructor(libraryName, propertyName, hasValue, hasErrors, syntax) {
-      super(30 /* LibraryPropertyExpression */, hasValue, hasErrors, syntax);
+      super(33 /* LibraryPropertyExpression */, hasValue, hasErrors, syntax);
       this.libraryName = libraryName;
       this.propertyName = propertyName;
     }
@@ -12929,7 +13096,7 @@
   };
   var BoundLibraryMethodExpression = class extends BaseBoundExpression {
     constructor(libraryName, methodName, hasValue, hasErrors, syntax) {
-      super(31 /* LibraryMethodExpression */, hasValue, hasErrors, syntax);
+      super(34 /* LibraryMethodExpression */, hasValue, hasErrors, syntax);
       this.libraryName = libraryName;
       this.methodName = methodName;
     }
@@ -12941,7 +13108,7 @@
   };
   var BoundLibraryEventExpression = class extends BaseBoundExpression {
     constructor(libraryName, eventName, hasErrors, syntax) {
-      super(32 /* LibraryEventExpression */, false, hasErrors, syntax);
+      super(35 /* LibraryEventExpression */, false, hasErrors, syntax);
       this.libraryName = libraryName;
       this.eventName = eventName;
     }
@@ -12953,7 +13120,7 @@
   };
   var BoundLibraryMethodInvocationExpression = class extends BaseBoundExpression {
     constructor(libraryName, methodName, argumentsList, hasValue, hasErrors, syntax) {
-      super(33 /* LibraryMethodInvocationExpression */, hasValue, hasErrors, syntax);
+      super(36 /* LibraryMethodInvocationExpression */, hasValue, hasErrors, syntax);
       this.libraryName = libraryName;
       this.methodName = methodName;
       this.argumentsList = argumentsList;
@@ -12967,7 +13134,7 @@
   };
   var BoundSubModuleExpression = class extends BaseBoundExpression {
     constructor(subModuleName, parameters, returnsValue, hasErrors, syntax) {
-      super(34 /* SubModuleExpression */, false, hasErrors, syntax);
+      super(37 /* SubModuleExpression */, false, hasErrors, syntax);
       this.subModuleName = subModuleName;
       this.parameters = parameters;
       this.returnsValue = returnsValue;
@@ -12981,7 +13148,7 @@
   };
   var BoundSubModuleInvocationExpression = class extends BaseBoundExpression {
     constructor(subModuleName, argumentsList, returnsValue, hasErrors, syntax) {
-      super(35 /* SubModuleInvocationExpression */, returnsValue, hasErrors, syntax);
+      super(38 /* SubModuleInvocationExpression */, returnsValue, hasErrors, syntax);
       this.subModuleName = subModuleName;
       this.argumentsList = argumentsList;
       this.returnsValue = returnsValue;
@@ -12995,7 +13162,7 @@
   };
   var BoundVariableExpression = class extends BaseBoundExpression {
     constructor(variableName, hasErrors, syntax) {
-      super(36 /* VariableExpression */, true, hasErrors, syntax);
+      super(39 /* VariableExpression */, true, hasErrors, syntax);
       this.variableName = variableName;
     }
     variableName;
@@ -13005,7 +13172,7 @@
   };
   var BoundStringLiteralExpression = class extends BaseBoundExpression {
     constructor(value, hasErrors, syntax) {
-      super(37 /* StringLiteralExpression */, true, hasErrors, syntax);
+      super(40 /* StringLiteralExpression */, true, hasErrors, syntax);
       this.value = value;
     }
     value;
@@ -13015,7 +13182,7 @@
   };
   var BoundNumberLiteralExpression = class extends BaseBoundExpression {
     constructor(value, hasErrors, syntax) {
-      super(38 /* NumberLiteralExpression */, true, hasErrors, syntax);
+      super(41 /* NumberLiteralExpression */, true, hasErrors, syntax);
       this.value = value;
     }
     value;
@@ -13025,7 +13192,7 @@
   };
   var BoundParenthesisExpression = class extends BaseBoundExpression {
     constructor(expression, hasErrors, syntax) {
-      super(39 /* ParenthesisExpression */, true, hasErrors, syntax);
+      super(42 /* ParenthesisExpression */, true, hasErrors, syntax);
       this.expression = expression;
     }
     expression;
@@ -13050,31 +13217,31 @@
     bindExpression(syntax, expectedValue) {
       let expression;
       switch (syntax.kind) {
-        case 30 /* ArrayAccessExpression */:
+        case 32 /* ArrayAccessExpression */:
           expression = this.bindArrayAccess(syntax);
           break;
-        case 28 /* BinaryOperatorExpression */:
+        case 30 /* BinaryOperatorExpression */:
           expression = this.bindBinaryOperator(syntax);
           break;
-        case 32 /* InvocationExpression */:
+        case 34 /* InvocationExpression */:
           expression = this.bindInvocation(syntax, expectedValue);
           break;
-        case 29 /* ObjectAccessExpression */:
+        case 31 /* ObjectAccessExpression */:
           expression = this.bindObjectAccess(syntax, expectedValue);
           break;
-        case 33 /* ParenthesisExpression */:
+        case 35 /* ParenthesisExpression */:
           expression = this.bindParenthesis(syntax);
           break;
-        case 35 /* NumberLiteralExpression */:
+        case 37 /* NumberLiteralExpression */:
           expression = this.bindNumberLiteral(syntax);
           break;
-        case 36 /* StringLiteralExpression */:
+        case 38 /* StringLiteralExpression */:
           expression = this.bindStringLiteral(syntax);
           break;
-        case 34 /* IdentifierExpression */:
+        case 36 /* IdentifierExpression */:
           expression = this.bindIdentifier(syntax, expectedValue);
           break;
-        case 27 /* UnaryOperatorExpression */:
+        case 29 /* UnaryOperatorExpression */:
           expression = this.bindUnaryOperator(syntax);
           break;
         default:
@@ -13089,13 +13256,13 @@
       let indices;
       let hasErrors = baseExpression.hasErrors || indexExpression.hasErrors;
       switch (baseExpression.kind) {
-        case 28 /* ArrayAccessExpression */: {
+        case 31 /* ArrayAccessExpression */: {
           const arrayAccess = baseExpression;
           arrayName = arrayAccess.arrayName;
           indices = [...arrayAccess.indices, indexExpression];
           break;
         }
-        case 36 /* VariableExpression */: {
+        case 39 /* VariableExpression */: {
           arrayName = baseExpression.variableName;
           indices = [indexExpression];
           break;
@@ -13103,7 +13270,7 @@
         default: {
           if (!hasErrors) {
             hasErrors = true;
-            this._diagnostics.push(new Diagnostic(26 /* UnsupportedArrayBaseExpression */, baseExpression.syntax.range));
+            this._diagnostics.push(new Diagnostic(28 /* UnsupportedArrayBaseExpression */, baseExpression.syntax.range));
           }
           arrayName = "<array>";
           indices = [indexExpression];
@@ -13117,32 +13284,32 @@
       const argumentsList = syntax.argumentsList.map((arg) => this.bindExpression(arg.expression, true));
       let hasErrors = baseExpression.hasErrors || argumentsList.some((arg) => arg.hasErrors);
       switch (baseExpression.kind) {
-        case 31 /* LibraryMethodExpression */: {
+        case 34 /* LibraryMethodExpression */: {
           const method = baseExpression;
           const definition = RuntimeLibraries.Metadata[method.libraryName].methods[method.methodName];
           const parametersCount = definition.parameters.length;
           if (argumentsList.length !== parametersCount) {
             hasErrors = true;
-            this._diagnostics.push(new Diagnostic(28 /* UnexpectedArgumentsCount */, baseExpression.syntax.range, parametersCount.toString(), argumentsList.length.toString()));
+            this._diagnostics.push(new Diagnostic(30 /* UnexpectedArgumentsCount */, baseExpression.syntax.range, parametersCount.toString(), argumentsList.length.toString()));
           } else if (expectedValue && !definition.returnsValue) {
             hasErrors = true;
-            this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
+            this._diagnostics.push(new Diagnostic(27 /* UnexpectedVoid_ExpectingValue */, syntax.range));
           }
           return new BoundLibraryMethodInvocationExpression(method.libraryName, method.methodName, argumentsList, definition.returnsValue, hasErrors, syntax);
         }
-        case 34 /* SubModuleExpression */: {
+        case 37 /* SubModuleExpression */: {
           const procedure = baseExpression;
           if (argumentsList.length !== procedure.parameters.length) {
             hasErrors = true;
             this._diagnostics.push(new Diagnostic(
-              28 /* UnexpectedArgumentsCount */,
+              30 /* UnexpectedArgumentsCount */,
               baseExpression.syntax.range,
               procedure.parameters.length.toString(),
               argumentsList.length.toString()
             ));
           } else if (expectedValue && !procedure.returnsValue) {
             hasErrors = true;
-            this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
+            this._diagnostics.push(new Diagnostic(27 /* UnexpectedVoid_ExpectingValue */, syntax.range));
           }
           return new BoundSubModuleInvocationExpression(
             procedure.subModuleName,
@@ -13154,7 +13321,7 @@
         }
         default: {
           hasErrors = true;
-          this._diagnostics.push(new Diagnostic(27 /* UnsupportedCallBaseExpression */, baseExpression.syntax.range));
+          this._diagnostics.push(new Diagnostic(29 /* UnsupportedCallBaseExpression */, baseExpression.syntax.range));
           return new BoundLibraryMethodInvocationExpression("<library>", "<method>", argumentsList, true, hasErrors, syntax);
         }
       }
@@ -13163,9 +13330,9 @@
       const leftHandSide = this.bindExpression(syntax.baseExpression, false);
       const rightHandSide = syntax.identifierToken.token.text;
       let hasErrors = leftHandSide.hasErrors;
-      if (leftHandSide.kind !== 29 /* LibraryTypeExpression */) {
+      if (leftHandSide.kind !== 32 /* LibraryTypeExpression */) {
         hasErrors = true;
-        this._diagnostics.push(new Diagnostic(31 /* UnsupportedDotBaseExpression */, leftHandSide.syntax.range));
+        this._diagnostics.push(new Diagnostic(33 /* UnsupportedDotBaseExpression */, leftHandSide.syntax.range));
         return new BoundLibraryPropertyExpression("<library>", rightHandSide, true, hasErrors, syntax);
       }
       const libraryType = leftHandSide;
@@ -13174,7 +13341,7 @@
       if (propertyInfo) {
         if (expectedValue && !propertyInfo.hasGetter) {
           hasErrors = true;
-          this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
+          this._diagnostics.push(new Diagnostic(27 /* UnexpectedVoid_ExpectingValue */, syntax.range));
         }
         return new BoundLibraryPropertyExpression(libraryType.libraryName, propertyName, propertyInfo.hasGetter, hasErrors, syntax);
       }
@@ -13183,7 +13350,7 @@
       if (methodInfo) {
         if (expectedValue) {
           hasErrors = true;
-          this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
+          this._diagnostics.push(new Diagnostic(27 /* UnexpectedVoid_ExpectingValue */, syntax.range));
         }
         return new BoundLibraryMethodExpression(libraryType.libraryName, methodName, false, hasErrors, syntax);
       }
@@ -13192,7 +13359,7 @@
         return new BoundLibraryEventExpression(libraryType.libraryName, eventName, hasErrors, syntax);
       }
       hasErrors = true;
-      this._diagnostics.push(new Diagnostic(32 /* LibraryMemberNotFound */, leftHandSide.syntax.range, libraryType.libraryName, rightHandSide));
+      this._diagnostics.push(new Diagnostic(34 /* LibraryMemberNotFound */, leftHandSide.syntax.range, libraryType.libraryName, rightHandSide));
       return new BoundLibraryPropertyExpression(libraryType.libraryName, rightHandSide, true, hasErrors, syntax);
     }
     bindParenthesis(syntax) {
@@ -13227,7 +13394,7 @@
       if (library) {
         if (expectedValue) {
           hasErrors = true;
-          this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
+          this._diagnostics.push(new Diagnostic(27 /* UnexpectedVoid_ExpectingValue */, syntax.range));
         }
         return new BoundLibraryTypeExpression(libraryKey, hasErrors, syntax);
       } else {
@@ -13244,7 +13411,7 @@
           }
           if (expectedValue) {
             hasErrors = true;
-            this._diagnostics.push(new Diagnostic(25 /* UnexpectedVoid_ExpectingValue */, syntax.range));
+            this._diagnostics.push(new Diagnostic(27 /* UnexpectedVoid_ExpectingValue */, syntax.range));
           }
           return new BoundSubModuleExpression(
             procedure.name,
@@ -13259,7 +13426,7 @@
     }
     bindUnaryOperator(syntax) {
       const expression = this.bindExpression(syntax.expression, true);
-      if (syntax.operatorToken.token.kind === 28 /* Minus */) {
+      if (syntax.operatorToken.token.kind === 30 /* Minus */) {
         return new BoundNegationExpression(expression, expression.hasErrors, syntax);
       } else {
         throw new Error(`Unsupported token kind: ${TokenKind[syntax.operatorToken.kind]}`);
@@ -13267,33 +13434,37 @@
     }
     bindBinaryOperator(syntax) {
       const leftHandSide = this.bindExpression(syntax.leftExpression, true);
-      const rightHandSide = this.bindExpression(syntax.rightExpression, leftHandSide.kind !== 32 /* LibraryEventExpression */);
+      const rightHandSide = this.bindExpression(syntax.rightExpression, leftHandSide.kind !== 35 /* LibraryEventExpression */);
       const hasErrors = leftHandSide.hasErrors || rightHandSide.hasErrors;
       switch (syntax.operatorToken.token.kind) {
-        case 36 /* Or */:
+        case 39 /* Or */:
           return new BoundOrExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 37 /* And */:
+        case 40 /* And */:
           return new BoundAndExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 26 /* NotEqual */:
+        case 28 /* NotEqual */:
           return new BoundNotEqualExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 25 /* Equal */:
+        case 27 /* Equal */:
           return new BoundEqualExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 32 /* LessThan */:
+        case 35 /* LessThan */:
           return new BoundLessThanExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 33 /* GreaterThan */:
+        case 36 /* GreaterThan */:
           return new BoundGreaterThanExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 34 /* LessThanOrEqual */:
+        case 37 /* LessThanOrEqual */:
           return new BoundLessThanOrEqualExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 35 /* GreaterThanOrEqual */:
+        case 38 /* GreaterThanOrEqual */:
           return new BoundGreaterThanOrEqualExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 27 /* Plus */:
+        case 29 /* Plus */:
           return new BoundAdditionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 28 /* Minus */:
+        case 30 /* Minus */:
           return new BoundSubtractionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 29 /* Multiply */:
+        case 31 /* Multiply */:
           return new BoundMultiplicationExpression(leftHandSide, rightHandSide, hasErrors, syntax);
-        case 30 /* Divide */:
+        case 32 /* Divide */:
           return new BoundDivisionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
+        case 33 /* Backslash */:
+          return new BoundIntegerDivisionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
+        case 41 /* Mod */:
+          return new BoundModuloExpression(leftHandSide, rightHandSide, hasErrors, syntax);
         default:
           throw new Error(`Unexpected token kind ${TokenKind[syntax.operatorToken.kind]}`);
       }
@@ -13313,7 +13484,7 @@
       this._goToStatements.forEach((statement) => {
         const identifier = statement.labelToken;
         if (!this._definedLabels[identifier.token.text]) {
-          this._diagnostics.push(new Diagnostic(22 /* LabelDoesNotExist */, identifier.range, identifier.token.text));
+          this._diagnostics.push(new Diagnostic(24 /* LabelDoesNotExist */, identifier.range, identifier.token.text));
         }
       });
     }
@@ -13326,6 +13497,7 @@
     _declaredNames = {};
     _declarations = [];
     _locals = [];
+    _loopDepth = 0;
     result;
     get locals() {
       return this._locals;
@@ -13335,7 +13507,7 @@
     }
     collectLocalDeclarations(block) {
       block.statements.forEach((statement) => {
-        if (statement.kind !== 23 /* DimCommand */) {
+        if (statement.kind !== 25 /* DimCommand */) {
           return;
         }
         const dim = statement;
@@ -13357,10 +13529,10 @@
     bindStatementsBlock(block, allowDim = false) {
       const result = [];
       block.statements.forEach((statement) => {
-        if (statement.kind === 26 /* CommentCommand */) {
+        if (statement.kind === 28 /* CommentCommand */) {
           return;
         }
-        if (statement.kind === 23 /* DimCommand */) {
+        if (statement.kind === 25 /* DimCommand */) {
           if (!allowDim) {
             this._diagnostics.push(new Diagnostic(19 /* DimMustBeAtProcedureLevel */, statement.range));
           }
@@ -13378,13 +13550,17 @@
           return this.bindIfStatement(syntax);
         case 6 /* WhileStatement */:
           return this.bindWhileStatement(syntax);
-        case 17 /* LabelCommand */:
+        case 17 /* BreakCommand */:
+          return this.bindLoopControlStatement("break", syntax);
+        case 18 /* ContinueCommand */:
+          return this.bindLoopControlStatement("continue", syntax);
+        case 19 /* LabelCommand */:
           return this.bindLabelStatement(syntax);
-        case 18 /* GoToCommand */:
+        case 20 /* GoToCommand */:
           return this.bindGoToStatement(syntax);
-        case 24 /* ReturnCommand */:
+        case 26 /* ReturnCommand */:
           return this.bindReturnStatement(syntax);
-        case 25 /* ExpressionCommand */:
+        case 27 /* ExpressionCommand */:
           return this.bindExpressionStatement(syntax);
         default:
           throw new Error(`Unexpected statement of kind ${SyntaxKind[syntax.kind]} here`);
@@ -13398,7 +13574,7 @@
       if (syntax.forCommand.stepClauseOpt) {
         stepExpression = this.bindExpression(syntax.forCommand.stepClauseOpt.expression, true);
       }
-      const statementsList = this.bindStatementsBlock(syntax.statementsList);
+      const statementsList = this.bindLoopBody(syntax.statementsList);
       return new BoundForStatement(identifier, fromExpression, toExpression, stepExpression, statementsList, syntax);
     }
     bindIfStatement(syntax) {
@@ -13422,8 +13598,31 @@
     }
     bindWhileStatement(syntax) {
       const condition = this.bindExpression(syntax.whileCommand.expression, true);
-      const statementsList = this.bindStatementsBlock(syntax.statementsList);
+      const statementsList = this.bindLoopBody(syntax.statementsList);
       return new BoundWhileStatement(condition, statementsList, syntax);
+    }
+    /**
+     * Binds the body of a `While`/`For` loop. The loop counter is what lets
+     * `Break`/`Continue` know whether they are nested inside a loop at all; it
+     * is scoped to the loop body so a `Break` in a procedure that merely sits
+     * after a loop is still reported as being outside of a loop.
+     */
+    bindLoopBody(statementsList) {
+      this._loopDepth++;
+      try {
+        return this.bindStatementsBlock(statementsList);
+      } finally {
+        this._loopDepth--;
+      }
+    }
+    bindLoopControlStatement(loopKind, syntax) {
+      if (this._loopDepth === 0) {
+        this._diagnostics.push(new Diagnostic(
+          loopKind === "break" ? 21 /* BreakOutsideLoop */ : 22 /* ContinueOutsideLoop */,
+          syntax.range
+        ));
+      }
+      return new BoundLoopControlStatement(loopKind, syntax);
     }
     bindLabelStatement(syntax) {
       const labelName = syntax.labelToken.token.text;
@@ -13447,58 +13646,58 @@
         return new BoundInvalidExpressionStatement(expression, syntax);
       }
       switch (expression.kind) {
-        case 19 /* EqualExpression */: {
+        case 20 /* EqualExpression */: {
           const binaryExpression = expression;
           switch (binaryExpression.leftExpression.kind) {
-            case 36 /* VariableExpression */: {
+            case 39 /* VariableExpression */: {
               const variable = binaryExpression.leftExpression;
               return new BoundVariableAssignmentStatement(variable.variableName, binaryExpression.rightExpression, syntax);
             }
-            case 28 /* ArrayAccessExpression */: {
+            case 31 /* ArrayAccessExpression */: {
               const array = binaryExpression.leftExpression;
               return new BoundArrayAssignmentStatement(array.arrayName, array.indices, binaryExpression.rightExpression, syntax);
             }
-            case 30 /* LibraryPropertyExpression */: {
+            case 33 /* LibraryPropertyExpression */: {
               const property = binaryExpression.leftExpression;
               if (!RuntimeLibraries.Metadata[property.libraryName].properties[property.propertyName].hasSetter) {
-                this._diagnostics.push(new Diagnostic(29 /* PropertyHasNoSetter */, property.syntax.range));
+                this._diagnostics.push(new Diagnostic(31 /* PropertyHasNoSetter */, property.syntax.range));
               }
               return new BoundPropertyAssignmentStatement(property.libraryName, property.propertyName, binaryExpression.rightExpression, syntax);
             }
-            case 32 /* LibraryEventExpression */: {
+            case 35 /* LibraryEventExpression */: {
               const eventExpression = binaryExpression.leftExpression;
-              if (binaryExpression.rightExpression.kind === 34 /* SubModuleExpression */) {
+              if (binaryExpression.rightExpression.kind === 37 /* SubModuleExpression */) {
                 const subModule = binaryExpression.rightExpression;
                 if (subModule.returnsValue) {
-                  this._diagnostics.push(new Diagnostic(21 /* FunctionCannotBeEventHandler */, subModule.syntax.range));
+                  this._diagnostics.push(new Diagnostic(23 /* FunctionCannotBeEventHandler */, subModule.syntax.range));
                   return new BoundInvalidExpressionStatement(expression, syntax);
                 }
                 return new BoundEventAssignmentStatement(eventExpression.libraryName, eventExpression.eventName, subModule.subModuleName, syntax);
               }
-              this._diagnostics.push(new Diagnostic(30 /* AssigningNonSubModuleToEvent */, eventExpression.syntax.range));
+              this._diagnostics.push(new Diagnostic(32 /* AssigningNonSubModuleToEvent */, eventExpression.syntax.range));
               return new BoundInvalidExpressionStatement(expression, syntax);
             }
             default: {
               this._diagnostics.push(new Diagnostic(
-                33 /* ValueIsNotAssignable */,
+                35 /* ValueIsNotAssignable */,
                 binaryExpression.leftExpression.syntax.range
               ));
               return new BoundInvalidExpressionStatement(expression, syntax);
             }
           }
         }
-        case 33 /* LibraryMethodInvocationExpression */: {
+        case 36 /* LibraryMethodInvocationExpression */: {
           const call = expression;
           return new BoundLibraryMethodInvocationStatement(call.libraryName, call.methodName, call.argumentsList, syntax);
         }
-        case 35 /* SubModuleInvocationExpression */: {
+        case 38 /* SubModuleInvocationExpression */: {
           const call = expression;
           if (!call.returnsValue) {
             return new BoundSubModuleInvocationStatement(call.subModuleName, call.argumentsList, syntax);
           }
           break;
         }
-        case 34 /* SubModuleExpression */: {
+        case 37 /* SubModuleExpression */: {
           const reference = expression;
           if (!reference.returnsValue && reference.parameters.length === 0) {
             return new BoundSubModuleInvocationStatement(reference.subModuleName, [], syntax);
@@ -13506,7 +13705,7 @@
           break;
         }
       }
-      const errorCode = expression.hasValue ? 23 /* UnassignedExpressionStatement */ : 24 /* InvalidExpressionStatement */;
+      const errorCode = expression.hasValue ? 25 /* UnassignedExpressionStatement */ : 26 /* InvalidExpressionStatement */;
       this._diagnostics.push(new Diagnostic(errorCode, syntax.expression.range));
       return new BoundInvalidExpressionStatement(expression, syntax);
     }
@@ -13816,10 +14015,12 @@
     InstructionKind2[InstructionKind2["Subtract"] = 22] = "Subtract";
     InstructionKind2[InstructionKind2["Multiply"] = 23] = "Multiply";
     InstructionKind2[InstructionKind2["Divide"] = 24] = "Divide";
-    InstructionKind2[InstructionKind2["PushNumber"] = 25] = "PushNumber";
-    InstructionKind2[InstructionKind2["PushString"] = 26] = "PushString";
-    InstructionKind2[InstructionKind2["Duplicate"] = 27] = "Duplicate";
-    InstructionKind2[InstructionKind2["DeleteVariable"] = 28] = "DeleteVariable";
+    InstructionKind2[InstructionKind2["IntegerDivide"] = 25] = "IntegerDivide";
+    InstructionKind2[InstructionKind2["Modulo"] = 26] = "Modulo";
+    InstructionKind2[InstructionKind2["PushNumber"] = 27] = "PushNumber";
+    InstructionKind2[InstructionKind2["PushString"] = 28] = "PushString";
+    InstructionKind2[InstructionKind2["Duplicate"] = 29] = "Duplicate";
+    InstructionKind2[InstructionKind2["DeleteVariable"] = 30] = "DeleteVariable";
     return InstructionKind2;
   })(InstructionKind || {});
   var BaseInstruction = class {
@@ -13973,7 +14174,7 @@
             index = indexValue.toValueString();
             break;
           case 2 /* Array */:
-            engine.terminate(new Diagnostic(34 /* CannotUseAnArrayAsAnIndexToAnotherArray */, this.sourceRange));
+            engine.terminate(new Diagnostic(36 /* CannotUseAnArrayAsAnIndexToAnotherArray */, this.sourceRange));
             return;
           default:
             throw new Error(`Unexpected value kind ${ValueKind[indexValue.kind]}`);
@@ -14041,7 +14242,7 @@
             index = indexValue.toValueString();
             break;
           case 2 /* Array */:
-            engine.terminate(new Diagnostic(34 /* CannotUseAnArrayAsAnIndexToAnotherArray */, this.sourceRange));
+            engine.terminate(new Diagnostic(36 /* CannotUseAnArrayAsAnIndexToAnotherArray */, this.sourceRange));
             return;
           default:
             throw new Error(`Unexpected value kind ${ValueKind[indexValue.kind]}`);
@@ -14107,10 +14308,10 @@
           frame.instructionIndex++;
           break;
         case 0 /* String */:
-          engine.terminate(new Diagnostic(36 /* CannotUseOperatorWithAString */, this.sourceRange, CompilerUtils.tokenToDisplayString(28 /* Minus */)));
+          engine.terminate(new Diagnostic(38 /* CannotUseOperatorWithAString */, this.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
           break;
         case 2 /* Array */:
-          engine.terminate(new Diagnostic(35 /* CannotUseOperatorWithAnArray */, this.sourceRange, CompilerUtils.tokenToDisplayString(28 /* Minus */)));
+          engine.terminate(new Diagnostic(37 /* CannotUseOperatorWithAnArray */, this.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
           break;
         default:
           throw new Error(`Unexpected value kind ${ValueKind[value.kind]}`);
@@ -14225,9 +14426,25 @@
       return leftHandSide.divide(rightHandSide, engine, this);
     }
   };
+  var IntegerDivideInstruction = class extends BaseBinaryInstruction {
+    constructor(range) {
+      super(25 /* IntegerDivide */, range);
+    }
+    calculateResult(engine, rightHandSide, leftHandSide) {
+      return leftHandSide.integerDivide(rightHandSide, engine, this);
+    }
+  };
+  var ModuloInstruction = class extends BaseBinaryInstruction {
+    constructor(range) {
+      super(26 /* Modulo */, range);
+    }
+    calculateResult(engine, rightHandSide, leftHandSide) {
+      return leftHandSide.modulo(rightHandSide, engine, this);
+    }
+  };
   var PushNumberInstruction = class extends BaseInstruction {
     constructor(value, range) {
-      super(25 /* PushNumber */, range);
+      super(27 /* PushNumber */, range);
       this.value = value;
     }
     value;
@@ -14238,7 +14455,7 @@
   };
   var PushStringInstruction = class extends BaseInstruction {
     constructor(value, range) {
-      super(26 /* PushString */, range);
+      super(28 /* PushString */, range);
       this.value = value;
     }
     value;
@@ -14302,6 +14519,7 @@
   var ModuleEmitter = class {
     _jumpLabelCounter = 1;
     _instructions = [];
+    _loopContexts = [];
     get instructions() {
       return this._instructions;
     }
@@ -14323,31 +14541,34 @@
         case 4 /* ForStatement */:
           this.emitForStatement(statement);
           break;
-        case 5 /* LabelStatement */:
+        case 5 /* LoopControlStatement */:
+          this.emitLoopControlStatement(statement);
+          break;
+        case 6 /* LabelStatement */:
           this.emitLabelStatement(statement);
           break;
-        case 6 /* GoToStatement */:
+        case 7 /* GoToStatement */:
           this.emitGoToStatement(statement);
           break;
-        case 7 /* ReturnStatement */:
+        case 8 /* ReturnStatement */:
           this.emitReturnStatement(statement);
           break;
-        case 8 /* SubModuleInvocationStatement */:
+        case 9 /* SubModuleInvocationStatement */:
           this.emitSubModuleInvocation(statement);
           break;
-        case 9 /* LibraryMethodInvocationStatement */:
+        case 10 /* LibraryMethodInvocationStatement */:
           this.emitLibraryMethodInvocation(statement);
           break;
-        case 10 /* EventAssignmentStatement */:
+        case 11 /* EventAssignmentStatement */:
           this.emitEventAssignment(statement);
           break;
-        case 11 /* VariableAssignmentStatement */:
+        case 12 /* VariableAssignmentStatement */:
           this.emitVariableAssignment(statement);
           break;
-        case 12 /* PropertyAssignmentStatement */:
+        case 13 /* PropertyAssignmentStatement */:
           this.emitPropertyAssignment(statement);
           break;
-        case 13 /* ArrayAssignmentStatement */:
+        case 14 /* ArrayAssignmentStatement */:
           this.emitArrayAssignment(statement);
           break;
         default:
@@ -14383,7 +14604,7 @@
       this._instructions.push(new TempLabelInstruction(startOfLoopLabel, statement.syntax.range));
       this.emitExpression(statement.condition);
       this._instructions.push(new TempConditionalJumpInstruction(void 0, endOfLoopLabel, statement.condition.syntax.range));
-      this.emitStatement(statement.block);
+      this.emitLoopBody(statement.block, { breakLabel: endOfLoopLabel, continueLabel: startOfLoopLabel });
       const endOfLoopRange = this._instructions[this._instructions.length - 1].sourceRange;
       this._instructions.push(new TempJumpInstruction(startOfLoopLabel, endOfLoopRange));
       this._instructions.push(new TempLabelInstruction(endOfLoopLabel, endOfLoopRange));
@@ -14394,6 +14615,7 @@
       const negativeLoopLabel = this.generateJumpLabel();
       const afterCheckLabel = this.generateJumpLabel();
       const endOfBlockLabel = this.generateJumpLabel();
+      const continueLabel = this.generateJumpLabel();
       this.emitExpression(statement.fromExpression);
       this._instructions.push(new StoreVariableInstruction(statement.identifier, statement.syntax.range));
       this._instructions.push(new TempLabelInstruction(beforeCheckLabel, statement.syntax.range));
@@ -14414,7 +14636,8 @@
       this._instructions.push(new LessThanInstruction(statement.toExpression.syntax.range));
       this._instructions.push(new TempConditionalJumpInstruction(endOfBlockLabel, void 0, statement.toExpression.syntax.range));
       this._instructions.push(new TempLabelInstruction(afterCheckLabel, statement.toExpression.syntax.range));
-      this.emitStatement(statement.block);
+      this.emitLoopBody(statement.block, { breakLabel: endOfBlockLabel, continueLabel });
+      this._instructions.push(new TempLabelInstruction(continueLabel, statement.syntax.range));
       this._instructions.push(new LoadVariableInstruction(statement.identifier, statement.syntax.range));
       if (statement.stepExpression) {
         this.emitExpression(statement.stepExpression);
@@ -14426,6 +14649,22 @@
       this._instructions.push(new TempJumpInstruction(beforeCheckLabel, statement.syntax.range));
       const endOfLoopRange = this._instructions[this._instructions.length - 1].sourceRange;
       this._instructions.push(new TempLabelInstruction(endOfBlockLabel, endOfLoopRange));
+    }
+    emitLoopBody(block, context) {
+      this._loopContexts.push(context);
+      try {
+        this.emitStatement(block);
+      } finally {
+        this._loopContexts.pop();
+      }
+    }
+    emitLoopControlStatement(statement) {
+      if (this._loopContexts.length === 0) {
+        return;
+      }
+      const context = this._loopContexts[this._loopContexts.length - 1];
+      const target = statement.loopKind === "continue" ? context.continueLabel : context.breakLabel;
+      this._instructions.push(new TempJumpInstruction(target, statement.syntax.range));
     }
     emitLabelStatement(statement) {
       this._instructions.push(new TempLabelInstruction(statement.labelName, statement.syntax.range));
@@ -14475,67 +14714,73 @@
     }
     emitExpression(expression) {
       switch (expression.kind) {
-        case 15 /* NegationExpression */:
+        case 16 /* NegationExpression */:
           this.emitNegationExpression(expression);
           break;
-        case 16 /* OrExpression */:
+        case 17 /* OrExpression */:
           this.emitOrExpression(expression);
           break;
-        case 17 /* AndExpression */:
+        case 18 /* AndExpression */:
           this.emitAndExpression(expression);
           break;
-        case 18 /* NotEqualExpression */:
+        case 19 /* NotEqualExpression */:
           this.emitNotEqualExpression(expression);
           break;
-        case 19 /* EqualExpression */:
+        case 20 /* EqualExpression */:
           this.emitEqualExpression(expression);
           break;
-        case 20 /* LessThanExpression */:
+        case 21 /* LessThanExpression */:
           this.emitComparisonExpression(expression, new LessThanInstruction(expression.syntax.range));
           break;
-        case 21 /* GreaterThanExpression */:
+        case 22 /* GreaterThanExpression */:
           this.emitComparisonExpression(expression, new GreaterThanInstruction(expression.syntax.range));
           break;
-        case 22 /* LessThanOrEqualExpression */:
+        case 23 /* LessThanOrEqualExpression */:
           this.emitComparisonExpression(expression, new LessThanOrEqualInstruction(expression.syntax.range));
           break;
-        case 23 /* GreaterThanOrEqualExpression */:
+        case 24 /* GreaterThanOrEqualExpression */:
           this.emitComparisonExpression(expression, new GreaterThanOrEqualInstruction(expression.syntax.range));
           break;
-        case 24 /* AdditionExpression */:
+        case 25 /* AdditionExpression */:
           this.emitAdditionExpression(expression);
           break;
-        case 25 /* SubtractionExpression */:
+        case 26 /* SubtractionExpression */:
           this.emitSubtractionExpression(expression);
           break;
-        case 26 /* MultiplicationExpression */:
+        case 27 /* MultiplicationExpression */:
           this.emitMultiplicationExpression(expression);
           break;
-        case 27 /* DivisionExpression */:
+        case 28 /* DivisionExpression */:
           this.emitDivisionExpression(expression);
           break;
-        case 28 /* ArrayAccessExpression */:
+        case 29 /* IntegerDivisionExpression */:
+          this.emitIntegerDivisionExpression(expression);
+          break;
+        case 30 /* ModuloExpression */:
+          this.emitModuloExpression(expression);
+          break;
+        case 31 /* ArrayAccessExpression */:
           this.emitArrayAccessExpression(expression);
           break;
-        case 30 /* LibraryPropertyExpression */:
+        case 33 /* LibraryPropertyExpression */:
           this.emitLibraryPropertyExpression(expression);
           break;
-        case 33 /* LibraryMethodInvocationExpression */:
+        case 36 /* LibraryMethodInvocationExpression */:
           this.emitLibraryMethodInvocationExpression(expression);
           break;
-        case 35 /* SubModuleInvocationExpression */:
+        case 38 /* SubModuleInvocationExpression */:
           this.emitSubModuleInvocationExpression(expression);
           break;
-        case 36 /* VariableExpression */:
+        case 39 /* VariableExpression */:
           this.emitVariableExpression(expression);
           break;
-        case 37 /* StringLiteralExpression */:
+        case 40 /* StringLiteralExpression */:
           this.emitStringLiteralExpression(expression);
           break;
-        case 38 /* NumberLiteralExpression */:
+        case 41 /* NumberLiteralExpression */:
           this.emitNumberLiteralExpression(expression);
           break;
-        case 39 /* ParenthesisExpression */:
+        case 42 /* ParenthesisExpression */:
           this.emitParenthesisExpression(expression);
           break;
         default:
@@ -14640,6 +14885,16 @@
       this.emitExpression(expression.rightExpression);
       this._instructions.push(new DivideInstruction(expression.syntax.range));
     }
+    emitIntegerDivisionExpression(expression) {
+      this.emitExpression(expression.leftExpression);
+      this.emitExpression(expression.rightExpression);
+      this._instructions.push(new IntegerDivideInstruction(expression.syntax.range));
+    }
+    emitModuloExpression(expression) {
+      this.emitExpression(expression.leftExpression);
+      this.emitExpression(expression.rightExpression);
+      this._instructions.push(new ModuloInstruction(expression.syntax.range));
+    }
     emitArrayAccessExpression(expression) {
       for (let i = expression.indices.length - 1; i >= 0; i--) {
         this.emitExpression(expression.indices[i]);
@@ -14716,7 +14971,7 @@
       let current = this.peek();
       if (current) {
         switch (current.kind) {
-          case 41 /* Comment */:
+          case 45 /* Comment */:
             this._result.push(this.parseCommentCommand());
             break;
           case 1 /* IfKeyword */:
@@ -14743,38 +14998,44 @@
           case 12 /* EndWhileKeyword */:
             this._result.push(this.parseEndWhileCommand());
             break;
+          case 13 /* BreakKeyword */:
+            this._result.push(this.parseBreakCommand());
+            break;
+          case 14 /* ContinueKeyword */:
+            this._result.push(this.parseContinueCommand());
+            break;
           case 10 /* GoToKeyword */:
             this._result.push(this.parseGoToCommand());
             break;
-          case 38 /* Identifier */:
-            if (this.isNext(31 /* Colon */, 1)) {
+          case 42 /* Identifier */:
+            if (this.isNext(34 /* Colon */, 1)) {
               this._result.push(this.parseLabelCommand());
             } else {
               this._result.push(this.parseExpressionCommand());
             }
             break;
-          case 13 /* SubKeyword */:
+          case 15 /* SubKeyword */:
             this._result.push(this.parseSubCommand());
             break;
-          case 14 /* EndSubKeyword */:
+          case 16 /* EndSubKeyword */:
             this._result.push(this.parseEndSubCommand());
             break;
-          case 15 /* FunctionKeyword */:
+          case 17 /* FunctionKeyword */:
             this._result.push(this.parseFunctionCommand());
             break;
-          case 16 /* EndFunctionKeyword */:
+          case 18 /* EndFunctionKeyword */:
             this._result.push(this.parseEndFunctionCommand());
             break;
-          case 17 /* DimKeyword */:
+          case 19 /* DimKeyword */:
             this._result.push(this.parseDimCommand());
             break;
-          case 18 /* ReturnKeyword */:
+          case 20 /* ReturnKeyword */:
             this._result.push(this.parseReturnCommand());
             break;
-          case 28 /* Minus */:
-          case 39 /* NumberLiteral */:
-          case 40 /* StringLiteral */:
-          case 21 /* LeftParen */:
+          case 30 /* Minus */:
+          case 43 /* NumberLiteral */:
+          case 44 /* StringLiteral */:
+          case 23 /* LeftParen */:
             this._result.push(this.parseExpressionCommand());
             break;
           default:
@@ -14785,7 +15046,7 @@
       }
       current = this.peek();
       if (current) {
-        if (current.kind === 41 /* Comment */) {
+        if (current.kind === 45 /* Comment */) {
           this._result.push(this.parseCommentCommand());
         } else {
           this.reportError(new Diagnostic(5 /* UnexpectedToken_ExpectingEOL */, current.range, current.text));
@@ -14793,7 +15054,7 @@
       }
     }
     parseCommentCommand() {
-      const comment = this.eat(41 /* Comment */);
+      const comment = this.eat(45 /* Comment */);
       return new CommentCommandSyntax(comment);
     }
     parseIfCommand() {
@@ -14818,8 +15079,8 @@
     }
     parseForCommand() {
       const forKeyword = this.eat(6 /* ForKeyword */);
-      const identifierToken = this.eat(38 /* Identifier */);
-      const equalToken = this.eat(25 /* Equal */);
+      const identifierToken = this.eat(42 /* Identifier */);
+      const equalToken = this.eat(27 /* Equal */);
       const fromExpression = this.parseBaseExpression();
       const toToken = this.eat(7 /* ToKeyword */);
       const toExpression = this.parseBaseExpression();
@@ -14844,19 +15105,27 @@
       const endWhileKeyword = this.eat(12 /* EndWhileKeyword */);
       return new EndWhileCommandSyntax(endWhileKeyword);
     }
+    parseBreakCommand() {
+      const breakKeyword = this.eat(13 /* BreakKeyword */);
+      return new BreakCommandSyntax(breakKeyword);
+    }
+    parseContinueCommand() {
+      const continueKeyword = this.eat(14 /* ContinueKeyword */);
+      return new ContinueCommandSyntax(continueKeyword);
+    }
     parseLabelCommand() {
-      const labelToken = this.eat(38 /* Identifier */);
-      const colonToken = this.eat(31 /* Colon */);
+      const labelToken = this.eat(42 /* Identifier */);
+      const colonToken = this.eat(34 /* Colon */);
       return new LabelCommandSyntax(labelToken, colonToken);
     }
     parseGoToCommand() {
       const gotoToken = this.eat(10 /* GoToKeyword */);
-      const labelToken = this.eat(38 /* Identifier */);
+      const labelToken = this.eat(42 /* Identifier */);
       return new GoToCommandSyntax(gotoToken, labelToken);
     }
     parseSubCommand() {
-      const subToken = this.eat(13 /* SubKeyword */);
-      const nameToken = this.eat(38 /* Identifier */);
+      const subToken = this.eat(15 /* SubKeyword */);
+      const nameToken = this.eat(42 /* Identifier */);
       const parameters = this.parseOptionalParameterList();
       return new SubCommandSyntax(
         subToken,
@@ -14868,12 +15137,12 @@
       );
     }
     parseEndSubCommand() {
-      const endSubToken = this.eat(14 /* EndSubKeyword */);
+      const endSubToken = this.eat(16 /* EndSubKeyword */);
       return new EndSubCommandSyntax(endSubToken);
     }
     parseFunctionCommand() {
-      const functionToken = this.eat(15 /* FunctionKeyword */);
-      const nameToken = this.eat(38 /* Identifier */);
+      const functionToken = this.eat(17 /* FunctionKeyword */);
+      const nameToken = this.eat(42 /* Identifier */);
       const parameters = this.parseOptionalParameterList();
       return new FunctionCommandSyntax(
         functionToken,
@@ -14892,35 +15161,35 @@
     parseOptionalParameterList() {
       const parameterTokens = [];
       const commaTokens = [];
-      if (!this.isNext(21 /* LeftParen */)) {
+      if (!this.isNext(23 /* LeftParen */)) {
         return { leftParenToken: void 0, parameterTokens, commaTokens, rightParenToken: void 0 };
       }
-      const leftParenToken = this.eat(21 /* LeftParen */);
-      if (!this.isNext(20 /* RightParen */)) {
-        parameterTokens.push(this.eat(38 /* Identifier */));
-        while (this.isNext(24 /* Comma */)) {
-          commaTokens.push(this.eat(24 /* Comma */));
-          parameterTokens.push(this.eat(38 /* Identifier */));
+      const leftParenToken = this.eat(23 /* LeftParen */);
+      if (!this.isNext(22 /* RightParen */)) {
+        parameterTokens.push(this.eat(42 /* Identifier */));
+        while (this.isNext(26 /* Comma */)) {
+          commaTokens.push(this.eat(26 /* Comma */));
+          parameterTokens.push(this.eat(42 /* Identifier */));
         }
       }
-      const rightParenToken = this.eat(20 /* RightParen */);
+      const rightParenToken = this.eat(22 /* RightParen */);
       return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
     }
     parseEndFunctionCommand() {
-      return new EndFunctionCommandSyntax(this.eat(16 /* EndFunctionKeyword */));
+      return new EndFunctionCommandSyntax(this.eat(18 /* EndFunctionKeyword */));
     }
     parseDimCommand() {
-      const dimToken = this.eat(17 /* DimKeyword */);
-      const variableTokens = [this.eat(38 /* Identifier */)];
+      const dimToken = this.eat(19 /* DimKeyword */);
+      const variableTokens = [this.eat(42 /* Identifier */)];
       const commaTokens = [];
-      while (this.isNext(24 /* Comma */)) {
-        commaTokens.push(this.eat(24 /* Comma */));
-        variableTokens.push(this.eat(38 /* Identifier */));
+      while (this.isNext(26 /* Comma */)) {
+        commaTokens.push(this.eat(26 /* Comma */));
+        variableTokens.push(this.eat(42 /* Identifier */));
       }
       return new DimCommandSyntax(dimToken, variableTokens, commaTokens);
     }
     parseReturnCommand() {
-      const returnToken = this.eat(18 /* ReturnKeyword */);
+      const returnToken = this.eat(20 /* ReturnKeyword */);
       const expression = this.parseBaseExpression();
       return new ReturnCommandSyntax(returnToken, expression);
     }
@@ -14945,8 +15214,8 @@
       return expression;
     }
     parseUnaryOperator() {
-      if (this.isNext(28 /* Minus */)) {
-        const minusToken = this.eat(28 /* Minus */);
+      if (this.isNext(30 /* Minus */)) {
+        const minusToken = this.eat(30 /* Minus */);
         const expression = this.parseBaseExpression();
         return new UnaryOperatorExpressionSyntax(minusToken, expression);
       }
@@ -14960,13 +15229,13 @@
           return expression;
         }
         switch (currentToken.kind) {
-          case 19 /* Dot */:
+          case 21 /* Dot */:
             expression = this.parseObjectAccessExpression(expression);
             break;
-          case 23 /* LeftSquareBracket */:
+          case 25 /* LeftSquareBracket */:
             expression = this.parseArrayAccessExpressoin(expression);
             break;
-          case 21 /* LeftParen */:
+          case 23 /* LeftParen */:
             expression = this.parseCallExpression(expression);
             break;
           default:
@@ -14975,31 +15244,31 @@
       }
     }
     parseObjectAccessExpression(leftHandSide) {
-      const dotToken = this.eat(19 /* Dot */);
-      const identifierToken = this.eat(38 /* Identifier */);
+      const dotToken = this.eat(21 /* Dot */);
+      const identifierToken = this.isNext(41 /* Mod */) ? this.eat(41 /* Mod */) : this.eat(42 /* Identifier */);
       return new ObjectAccessExpressionSyntax(leftHandSide, dotToken, identifierToken);
     }
     parseArrayAccessExpressoin(leftHandSide) {
-      const leftSquareBracket = this.eat(23 /* LeftSquareBracket */);
+      const leftSquareBracket = this.eat(25 /* LeftSquareBracket */);
       const indexExpression = this.parseBaseExpression();
-      const rightSquareBracket = this.eat(22 /* RightSquareBracket */);
+      const rightSquareBracket = this.eat(24 /* RightSquareBracket */);
       return new ArrayAccessExpressionSyntax(leftHandSide, leftSquareBracket, indexExpression, rightSquareBracket);
     }
     parseCallExpression(leftHandSide) {
-      const leftParen = this.eat(21 /* LeftParen */);
+      const leftParen = this.eat(23 /* LeftParen */);
       const argumentsList = [];
       let currentToken = this.peek();
       let currentArgument;
       loop: while (currentToken) {
         if (currentArgument) {
           switch (currentToken.kind) {
-            case 24 /* Comma */: {
-              const comma = this.eat(24 /* Comma */);
+            case 26 /* Comma */: {
+              const comma = this.eat(26 /* Comma */);
               argumentsList.push(new ArgumentSyntax(currentArgument, comma));
               currentArgument = void 0;
               break;
             }
-            case 20 /* RightParen */: {
+            case 22 /* RightParen */: {
               argumentsList.push(new ArgumentSyntax(currentArgument, void 0));
               currentArgument = void 0;
               break loop;
@@ -15009,14 +15278,14 @@
                 4 /* UnexpectedToken_ExpectingToken */,
                 currentToken.range,
                 currentToken.text,
-                CompilerUtils.tokenToDisplayString(24 /* Comma */)
+                CompilerUtils.tokenToDisplayString(26 /* Comma */)
               ));
               argumentsList.push(new ArgumentSyntax(currentArgument, void 0));
               currentArgument = void 0;
               break;
             }
           }
-        } else if (currentToken.kind === 20 /* RightParen */) {
+        } else if (currentToken.kind === 22 /* RightParen */) {
           break loop;
         } else {
           currentArgument = this.parseBaseExpression();
@@ -15026,7 +15295,7 @@
       if (currentArgument) {
         argumentsList.push(new ArgumentSyntax(currentArgument, void 0));
       }
-      const rightParen = this.eat(20 /* RightParen */);
+      const rightParen = this.eat(22 /* RightParen */);
       return new InvocationExpressionSyntax(leftHandSide, leftParen, argumentsList, rightParen);
     }
     parseTerminalExpression() {
@@ -15034,31 +15303,31 @@
       if (!current) {
         const range = this._tokens[this._index - 1].range;
         this.reportError(new Diagnostic(6 /* UnexpectedEOL_ExpectingExpression */, range));
-        return new IdentifierExpressionSyntax(this.createMissingToken(range, 38 /* Identifier */));
+        return new IdentifierExpressionSyntax(this.createMissingToken(range, 42 /* Identifier */));
       }
       switch (current.kind) {
-        case 38 /* Identifier */: {
-          const identifierToken = this.eat(38 /* Identifier */);
+        case 42 /* Identifier */: {
+          const identifierToken = this.eat(42 /* Identifier */);
           return new IdentifierExpressionSyntax(identifierToken);
         }
-        case 39 /* NumberLiteral */: {
-          const numberToken = this.eat(39 /* NumberLiteral */);
+        case 43 /* NumberLiteral */: {
+          const numberToken = this.eat(43 /* NumberLiteral */);
           return new NumberLiteralExpressionSyntax(numberToken);
         }
-        case 40 /* StringLiteral */: {
-          const stringToken = this.eat(40 /* StringLiteral */);
+        case 44 /* StringLiteral */: {
+          const stringToken = this.eat(44 /* StringLiteral */);
           return new StringLiteralExpressionSyntax(stringToken);
         }
-        case 21 /* LeftParen */: {
-          const leftParen = this.eat(21 /* LeftParen */);
+        case 23 /* LeftParen */: {
+          const leftParen = this.eat(23 /* LeftParen */);
           const expression = this.parseBaseExpression();
-          const rightParen = this.eat(20 /* RightParen */);
+          const rightParen = this.eat(22 /* RightParen */);
           return new ParenthesisExpressionSyntax(leftParen, expression, rightParen);
         }
         default: {
           this.eat(current.kind);
           this.reportError(new Diagnostic(3 /* UnexpectedToken_ExpectingExpression */, current.range, current.text));
-          return new IdentifierExpressionSyntax(this.createMissingToken(current.range, 38 /* Identifier */));
+          return new IdentifierExpressionSyntax(this.createMissingToken(current.range, 42 /* Identifier */));
         }
       }
     }
@@ -15102,19 +15371,24 @@
         this._currentLineHasErrors = true;
       }
     }
+    // Matches the Visual Basic arithmetic ladder: * and / bind tightest, \
+    // (integer division) sits between them and Mod, and Mod binds looser
+    // than both but tighter than + and -.
     static BinaryOperatorPrecedence = [
-      36 /* Or */,
-      37 /* And */,
-      25 /* Equal */,
-      26 /* NotEqual */,
-      32 /* LessThan */,
-      33 /* GreaterThan */,
-      34 /* LessThanOrEqual */,
-      35 /* GreaterThanOrEqual */,
-      27 /* Plus */,
-      28 /* Minus */,
-      29 /* Multiply */,
-      30 /* Divide */
+      39 /* Or */,
+      40 /* And */,
+      27 /* Equal */,
+      28 /* NotEqual */,
+      35 /* LessThan */,
+      36 /* GreaterThan */,
+      37 /* LessThanOrEqual */,
+      38 /* GreaterThanOrEqual */,
+      29 /* Plus */,
+      30 /* Minus */,
+      41 /* Mod */,
+      33 /* Backslash */,
+      31 /* Multiply */,
+      32 /* Divide */
     ];
   };
 
@@ -15173,60 +15447,63 @@
           this._column++;
           return true;
         case "(":
-          this.addToken(current, 21 /* LeftParen */);
+          this.addToken(current, 23 /* LeftParen */);
           return true;
         case ")":
-          this.addToken(current, 20 /* RightParen */);
+          this.addToken(current, 22 /* RightParen */);
           return true;
         case "[":
-          this.addToken(current, 23 /* LeftSquareBracket */);
+          this.addToken(current, 25 /* LeftSquareBracket */);
           return true;
         case "]":
-          this.addToken(current, 22 /* RightSquareBracket */);
+          this.addToken(current, 24 /* RightSquareBracket */);
           return true;
         case ".":
-          this.addToken(current, 19 /* Dot */);
+          this.addToken(current, 21 /* Dot */);
           return true;
         case ",":
-          this.addToken(current, 24 /* Comma */);
+          this.addToken(current, 26 /* Comma */);
           return true;
         case "=":
-          this.addToken(current, 25 /* Equal */);
+          this.addToken(current, 27 /* Equal */);
           return true;
         case ":":
-          this.addToken(current, 31 /* Colon */);
+          this.addToken(current, 34 /* Colon */);
           return true;
         case "+":
-          this.addToken(current, 27 /* Plus */);
+          this.addToken(current, 29 /* Plus */);
           return true;
         case "-":
-          this.addToken(current, 28 /* Minus */);
+          this.addToken(current, 30 /* Minus */);
           return true;
         case "*":
-          this.addToken(current, 29 /* Multiply */);
+          this.addToken(current, 31 /* Multiply */);
           return true;
         case "/":
-          this.addToken(current, 30 /* Divide */);
+          this.addToken(current, 32 /* Divide */);
+          return true;
+        case "\\":
+          this.addToken(current, 33 /* Backslash */);
           return true;
         case "<":
           switch (next) {
             case ">":
-              this.addToken(current + next, 26 /* NotEqual */);
+              this.addToken(current + next, 28 /* NotEqual */);
               return true;
             case "=":
-              this.addToken(current + next, 34 /* LessThanOrEqual */);
+              this.addToken(current + next, 37 /* LessThanOrEqual */);
               return true;
             default:
-              this.addToken(current, 32 /* LessThan */);
+              this.addToken(current, 35 /* LessThan */);
               return true;
           }
         case ">":
           switch (next) {
             case "=":
-              this.addToken(current + next, 35 /* GreaterThanOrEqual */);
+              this.addToken(current + next, 38 /* GreaterThanOrEqual */);
               return true;
             default:
-              this.addToken(current, 33 /* GreaterThan */);
+              this.addToken(current, 36 /* GreaterThan */);
               return true;
           }
         case "'":
@@ -15256,7 +15533,7 @@
         }
         lookAhead++;
       }
-      this.addToken(this._text.substr(this._index, lookAhead - this._index).trim(), 41 /* Comment */);
+      this.addToken(this._text.substr(this._index, lookAhead - this._index).trim(), 45 /* Comment */);
     }
     scanStringToken() {
       let lookAhead = this._index + 1;
@@ -15264,11 +15541,11 @@
         const ch = this._text[lookAhead];
         switch (ch) {
           case '"':
-            this.addToken(this._text.substr(this._index, lookAhead - this._index + 1), 40 /* StringLiteral */);
+            this.addToken(this._text.substr(this._index, lookAhead - this._index + 1), 44 /* StringLiteral */);
             return;
           case "\r":
           case "\n":
-            const token = this.addToken(this._text.substr(this._index, lookAhead - this._index), 40 /* StringLiteral */);
+            const token = this.addToken(this._text.substr(this._index, lookAhead - this._index), 44 /* StringLiteral */);
             this._diagnostics.push(new Diagnostic(1 /* UnterminatedStringLiteral */, token.range));
             return;
           default:
@@ -15281,7 +15558,7 @@
             break;
         }
       }
-      const unrecognizedToken = this.addToken(this._text.substr(this._index, lookAhead - this._index), 40 /* StringLiteral */);
+      const unrecognizedToken = this.addToken(this._text.substr(this._index, lookAhead - this._index), 44 /* StringLiteral */);
       this._diagnostics.push(new Diagnostic(1 /* UnterminatedStringLiteral */, unrecognizedToken.range));
     }
     scanNumberToken() {
@@ -15295,7 +15572,7 @@
           lookAhead++;
         }
       }
-      this.addToken(this._text.substr(this._index, lookAhead - this._index), 39 /* NumberLiteral */);
+      this.addToken(this._text.substr(this._index, lookAhead - this._index), 43 /* NumberLiteral */);
     }
     scanWordToken() {
       let lookAhead = this._index;
@@ -15345,32 +15622,41 @@
         case "endwhile":
           this.addToken(word, 12 /* EndWhileKeyword */);
           return;
+        case "break":
+          this.addToken(word, 13 /* BreakKeyword */);
+          return;
+        case "continue":
+          this.addToken(word, 14 /* ContinueKeyword */);
+          return;
         case "sub":
-          this.addToken(word, 13 /* SubKeyword */);
+          this.addToken(word, 15 /* SubKeyword */);
           return;
         case "endsub":
-          this.addToken(word, 14 /* EndSubKeyword */);
+          this.addToken(word, 16 /* EndSubKeyword */);
           return;
         case "function":
-          this.addToken(word, 15 /* FunctionKeyword */);
+          this.addToken(word, 17 /* FunctionKeyword */);
           return;
         case "endfunction":
-          this.addToken(word, 16 /* EndFunctionKeyword */);
+          this.addToken(word, 18 /* EndFunctionKeyword */);
           return;
         case "dim":
-          this.addToken(word, 17 /* DimKeyword */);
+          this.addToken(word, 19 /* DimKeyword */);
           return;
         case "return":
-          this.addToken(word, 18 /* ReturnKeyword */);
+          this.addToken(word, 20 /* ReturnKeyword */);
           return;
         case "or":
-          this.addToken(word, 36 /* Or */);
+          this.addToken(word, 39 /* Or */);
           return;
         case "and":
-          this.addToken(word, 37 /* And */);
+          this.addToken(word, 40 /* And */);
+          return;
+        case "mod":
+          this.addToken(word, 41 /* Mod */);
           return;
         default:
-          this.addToken(word, 38 /* Identifier */);
+          this.addToken(word, 42 /* Identifier */);
           return;
       }
     }
@@ -15401,7 +15687,7 @@
       while (this._index < this._commands.length) {
         const current = this._commands[this._index];
         switch (current.kind) {
-          case 19 /* SubCommand */: {
+          case 21 /* SubCommand */: {
             if (startModuleCommand || startFunctionCommand) {
               this.eat(current.kind);
               this.reportNestedProcedure(current);
@@ -15409,11 +15695,11 @@
               this._mainModule.push(...currentModuleStatements);
               currentModuleStatements = [];
               startModuleCommand = this.eat(current.kind);
-              this._activeProcedureKind = 19 /* SubCommand */;
+              this._activeProcedureKind = 21 /* SubCommand */;
             }
             break;
           }
-          case 21 /* FunctionCommand */: {
+          case 23 /* FunctionCommand */: {
             if (startModuleCommand || startFunctionCommand) {
               this.eat(current.kind);
               this.reportNestedProcedure(current);
@@ -15421,11 +15707,11 @@
               this._mainModule.push(...currentModuleStatements);
               currentModuleStatements = [];
               startFunctionCommand = this.eat(current.kind);
-              this._activeProcedureKind = 21 /* FunctionCommand */;
+              this._activeProcedureKind = 23 /* FunctionCommand */;
             }
             break;
           }
-          case 20 /* EndSubCommand */: {
+          case 22 /* EndSubCommand */: {
             if (startModuleCommand) {
               const endModuleCommand = this.eat(current.kind);
               this._subModules.push(new SubModuleDeclarationSyntax(
@@ -15441,13 +15727,13 @@
               this._diagnostics.push(new Diagnostic(
                 12 /* CannotHaveCommandWithoutPreviousCommand */,
                 current.range,
-                CompilerUtils.commandToDisplayString(20 /* EndSubCommand */),
-                CompilerUtils.commandToDisplayString(19 /* SubCommand */)
+                CompilerUtils.commandToDisplayString(22 /* EndSubCommand */),
+                CompilerUtils.commandToDisplayString(21 /* SubCommand */)
               ));
             }
             break;
           }
-          case 22 /* EndFunctionCommand */: {
+          case 24 /* EndFunctionCommand */: {
             if (startFunctionCommand) {
               const endFunctionCommand = this.eat(current.kind);
               this._functions.push(new FunctionDeclarationSyntax(
@@ -15463,8 +15749,8 @@
               this._diagnostics.push(new Diagnostic(
                 12 /* CannotHaveCommandWithoutPreviousCommand */,
                 current.range,
-                CompilerUtils.commandToDisplayString(22 /* EndFunctionCommand */),
-                CompilerUtils.commandToDisplayString(21 /* FunctionCommand */)
+                CompilerUtils.commandToDisplayString(24 /* EndFunctionCommand */),
+                CompilerUtils.commandToDisplayString(23 /* FunctionCommand */)
               ));
             }
             break;
@@ -15479,14 +15765,14 @@
         }
       }
       if (startModuleCommand) {
-        const endModuleCommand = this.eat(20 /* EndSubCommand */);
+        const endModuleCommand = this.eat(22 /* EndSubCommand */);
         this._subModules.push(new SubModuleDeclarationSyntax(
           startModuleCommand,
           new StatementBlockSyntax(currentModuleStatements),
           endModuleCommand
         ));
       } else if (startFunctionCommand) {
-        const endFunctionCommand = this.eat(22 /* EndFunctionCommand */);
+        const endFunctionCommand = this.eat(24 /* EndFunctionCommand */);
         this._functions.push(new FunctionDeclarationSyntax(
           startFunctionCommand,
           new StatementBlockSyntax(currentModuleStatements),
@@ -15539,6 +15825,12 @@
         case 15 /* WhileCommand */: {
           return this.parseWhileStatement();
         }
+        case 17 /* BreakCommand */: {
+          return this.eat(17 /* BreakCommand */);
+        }
+        case 18 /* ContinueCommand */: {
+          return this.eat(18 /* ContinueCommand */);
+        }
         case 16 /* EndWhileCommand */: {
           this.eat(current.kind);
           this._diagnostics.push(new Diagnostic(
@@ -15549,40 +15841,40 @@
           ));
           return;
         }
-        case 17 /* LabelCommand */: {
-          return this.eat(17 /* LabelCommand */);
+        case 19 /* LabelCommand */: {
+          return this.eat(19 /* LabelCommand */);
         }
-        case 18 /* GoToCommand */: {
-          return this.eat(18 /* GoToCommand */);
+        case 20 /* GoToCommand */: {
+          return this.eat(20 /* GoToCommand */);
         }
-        case 25 /* ExpressionCommand */: {
-          return this.eat(25 /* ExpressionCommand */);
+        case 27 /* ExpressionCommand */: {
+          return this.eat(27 /* ExpressionCommand */);
         }
-        case 23 /* DimCommand */: {
-          return this.eat(23 /* DimCommand */);
+        case 25 /* DimCommand */: {
+          return this.eat(25 /* DimCommand */);
         }
-        case 24 /* ReturnCommand */: {
-          return this.eat(24 /* ReturnCommand */);
+        case 26 /* ReturnCommand */: {
+          return this.eat(26 /* ReturnCommand */);
         }
-        case 19 /* SubCommand */:
-        case 21 /* FunctionCommand */: {
+        case 21 /* SubCommand */:
+        case 23 /* FunctionCommand */: {
           this.eat(current.kind);
           this.reportNestedProcedure(current);
           return;
         }
-        case 20 /* EndSubCommand */:
-        case 22 /* EndFunctionCommand */: {
+        case 22 /* EndSubCommand */:
+        case 24 /* EndFunctionCommand */: {
           this.eat(current.kind);
           this._diagnostics.push(new Diagnostic(
             12 /* CannotHaveCommandWithoutPreviousCommand */,
             current.range,
             CompilerUtils.commandToDisplayString(current.kind),
-            current.kind === 20 /* EndSubCommand */ ? CompilerUtils.commandToDisplayString(19 /* SubCommand */) : CompilerUtils.commandToDisplayString(21 /* FunctionCommand */)
+            current.kind === 22 /* EndSubCommand */ ? CompilerUtils.commandToDisplayString(21 /* SubCommand */) : CompilerUtils.commandToDisplayString(23 /* FunctionCommand */)
           ));
           return;
         }
-        case 26 /* CommentCommand */: {
-          return this.eat(26 /* CommentCommand */);
+        case 28 /* CommentCommand */: {
+          return this.eat(28 /* CommentCommand */);
         }
         default: {
           throw new Error(`Unexpected command ${SyntaxKind[current.kind]} here`);
@@ -15590,7 +15882,7 @@
       }
     }
     reportNestedProcedure(current) {
-      const code = this._activeProcedureKind === 19 /* SubCommand */ && current.kind === 19 /* SubCommand */ ? 10 /* CannotDefineASubInsideAnotherSub */ : 11 /* CannotDefineProcedureInsideProcedure */;
+      const code = this._activeProcedureKind === 21 /* SubCommand */ && current.kind === 21 /* SubCommand */ ? 10 /* CannotDefineASubInsideAnotherSub */ : 11 /* CannotDefineProcedureInsideProcedure */;
       this._diagnostics.push(new Diagnostic(code, current.range));
     }
     parseIfStatement() {
@@ -15790,13 +16082,13 @@
       ResultKind2[ResultKind2["Event"] = 4] = "Event";
     })(ResultKind = CompletionService2.ResultKind || (CompletionService2.ResultKind = {}));
     function provideCompletion(compilation, position) {
-      const objectAccessExpression = compilation.getSyntaxNode(position, 29 /* ObjectAccessExpression */);
+      const objectAccessExpression = compilation.getSyntaxNode(position, 31 /* ObjectAccessExpression */);
       if (objectAccessExpression) {
         const visitor = new CompletionVisitor(compilation, position);
         visitor.visit(objectAccessExpression);
         return visitor.results;
       }
-      const identifierExpression = compilation.getSyntaxNode(position, 34 /* IdentifierExpression */);
+      const identifierExpression = compilation.getSyntaxNode(position, 36 /* IdentifierExpression */);
       if (identifierExpression) {
         const visitor = new CompletionVisitor(compilation, position);
         visitor.visit(identifierExpression);
@@ -15825,7 +16117,7 @@
         this._allResults.push(result);
       }
       visitObjectAccessExpression(node) {
-        if (node.baseExpression.kind !== 34 /* IdentifierExpression */) {
+        if (node.baseExpression.kind !== 36 /* IdentifierExpression */) {
           return;
         }
         const libraryName = node.baseExpression.identifierToken.token.text;
@@ -15948,16 +16240,16 @@
     }
     function visit(node, add) {
       switch (node.kind) {
-        case 11 /* VariableAssignmentStatement */:
+        case 12 /* VariableAssignmentStatement */:
           add(node.variableName);
           break;
-        case 13 /* ArrayAssignmentStatement */:
+        case 14 /* ArrayAssignmentStatement */:
           add(node.arrayName);
           break;
-        case 9 /* LibraryMethodInvocationStatement */:
+        case 10 /* LibraryMethodInvocationStatement */:
           collectArrayLibraryName(node, add);
           break;
-        case 33 /* LibraryMethodInvocationExpression */:
+        case 36 /* LibraryMethodInvocationExpression */:
           collectArrayLibraryName(node, add);
           break;
         default:
@@ -15978,7 +16270,7 @@
           return;
       }
       const [firstArgument] = node.argumentsList;
-      if (firstArgument?.kind === 37 /* StringLiteralExpression */) {
+      if (firstArgument?.kind === 40 /* StringLiteralExpression */) {
         add(firstArgument.value);
       }
     }
@@ -16013,6 +16305,8 @@
         snippet("For", "For ${1:name} = ${2:start} To ${3:end}\nEndFor"),
         snippet("For Step", "For ${1:name} = ${2:start} To ${3:end} Step ${4:increment}\nEndFor"),
         snippet("EndFor", "EndFor"),
+        snippet("Break", "Break"),
+        snippet("Continue", "Continue"),
         snippet("Sub", "Sub ${1:name}\nEndSub"),
         snippet("EndSub", "EndSub"),
         snippet("Function", "Function ${1:name}(${2:arguments})\n	${3}\nEndFunction"),
@@ -16064,11 +16358,15 @@
           };
         }
       }
+      const keyword = provideKeywordHover(compilation, position);
+      if (keyword) {
+        return keyword;
+      }
       const userSymbol = provideUserSymbolHover(compilation, position);
       if (userSymbol) {
         return userSymbol;
       }
-      const node = compilation.getSyntaxNode(position, 29 /* ObjectAccessExpression */);
+      const node = compilation.getSyntaxNode(position, 31 /* ObjectAccessExpression */);
       if (node) {
         const visitor = new HoverVisitor();
         visitor.visit(node);
@@ -16077,6 +16375,57 @@
       return void 0;
     }
     HoverService2.provideHover = provideHover;
+    function provideKeywordHover(compilation, position) {
+      for (const token of compilation.tokens) {
+        if (!token.range.containsPosition(position)) {
+          continue;
+        }
+        switch (token.kind) {
+          case 13 /* BreakKeyword */:
+            return {
+              range: token.range,
+              text: ["Break", "Exits the innermost While or For loop."]
+            };
+          case 14 /* ContinueKeyword */:
+            return {
+              range: token.range,
+              text: [
+                "Continue",
+                "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs."
+              ]
+            };
+          case 41 /* Mod */:
+            if (!isBinaryOperatorToken(compilation, position, token.kind)) {
+              return void 0;
+            }
+            return {
+              range: token.range,
+              text: [
+                "Mod",
+                "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0."
+              ]
+            };
+          case 33 /* Backslash */:
+            if (!isBinaryOperatorToken(compilation, position, token.kind)) {
+              return void 0;
+            }
+            return {
+              range: token.range,
+              text: [
+                "\\",
+                "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0."
+              ]
+            };
+          default:
+            return void 0;
+        }
+      }
+      return void 0;
+    }
+    function isBinaryOperatorToken(compilation, position, kind) {
+      const expression = compilation.getSyntaxNode(position, 30 /* BinaryOperatorExpression */);
+      return expression?.operatorToken.token.kind === kind && expression.operatorToken.range.containsPosition(position);
+    }
     function provideUserSymbolHover(compilation, position) {
       for (const func of compilation.parseTree.functions) {
         const procedure2 = findProcedure(compilation, func.functionCommand.nameToken.token.text);
@@ -16094,12 +16443,12 @@
           return procedureResult(procedure2, sub.subCommand.nameToken);
         }
       }
-      const dim = compilation.getSyntaxNode(position, 23 /* DimCommand */);
+      const dim = compilation.getSyntaxNode(position, 25 /* DimCommand */);
       const dimVariable = dim?.variableTokens.find((token) => token.range.containsPosition(position));
       if (dimVariable) {
         return variableResult(dimVariable, "Local variable", "Procedure-scoped variable declared with Dim");
       }
-      const identifier = compilation.getSyntaxNode(position, 34 /* IdentifierExpression */);
+      const identifier = compilation.getSyntaxNode(position, 36 /* IdentifierExpression */);
       if (!identifier) {
         return void 0;
       }
@@ -16153,7 +16502,7 @@
       return names;
     }
     function collectDimNamesFromNode(node, names) {
-      if (node.kind === 23 /* DimCommand */) {
+      if (node.kind === 25 /* DimCommand */) {
         node.variableTokens.forEach((variable) => names.push(variable.token.text));
         return;
       }
@@ -16173,7 +16522,7 @@
         }
       }
       visitObjectAccessExpression(node) {
-        if (node.baseExpression.kind !== 34 /* IdentifierExpression */) {
+        if (node.baseExpression.kind !== 36 /* IdentifierExpression */) {
           return;
         }
         const libraryNameText = node.baseExpression.identifierToken.token.text;

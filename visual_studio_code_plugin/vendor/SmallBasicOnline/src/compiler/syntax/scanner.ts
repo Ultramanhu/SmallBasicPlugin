@@ -54,6 +54,7 @@ export class Scanner {
             case "-": this.addToken(current, TokenKind.Minus); return true;
             case "*": this.addToken(current, TokenKind.Multiply); return true;
             case "/": this.addToken(current, TokenKind.Divide); return true;
+            case "\\": this.addToken(current, TokenKind.Backslash); return true;
 
             case "<": switch (next) {
                 case ">": this.addToken(current + next, TokenKind.NotEqual); return true;
@@ -169,6 +170,8 @@ export class Scanner {
             case "goto": this.addToken(word, TokenKind.GoToKeyword); return;
             case "while": this.addToken(word, TokenKind.WhileKeyword); return;
             case "endwhile": this.addToken(word, TokenKind.EndWhileKeyword); return;
+            case "break": this.addToken(word, TokenKind.BreakKeyword); return;
+            case "continue": this.addToken(word, TokenKind.ContinueKeyword); return;
             case "sub": this.addToken(word, TokenKind.SubKeyword); return;
             case "endsub": this.addToken(word, TokenKind.EndSubKeyword); return;
             case "function": this.addToken(word, TokenKind.FunctionKeyword); return;
@@ -177,6 +180,7 @@ export class Scanner {
             case "return": this.addToken(word, TokenKind.ReturnKeyword); return;
             case "or": this.addToken(word, TokenKind.Or); return;
             case "and": this.addToken(word, TokenKind.And); return;
+            case "mod": this.addToken(word, TokenKind.Mod); return;
             default: this.addToken(word, TokenKind.Identifier); return;
         }
     }

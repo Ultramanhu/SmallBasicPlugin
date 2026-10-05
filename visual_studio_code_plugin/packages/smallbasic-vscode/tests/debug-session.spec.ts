@@ -1,4 +1,4 @@
-﻿import fs from "node:fs";
+import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -113,6 +113,39 @@ describe("smallbasic debug session", () => {
     expect(client.outputText()).toContain("2");
   });
 
+  it("steps through and evaluates integer division and modulo expressions", async () => {
+    const program = writeProgram(
+      "arithmetic-debug.sb",
+      ["Value = 17", "Whole = Value \\ 5", "Rest = Value Mod 5", "TextWindow.WriteLine(Whole + Rest)", ""].join("\n")
+    );
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    const breakpoints = await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 2 }]
+    });
+    expect((breakpoints.body?.breakpoints as Array<{ verified: boolean; line: number }>)[0]).toMatchObject({
+      verified: true,
+      line: 2
+    });
+    await client.request("configurationDone");
+    await client.waitForEvent("stopped");
+
+    expect((await client.request("evaluate", { expression: "Value \\ 5" })).body?.result).toBe("3");
+    expect((await client.request("evaluate", { expression: "Value Mod 5" })).body?.result).toBe("2");
+    expect((await client.request("evaluate", { expression: "Math.Mod(Value, 5)" })).body?.result).toBe("2");
+
+    await client.request("next", { threadId: 1 });
+    await client.waitForEvent("stopped", 2);
+    const stack = await client.request("stackTrace", { threadId: 1 });
+    expect((stack.body?.stackFrames as Array<{ line: number }>)[0].line).toBe(3);
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+    expect(client.outputText()).toContain("5");
+  });
+
   it("stops only when a conditional breakpoint condition is true", async () => {
     const program = writeProgram(
       "conditional.sb",
@@ -198,6 +231,91 @@ describe("smallbasic debug session", () => {
 
     await client.request("continue", { threadId: 1 });
     await client.waitForEvent("terminated");
+  });
+
+  it("stops on a Break line and steps out of the loop", async () => {
+    const program = writeProgram(
+      "break-line.sb",
+      [
+        "I = 0",
+        'While "True"',
+        "  I = I + 1",
+        "  If I = 3 Then",
+        "    Break",
+        "  EndIf",
+        "EndWhile",
+        "TextWindow.WriteLine(I)",
+        ""
+      ].join("\n")
+    );
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    const breakpoints = await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 5 }]
+    });
+    expect((breakpoints.body?.breakpoints as Array<{ verified: boolean; line: number }>)[0]).toMatchObject({
+      verified: true,
+      line: 5
+    });
+    await client.request("configurationDone");
+
+    const stopped = await client.waitForEvent("stopped");
+    expect(stopped.body?.reason).toBe("breakpoint");
+    const atBreak = await client.request("stackTrace", { threadId: 1 });
+    expect((atBreak.body?.stackFrames as Array<{ line: number }>)[0].line).toBe(5);
+
+    // `Break` is an ordinary statement: stepping over it leaves the loop and
+    // never stops on the synthesized lowering labels.
+    await client.request("next", { threadId: 1 });
+    await client.waitForEvent("stopped", 2);
+    const afterBreak = await client.request("stackTrace", { threadId: 1 });
+    expect((afterBreak.body?.stackFrames as Array<{ line: number }>)[0].line).toBe(8);
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+    expect(client.outputText()).toContain("3");
+  });
+
+  it("stops on a Continue line and still runs the For increment", async () => {
+    const program = writeProgram(
+      "continue-line.sb",
+      [
+        "Sum = 0",
+        "For I = 1 To 4",
+        "  If I = 2 Then",
+        "    Continue",
+        "  EndIf",
+        "  Sum = Sum + I",
+        "EndFor",
+        "TextWindow.WriteLine(Sum)",
+        ""
+      ].join("\n")
+    );
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    const breakpoints = await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 4 }]
+    });
+    expect((breakpoints.body?.breakpoints as Array<{ verified: boolean; line: number }>)[0]).toMatchObject({
+      verified: true,
+      line: 4
+    });
+    await client.request("configurationDone");
+
+    const stopped = await client.waitForEvent("stopped");
+    expect(stopped.body?.reason).toBe("breakpoint");
+    const evaluation = await client.request("evaluate", { expression: "I" });
+    expect(evaluation.body?.result).toBe("2");
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+    // 1 + 3 + 4 = 8: the `Continue` round still ran the For increment, so the
+    // skipped iteration is the only one missing from the sum.
+    expect(client.outputText()).toContain("8");
   });
 
   it("bridges TextWindow input through evaluate", async () => {

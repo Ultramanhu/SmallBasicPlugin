@@ -1,4 +1,4 @@
-﻿// <copyright file="Parser.cs" company="MIT License">
+// <copyright file="Parser.cs" company="MIT License">
 // Licensed under the MIT License. See LICENSE file in the project root for license information.
 // </copyright>
 
@@ -13,6 +13,9 @@ namespace SmallBasic.Compiler.Parsing
 
     internal sealed class Parser
     {
+        // Matches the Visual Basic arithmetic ladder: * and / bind tightest,
+        // \ (integer division) sits between them and Mod, and Mod binds
+        // looser than both but tighter than + and -.
         private static readonly TokenKind[] BinaryOperatorPrecedence =
         {
             TokenKind.Or,
@@ -25,6 +28,8 @@ namespace SmallBasic.Compiler.Parsing
             TokenKind.GreaterThanOrEqual,
             TokenKind.Plus,
             TokenKind.Minus,
+            TokenKind.Mod,
+            TokenKind.Backslash,
             TokenKind.Multiply,
             TokenKind.Divide
         };
@@ -184,6 +189,9 @@ namespace SmallBasic.Compiler.Parsing
                     return this.ParseForStatement();
                 case TokenKind.While:
                     return this.ParseWhileStatement();
+                case TokenKind.Break:
+                case TokenKind.Continue:
+                    return this.ParseLoopControlStatement();
                 case TokenKind.Dim:
                     return this.ParseDimStatement();
                 case TokenKind.Return:
@@ -360,6 +368,15 @@ namespace SmallBasic.Compiler.Parsing
             return new WhileStatementSyntax(whileToken, expression, statements, endWhileToken);
         }
 
+        private LoopControlStatementSyntax ParseLoopControlStatement()
+        {
+            TokenKind kind = this.Peek();
+            var controlToken = this.Eat(kind);
+            this.RunToEndOfLine();
+
+            return new LoopControlStatementSyntax(controlToken);
+        }
+
         private BaseExpressionSyntax ParseBaseExpression()
         {
             return this.ParseBinaryOperator(precedence: 0);
@@ -409,7 +426,11 @@ namespace SmallBasic.Compiler.Parsing
                 {
                     case TokenKind.Dot:
                         var dotToken = this.Eat(TokenKind.Dot);
-                        var identifierToken = this.Eat(TokenKind.Identifier);
+                        // `Mod` is a keyword operator, but it is also a library
+                        // member name (Math.Mod); accept it as the member token.
+                        var identifierToken = this.index < this.tokens.Count && this.tokens[this.index].Kind == TokenKind.Mod
+                            ? this.Eat(TokenKind.Mod)
+                            : this.Eat(TokenKind.Identifier);
                         expression = new ObjectAccessExpressionSyntax(expression, dotToken, identifierToken);
                         break;
 

@@ -176,6 +176,12 @@ export class StatementsParser {
             case SyntaxKind.WhileCommand: {
                 return this.parseWhileStatement();
             }
+            case SyntaxKind.BreakCommand: {
+                return this.eat(SyntaxKind.BreakCommand);
+            }
+            case SyntaxKind.ContinueCommand: {
+                return this.eat(SyntaxKind.ContinueCommand);
+            }
             case SyntaxKind.EndWhileCommand: {
                 this.eat(current.kind);
                 this._diagnostics.push(new Diagnostic(

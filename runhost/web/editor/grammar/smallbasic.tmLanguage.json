@@ -41,7 +41,7 @@
       "patterns": [
         {
           "name": "keyword.control.smallbasic",
-          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|And|Or)\\b"
+          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Break|Continue|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|And|Or|Mod)\\b"
         }
       ]
     },

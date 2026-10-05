@@ -17,7 +17,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 - Debugging with the C#, JavaScript, or Blazor backend: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack
 - Localized Document
 
-## Language extension: `Function`, `Sub` parameters, `Dim` and `Return`
+## Language extension: procedures, loop control, integer division and modulo
 
 Beyond classic Small Basic, the language core (C# and TypeScript implementations kept behavior-identical) adds procedural programming. All three run backends (JavaScript / C# / Blazor) support it:
 
@@ -25,9 +25,12 @@ Beyond classic Small Basic, the language core (C# and TypeScript implementations
 - **`Sub Name(A, B) … EndSub`** — classic Subs now accept parameters, with the argument count checked exactly.
 - **Local scope** — parameters and `Dim`-declared variables live in a per-call frame (recursion-safe, may shadow globals); undeclared names keep the classic global behavior.
 - **Parameterless procedures** — declared as `Sub F` ≡ `Sub F()`; called as `F` ≡ `F()` and `Answer = F` ≡ `Answer = F()`. Procedures with parameters require parentheses and an exact argument count.
-- **Editor & debugger** — keyword coloring and folding, Function snippets and completions with parameter placeholders, signature help, outline/navigation bar with full signatures, and per-frame Locals (parameters + `Dim`) beside the shared Globals while debugging.
+- **Loop control** — `Break` leaves the innermost `While` / `For`; `Continue` moves on to that loop's next iteration. A `Continue` inside a `For` **still runs the step-increment and the bound check**. Both only affect the innermost loop, and using either outside a loop reports `BreakOutsideLoop` / `ContinueOutsideLoop`.
+- **Integer division and modulo** — `A \ B` truncates the quotient toward zero, while `A Mod B` returns a remainder with the dividend's sign. `Math.Div(A, B)` and `Math.Mod(A, B)` are exact method equivalents. A zero divisor returns `0` and execution continues.
+- **Precedence** — the VB-style ladder is `* /` > `\` > `Mod` > `+ -`, with left associativity at each level. `Mod` is case-insensitive and reserved.
+- **Editor & debugger** — coloring, completion, signature help and hover distinguish the `Mod` operator from the `Math.Mod` method. Arithmetic statements support breakpoints and stepping, and the new expressions work in conditional breakpoints, Watch and the Debug Console.
 
-Sample (`test/hello/accumulate.sb`):
+Sample (`sample/hello/accumulate.sb`):
 
 ```smallbasic
 Total = 0                          ' undeclared names stay global
@@ -45,6 +48,31 @@ EndFunction
 
 Accumulate(3)
 TextWindow.WriteLine(Factorial(5)) ' prints 120
+```
+
+Loop control:
+
+```smallbasic
+Sum = 0
+For I = 1 To 5
+  If I = 3 Then
+    Continue                       ' skips only this iteration, the increment still runs
+  EndIf
+  If I = 5 Then
+    Break                          ' leaves the loop before Sum grows again
+  EndIf
+  Sum = Sum + I
+EndFor
+TextWindow.WriteLine(Sum)          ' prints 7 (1 + 2 + 4)
+```
+
+Integer division and modulo:
+
+```smallbasic
+Whole = 17 \ 5                    ' 3
+Rest = 17 Mod 5                   ' 2
+TextWindow.WriteLine(Math.Div(-7, 2)) ' -3
+TextWindow.WriteLine(Math.Mod(-7, 2)) ' -1
 ```
 
 ## Requirements

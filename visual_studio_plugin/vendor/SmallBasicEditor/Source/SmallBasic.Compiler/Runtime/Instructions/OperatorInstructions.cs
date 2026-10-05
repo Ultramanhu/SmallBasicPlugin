@@ -140,4 +140,46 @@ namespace SmallBasic.Compiler.Runtime
             return new NumberValue(first.ToNumber() / divisor);
         }
     }
+
+    // Integer division (A \ B) truncates the real quotient toward zero. A zero
+    // divisor yields 0, matching the shared Arithmetic Extension v1 contract.
+    internal sealed class IntegerDivideInstruction : BaseBinaryInstruction
+    {
+        public IntegerDivideInstruction(TextRange range)
+            : base(range)
+        {
+        }
+
+        protected override BaseValue Execute(BaseValue first, BaseValue second)
+        {
+            decimal divisor = second.ToNumber();
+            if (divisor == 0)
+            {
+                return new NumberValue(0);
+            }
+
+            return new NumberValue(decimal.Truncate(first.ToNumber() / divisor));
+        }
+    }
+
+    // A Mod B keeps the sign of the dividend (truncated remainder), like the
+    // C# % operator on decimal. A zero divisor yields 0.
+    internal sealed class ModuloInstruction : BaseBinaryInstruction
+    {
+        public ModuloInstruction(TextRange range)
+            : base(range)
+        {
+        }
+
+        protected override BaseValue Execute(BaseValue first, BaseValue second)
+        {
+            decimal divisor = second.ToNumber();
+            if (divisor == 0)
+            {
+                return new NumberValue(0);
+            }
+
+            return new NumberValue(first.ToNumber() % divisor);
+        }
+    }
 }

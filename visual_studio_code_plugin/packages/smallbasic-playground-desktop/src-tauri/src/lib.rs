@@ -234,6 +234,21 @@ fn save_program_file(_default_name: String, _source: String) -> Result<Option<Pr
 /// entry point must be annotated; desktop builds use `main.rs` instead.
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // Rendering backend note (WSLg): the shell stays on the GTK Wayland
+    // backend. Two alternatives were tried and reverted on 2026-10-05:
+    // forcing GDK_BACKEND=x11 breaks rendering on scaled displays (WSLg's
+    // RAIL treats X pixels as DIPs and stretches the 1x bitmap by the Windows
+    // DPI factor - oversized and blurry), and WEBKIT_DISABLE_DMABUF_RENDERER
+    // was only needed to work around the copy-mode blank window that the X11
+    // path hit. Wayland renders at the compositor's scale and is what the
+    // bundles should use. Note the WSLg compositor reports the output scale
+    // as an integer and applies it late (a Windows 150% display becomes GDK
+    // scale 2, so the window renders larger than the physical screen and the
+    // layout ends up around 1.3x CSS density) - the app cannot position or
+    // reliably size its toplevel there (Wayland forbids both), so
+    // runhost/playground/Start-Playground-Linux.ps1 centers or maximizes the
+    // window from the Windows side after launch.
+
     tauri::Builder::default()
         .manage(SessionManager::default())
         .invoke_handler(tauri::generate_handler![

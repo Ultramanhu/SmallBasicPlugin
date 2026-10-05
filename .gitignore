@@ -12,6 +12,7 @@
 .tmp
 .kilo
 .zcodeignore
+.codebuddy
 
 # debug
 *.log

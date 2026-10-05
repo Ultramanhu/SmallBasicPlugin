@@ -23,6 +23,8 @@ namespace SmallBasic.Compiler.Scanning
         EndFor,
         While,
         EndWhile,
+        Break,
+        Continue,
         Sub,
         EndSub,
         Function,
@@ -32,6 +34,7 @@ namespace SmallBasic.Compiler.Scanning
         GoTo,
         Or,
         And,
+        Mod,
         Dot,
         Comma,
         RightParen,
@@ -44,6 +47,7 @@ namespace SmallBasic.Compiler.Scanning
         Minus,
         Multiply,
         Divide,
+        Backslash,
         Colon,
         LessThan,
         GreaterThan,
@@ -73,6 +77,8 @@ namespace SmallBasic.Compiler.Scanning
                 case TokenKind.EndFor: return "EndFor";
                 case TokenKind.While: return "While";
                 case TokenKind.EndWhile: return "EndWhile";
+                case TokenKind.Break: return "Break";
+                case TokenKind.Continue: return "Continue";
                 case TokenKind.Sub: return "Sub";
                 case TokenKind.EndSub: return "EndSub";
                 case TokenKind.Function: return "Function";
@@ -82,6 +88,7 @@ namespace SmallBasic.Compiler.Scanning
                 case TokenKind.GoTo: return "GoTo";
                 case TokenKind.Or: return "Or";
                 case TokenKind.And: return "And";
+                case TokenKind.Mod: return "Mod";
                 case TokenKind.Dot: return ".";
                 case TokenKind.Comma: return ",";
                 case TokenKind.RightParen: return ")";
@@ -94,6 +101,7 @@ namespace SmallBasic.Compiler.Scanning
                 case TokenKind.Minus: return "-";
                 case TokenKind.Multiply: return "*";
                 case TokenKind.Divide: return "/";
+                case TokenKind.Backslash: return "\\";
                 case TokenKind.Colon: return ":";
                 case TokenKind.LessThan: return "<";
                 case TokenKind.GreaterThan: return ">";

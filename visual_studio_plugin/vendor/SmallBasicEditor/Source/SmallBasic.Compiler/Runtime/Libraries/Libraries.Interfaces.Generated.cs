@@ -262,6 +262,8 @@ namespace SmallBasic.Compiler.Runtime
 
         decimal Cos(decimal angle);
 
+        decimal Div(decimal dividend, decimal divisor);
+
         decimal Floor(decimal number);
 
         decimal GetDegrees(decimal angle);
@@ -275,6 +277,8 @@ namespace SmallBasic.Compiler.Runtime
         decimal Max(decimal number1, decimal number2);
 
         decimal Min(decimal number1, decimal number2);
+
+        decimal Mod(decimal dividend, decimal divisor);
 
         decimal NaturalLog(decimal number);
 

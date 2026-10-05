@@ -1,4 +1,4 @@
-﻿// <copyright file="Scanner.cs" company="MIT License">
+// <copyright file="Scanner.cs" company="MIT License">
 // Licensed under the MIT License. See LICENSE file in the project root for license information.
 // </copyright>
 
@@ -66,6 +66,7 @@ namespace SmallBasic.Compiler.Scanning
                 case '-': this.AddToken("-", TokenKind.Minus); return;
                 case '*': this.AddToken("*", TokenKind.Multiply); return;
                 case '/': this.AddToken("/", TokenKind.Divide); return;
+                case '\\': this.AddToken("\\", TokenKind.Backslash); return;
 
                 case '<':
                     switch (next)
@@ -203,6 +204,8 @@ namespace SmallBasic.Compiler.Scanning
                 case "goto": this.AddToken(word, TokenKind.GoTo); return;
                 case "while": this.AddToken(word, TokenKind.While); return;
                 case "endwhile": this.AddToken(word, TokenKind.EndWhile); return;
+                case "break": this.AddToken(word, TokenKind.Break); return;
+                case "continue": this.AddToken(word, TokenKind.Continue); return;
                 case "sub": this.AddToken(word, TokenKind.Sub); return;
                 case "endsub": this.AddToken(word, TokenKind.EndSub); return;
                 case "function": this.AddToken(word, TokenKind.Function); return;
@@ -211,6 +214,7 @@ namespace SmallBasic.Compiler.Scanning
                 case "return": this.AddToken(word, TokenKind.Return); return;
                 case "or": this.AddToken(word, TokenKind.Or); return;
                 case "and": this.AddToken(word, TokenKind.And); return;
+                case "mod": this.AddToken(word, TokenKind.Mod); return;
                 default: this.AddToken(word, TokenKind.Identifier); return;
             }
         }

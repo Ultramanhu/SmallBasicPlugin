@@ -22,7 +22,7 @@ origin repository: https://github.com/sb
 | 运行程序 | CLI 三后端(JS / C# / Blazor)+ Web 双后端(JS / Blazor) | Web 双后端(JS / Blazor) | CLI 三后端(JS / C# / Blazor) |
 | 图形程序(GraphicsWindow/Shapes/Turtle) | C#(Windows)或跨平台 Blazor | Blazor WASM 在 Webview 内渲染 SVG | C# 桌面窗口或 Blazor 浏览器窗口 |
 | 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | Web 双后端(JavaScript / Blazor)；Blazor 支持图形调试 | 三后端；C#/Blazor 支持图形调试 |
-| 语言扩展(Function/Sub 参数、Dim/Return、递归) | 有 | 有 | 有 |
+| 语言扩展 | 有 | 有 | 有 |
 | 多语言 | 支持 | 支持 | 支持 |
 
 各后端共享相同的 Small Basic 调试语义(断点吸附、单步、变量展开)；Blazor 图形调试由 RunHost 把 IDE 的 DAP 与浏览器内 WASM 解释器桥接起来。
@@ -34,7 +34,7 @@ origin repository: https://github.com/sb
 
 VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本机命令行/调试宿主，`"web"` 走浏览器 Webview。Web 模式支持 JavaScript 与 Blazor；C# 需要本机进程，只支持 CLI。VS Code for the Web 没有本机进程，会把启动配置强制按 Web 模式处理。
 
-## Small Basic 语言扩展：Function、Sub 参数、Dim 与 Return
+## Small Basic 语言扩展
 
 在经典 Small Basic 之上，语言核心(C# 与 TypeScript 双实现，行为一致)扩展了过程式编程能力，三个运行后端(JavaScript / C# / Blazor)与三类编辑表面(VS / VS Code / Web Playground)均支持：
 
@@ -42,9 +42,12 @@ VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本�
 - **`Sub Name(A, B) … EndSub`**：经典 Sub 现在也接受参数，实参数量精确校验。
 - **局部作用域**：参数与过程内 `Dim` 声明的变量属于本次调用的独立帧(递归安全，可遮蔽同名全局变量)；未声明变量保持 Small Basic 传统的全局行为。
 - **无参过程**：声明 `Sub F` ≡ `Sub F()`；调用 `F` ≡ `F()`、`Answer = F` ≡ `Answer = F()`。带参数的过程必须写括号并传入精确数量的实参。
-- **编辑器与调试**：关键字着色与折叠、Function 模板与带参数占位符的补全、签名帮助、大纲/导航栏显示完整签名；调试器按栈帧显示 Locals(参数 + `Dim`)与共享 Globals。
+- **循环控制**：`Break` 退出最近一层 `While` / `For`，`Continue` 直接进入该层的下一轮——`For` 里的 `Continue` **仍会执行步长自增与边界判断**；两者只作用于最近一层循环，写在循环外会报 `BreakOutsideLoop` / `ContinueOutsideLoop`。
+- **整除与取余**：`A \ B` 对商向零截断，`A Mod B` 返回与被除数同号的余数；`Math.Div(A, B)` / `Math.Mod(A, B)` 提供完全相同的方法形式。除数为 `0` 时四种写法都返回 `0` 并继续运行。
+- **运算符优先级**：沿用 VB 风格的 `* /` > `\` > `Mod` > `+ -`，同级从左向右结合；`Mod` 不区分大小写并成为保留字。
+- **编辑器与调试**：关键字着色、补全、签名帮助与悬停均覆盖新增语法；`Math.Mod` 会按方法而非运算符着色和提示。`\` / `Mod` 所在语句可断点、单步，并可在条件断点、Watch 与 Debug Console 中求值。
 
-样例(`test/hello/accumulate.sb`，三后端输出一致)：
+样例(`sample/hello/accumulate.sb`，三后端输出一致)：
 
 ```smallbasic
 Total = 0                          ' undeclared names stay global
@@ -64,6 +67,31 @@ Accumulate(3)
 TextWindow.WriteLine(Factorial(5)) ' prints 120
 ```
 
+循环控制：
+
+```smallbasic
+Sum = 0
+For I = 1 To 5
+  If I = 3 Then
+    Continue                       ' skips only this iteration, the increment still runs
+  EndIf
+  If I = 5 Then
+    Break                          ' leaves the loop before Sum grows again
+  EndIf
+  Sum = Sum + I
+EndFor
+TextWindow.WriteLine(Sum)          ' prints 7 (1 + 2 + 4)
+```
+
+整除与取余：
+
+```smallbasic
+Whole = 17 \ 5                    ' 3
+Rest = 17 Mod 5                   ' 2
+TextWindow.WriteLine(Math.Div(-7, 2)) ' -3 (truncate toward zero)
+TextWindow.WriteLine(Math.Mod(-7, 2)) ' -1 (sign follows dividend)
+```
+
 语义契约、诊断规则与双实现一致性用例详见 [docs/design/11-SmallBasic语言扩展.md](docs/design/11-SmallBasic语言扩展.md)。
 
 ## VS Code 扩展
@@ -73,7 +101,7 @@ TextWindow.WriteLine(Factorial(5)) ' prints 120
 ### 安装
 
 ```powershell
-code --install-extension build\SmallBasic.VSCode-0.1.6.vsix
+code --install-extension build\SmallBasic.VSCode-0.1.7.vsix
 ```
 
 或在扩展面板 `…` 菜单中选择「从 VSIX 安装…」。
@@ -131,7 +159,7 @@ Web 配置(JavaScript、Blazor)：
 
 ### 安装
 
-双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.6.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
+双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.7.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
 
 ### 使用
 
@@ -179,9 +207,9 @@ JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`�
 
 ```powershell
 # 运行(--pause 在程序结束后等待按键再退出)
-.\runhost\net48\SmallBasic.RunHost.exe run --file test\hello\hello.sb
-.\runhost\net8.0-windows\SmallBasic.RunHost.exe run --file test\tetris\tetris.sb
-dotnet .\runhost\net8.0\SmallBasic.RunHost.dll run --file test\hello\hello.sb
+.\runhost\net48\SmallBasic.RunHost.exe run --file sample\hello\hello.sb
+.\runhost\net8.0-windows\SmallBasic.RunHost.exe run --file sample\tetris\tetris.sb
+dotnet .\runhost\net8.0\SmallBasic.RunHost.dll run --file sample\hello\hello.sb
 
 # 调试(DAP 适配器)
 .\runhost\net48\SmallBasic.RunHost.exe debug
@@ -193,7 +221,7 @@ Windows 图形宿主(`net48` / `net8.0-windows`)直接在桌面 WPF 窗口内渲
 **JavaScript 宿主**(`javascript\`)：
 
 ```powershell
-node .\runhost\javascript\smallbasic-runhost.js run --file test\hello\hello.sb
+node .\runhost\javascript\smallbasic-runhost.js run --file sample\hello\hello.sb
 ```
 
 仅支持 `TextWindow`(终端着色)；调用 `GraphicsWindow`/`Shapes` 会以退出码 3 终止。`Program.Delay` 沿用共享 TS 运行时的缺陷(以 `Evaluation stack empty` 终止程序)，含延时的程序建议改用 C# 或 Blazor 后端。
@@ -202,10 +230,10 @@ node .\runhost\javascript\smallbasic-runhost.js run --file test\hello\hello.sb
 
 ```powershell
 # 纯文本程序在当前终端执行，不启动浏览器
-dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file test\hello\hello.sb
+dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file sample\hello\hello.sb
 
 # 图形程序启动随机 localhost 端口并打开浏览器(SVG 渲染)；--no-open 仅打印会话 URL 不自动打开
-dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file test\tetris\tetris.sb --no-open
+dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll run --file sample\tetris\tetris.sb --no-open
 
 # DAP 调试(文本程序直接调试；图形程序经 WebSocket 桥接浏览器内 WASM 解释器)
 dotnet .\runhost\blazor\SmallBasic.Blazor.RunHost.dll debug
@@ -230,11 +258,12 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 
 ## 示例程序
 
-`test/` 目录提供样例：
+`sample/` 目录提供样例：
 
-- `test/hello/` — 最小文本程序与语言扩展示例(`accumulate.sb`：Sub 参数、全局回退与 Function 递归)
-- `test/tutorial/` — 官方样例教程(Windows C# 图形后端或跨平台 Blazor 后端)
-- `test/tetris/` — 图形程序(Windows C# 图形后端或跨平台 Blazor 后端)
+- `sample/hello/` — 最小文本程序与语言扩展示例(`accumulate.sb`：Sub 参数、全局回退与 Function 递归)
+- `sample/base/arithmetic.sb` — `\` / `Mod`、`Math.Div` / `Math.Mod`、零除数及函数内组合示例
+- `sample/tutorial/` — 官方样例教程(Windows C# 图形后端或跨平台 Blazor 后端)
+- `sample/tetris/` — 图形程序(Windows C# 图形后端或跨平台 Blazor 后端)
 
 ## 从源码构建
 
@@ -245,13 +274,17 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 一键构建全部发布产物：
 
 ```powershell
-.\Build-All.ps1                          # Release 全量构建
+.\Build-All.ps1                          # Release 全量构建（RunHost + 两个 VSIX + Playground Win/Linux x64 二进制）
 .\Build-All.ps1 -Configuration Debug     # Debug 构建
 .\Build-All.ps1 -SkipVsix                # 仅构建 RunHost 分发
 .\Build-All.ps1 -SkipJavaScript          # 跳过 JS 运行宿主打包
 ```
 
 `-Configuration` 会透传到全部子构建：`runhost\Build-RunHost.ps1`(各平台 `dotnet publish`)、VS Code 打包脚本(连同它暂存的 RunHost 载荷)、Visual Studio 的 `SmallBasic.Vsix` 项目，以及各自的 VSIX 打包脚本，保证所有产物来自同一配置。
+
+默认情况下，`Build-All.ps1` 最后一步会调用 `runhost\Build-PlaygroundApp.ps1`，只编译 Playground 的 `Windows x64` / `Linux x64` 本地二进制，便于手工冒烟；安装包归档不在默认管线内。
+
+若要按平台/架构显式控制 Playground 构建，可直接调用 `runhost\Build-PlaygroundApp.ps1`：`-WindowsTargets` / `-LinuxTargets` / `-AndroidTargets` / `-MacOSTargets` / `-IOSTargets` 用于选择目标，`-BuildBundles` 才会额外生成并归档安装包，`-BundleTargets` 仍可用于直接传入 Rust triple/别名列表。
 
 编译并验证（单一入口）：
 
@@ -272,8 +305,10 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 |---|---|
 | RunHost 运行时分发 | `runhost\net48`、`runhost\net8.0`、`runhost\net8.0-windows`、`runhost\javascript`、`runhost\blazor` |
 | Web RunHost 静态站点 | `runhost\web`(浏览器内 JS / Blazor WASM 双后端，含 `samples\` 示例与 `run.cmd` 一键启动) |
-| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.6.vsix` |
-| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.6.vsix` |
+| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.7.vsix` |
+| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.7.vsix` |
+| Playground 便携二进制 | `runhost\playground\SmallBasic.Playground.exe`、`runhost\playground\SmallBasic.Playground` |
+| Playground 安装包归档 | `runhost\playground\bundles\SmallBasic.Playground-*`（按需执行 `runhost\Build-PlaygroundApp.ps1 -BuildBundles ...` 生成） |
 
 单独构建：
 
@@ -323,7 +358,7 @@ SmallBasicPlugin/
 │   ├── src/SmallBasic.Blazor.*/   # WASM 客户端、共享协议与 Blazor RunHost
 │   ├── tests/SmallBasic.LanguageServices.Tests/  # LSP 语义映射、LSP 协议端到端与文档大纲测试(net8.0)
 │   └── vendor/SmallBasicEditor/   # 拷贝升级的 Small Basic 编译器(C#)
-├── test/                          # 示例程序
+├── sample/                        # 示例程序
 ├── official_repo/                 # 官方源码子模块(editor / homesite / online)
 └── docs/design/                   # 设计文档(01-10)
 ```

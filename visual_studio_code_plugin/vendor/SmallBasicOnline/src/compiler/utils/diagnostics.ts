@@ -31,6 +31,8 @@ export enum ErrorCode {
     DuplicateLocalVariable,
     DimMustBeAtProcedureLevel,
     ReturnOutsideFunction,
+    BreakOutsideLoop,
+    ContinueOutsideLoop,
     FunctionCannotBeEventHandler,
     LabelDoesNotExist,
     UnassignedExpressionStatement,

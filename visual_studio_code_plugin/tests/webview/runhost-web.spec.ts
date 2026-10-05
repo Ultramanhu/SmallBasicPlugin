@@ -9,6 +9,13 @@ const PLAYGROUND_PROGRAM = [
   "Greet()"
 ].join("\n");
 const INVALID_PROGRAM = "If Then";
+const ARITHMETIC_PROGRAM = [
+  'TextWindow.WriteLine("div=" + (17 \\ 5))',
+  'TextWindow.WriteLine("mod=" + (17 Mod 5))',
+  'TextWindow.WriteLine("mathDiv=" + Math.Div(-7, 2))',
+  'TextWindow.WriteLine("mathMod=" + Math.Mod(-7, 2))',
+  'TextWindow.WriteLine("zero=" + Math.Mod(9, 0))'
+].join("\n");
 
 test.describe("runhost/web static distribution", () => {
   let server: StaticServer;
@@ -114,6 +121,26 @@ test.describe("runhost/web static distribution", () => {
     await page.locator("#run-button").click();
     await expect(page.locator("#console")).toContainText("Hello, World!", { timeout: 120_000 });
     await expect(page.locator("#status")).toHaveText(/Completed/, { timeout: 120_000 });
+    expect(diagnostics).toEqual([]);
+  });
+
+  test("runs integer division and modulo on both browser backends", async ({ page }) => {
+    test.setTimeout(300_000);
+    await page.goto(`${server.origin}/playground.html`);
+    await page.locator("#editor-host .monaco-editor").waitFor({ timeout: 120_000 });
+
+    for (const backend of ["javascript", "blazor"]) {
+      await page.locator("#backend-select").selectOption(backend);
+      await replaceEditorText(page, ARITHMETIC_PROGRAM);
+      await page.locator("#run-button").click();
+      await expect(page.locator("#status")).toHaveText(/Completed/, { timeout: 180_000 });
+      await expect(page.locator("#console")).toContainText("div=3");
+      await expect(page.locator("#console")).toContainText("mod=2");
+      await expect(page.locator("#console")).toContainText("mathDiv=-3");
+      await expect(page.locator("#console")).toContainText("mathMod=-1");
+      await expect(page.locator("#console")).toContainText("zero=0");
+    }
+
     expect(diagnostics).toEqual([]);
   });
 

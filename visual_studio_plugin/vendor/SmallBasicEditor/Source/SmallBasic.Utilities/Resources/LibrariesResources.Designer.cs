@@ -3068,7 +3068,43 @@ namespace SmallBasic.Utilities.Resources {
                 return ResourceManager.GetString("Math_Cos_ReturnValue", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Divides the first number by the second and returns the integer part of the quotient (truncated toward zero). For example, Math.Div(7, 2) returns 3 and Math.Div(-7, 2) returns -3. Dividing by zero returns 0..
+        /// </summary>
+        public static string Math_Div {
+            get {
+                return ResourceManager.GetString("Math_Div", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The number to divide..
+        /// </summary>
+        public static string Math_Div_dividend {
+            get {
+                return ResourceManager.GetString("Math_Div_dividend", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The number that divides..
+        /// </summary>
+        public static string Math_Div_divisor {
+            get {
+                return ResourceManager.GetString("Math_Div_divisor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The integer part of the quotient..
+        /// </summary>
+        public static string Math_Div_ReturnValue {
+            get {
+                return ResourceManager.GetString("Math_Div_ReturnValue", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Returns the largest integer that is less than or equal to the argument. It rounds down the integer value. For example, 32.233 will return 32. Also, 44 will return 44..
         /// </summary>
@@ -3275,7 +3311,43 @@ namespace SmallBasic.Utilities.Resources {
                 return ResourceManager.GetString("Math_Min_ReturnValue", resourceCulture);
             }
         }
-        
+
+        /// <summary>
+        ///   Looks up a localized string similar to Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero returns 0..
+        /// </summary>
+        public static string Math_Mod {
+            get {
+                return ResourceManager.GetString("Math_Mod", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The number to divide..
+        /// </summary>
+        public static string Math_Mod_dividend {
+            get {
+                return ResourceManager.GetString("Math_Mod_dividend", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The number that divides..
+        /// </summary>
+        public static string Math_Mod_divisor {
+            get {
+                return ResourceManager.GetString("Math_Mod_divisor", resourceCulture);
+            }
+        }
+
+        /// <summary>
+        ///   Looks up a localized string similar to The remainder after the division..
+        /// </summary>
+        public static string Math_Mod_ReturnValue {
+            get {
+                return ResourceManager.GetString("Math_Mod_ReturnValue", resourceCulture);
+            }
+        }
+
         /// <summary>
         ///   Looks up a localized string similar to Gets the natural logarithm value of the given number..
         /// </summary>

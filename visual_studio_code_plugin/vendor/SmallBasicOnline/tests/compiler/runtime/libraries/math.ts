@@ -56,6 +56,54 @@ TextWindow.WriteLine(Math.Remainder(9, 0))`,
             new Diagnostic(ErrorCode.CannotDivideByZero, CompilerRange.fromValues(1, 21, 1, 41)));
     });
 
+    it("can calculate integer division with Math.Div", () => {
+        verifyRuntimeResult(`
+TextWindow.WriteLine(Math.Div(7, 2))
+TextWindow.WriteLine(Math.Div(-7, 2))
+TextWindow.WriteLine(Math.Div(7.9, 2.9))`,
+            [],
+            [
+                "3",
+                "-3",
+                "2"
+            ]);
+    });
+
+    it("returns zero from Math.Div with zero divisor", () => {
+        verifyRuntimeResult(`
+TextWindow.WriteLine(Math.Div(9, 0))
+TextWindow.WriteLine("after")`,
+            [],
+            [
+                "0",
+                "after"
+            ]);
+    });
+
+    it("can calculate modulo with Math.Mod", () => {
+        verifyRuntimeResult(`
+TextWindow.WriteLine(Math.Mod(7, 2))
+TextWindow.WriteLine(Math.Mod(-7, 2))
+TextWindow.WriteLine(Math.Mod(7.5, 2))`,
+            [],
+            [
+                "1",
+                "-1",
+                "1.5"
+            ]);
+    });
+
+    it("returns zero from Math.Mod with zero divisor", () => {
+        verifyRuntimeResult(`
+TextWindow.WriteLine(Math.Mod(9, 0))
+TextWindow.WriteLine("after")`,
+            [],
+            [
+                "0",
+                "after"
+            ]);
+    });
+
     it("can calculate cosine", () => {
         verifyRuntimeResult(`
 x = Math.Cos(Math.GetRadians(0))

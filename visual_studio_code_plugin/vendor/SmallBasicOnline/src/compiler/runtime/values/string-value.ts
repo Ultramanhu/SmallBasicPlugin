@@ -1,6 +1,6 @@
 import { NumberValue } from "./number-value";
 import { ExecutionEngine } from "../../execution-engine";
-import { AddInstruction, DivideInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
+import { AddInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
 import { BaseValue, ValueKind, Constants } from "./base-value";
 import { TokenKind } from "../../syntax/tokens";
 import { ErrorCode, Diagnostic } from "../../utils/diagnostics";
@@ -114,6 +114,26 @@ export class StringValue extends BaseValue {
             return this;
         } else {
             return thisConverted.divide(other, engine, instruction);
+        }
+    }
+
+    public integerDivide(other: BaseValue, engine: ExecutionEngine, instruction: IntegerDivideInstruction): BaseValue {
+        const thisConverted = this.tryConvertToNumber();
+        if (thisConverted.tryConvertToNumber().kind === ValueKind.String) {
+            engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAString, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Backslash)));
+            return this;
+        } else {
+            return thisConverted.integerDivide(other, engine, instruction);
+        }
+    }
+
+    public modulo(other: BaseValue, engine: ExecutionEngine, instruction: ModuloInstruction): BaseValue {
+        const thisConverted = this.tryConvertToNumber();
+        if (thisConverted.tryConvertToNumber().kind === ValueKind.String) {
+            engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAString, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Mod)));
+            return this;
+        } else {
+            return thisConverted.modulo(other, engine, instruction);
         }
     }
 }

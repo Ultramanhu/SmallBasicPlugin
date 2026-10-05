@@ -21,7 +21,7 @@ const repositoryRoot = path.resolve(packageRoot, "..", "..", "..");
 
 const binDir = path.join(repositoryRoot, "runhost", "playground", "bin");
 const resourcesDir = path.join(repositoryRoot, "runhost", "playground", "resources");
-const program = path.join(repositoryRoot, "test", "hello", "hello.sb");
+const program = path.join(repositoryRoot, "sample", "hello", "hello.sb");
 
 function hostTriple(): string {
   const arm = process.arch === "arm64";

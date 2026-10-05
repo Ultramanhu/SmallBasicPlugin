@@ -324,6 +324,8 @@ export class LibrariesMetadata {
         {
             Abs: new MethodMetadata("Math", "Abs", true, ["Number"]),
             Remainder: new MethodMetadata("Math", "Remainder", true, ["Dividend", "Divisor"]),
+            Div: new MethodMetadata("Math", "Div", true, ["Dividend", "Divisor"]),
+            Mod: new MethodMetadata("Math", "Mod", true, ["Dividend", "Divisor"]),
 
             Cos: new MethodMetadata("Math", "Cos", true, ["Angle"]),
             Sin: new MethodMetadata("Math", "Sin", true, ["Angle"]),

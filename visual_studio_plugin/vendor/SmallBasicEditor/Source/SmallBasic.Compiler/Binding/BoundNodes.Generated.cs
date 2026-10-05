@@ -47,6 +47,9 @@ namespace SmallBasic.Compiler.Binding
                 case BoundForStatement forStatement:
                     this.VisitForStatement(forStatement);
                     break;
+                case BoundLoopControlStatement loopControlStatement:
+                    this.VisitLoopControlStatement(loopControlStatement);
+                    break;
                 case BoundLabelStatement labelStatement:
                     this.VisitLabelStatement(labelStatement);
                     break;
@@ -168,6 +171,11 @@ namespace SmallBasic.Compiler.Binding
         }
 
         private protected virtual void VisitForStatement(BoundForStatement node)
+        {
+            this.DefaultVisit(node);
+        }
+
+        private protected virtual void VisitLoopControlStatement(BoundLoopControlStatement node)
         {
             this.DefaultVisit(node);
         }
@@ -598,6 +606,30 @@ namespace SmallBasic.Compiler.Binding
                 }
 
                 yield return this.Body;
+            }
+        }
+    }
+
+    internal sealed class BoundLoopControlStatement : BaseBoundStatement
+    {
+        public BoundLoopControlStatement(LoopControlStatementSyntax syntax, TokenKind kind)
+        {
+            Debug.Assert(!syntax.IsDefault(), "'syntax' must not be null.");
+            Debug.Assert(!kind.IsDefault(), "'kind' must not be null.");
+
+            this.Syntax = syntax;
+            this.Kind = kind;
+        }
+
+        public LoopControlStatementSyntax Syntax { get; private set; }
+
+        public TokenKind Kind { get; private set; }
+
+        public override IEnumerable<BaseBoundNode> Children
+        {
+            get
+            {
+                return Enumerable.Empty<BaseBoundNode>();
             }
         }
     }

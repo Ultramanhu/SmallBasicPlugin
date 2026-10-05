@@ -1,5 +1,5 @@
 import { ExecutionEngine } from "../../execution-engine";
-import { AddInstruction, DivideInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
+import { AddInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
 import { Diagnostic, ErrorCode } from "../../utils/diagnostics";
 import { BaseValue, ValueKind } from "./base-value";
 import { TokenKind } from "../../syntax/tokens";
@@ -98,6 +98,16 @@ export class ArrayValue extends BaseValue {
 
     public divide(_: BaseValue, engine: ExecutionEngine, instruction: DivideInstruction): BaseValue {
         engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Divide)));
+        return this;
+    }
+
+    public integerDivide(_: BaseValue, engine: ExecutionEngine, instruction: IntegerDivideInstruction): BaseValue {
+        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Backslash)));
+        return this;
+    }
+
+    public modulo(_: BaseValue, engine: ExecutionEngine, instruction: ModuloInstruction): BaseValue {
+        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Mod)));
         return this;
     }
 }

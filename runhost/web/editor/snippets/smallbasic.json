@@ -17,6 +17,16 @@
     ],
     "description": "Insert a For loop"
   },
+  "Break out of a loop": {
+    "prefix": "break",
+    "body": "Break",
+    "description": "Exit the innermost While or For loop"
+  },
+  "Continue the loop": {
+    "prefix": "continue",
+    "body": "Continue",
+    "description": "Skip to the next iteration of the innermost While or For loop"
+  },
   "Function declaration": {
     "prefix": "function",
     "body": [

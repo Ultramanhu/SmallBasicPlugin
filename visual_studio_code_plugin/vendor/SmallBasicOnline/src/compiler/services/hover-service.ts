@@ -4,6 +4,7 @@ import { RuntimeLibraries } from "../runtime/libraries";
 import { CompilerUtils } from "../utils/compiler-utils";
 import {
     BaseSyntaxNode,
+    BinaryOperatorExpressionSyntax,
     DimCommandSyntax,
     FunctionDeclarationSyntax,
     IdentifierExpressionSyntax,
@@ -14,6 +15,7 @@ import {
     TokenSyntax
 } from "../syntax/syntax-nodes";
 import { ProcedureKind, ProcedureSymbol } from "../binding/modules-binder";
+import { TokenKind } from "../syntax/tokens";
 
 export module HoverService {
     export interface Result {
@@ -33,6 +35,11 @@ export module HoverService {
             }
         }
 
+        const keyword = provideKeywordHover(compilation, position);
+        if (keyword) {
+            return keyword;
+        }
+
         const userSymbol = provideUserSymbolHover(compilation, position);
         if (userSymbol) {
             return userSymbol;
@@ -46,6 +53,67 @@ export module HoverService {
         }
 
         return undefined;
+    }
+
+    /**
+     * Loop control keywords and the Mod / \ operator tokens carry no symbol,
+     * so they would otherwise fall through to the library-member visitor and
+     * produce no hover at all.
+     */
+    function provideKeywordHover(compilation: Compilation, position: CompilerPosition): Result | undefined {
+        for (const token of compilation.tokens) {
+            if (!token.range.containsPosition(position)) {
+                continue;
+            }
+
+            switch (token.kind) {
+                case TokenKind.BreakKeyword:
+                    return {
+                        range: token.range,
+                        text: ["Break", "Exits the innermost While or For loop."]
+                    };
+                case TokenKind.ContinueKeyword:
+                    return {
+                        range: token.range,
+                        text: [
+                            "Continue",
+                            "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs."
+                        ]
+                    };
+                case TokenKind.Mod:
+                    if (!isBinaryOperatorToken(compilation, position, token.kind)) {
+                        return undefined;
+                    }
+                    return {
+                        range: token.range,
+                        text: [
+                            "Mod",
+                            "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0."
+                        ]
+                    };
+                case TokenKind.Backslash:
+                    if (!isBinaryOperatorToken(compilation, position, token.kind)) {
+                        return undefined;
+                    }
+                    return {
+                        range: token.range,
+                        text: [
+                            "\\",
+                            "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0."
+                        ]
+                    };
+                default:
+                    return undefined;
+            }
+        }
+
+        return undefined;
+    }
+
+    function isBinaryOperatorToken(compilation: Compilation, position: CompilerPosition, kind: TokenKind): boolean {
+        const expression = compilation.getSyntaxNode(position, SyntaxKind.BinaryOperatorExpression) as BinaryOperatorExpressionSyntax | undefined;
+        return expression?.operatorToken.token.kind === kind
+            && expression.operatorToken.range.containsPosition(position);
     }
 
     function provideUserSymbolHover(compilation: Compilation, position: CompilerPosition): Result | undefined {

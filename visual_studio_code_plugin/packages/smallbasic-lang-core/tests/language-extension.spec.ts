@@ -189,3 +189,93 @@ describe("SmallBasic language extension v1", () => {
       .toContain(ErrorCode.UnexpectedArgumentsCount);
   });
 });
+
+describe("SmallBasic language extension v1.2 (Break and Continue)", () => {
+  it("keeps the For increment on the Continue round", () => {
+    verifyRuntimeResult([
+      "Sum = 0",
+      "For I = 1 To 5",
+      "  If I = 3 Then",
+      "    Continue",
+      "  EndIf",
+      "  Sum = Sum + I",
+      "EndFor",
+      "TextWindow.WriteLine(Sum)",
+      "TextWindow.WriteLine(I)"
+    ].join("\n"), [], ["12", "6"]);
+  });
+
+  it("leaves the loop without running the For increment on Break", () => {
+    verifyRuntimeResult([
+      "For I = 1 To 10",
+      "  If I = 4 Then",
+      "    Break",
+      "  EndIf",
+      "EndFor",
+      "TextWindow.WriteLine(I)"
+    ].join("\n"), [], ["4"]);
+  });
+
+  it("scopes Break and Continue to the innermost loop", () => {
+    verifyRuntimeResult([
+      "Out = 0",
+      "For I = 1 To 2",
+      "  For J = 1 To 3",
+      "    If J = 2 Then",
+      "      Continue",
+      "    EndIf",
+      "    If J = 3 Then",
+      "      Break",
+      "    EndIf",
+      "    Out = Out + I * 10 + J",
+      "  EndFor",
+      "  Out = Out + 1000",
+      "EndFor",
+      "TextWindow.WriteLine(Out)"
+    ].join("\n"), [], ["2032"]);
+  });
+
+  it("reports Break and Continue outside of a loop", () => {
+    expect(new Compilation("Break").diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.BreakOutsideLoop);
+    expect(new Compilation("Continue").diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.ContinueOutsideLoop);
+  });
+
+  it("reports Continue after the enclosing loop has closed", () => {
+    const compilation = new Compilation([
+      'While "True"',
+      "  Break",
+      "EndWhile",
+      "Continue"
+    ].join("\n"));
+
+    expect(compilation.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.ContinueOutsideLoop);
+  });
+
+  it("treats Break as a reserved word rather than a variable name", () => {
+    const compilation = new Compilation("Break = 1");
+
+    expect(compilation.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.UnexpectedToken_ExpectingEOL);
+  });
+});
+
+describe("SmallBasic language extension v1.3 (integer division and modulo)", () => {
+  it("executes the operators and Math methods with the same contract", () => {
+    verifyRuntimeResult([
+      "TextWindow.WriteLine(-7 \\ 2)",
+      "TextWindow.WriteLine(7 Mod -2)",
+      "TextWindow.WriteLine(Math.Div(7.9, 2.9))",
+      "TextWindow.WriteLine(Math.Mod(-7, -2))",
+      "TextWindow.WriteLine(Math.Div(1, 0))",
+      "TextWindow.WriteLine(Math.Mod(1, 0))"
+    ].join("\n"), [], ["-3", "1", "2", "-1", "0", "0"]);
+  });
+
+  it("reserves Mod while still accepting Math.Mod member access", () => {
+    expect(new Compilation("Mod = 1").diagnostics.length).toBeGreaterThan(0);
+    expect(new Compilation("Result = Math.Mod(7, 2)").diagnostics).toEqual([]);
+  });
+});

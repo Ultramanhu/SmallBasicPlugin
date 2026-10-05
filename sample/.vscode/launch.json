@@ -1,0 +1,53 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
+            "program": "${file}",
+            "backend": "javascript",
+            "mode": "cli",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [CLI]: Debug current file with C# backend",
+            "program": "${file}",
+            "backend": "csharp",
+            "mode": "cli",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+            "program": "${file}",
+            "backend": "blazor",
+            "mode": "cli",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [Web]: Run current file with JavaScript backend",
+            "program": "${file}",
+            "backend": "javascript",
+            "mode": "web",
+            "stopOnEntry": false
+        },
+        {
+            "type": "smallbasic",
+            "request": "launch",
+            "name": "SmallBasic [Web]: Run current file with Blazor backend",
+            "program": "${file}",
+            "backend": "blazor",
+            "mode": "web",
+            "stopOnEntry": false
+        }
+    ]
+}

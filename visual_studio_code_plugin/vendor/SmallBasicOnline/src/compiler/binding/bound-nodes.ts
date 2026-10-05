@@ -8,6 +8,7 @@ export enum BoundKind {
     IfStatement,
     WhileStatement,
     ForStatement,
+    LoopControlStatement,
     LabelStatement,
     GoToStatement,
     ReturnStatement,
@@ -33,6 +34,8 @@ export enum BoundKind {
     SubtractionExpression,
     MultiplicationExpression,
     DivisionExpression,
+    IntegerDivisionExpression,
+    ModuloExpression,
     ArrayAccessExpression,
     LibraryTypeExpression,
     LibraryPropertyExpression,
@@ -131,6 +134,23 @@ export class BoundForStatement extends BaseBoundStatement {
         }
         children.push.apply(children);
         return children;
+    }
+}
+
+/**
+ * A `Break` or `Continue` statement. Both are pure control-flow jumps that only
+ * affect the innermost `While`/`For` loop, so they carry no value and declare no
+ * name. The emitter resolves the actual jump target from its loop context stack.
+ */
+export class BoundLoopControlStatement extends BaseBoundStatement {
+    public constructor(
+        public readonly loopKind: "break" | "continue",
+        syntax: BaseSyntaxNode) {
+        super(BoundKind.LoopControlStatement, syntax);
+    }
+
+    public children(): ReadonlyArray<BaseBoundNode> {
+        return [];
     }
 }
 
@@ -455,6 +475,34 @@ export class BoundDivisionExpression extends BaseBoundExpression {
     }
 }
 
+export class BoundIntegerDivisionExpression extends BaseBoundExpression {
+    public constructor(
+        public readonly leftExpression: BaseBoundExpression,
+        public readonly rightExpression: BaseBoundExpression,
+        hasErrors: boolean,
+        syntax: BaseSyntaxNode) {
+        super(BoundKind.IntegerDivisionExpression, true, hasErrors, syntax);
+    }
+
+    public children(): ReadonlyArray<BaseBoundNode> {
+        return [this.leftExpression, this.rightExpression];
+    }
+}
+
+export class BoundModuloExpression extends BaseBoundExpression {
+    public constructor(
+        public readonly leftExpression: BaseBoundExpression,
+        public readonly rightExpression: BaseBoundExpression,
+        hasErrors: boolean,
+        syntax: BaseSyntaxNode) {
+        super(BoundKind.ModuloExpression, true, hasErrors, syntax);
+    }
+
+    public children(): ReadonlyArray<BaseBoundNode> {
+        return [this.leftExpression, this.rightExpression];
+    }
+}
+
 export class BoundArrayAccessExpression extends BaseBoundExpression {
     public constructor(
         public readonly arrayName: string,
@@ -632,6 +680,7 @@ export class BoundNodeRewriter {
             case BoundKind.IfStatement: return this.rewriteIfStatement(node as BoundIfStatement);
             case BoundKind.WhileStatement: return this.rewriteWhileStatement(node as BoundWhileStatement);
             case BoundKind.ForStatement: return this.rewriteForStatement(node as BoundForStatement);
+            case BoundKind.LoopControlStatement: return node;
             case BoundKind.LabelStatement: return this.rewriteLabelStatement(node as BoundLabelStatement);
             case BoundKind.GoToStatement: return this.rewriteGoToStatement(node as BoundGoToStatement);
             case BoundKind.ReturnStatement: return this.rewriteReturnStatement(node as BoundReturnStatement);
@@ -655,6 +704,8 @@ export class BoundNodeRewriter {
             case BoundKind.SubtractionExpression: return this.rewriteSubtractionExpression(node as BoundSubtractionExpression);
             case BoundKind.MultiplicationExpression: return this.rewriteMultiplicationExpression(node as BoundMultiplicationExpression);
             case BoundKind.DivisionExpression: return this.rewriteDivisionExpression(node as BoundDivisionExpression);
+            case BoundKind.IntegerDivisionExpression: return this.rewriteIntegerDivisionExpression(node as BoundIntegerDivisionExpression);
+            case BoundKind.ModuloExpression: return this.rewriteModuloExpression(node as BoundModuloExpression);
             case BoundKind.ArrayAccessExpression: return this.rewriteArrayAccessExpression(node as BoundArrayAccessExpression);
             case BoundKind.LibraryTypeExpression: return this.rewriteLibraryTypeExpression(node as BoundLibraryTypeExpression);
             case BoundKind.LibraryPropertyExpression: return this.rewriteLibraryPropertyExpression(node as BoundLibraryPropertyExpression);
@@ -864,6 +915,22 @@ export class BoundNodeRewriter {
 
     public rewriteDivisionExpression(node: BoundDivisionExpression): BaseBoundNode {
         return new BoundDivisionExpression(
+            this.rewrite(node.leftExpression) as BaseBoundExpression,
+            this.rewrite(node.rightExpression) as BaseBoundExpression,
+            node.hasErrors,
+            node.syntax);
+    }
+
+    public rewriteIntegerDivisionExpression(node: BoundIntegerDivisionExpression): BaseBoundNode {
+        return new BoundIntegerDivisionExpression(
+            this.rewrite(node.leftExpression) as BaseBoundExpression,
+            this.rewrite(node.rightExpression) as BaseBoundExpression,
+            node.hasErrors,
+            node.syntax);
+    }
+
+    public rewriteModuloExpression(node: BoundModuloExpression): BaseBoundNode {
+        return new BoundModuloExpression(
             this.rewrite(node.leftExpression) as BaseBoundExpression,
             this.rewrite(node.rightExpression) as BaseBoundExpression,
             node.hasErrors,

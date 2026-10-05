@@ -1,0 +1,533 @@
+' ============================================================================
+' Small Basic Tetris — optimized edition (tetris_opt.sb)
+'
+' Restructured version of tetris.sb built on Language Extension v1. The
+' original moved every value between Subs through global variables that were
+' documented only by "in:/ret:" comments; this edition passes real Function
+' parameters, declares procedure locals with Dim, and returns results with
+' Return. Board geometry lives in pure Functions, drawing stays in Subs, and
+' helper locals no longer leak into the global memory shared with the key
+' handler.
+'
+' Deliberate gameplay detail changes (each fixes a wart in the original):
+'   - rotation fit checks include the floor, so boxes never rotate below
+'     the board edge
+'   - a blocked rotation can kick up to two cells away from a side wall
+'   - keys are ignored while no piece is falling (the original let key
+'     events between pieces nudge already locked pieces)
+'   - line clearing resets board cells properly; the original left stale
+'     shape handles in the top row, which could hang the row scan
+' ============================================================================
+
+' ---------------------------------------------------------------------------
+' Shared game state. Names not declared here and not introduced by a
+' parameter or Dim inside a procedure are global by design: the key handler
+' and the gravity loop run in different call frames and share them.
+' ---------------------------------------------------------------------------
+Dim board            ' locked cells, indexed x + y * CWIDTH; "." means free
+Dim current          ' array name of the falling piece
+Dim nextPiece        ' array name of the queued piece
+Dim xpos, ypos       ' board cell of the falling piece's top-left box
+Dim delay            ' ms until the piece drops a row (0 = fast drop)
+Dim gravity          ' per-game fall delay, eased from STARTDELAY down
+Dim yposdelta        ' free-spin ticks left before the piece falls again
+Dim falling          ' "True" while a piece is airborne; keys act only then
+Dim score
+Dim pieceCount       ' ever-growing counter backing unique piece names
+
+' ---------------------------------------------------------------------------
+' Tuning constants
+' ---------------------------------------------------------------------------
+BOXES = 4            ' number of boxes per piece
+BWIDTH = 25          ' box size in pixels
+XOFFSET = 40         ' board origin in pixels
+YOFFSET = 40
+CWIDTH = 10          ' board width in cells
+CHEIGHT = 20         ' board height in cells
+STARTDELAY = 800     ' gravity delay when the game starts, in ms
+ENDDELAY = 175       ' fastest gravity delay, in ms
+SPAWN_X = 3          ' column where pieces spawn
+PREVIEW_X = 13       ' preview box origin, in cells
+PREVIEW_Y = 2
+
+GraphicsWindow.KeyDown = HandleKey
+GraphicsWindow.BackgroundColor = GraphicsWindow.GetColorFromRGB( 253, 252, 251 )
+
+While "True"
+  GraphicsWindow.Clear()
+  GraphicsWindow.Title = "Small Basic Tetris"
+  GraphicsWindow.Height = 580
+  GraphicsWindow.Width = 700
+  GraphicsWindow.Show()
+
+  SetupTemplates()
+  SetupCanvas()
+  RunGame()
+
+  GraphicsWindow.ShowMessage( "Game Over", "Small Basic Tetris" )
+EndWhile
+
+' ---------------------------------------------------------------------------
+' Piece templates
+'
+' A template is an array named "template1".."template7" holding the four box
+' coordinates encoded as x * 10 + y inside a dim x dim layout, plus the piece
+' color, the layout size, and the offsets that center a piece in the preview
+' box.
+' ---------------------------------------------------------------------------
+
+Sub SetupTemplates
+  '  _X_      _X_      _X_      XX_      XX_      _XX      _X
+  '  _X_      _X_      XXX      XX_      _XX      XX_      _X
+  '  _XX      XX_                                               
+  '                                                           _X
+  DefineTemplate(1, 10, 11, 12, 22, "Yellow",  3, -12, 12)
+  DefineTemplate(2, 10, 11, 12,  2, "Magenta", 3,  12, 12)
+  DefineTemplate(3, 10,  1, 11, 21, "Gray",    3,   0, 25)
+  DefineTemplate(4,  0, 10,  1, 11, "Cyan",    2,  12, 25)
+  DefineTemplate(5,  0, 10, 11, 21, "Green",   3,   0, 25)
+  DefineTemplate(6, 10, 20,  1, 11, "Blue",    3,   0, 25)
+  DefineTemplate(7, 10, 11, 12, 13, "Red",     4,   0,  0)
+EndSub
+
+Sub DefineTemplate(index, c0, c1, c2, c3, color, size, pviewx, pviewy)
+  Dim name
+  name = "template" + index
+  Array.SetValue(name, 0, c0)
+  Array.SetValue(name, 1, c1)
+  Array.SetValue(name, 2, c2)
+  Array.SetValue(name, 3, c3)
+  Array.SetValue(name, "color", color)
+  Array.SetValue(name, "dim", size)
+  Array.SetValue(name, "pviewx", pviewx)
+  Array.SetValue(name, "pviewy", pviewy)
+EndSub
+
+Function RandomTemplate()
+  Return Text.Append("template", Math.GetRandomNumber(7))
+EndFunction
+
+' ---------------------------------------------------------------------------
+' Board geometry (pure functions)
+' ---------------------------------------------------------------------------
+
+Function BoardIndex(x, y)
+  Return x + y * CWIDTH
+EndFunction
+
+Function CellX(code)
+  Return Math.Floor(code / 10)
+EndFunction
+
+Function CellY(code)
+  Return Math.Remainder(code, 10)
+EndFunction
+
+Function PieceTemplate(piece)
+  Return Array.GetValue(piece, "template")
+EndFunction
+
+' "True" when every box of `template` placed at (atX, atY) is inside the side
+' walls, above the floor, and on a free cell.
+Function CanPlace(template, atX, atY)
+  Dim i, code, x, y
+  For i = 0 To BOXES - 1
+    code = Array.GetValue(template, i)
+    x = atX + CellX(code)
+    y = atY + CellY(code)
+    If x < 0 Or x >= CWIDTH Or y >= CHEIGHT Then
+      Return "False"
+    EndIf
+    If board[BoardIndex(x, y)] <> "." Then
+      Return "False"
+    EndIf
+  EndFor
+  Return "True"
+EndFunction
+
+' ---------------------------------------------------------------------------
+' Pieces
+'
+' A piece is an array named "piece1", "piece2", ... holding its template name
+' under the "template" key and one rectangle shape handle per box under 0..3.
+' ---------------------------------------------------------------------------
+
+' Builds a piece from `templateName`: four rectangles parked off-screen.
+' Returns the piece's array name.
+Function NewPiece(templateName)
+  Dim name, i, box
+  pieceCount = pieceCount + 1
+  name = "piece" + pieceCount
+  Array.SetValue(name, "template", templateName)
+
+  GraphicsWindow.PenWidth = 1
+  GraphicsWindow.PenColor = "Black"
+  GraphicsWindow.BrushColor = Array.GetValue(templateName, "color")
+  For i = 0 To BOXES - 1
+    box = Shapes.AddRectangle(BWIDTH, BWIDTH)
+    Shapes.Move(box, -BWIDTH, -BWIDTH)
+    Array.SetValue(name, i, box)
+  EndFor
+  Return name
+EndFunction
+
+' Redraws the piece so the template's top-left box sits on cell (atX, atY).
+' DrawPreview shifts the origins first to reuse the same math for the preview.
+Sub MovePiece(piece, atX, atY)
+  Dim i, code, template
+  template = PieceTemplate(piece)
+  For i = 0 To BOXES - 1
+    code = Array.GetValue(template, i)
+    Shapes.Move(Array.GetValue(piece, i), XOFFSET + (atX + CellX(code)) * BWIDTH, YOFFSET + (atY + CellY(code)) * BWIDTH)
+  EndFor
+EndSub
+
+' ---------------------------------------------------------------------------
+' Rotation
+' ---------------------------------------------------------------------------
+
+' Writes `source` rotated 90 degrees clockwise into `target` and returns
+' `target`. Each box is read before it is written, so `target` may be
+' `source` itself.
+Function RotateCW(source, target)
+  Dim i, code, x, y, size
+  size = Array.GetValue(source, "dim")
+  For i = 0 To BOXES - 1
+    code = Array.GetValue(source, i)
+    x = CellY(code)               ' x' = y
+    y = size - 1 - CellX(code)    ' y' = (size - 1) - x
+    Array.SetValue(target, i, x * 10 + y)
+  EndFor
+  Array.SetValue(target, "color", Array.GetValue(source, "color"))
+  Array.SetValue(target, "dim", size)
+  Array.SetValue(target, "pviewx", Array.GetValue(source, "pviewx"))
+  Array.SetValue(target, "pviewy", Array.GetValue(source, "pviewy"))
+  Return target
+EndFunction
+
+' -1 when a box of `template` at x offset `atX` pokes past the left wall, 1
+' when one pokes past the right wall, 0 when the horizontal placement is fine.
+Function WallOverhang(template, atX)
+  Dim i, code, x
+  For i = 0 To BOXES - 1
+    code = Array.GetValue(template, i)
+    x = atX + CellX(code)
+    If x < 0 Then
+      Return -1
+    EndIf
+    If x >= CWIDTH Then
+      Return 1
+    EndIf
+  EndFor
+  Return 0
+EndFunction
+
+' Returns the sideways kick (in cells) that makes `template` fit at (atX, atY):
+' one or two cells away from the wall it pokes past, 0 when nothing fits.
+Function FindWallKick(template, atX, atY)
+  Dim wall, distance
+  wall = WallOverhang(template, atX)
+  If wall = 0 Then
+    Return 0
+  EndIf
+  For distance = 1 To 2
+    If CanPlace(template, atX - wall * distance, atY) = "True" Then
+      Return -wall * distance
+    EndIf
+  EndFor
+  Return 0
+EndFunction
+
+' Rotates the falling piece clockwise, kicking it away from a side wall when
+' the rotated shape pokes out. Returns "True" when the piece was rotated.
+Function TryRotate()
+  Dim scratch, kick
+  scratch = RotateCW(PieceTemplate(current), "rotatedTemplate")
+  If CanPlace(scratch, xpos, ypos) = "True" Then
+    Array.SetValue(current, "template", scratch)
+    Return "True"
+  EndIf
+  kick = FindWallKick(scratch, xpos, ypos)
+  If kick <> 0 Then
+    Array.SetValue(current, "template", scratch)
+    xpos = xpos + kick
+    Return "True"
+  EndIf
+  Return "False"
+EndFunction
+
+' ---------------------------------------------------------------------------
+' Game flow
+' ---------------------------------------------------------------------------
+
+' Runs one game: pieces fall, land, and stack up until a fresh piece cannot
+' spawn anymore.
+Sub RunGame
+  Dim gameOver
+  falling = "False"
+  gravity = STARTDELAY
+  nextPiece = NewPiece(RandomTemplate())
+  gameOver = "False"
+  While gameOver = "False"
+    If gravity > ENDDELAY Then
+      gravity = gravity - 1
+    EndIf
+    delay = gravity
+    current = nextPiece
+    nextPiece = NewPiece(RandomTemplate())
+    DrawPreview(nextPiece)
+    If DropPiece(current) = "False" Then
+      gameOver = "True"
+    EndIf
+  EndWhile
+EndSub
+
+' Drops one piece from the spawn cell until it lands, then locks it into the
+' board. Returns "False" when the piece cannot be placed at all (game over).
+Function DropPiece(piece)
+  Dim landed
+  xpos = SPAWN_X
+  ypos = 0
+  yposdelta = 0
+  If CanPlace(PieceTemplate(piece), xpos, ypos) = "False" Then
+    Return "False"
+  EndIf
+  falling = "True"
+  landed = "False"
+  While landed = "False"
+    MovePiece(piece, xpos, ypos)
+    WaitFallDelay()
+    If yposdelta > 0 Then
+      yposdelta = yposdelta - 1    ' a rotation granted a free tick: hold here
+    ElseIf CanPlace(PieceTemplate(piece), xpos, ypos + 1) = "False" Then
+      landed = "True"
+    Else
+      ypos = ypos + 1
+    EndIf
+  EndWhile
+  LockPiece(piece)
+  falling = "False"
+  Return "True"
+EndFunction
+
+' Waits one gravity tick in 10 ms slices, so a fast-drop key (which zeroes
+' `delay`) interrupts the wait immediately.
+Sub WaitFallDelay()
+  Dim remaining
+  remaining = delay
+  While remaining > 0 And delay > 0
+    Program.Delay(10)
+    remaining = remaining - 10
+  EndWhile
+EndSub
+
+' Writes the piece's boxes into the board on the row where it landed, scores
+' the drop, and clears any full lines.
+Sub LockPiece(piece)
+  Dim i, code, template, x, y
+  template = PieceTemplate(piece)
+  For i = 0 To BOXES - 1
+    code = Array.GetValue(template, i)
+    x = xpos + CellX(code)
+    y = ypos + CellY(code)
+    board[BoardIndex(x, y)] = Array.GetValue(piece, i)
+  EndFor
+  score = score + 1
+  DrawScore()
+  ClearLines()
+EndSub
+
+' ---------------------------------------------------------------------------
+' Line clearing
+' ---------------------------------------------------------------------------
+
+' Removes every full row. Removing a row drops the rows above it by one, so
+' the same row index is re-checked until it is no longer full.
+Sub ClearLines
+  Dim cleared, y
+  cleared = 0
+  For y = CHEIGHT - 1 To 0 Step -1
+    While RowIsFull(y) = "True"
+      RemoveRow(y)
+      CollapseAbove(y)
+      cleared = cleared + 1
+    EndWhile
+  EndFor
+  If cleared > 0 Then
+    score = score + LineScore(cleared)
+    DrawScore()
+  EndIf
+EndSub
+
+Function RowIsFull(y)
+  Dim x
+  For x = 0 To CWIDTH - 1
+    If board[BoardIndex(x, y)] = "." Then
+      Return "False"
+    EndIf
+  EndFor
+  Return "True"
+EndFunction
+
+' Removes a row's shapes from the canvas and marks its cells free.
+Sub RemoveRow(y)
+  Dim x
+  For x = 0 To CWIDTH - 1
+    Shapes.Remove(board[BoardIndex(x, y)])
+    board[BoardIndex(x, y)] = "."
+  EndFor
+EndSub
+
+' Moves every row above `y` down one row, redraws its shapes, and leaves
+' row 0 empty.
+Sub CollapseAbove(y)
+  Dim x1, y1, box
+  For y1 = y To 1 Step -1
+    For x1 = 0 To CWIDTH - 1
+      box = board[BoardIndex(x1, y1 - 1)]
+      board[BoardIndex(x1, y1)] = box
+      Shapes.Move(box, Shapes.GetLeft(box), Shapes.GetTop(box) + BWIDTH)
+    EndFor
+  EndFor
+  For x1 = 0 To CWIDTH - 1
+    board[BoardIndex(x1, 0)] = "."
+  EndFor
+EndSub
+
+Function LineScore(lines)
+  Return 100 * Math.Round(lines * 2.15 - 1)
+EndFunction
+
+' ---------------------------------------------------------------------------
+' Input
+' ---------------------------------------------------------------------------
+
+Sub HandleKey
+  Dim key
+  key = GraphicsWindow.LastKey
+  If key = "Escape" Then
+    Program.End()
+  ElseIf key = "Left" Or key = "A" Then
+    ShiftPiece(-1)
+  ElseIf key = "Right" Or key = "D" Then
+    ShiftPiece(1)
+  ElseIf key = "Down" Or key = "S" Or key = "Space" Then
+    delay = 0
+  ElseIf key = "Up" Or key = "W" Then
+    If falling = "True" Then
+      If TryRotate() = "True" Then
+        yposdelta = 1              ' one free tick so the spin is visible
+        MovePiece(current, xpos, ypos)
+      EndIf
+    EndIf
+  EndIf
+EndSub
+
+' Moves the falling piece one cell sideways when the target cells are free.
+Sub ShiftPiece(direction)
+  If falling = "True" Then
+    If CanPlace(PieceTemplate(current), xpos + direction, ypos) = "True" Then
+      xpos = xpos + direction
+      MovePiece(current, xpos, ypos)
+    EndIf
+  EndIf
+EndSub
+
+' ---------------------------------------------------------------------------
+' Drawing
+' ---------------------------------------------------------------------------
+
+' Draws the board frame, the preview box, the instructions, and the score,
+' and resets the board cells to ".".
+Sub SetupCanvas
+  Dim x, y, px, py
+
+  GraphicsWindow.BrushColor = GraphicsWindow.BackgroundColor
+  GraphicsWindow.FillRectangle(XOFFSET, YOFFSET, CWIDTH * BWIDTH, CHEIGHT * BWIDTH)
+
+  Program.Delay(200)
+  GraphicsWindow.PenWidth = 1
+  GraphicsWindow.PenColor = "Pink"
+  For x = 0 To CWIDTH - 1
+    For y = 0 To CHEIGHT - 1
+      board[BoardIndex(x, y)] = "."  ' "." marks the spot as free
+      GraphicsWindow.DrawRectangle(XOFFSET + x * BWIDTH, YOFFSET + y * BWIDTH, BWIDTH, BWIDTH)
+    EndFor
+  EndFor
+
+  GraphicsWindow.PenWidth = 4
+  GraphicsWindow.PenColor = "Black"
+  GraphicsWindow.DrawLine(XOFFSET, YOFFSET, XOFFSET, YOFFSET + CHEIGHT * BWIDTH)
+  GraphicsWindow.DrawLine(XOFFSET + CWIDTH * BWIDTH, YOFFSET, XOFFSET + CWIDTH * BWIDTH, YOFFSET + CHEIGHT * BWIDTH)
+  GraphicsWindow.DrawLine(XOFFSET, YOFFSET + CHEIGHT * BWIDTH, XOFFSET + CWIDTH * BWIDTH, YOFFSET + CHEIGHT * BWIDTH)
+
+  GraphicsWindow.PenColor = "Lime"
+  GraphicsWindow.DrawLine(XOFFSET - 4, YOFFSET, XOFFSET - 4, YOFFSET + CHEIGHT * BWIDTH + 6)
+  GraphicsWindow.DrawLine(XOFFSET + CWIDTH * BWIDTH + 4, YOFFSET, XOFFSET + CWIDTH * BWIDTH + 4, YOFFSET + CHEIGHT * BWIDTH + 6)
+  GraphicsWindow.DrawLine(XOFFSET - 4, YOFFSET + CHEIGHT * BWIDTH + 4, XOFFSET + CWIDTH * BWIDTH + 4, YOFFSET + CHEIGHT * BWIDTH + 4)
+
+  GraphicsWindow.PenColor = "Black"
+  GraphicsWindow.BrushColor = "Pink"
+  px = XOFFSET + PREVIEW_X * BWIDTH - BWIDTH
+  py = YOFFSET + PREVIEW_Y * BWIDTH - BWIDTH
+  GraphicsWindow.FillRectangle(px, py, BWIDTH * 5, BWIDTH * 6)
+  GraphicsWindow.DrawRectangle(px, py, BWIDTH * 5, BWIDTH * 6)
+
+  GraphicsWindow.FillRectangle(px - 20, py + 190, 310, 170)
+  GraphicsWindow.DrawRectangle(px - 20, py + 190, 310, 170)
+
+  GraphicsWindow.BrushColor = "Black"
+  GraphicsWindow.FontItalic = "False"
+  GraphicsWindow.FontName = "Comic Sans MS"
+  GraphicsWindow.FontSize = 16
+  GraphicsWindow.DrawText(px, py + 200, "Game control keys:")
+  GraphicsWindow.DrawText(px + 25, py + 220, "Left Arrow = Move piece left")
+  GraphicsWindow.DrawText(px + 25, py + 240, "Right Arrow = Move piece right")
+  GraphicsWindow.DrawText(px + 25, py + 260, "Up Arrow = Rotate piece")
+  GraphicsWindow.DrawText(px + 25, py + 280, "Down Arrow = Drop piece")
+  GraphicsWindow.DrawText(px, py + 320, "Press Escape to stop game")
+
+  Program.Delay(200) ' without this delay, the text above gets the score's font
+  GraphicsWindow.BrushColor = "Black"
+  GraphicsWindow.FontName = "Georgia"
+  GraphicsWindow.FontItalic = "True"
+  GraphicsWindow.FontSize = 36
+  GraphicsWindow.DrawText(px - 20, py + 400, "Small Basic Tetris")
+  Program.Delay(200)
+  GraphicsWindow.FontSize = 16
+  GraphicsWindow.DrawText(px - 20, py + 440, "optimized edition")
+
+  Program.Delay(200)
+  score = 0
+  DrawScore()
+EndSub
+
+' Draws `piece` in the preview box; the template's preview offsets center it.
+Sub DrawPreview(piece)
+  Dim savedX, savedY
+  savedX = XOFFSET
+  savedY = YOFFSET
+  XOFFSET = XOFFSET + Array.GetValue(PieceTemplate(piece), "pviewx")
+  YOFFSET = YOFFSET + Array.GetValue(PieceTemplate(piece), "pviewy")
+  MovePiece(piece, PREVIEW_X, PREVIEW_Y)
+  XOFFSET = savedX
+  YOFFSET = savedY
+EndSub
+
+Sub DrawScore
+  GraphicsWindow.PenWidth = 4
+  GraphicsWindow.BrushColor = "Pink"
+  GraphicsWindow.FillRectangle(500, 65, 153, 50)
+  GraphicsWindow.BrushColor = "Black"
+  GraphicsWindow.DrawRectangle(500, 65, 153, 50)
+  GraphicsWindow.FontItalic = "False"
+  GraphicsWindow.FontSize = 32
+  GraphicsWindow.FontName = "Impact"
+  GraphicsWindow.BrushColor = "Black"
+  GraphicsWindow.DrawText(505, 70, PadScore(score))
+EndSub
+
+' Zero-pads the score to eight digits.
+Function PadScore(value)
+  Return Text.Append(Text.GetSubText( "00000000", 0, 8 - Text.GetLength( value ) ), value)
+EndFunction

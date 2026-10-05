@@ -41,7 +41,7 @@ describe("SmallBasic runtime compatibility", () => {
   });
 
   it("compiles the Tetris sample without diagnostics", () => {
-    const source = readFileSync(new URL("../../../../test/tetris/tetris.sb", import.meta.url), "utf8");
+    const source = readFileSync(new URL("../../../../sample/tetris/tetris.sb", import.meta.url), "utf8");
 
     const compilation = new Compilation(source);
     expect(compilation.diagnostics).toEqual([]);

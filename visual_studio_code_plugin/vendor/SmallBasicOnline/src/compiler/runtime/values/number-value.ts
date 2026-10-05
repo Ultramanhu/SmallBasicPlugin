@@ -1,6 +1,6 @@
 import { ExecutionEngine } from "../../execution-engine";
 import { StringValue } from "./string-value";
-import { AddInstruction, DivideInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
+import { AddInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
 import { Diagnostic, ErrorCode } from "../../utils/diagnostics";
 import { BaseValue, ValueKind } from "./base-value";
 import { TokenKind } from "../../syntax/tokens";
@@ -141,6 +141,47 @@ export class NumberValue extends BaseValue {
                 }
             case ValueKind.Array:
                 engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Divide)));
+                return this;
+            default:
+                throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
+        }
+    }
+
+    // Integer division (A \ B) truncates the real quotient toward zero. A zero
+    // divisor yields 0 instead of terminating, matching the shared extension
+    // contract for the arithmetic operators added by Arithmetic Extension v1.
+    public integerDivide(other: BaseValue, engine: ExecutionEngine, instruction: IntegerDivideInstruction): BaseValue {
+        other = other.tryConvertToNumber();
+
+        switch (other.kind) {
+            case ValueKind.String:
+                engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAString, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Backslash)));
+                return this;
+            case ValueKind.Number:
+                const otherValue = (other as NumberValue).value;
+                return new NumberValue(otherValue === 0 ? 0 : Math.trunc(this.value / otherValue));
+            case ValueKind.Array:
+                engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Backslash)));
+                return this;
+            default:
+                throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
+        }
+    }
+
+    // A Mod B keeps the sign of the dividend (truncated remainder), like the
+    // C# and JavaScript % operators. A zero divisor yields 0.
+    public modulo(other: BaseValue, engine: ExecutionEngine, instruction: ModuloInstruction): BaseValue {
+        other = other.tryConvertToNumber();
+
+        switch (other.kind) {
+            case ValueKind.String:
+                engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAString, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Mod)));
+                return this;
+            case ValueKind.Number:
+                const otherValue = (other as NumberValue).value;
+                return new NumberValue(otherValue === 0 ? 0 : this.value % otherValue);
+            case ValueKind.Array:
+                engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Mod)));
                 return this;
             default:
                 throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);

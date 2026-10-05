@@ -92,8 +92,19 @@ function Invoke-External([string]$Command, [string[]]$Arguments, [string]$Workin
     Push-Location -LiteralPath $WorkingDirectory
     try {
         # Stream to the console and return only the exit code; without Out-Host
-        # the command output would join the function's return value.
-        & $Command @Arguments 2>&1 | Out-Host
+        # the command output would join the function's return value. Merging
+        # stderr with 2>&1 routes it through the error stream, where Windows
+        # PowerShell 5.1 turns the first warning line (npm and cargo write those
+        # freely) into a terminating NativeCommandError under
+        # $ErrorActionPreference = "Stop"; relax the preference for the call.
+        $previous = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        try {
+            & $Command @Arguments 2>&1 | Out-Host
+        }
+        finally {
+            $ErrorActionPreference = $previous
+        }
         return $LASTEXITCODE
     }
     finally {

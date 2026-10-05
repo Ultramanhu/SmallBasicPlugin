@@ -43,6 +43,8 @@ export enum SyntaxKind {
     EndForCommand,
     WhileCommand,
     EndWhileCommand,
+    BreakCommand,
+    ContinueCommand,
     LabelCommand,
     GoToCommand,
     SubCommand,
@@ -327,6 +329,28 @@ export class EndWhileCommandSyntax extends BaseCommandSyntax {
 
     public children(): ReadonlyArray<BaseSyntaxNode> {
         return [this.endWhileToken];
+    }
+}
+
+export class BreakCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly breakToken: TokenSyntax) {
+        super(SyntaxKind.BreakCommand, breakToken.range);
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.breakToken];
+    }
+}
+
+export class ContinueCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly continueToken: TokenSyntax) {
+        super(SyntaxKind.ContinueCommand, continueToken.range);
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.continueToken];
     }
 }
 
@@ -669,6 +693,8 @@ export class SyntaxNodeVisitor {
             case SyntaxKind.EndForCommand: this.visitEndForCommand(node as EndForCommandSyntax); break;
             case SyntaxKind.WhileCommand: this.visitWhileCommand(node as WhileCommandSyntax); break;
             case SyntaxKind.EndWhileCommand: this.visitEndWhileCommand(node as EndWhileCommandSyntax); break;
+            case SyntaxKind.BreakCommand: this.visitBreakCommand(node as BreakCommandSyntax); break;
+            case SyntaxKind.ContinueCommand: this.visitContinueCommand(node as ContinueCommandSyntax); break;
             case SyntaxKind.LabelCommand: this.visitLabelCommand(node as LabelCommandSyntax); break;
             case SyntaxKind.GoToCommand: this.visitGoToCommand(node as GoToCommandSyntax); break;
             case SyntaxKind.SubCommand: this.visitSubCommand(node as SubCommandSyntax); break;
@@ -759,6 +785,14 @@ export class SyntaxNodeVisitor {
     }
 
     public visitEndWhileCommand(node: EndWhileCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitBreakCommand(node: BreakCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitContinueCommand(node: ContinueCommandSyntax): void {
         this.defaultVisit(node);
     }
 

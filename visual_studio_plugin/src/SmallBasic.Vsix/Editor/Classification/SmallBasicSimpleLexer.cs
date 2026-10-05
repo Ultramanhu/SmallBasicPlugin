@@ -8,7 +8,7 @@ namespace SmallBasic.Vsix.Editor.Classification
     {
         private static readonly HashSet<string> Keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "If", "Then", "Else", "ElseIf", "EndIf", "For", "To", "Step", "EndFor", "GoTo", "While", "EndWhile", "Sub", "EndSub", "Function", "EndFunction", "Dim", "Return", "And", "Or",
+            "If", "Then", "Else", "ElseIf", "EndIf", "For", "To", "Step", "EndFor", "GoTo", "While", "EndWhile", "Break", "Continue", "Sub", "EndSub", "Function", "EndFunction", "Dim", "Return", "And", "Or", "Mod",
         };
 
         private static readonly HashSet<string> Libraries = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -71,7 +71,7 @@ namespace SmallBasic.Vsix.Editor.Classification
                         }
 
                         string word = text.Substring(index, end - index);
-                        if (Keywords.Contains(word))
+                        if (Keywords.Contains(word) && !IsMemberName(text, index, word))
                         {
                             yield return new SmallBasicTokenSpan(line.Start.Position + index, end - index, SmallBasicClassificationNames.Keyword);
                         }
@@ -94,6 +94,22 @@ namespace SmallBasic.Vsix.Editor.Classification
                     index++;
                 }
             }
+        }
+
+        private static bool IsMemberName(string text, int wordStart, string word)
+        {
+            if (!string.Equals(word, "Mod", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            int index = wordStart - 1;
+            while (index >= 0 && char.IsWhiteSpace(text[index]))
+            {
+                index--;
+            }
+
+            return index >= 0 && text[index] == '.';
         }
     }
 

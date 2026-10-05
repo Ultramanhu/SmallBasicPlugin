@@ -74,10 +74,12 @@ main().catch((error) => {
 async function main() {
     const targetTriple = targetFlag || hostTriple();
     // Mobile targets bundle no sidecars: the .NET hosts do not ship for
-    // Android, and the page falls back to its two Web backends there.
+    // Android or iOS, and the page falls back to its two Web backends there.
     const isAndroid = targetTriple.endsWith("-android");
+    const isIOS = targetTriple.includes("-ios"); // aarch64-apple-ios, *-ios-sim
+    const isMobile = isAndroid || isIOS;
     const rid = RID_BY_TRIPLE[targetTriple];
-    if (!rid && !isAndroid) {
+    if (!rid && !isMobile) {
         throw new Error(`Unsupported target triple: ${targetTriple}. Known triples: ${Object.keys(RID_BY_TRIPLE).join(", ")}`);
     }
 
@@ -108,11 +110,11 @@ async function main() {
     }
 
     // bin/ must hold exactly the sidecar of the current target (nothing at
-    // all on Android, which has no sidecar).
-    pruneStaleSidecars(targetTriple, exeSuffix, isAndroid);
+    // all on mobile, which has no sidecar).
+    pruneStaleSidecars(targetTriple, exeSuffix, isMobile);
 
     // 2. Target-specific payloads.
-    if (!skipSidecars && !isAndroid) {
+    if (!skipSidecars && !isMobile) {
         stageSidecars(targetTriple, rid, exeSuffix);
     } else {
         console.log("==> Skipping sidecar staging");
@@ -270,14 +272,15 @@ function stageSamples() {
 /**
  * Keeps `bin/` limited to the current target's sidecar: files left behind by a
  * removed backend or by another target triple would otherwise be picked up by
- * `bundle.externalBin` on the next package. Android stages no sidecar at all.
+ * `bundle.externalBin` on the next package. Mobile targets stage no sidecar at
+ * all (the parameter is the mobile flag).
  */
-function pruneStaleSidecars(targetTriple, exeSuffix, isAndroid = false) {
+function pruneStaleSidecars(targetTriple, exeSuffix, isMobile = false) {
     if (!fs.existsSync(STAGE_BIN)) {
         return;
     }
 
-    const expected = new Set(isAndroid ? [] : [`smallbasic-csharp-net8-${targetTriple}${exeSuffix}`]);
+    const expected = new Set(isMobile ? [] : [`smallbasic-csharp-net8-${targetTriple}${exeSuffix}`]);
     for (const entry of fs.readdirSync(STAGE_BIN, { withFileTypes: true })) {
         if (entry.isFile() && !expected.has(entry.name)) {
             console.log(`==> Removing stale sidecar: ${entry.name}`);

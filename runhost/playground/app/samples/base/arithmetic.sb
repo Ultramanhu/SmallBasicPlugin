@@ -1,0 +1,28 @@
+TextWindow.WriteLine("math-operators-v1")
+TextWindow.WriteLine(7 \ 2)
+TextWindow.WriteLine(-7 \ 2)
+TextWindow.WriteLine(7.9 \ 2.9)
+TextWindow.WriteLine(4 \ 0)
+TextWindow.WriteLine(7 Mod 2)
+TextWindow.WriteLine(-7 Mod 2)
+TextWindow.WriteLine(4 Mod 0)
+TextWindow.WriteLine(6 Mod 4 * 2)
+TextWindow.WriteLine(7 \ 2 * 3)
+TextWindow.WriteLine(Math.Div(7, 2))
+TextWindow.WriteLine(Math.Div(-7, 2))
+TextWindow.WriteLine(Math.Mod(7, 2))
+TextWindow.WriteLine(Math.Mod(7, -2))
+TextWindow.WriteLine(Math.Div(9, 0))
+TextWindow.WriteLine(Math.Mod(9, 0))
+
+Function DigitSum(Number)
+  Dim Sum
+  Sum = 0
+  While Number > 0
+    Sum = Sum + Number Mod 10
+    Number = Number \ 10
+  EndWhile
+  Return Sum
+EndFunction
+
+TextWindow.WriteLine(DigitSum(1234))

@@ -266,5 +266,88 @@ EndFunction");
             value.ToDisplayString().Should().Be("5");
             engine.GetSnapshot().Memory.Keys.Should().NotContain("__SmallBasicDebugExpression");
         }
+
+        [Fact]
+        public async Task ContinueStillRunsTheForIncrement()
+        {
+            SmallBasicEngine engine = await new SmallBasicCompilation(@"
+Sum = 0
+For I = 1 To 5
+  If I = 3 Then
+    Continue
+  EndIf
+  Sum = Sum + I
+EndFor").VerifyRealRuntime().ConfigureAwait(false);
+
+            DebuggerSnapshot snapshot = engine.GetSnapshot();
+            snapshot.Memory["Sum"].ToDisplayString().Should().Be("12");
+            snapshot.Memory["I"].ToDisplayString().Should().Be("6");
+        }
+
+        [Fact]
+        public async Task BreakLeavesTheLoopWithoutRunningTheIncrement()
+        {
+            SmallBasicEngine engine = await new SmallBasicCompilation(@"
+For I = 1 To 10
+  If I = 4 Then
+    Break
+  EndIf
+EndFor").VerifyRealRuntime().ConfigureAwait(false);
+
+            engine.GetSnapshot().Memory["I"].ToDisplayString().Should().Be("4");
+        }
+
+        [Theory]
+        [InlineData("Break", DiagnosticCode.BreakOutsideLoop)]
+        [InlineData("Continue", DiagnosticCode.ContinueOutsideLoop)]
+        [InlineData("Sub Work\nBreak\nEndSub\nWork()", DiagnosticCode.BreakOutsideLoop)]
+        [InlineData("While \"True\"\nBreak\nEndWhile\nContinue", DiagnosticCode.ContinueOutsideLoop)]
+        public void ItReportsLoopControlOutsideOfALoop(string source, DiagnosticCode expected)
+        {
+            var compilation = new SmallBasicCompilation(source);
+
+            compilation.Diagnostics.Select(diagnostic => diagnostic.Code).Should().Contain(expected);
+        }
+
+        [Fact]
+        public void BreakAndContinueLinesAreExecutableForTheDebugger()
+        {
+            var compilation = new SmallBasicCompilation(
+                "While \"True\"\n" +
+                "  Break\n" +
+                "EndWhile\n" +
+                "For I = 1 To 3\n" +
+                "  Continue\n" +
+                "EndFor");
+
+            compilation.Diagnostics.Should().BeEmpty();
+            compilation.GetExecutableLines().Should().Contain(1).And.Contain(4);
+        }
+
+        [Fact]
+        public void ItTreatsBreakAndContinueAsReservedWords()
+        {
+            var compilation = new SmallBasicCompilation("Break = 1");
+
+            compilation.Diagnostics.Select(diagnostic => diagnostic.Code)
+                .Should().Contain(DiagnosticCode.UnexpectedStatementInsteadOfNewLine);
+        }
+
+        [Fact]
+        public void ItProvidesHoverForLoopControlKeywords()
+        {
+            var compilation = new SmallBasicCompilation(
+                "While \"True\"\n" +
+                "  Break\n" +
+                "EndWhile\n" +
+                "For I = 1 To 3\n" +
+                "  Continue\n" +
+                "EndFor");
+
+            compilation.ProvideHover((1, 4)).Should().Equal("Break", "Exits the innermost While or For loop.");
+            compilation.ProvideHover((4, 5)).Should().Equal(
+                "Continue",
+                "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs.");
+        }
     }
 }

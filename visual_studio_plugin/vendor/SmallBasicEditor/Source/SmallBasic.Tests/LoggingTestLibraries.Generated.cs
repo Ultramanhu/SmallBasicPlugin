@@ -706,6 +706,12 @@ namespace SmallBasic.Tests
             return 0m;
         }
 
+        public decimal Div(decimal dividend, decimal divisor)
+        {
+            this.log.AppendLine($"Math.Div(dividend: '{dividend}', divisor: '{divisor}')");
+            return 0m;
+        }
+
         public decimal Floor(decimal number)
         {
             this.log.AppendLine($"Math.Floor(number: '{number}')");
@@ -745,6 +751,12 @@ namespace SmallBasic.Tests
         public decimal Min(decimal number1, decimal number2)
         {
             this.log.AppendLine($"Math.Min(number1: '{number1}', number2: '{number2}')");
+            return 0m;
+        }
+
+        public decimal Mod(decimal dividend, decimal divisor)
+        {
+            this.log.AppendLine($"Math.Mod(dividend: '{dividend}', divisor: '{divisor}')");
             return 0m;
         }
 

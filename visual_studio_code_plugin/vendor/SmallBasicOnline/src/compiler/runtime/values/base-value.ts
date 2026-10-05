@@ -1,5 +1,5 @@
 import { ExecutionEngine } from "../../execution-engine";
-import { SubtractInstruction, AddInstruction, MultiplyInstruction, DivideInstruction } from "../../emitting/instructions";
+import { SubtractInstruction, AddInstruction, MultiplyInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction } from "../../emitting/instructions";
 
 export module Constants {
     export const True = "True";
@@ -31,4 +31,6 @@ export abstract class BaseValue {
     public abstract subtract(other: BaseValue, engine: ExecutionEngine, instruction: SubtractInstruction): BaseValue;
     public abstract multiply(other: BaseValue, engine: ExecutionEngine, instruction: MultiplyInstruction): BaseValue;
     public abstract divide(other: BaseValue, engine: ExecutionEngine, instruction: DivideInstruction): BaseValue;
+    public abstract integerDivide(other: BaseValue, engine: ExecutionEngine, instruction: IntegerDivideInstruction): BaseValue;
+    public abstract modulo(other: BaseValue, engine: ExecutionEngine, instruction: ModuloInstruction): BaseValue;
 }

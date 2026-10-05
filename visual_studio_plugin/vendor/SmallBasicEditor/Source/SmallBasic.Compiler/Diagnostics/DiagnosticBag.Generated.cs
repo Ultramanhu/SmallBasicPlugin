@@ -87,6 +87,16 @@ namespace SmallBasic.Compiler.Diagnostics
             this.builder.Add(new Diagnostic(DiagnosticCode.ReturnOutsideFunction, range));
         }
 
+        public void ReportBreakOutsideLoop(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.BreakOutsideLoop, range));
+        }
+
+        public void ReportContinueOutsideLoop(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.ContinueOutsideLoop, range));
+        }
+
         public void ReportFunctionCannotBeEventHandler(TextRange range)
         {
             this.builder.Add(new Diagnostic(DiagnosticCode.FunctionCannotBeEventHandler, range));

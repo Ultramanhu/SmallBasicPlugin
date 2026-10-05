@@ -1,11 +1,19 @@
-import { BaseInstruction, TempLabelInstruction, TempJumpInstruction, TempConditionalJumpInstruction, StoreVariableInstruction, PushNumberInstruction, LessThanInstruction, LoadVariableInstruction, AddInstruction, MethodInvocationInstruction, InvokeSubModuleInstruction, ReturnValueInstruction, SetEventHandlerInstruction, StoreArrayElementInstruction, StorePropertyInstruction, NegateInstruction, GreaterThanInstruction, LessThanOrEqualInstruction, GreaterThanOrEqualInstruction, PushStringInstruction, EqualInstruction, SubtractInstruction, MultiplyInstruction, DivideInstruction, LoadPropertyInstruction, LoadArrayElementInstruction } from "./instructions";
-import { BaseBoundStatement, BoundIfStatement, BoundWhileStatement, BoundForStatement, BoundLabelStatement, BoundVariableAssignmentStatement, BoundPropertyAssignmentStatement, BoundArrayAssignmentStatement, BoundGoToStatement, BoundReturnStatement, BaseBoundExpression, BoundKind, BoundOrExpression, BoundAndExpression, BoundNotEqualExpression, BoundEqualExpression, BoundLessThanExpression, BoundParenthesisExpression, BoundNumberLiteralExpression, BoundStringLiteralExpression, BoundVariableExpression, BoundLibraryMethodInvocationExpression, BoundSubModuleInvocationExpression, BoundLibraryPropertyExpression, BoundArrayAccessExpression, BoundDivisionExpression, BoundMultiplicationExpression, BoundSubtractionExpression, BoundAdditionExpression, BoundNegationExpression, BoundSubModuleInvocationStatement, BoundLibraryMethodInvocationStatement, BoundEventAssignmentStatement, BoundStatementBlock } from "../binding/bound-nodes";
+import { BaseInstruction, TempLabelInstruction, TempJumpInstruction, TempConditionalJumpInstruction, StoreVariableInstruction, PushNumberInstruction, LessThanInstruction, LoadVariableInstruction, AddInstruction, MethodInvocationInstruction, InvokeSubModuleInstruction, ReturnValueInstruction, SetEventHandlerInstruction, StoreArrayElementInstruction, StorePropertyInstruction, NegateInstruction, GreaterThanInstruction, LessThanOrEqualInstruction, GreaterThanOrEqualInstruction, PushStringInstruction, EqualInstruction, SubtractInstruction, MultiplyInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, LoadPropertyInstruction, LoadArrayElementInstruction } from "./instructions";
+import { BaseBoundStatement, BoundIfStatement, BoundWhileStatement, BoundForStatement, BoundLoopControlStatement, BoundLabelStatement, BoundVariableAssignmentStatement, BoundPropertyAssignmentStatement, BoundArrayAssignmentStatement, BoundGoToStatement, BoundReturnStatement, BaseBoundExpression, BoundKind, BoundOrExpression, BoundAndExpression, BoundNotEqualExpression, BoundEqualExpression, BoundLessThanExpression, BoundParenthesisExpression, BoundNumberLiteralExpression, BoundStringLiteralExpression, BoundVariableExpression, BoundLibraryMethodInvocationExpression, BoundSubModuleInvocationExpression, BoundLibraryPropertyExpression, BoundArrayAccessExpression, BoundDivisionExpression, BoundIntegerDivisionExpression, BoundModuloExpression, BoundMultiplicationExpression, BoundSubtractionExpression, BoundAdditionExpression, BoundNegationExpression, BoundSubModuleInvocationStatement, BoundLibraryMethodInvocationStatement, BoundEventAssignmentStatement, BoundStatementBlock } from "../binding/bound-nodes";
 import { Constants } from "../runtime/values/base-value";
 import { TempLabelsRemover } from "./temp-labels-remover";
+
+interface LoopEmitContext {
+    /** `Break` jumps here to leave the loop. */
+    readonly breakLabel: string;
+    /** `Continue` jumps here to start the next iteration. */
+    readonly continueLabel: string;
+}
 
 export class ModuleEmitter {
     private _jumpLabelCounter: number = 1;
     private _instructions: BaseInstruction[] = [];
+    private _loopContexts: LoopEmitContext[] = [];
 
     public get instructions(): ReadonlyArray<BaseInstruction> {
         return this._instructions;
@@ -23,6 +31,7 @@ export class ModuleEmitter {
             case BoundKind.IfStatement: this.emitIfStatement(statement as BoundIfStatement); break;
             case BoundKind.WhileStatement: this.emitWhileStatement(statement as BoundWhileStatement); break;
             case BoundKind.ForStatement: this.emitForStatement(statement as BoundForStatement); break;
+            case BoundKind.LoopControlStatement: this.emitLoopControlStatement(statement as BoundLoopControlStatement); break;
             case BoundKind.LabelStatement: this.emitLabelStatement(statement as BoundLabelStatement); break;
             case BoundKind.GoToStatement: this.emitGoToStatement(statement as BoundGoToStatement); break;
             case BoundKind.ReturnStatement: this.emitReturnStatement(statement as BoundReturnStatement); break;
@@ -77,7 +86,7 @@ export class ModuleEmitter {
         this.emitExpression(statement.condition);
         this._instructions.push(new TempConditionalJumpInstruction(undefined, endOfLoopLabel, statement.condition.syntax.range));
 
-        this.emitStatement(statement.block);
+        this.emitLoopBody(statement.block, { breakLabel: endOfLoopLabel, continueLabel: startOfLoopLabel });
 
         const endOfLoopRange = this._instructions[this._instructions.length - 1].sourceRange;
         this._instructions.push(new TempJumpInstruction(startOfLoopLabel, endOfLoopRange));
@@ -90,6 +99,7 @@ export class ModuleEmitter {
         const negativeLoopLabel = this.generateJumpLabel();
         const afterCheckLabel = this.generateJumpLabel();
         const endOfBlockLabel = this.generateJumpLabel();
+        const continueLabel = this.generateJumpLabel();
 
         this.emitExpression(statement.fromExpression);
         this._instructions.push(new StoreVariableInstruction(statement.identifier, statement.syntax.range));
@@ -117,7 +127,11 @@ export class ModuleEmitter {
 
         this._instructions.push(new TempLabelInstruction(afterCheckLabel, statement.toExpression.syntax.range));
 
-        this.emitStatement(statement.block);
+        // `Continue` must still run this iteration's increment / `Step` and the
+        // boundary check, so it targets the label that sits right before them
+        // instead of the loop header.
+        this.emitLoopBody(statement.block, { breakLabel: endOfBlockLabel, continueLabel });
+        this._instructions.push(new TempLabelInstruction(continueLabel, statement.syntax.range));
 
         this._instructions.push(new LoadVariableInstruction(statement.identifier, statement.syntax.range));
 
@@ -133,6 +147,28 @@ export class ModuleEmitter {
 
         const endOfLoopRange = this._instructions[this._instructions.length - 1].sourceRange;
         this._instructions.push(new TempLabelInstruction(endOfBlockLabel, endOfLoopRange));
+    }
+
+    private emitLoopBody(block: BoundStatementBlock, context: LoopEmitContext): void {
+        this._loopContexts.push(context);
+        try {
+            this.emitStatement(block);
+        } finally {
+            this._loopContexts.pop();
+        }
+    }
+
+    private emitLoopControlStatement(statement: BoundLoopControlStatement): void {
+        // A `Break`/`Continue` outside of a loop is a diagnostic; the emitter
+        // still runs for language services (e.g. executable lines), so it must
+        // not fail on the already-reported error.
+        if (this._loopContexts.length === 0) {
+            return;
+        }
+
+        const context = this._loopContexts[this._loopContexts.length - 1];
+        const target = statement.loopKind === "continue" ? context.continueLabel : context.breakLabel;
+        this._instructions.push(new TempJumpInstruction(target, statement.syntax.range));
     }
 
     private emitLabelStatement(statement: BoundLabelStatement): void {
@@ -204,6 +240,8 @@ export class ModuleEmitter {
             case BoundKind.SubtractionExpression: this.emitSubtractionExpression(expression as BoundSubtractionExpression); break;
             case BoundKind.MultiplicationExpression: this.emitMultiplicationExpression(expression as BoundMultiplicationExpression); break;
             case BoundKind.DivisionExpression: this.emitDivisionExpression(expression as BoundDivisionExpression); break;
+            case BoundKind.IntegerDivisionExpression: this.emitIntegerDivisionExpression(expression as BoundIntegerDivisionExpression); break;
+            case BoundKind.ModuloExpression: this.emitModuloExpression(expression as BoundModuloExpression); break;
             case BoundKind.ArrayAccessExpression: this.emitArrayAccessExpression(expression as BoundArrayAccessExpression); break;
             case BoundKind.LibraryPropertyExpression: this.emitLibraryPropertyExpression(expression as BoundLibraryPropertyExpression); break;
             case BoundKind.LibraryMethodInvocationExpression: this.emitLibraryMethodInvocationExpression(expression as BoundLibraryMethodInvocationExpression); break;
@@ -351,6 +389,18 @@ export class ModuleEmitter {
         this.emitExpression(expression.leftExpression);
         this.emitExpression(expression.rightExpression);
         this._instructions.push(new DivideInstruction(expression.syntax.range));
+    }
+
+    private emitIntegerDivisionExpression(expression: BoundIntegerDivisionExpression): void {
+        this.emitExpression(expression.leftExpression);
+        this.emitExpression(expression.rightExpression);
+        this._instructions.push(new IntegerDivideInstruction(expression.syntax.range));
+    }
+
+    private emitModuloExpression(expression: BoundModuloExpression): void {
+        this.emitExpression(expression.leftExpression);
+        this.emitExpression(expression.rightExpression);
+        this._instructions.push(new ModuloInstruction(expression.syntax.range));
     }
 
     private emitArrayAccessExpression(expression: BoundArrayAccessExpression): void {

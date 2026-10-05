@@ -1,6 +1,6 @@
 {
   "targetTriple": "x86_64-pc-windows-msvc",
-  "generatedAt": "2026-10-04T18:18:16.831Z",
+  "generatedAt": "2026-10-05T21:53:33.851Z",
   "files": [
     {
       "path": "app/app.css",
@@ -9,8 +9,8 @@
     },
     {
       "path": "app/css/app.css",
-      "bytes": 2346,
-      "sha256": "48df18e07f064ed6455ab73f5352fe167407d9f3a1fcb021c885b322d055930b"
+      "bytes": 2368,
+      "sha256": "b0b2041954d8fef412ba40ec8d00755d826751c95a9d0b626311927251d79ac9"
     },
     {
       "path": "app/desktop.js",
@@ -34,23 +34,23 @@
     },
     {
       "path": "app/editor/grammar/smallbasic.tmLanguage.json",
-      "bytes": 2040,
-      "sha256": "5407bf7edf8554c6537eb004bcbf833700d0601a42fb37b43be7af418e3354ba"
+      "bytes": 2085,
+      "sha256": "5d7f3e3180a7063c44113c8c0963a63dd7492e9609c9d2b6fe0168ec08182a08"
     },
     {
       "path": "app/editor/language-configuration.json",
-      "bytes": 824,
-      "sha256": "ba89ed813f64761b61639344af133bdee1c7af09e2c74f29ee0a09df3837d065"
+      "bytes": 833,
+      "sha256": "4fd82ecc5107e9c4e917e622c8d0801f7124ef606715e40979bddf92ee2f0d89"
     },
     {
       "path": "app/editor/language.worker.js",
-      "bytes": 1599665,
-      "sha256": "0542ea80132162bc18cc52e6156b6318aebe1e0093e54bb9cbc339fbab31b6bb"
+      "bytes": 1615303,
+      "sha256": "e23772bc1f0e07a98a58cb422e01869e038fe95daab10164e9ab92c23c42ea01"
     },
     {
       "path": "app/editor/language.worker.js.map",
-      "bytes": 2174311,
-      "sha256": "b7c87e9b79f30880a432b926fe6a7ef23f8047b2da802d7faaa1bad65d4f8980"
+      "bytes": 2223629,
+      "sha256": "625014db117fb0813ff4cab6aec2682fea5ac0f5e318113cc8b914c385664d51"
     },
     {
       "path": "app/editor/onig.wasm",
@@ -59,8 +59,8 @@
     },
     {
       "path": "app/editor/snippets/smallbasic.json",
-      "bytes": 1068,
-      "sha256": "d3f201da9f527bfbae92098975237854a08eaf1c871c315b71f86b876e742c51"
+      "bytes": 1375,
+      "sha256": "e87bb1621b4448a1dede72207b6ddcec7cf01567d5298b8e4fd9fe847a9e83db"
     },
     {
       "path": "app/index.html",
@@ -74,8 +74,8 @@
     },
     {
       "path": "app/playground.css.map",
-      "bytes": 759291,
-      "sha256": "777e85c845ec30cab6453d63a0830d7d49b1a2bddcedeec4f29f57040e64917e"
+      "bytes": 759833,
+      "sha256": "3a8fffe873a32b099144f5205506849acee3658ac413e6d11d111c992553f51a"
     },
     {
       "path": "app/playground.html",
@@ -84,13 +84,13 @@
     },
     {
       "path": "app/playground.js",
-      "bytes": 10997360,
-      "sha256": "c7076109485354a75953e770dd9ad64610b211b42cd7533f74e543f9cf037244"
+      "bytes": 11007245,
+      "sha256": "b7f9a6887ecf4aa2351739406cf165789851a1a109a82d0531c76d4d7a12d30b"
     },
     {
       "path": "app/playground.js.map",
-      "bytes": 18869889,
-      "sha256": "8f4c8a992e1f0b16598298a9666067ebc3cea4e2449212d0e4ab29c55603ac55"
+      "bytes": 18908888,
+      "sha256": "a6e05f2759f08fad0b6d893384c115beab9946c39bf7cc35cd14b1fca2824d50"
     },
     {
       "path": "app/run.bat",
@@ -113,9 +113,19 @@
       "sha256": "a99ce777fcddb6ee89c1c50dba84fae99f1c1827fec030cac2bae16412df7a2f"
     },
     {
-      "path": "app/samples/hello/accumulate.sb",
-      "bytes": 398,
-      "sha256": "67272e0d5e64569f470d0ac1a978fe0571dc5b0c8e65a14dc062c4517cb58fd3"
+      "path": "app/samples/base/accumulate.sb",
+      "bytes": 413,
+      "sha256": "2e9404e3951c97bfd18442f5c183c4ddf3464b59417dc28f2df24160787bdaad"
+    },
+    {
+      "path": "app/samples/base/arithmetic.sb",
+      "bytes": 735,
+      "sha256": "0b8848b820ed8f34893973c73108440d830afc18eeb57de35575af88a67f2695"
+    },
+    {
+      "path": "app/samples/base/keyboard_probe.sb",
+      "bytes": 476,
+      "sha256": "a8eca344aa23e171a6f9eeace2e0397d2558ee849adc317e8354c9a0ad9ceb46"
     },
     {
       "path": "app/samples/hello/hello.sb",
@@ -123,19 +133,19 @@
       "sha256": "76c1c4442b3699e714ce0f15f1e0572e0658c5d3952e3b8d1bb653f415d14cb7"
     },
     {
-      "path": "app/samples/hello/keyboard_probe.sb",
-      "bytes": 476,
-      "sha256": "a8eca344aa23e171a6f9eeace2e0397d2558ee849adc317e8354c9a0ad9ceb46"
-    },
-    {
       "path": "app/samples/index.json",
-      "bytes": 904,
-      "sha256": "a3278b8207c770557408c0bd897a064d98e32387b56d258aca2d04a7b5c9b598"
+      "bytes": 1168,
+      "sha256": "f19720c298eeee6e06c835846848a1a776e5f89f3d709107553bc98621c07fec"
     },
     {
       "path": "app/samples/tetris/tetris.sb",
       "bytes": 17577,
       "sha256": "e7dfbadb837d1b92e3c0ab2e96ffa3d847d279d64fab73baeb0674832b52ecd0"
+    },
+    {
+      "path": "app/samples/tetris/tetris_opt.sb",
+      "bytes": 18214,
+      "sha256": "8d392d6bea036ab17afce767d3c4bc2df3ce20827b0942aa9a96a36e3f1491fe"
     },
     {
       "path": "app/samples/tutorial/level1.sb",
@@ -169,8 +179,8 @@
     },
     {
       "path": "app/smallbasic-js.js",
-      "bytes": 1633639,
-      "sha256": "afda7103dfefc76064d44f89638afceb4ffdc9e12d8561676cb12fef4beeff35"
+      "bytes": 1649079,
+      "sha256": "ebcbe17ff6d26cd1937df6bbb81917926b590abea70b00dee78cbd5f5807fc5e"
     },
     {
       "path": "app/third-party-notices.txt",
@@ -179,18 +189,18 @@
     },
     {
       "path": "app/vscode-webview.js",
-      "bytes": 15751,
-      "sha256": "c27a140bf43b92bf35d7a1954feff6f7a837b9fac200133d2c959913ce375266"
+      "bytes": 16179,
+      "sha256": "0e3bfe91588f7639145b79f8afc7f80b38316a673b93ab99d187408faf7abde4"
     },
     {
       "path": "app/_framework/blazor.boot.json",
       "bytes": 5257,
-      "sha256": "a909a43a3d1b71b03cf9b7add3248f50830b567ff2d7fc5437130d49eb53e7ea"
+      "sha256": "8bb72f3cc9c6eb925b8bc43ddba971357f0d554fb477ce8c294c7a1e7df603ef"
     },
     {
       "path": "app/_framework/blazor.boot.json.br",
-      "bytes": 2306,
-      "sha256": "5689a63ae2432c9136fcf22d4b91f099f65eb80a1d4c1e8daf8e3883bd59dc45"
+      "bytes": 2309,
+      "sha256": "faeffcfa0ba285bd602b1cd3ade8cd26516585b8fc62ffcdbb3860c6feb4535d"
     },
     {
       "path": "app/_framework/blazor.webassembly.js",
@@ -460,42 +470,42 @@
     {
       "path": "app/_framework/SmallBasic.Blazor.Client.wasm",
       "bytes": 106261,
-      "sha256": "c1d5d2c55760f88cfbb74f646c460429801f804f6a6623f3866117a1f2f184fd"
+      "sha256": "489e2ab1a7ed59da3c7781ab1f4f32f9ac735ad3178a23ac2b5b1e6cdf0a3d49"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Client.wasm.br",
-      "bytes": 36251,
-      "sha256": "f8ad5522f8ae4a16b522bd006519b2720e80635a68aee76b01170e023f8873c2"
+      "bytes": 36343,
+      "sha256": "c2ab4ef8bc908367f1ffb1eb3b0d9e821a6442b07a5fa7df6f06fba8342495d6"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Shared.wasm",
       "bytes": 10005,
-      "sha256": "49bc63dba4d79f347e7e85c27d9f66d7b59879461becf3e5ad079a118e37c8b0"
+      "sha256": "c5ebe84f37d75a2e9663a7d65d24b4bd3ab0709d5937efa757e1f71d57dc58a6"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Shared.wasm.br",
-      "bytes": 3294,
-      "sha256": "c9dbafefef2245ee0c33bec7b377b7df5c7e24a8a1157b4d06b862cc84f7a146"
+      "bytes": 3283,
+      "sha256": "f9b83e8b20705856b82781393cb9eef4d555f9189f94e0afe325a770a0470a0a"
     },
     {
       "path": "app/_framework/SmallBasic.Compiler.wasm",
-      "bytes": 277269,
-      "sha256": "59739f08e1c3d40957a102a2347c56962f264e98a92ce07790940f30693feef5"
+      "bytes": 281877,
+      "sha256": "6be01324ed52a61b0914b5167fbae39c42785805c65beafedf4c4ad117af8cde"
     },
     {
       "path": "app/_framework/SmallBasic.Compiler.wasm.br",
-      "bytes": 71446,
-      "sha256": "d1f8d21602787e9441acb0db5baa9f29ae3aa69c4140a7e1bfaf386b99032584"
+      "bytes": 72998,
+      "sha256": "879b2878b16309eeb7a463d5fc95467def9c097c40ddbf3204151af593a30255"
     },
     {
       "path": "app/_framework/SmallBasic.Utilities.wasm",
-      "bytes": 1426709,
-      "sha256": "13eea3f191b23fe4b1ade5247ae2c361c6c3dae0fc98cf2f0ef2dc5549a44ffb"
+      "bytes": 1428757,
+      "sha256": "fa07dae934c75c2763793325c0ff3868750a3a3a08f697508981ccafc1b0eaff"
     },
     {
       "path": "app/_framework/SmallBasic.Utilities.wasm.br",
-      "bytes": 209319,
-      "sha256": "31f8f1a2fd0cad9e9a3c530a4aa2958ebaa5a3108c133c394760bdfa05dc958a"
+      "bytes": 209792,
+      "sha256": "13d22b15c7cb9ecfc9f0876338c00cc86a3c8a40157ae00122083fee346a8b9f"
     },
     {
       "path": "app/_framework/System.Collections.Concurrent.wasm",
@@ -764,13 +774,13 @@
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.Compiler.dll",
-      "bytes": 277504,
-      "sha256": "fc1fdc652d345a761675a35537dcf6264c2ddee1f252a76d7534644855443c98"
+      "bytes": 282112,
+      "sha256": "94a5269cb26ec587c27691f50874c1d8c7f4daa7fd74de8ecd2307f2b9b320b9"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.RunHost.exe",
       "bytes": 75776,
-      "sha256": "e8bbc0c95e9187cd60c48caaf7fcd6a8230191582c903607937a24154a29b8be"
+      "sha256": "609eb5476ed889b7e1253d6ec8800ab919032644bd6202f9a3656f327f85d0aa"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.RunHost.exe.config",
@@ -779,8 +789,8 @@
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.Utilities.dll",
-      "bytes": 1426944,
-      "sha256": "7c43e650d354dff54c2c17ee6517f23d3a2537b66a42e16cfb62b0c040420ea4"
+      "bytes": 1428992,
+      "sha256": "56a2f27102de54ee3abaddc8d3bcdab3f2790393dec05ed0a35956970f164c8f"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasicLibrary.dll",
@@ -829,8 +839,8 @@
     },
     {
       "path": "bin/smallbasic-csharp-net8-x86_64-pc-windows-msvc.exe",
-      "bytes": 72249420,
-      "sha256": "ad9b48d986f43205deacecd94765ea5cd56631c9192be9fc85dae9c6a9bbfc16"
+      "bytes": 72251526,
+      "sha256": "ed5224015159cb4aab5ed227bbc2b17ece143095f4922e8da44d3f3876eec0e2"
     }
   ]
 }

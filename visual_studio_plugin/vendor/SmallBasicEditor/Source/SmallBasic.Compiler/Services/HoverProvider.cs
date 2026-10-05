@@ -1,4 +1,4 @@
-﻿// <copyright file="HoverProvider.cs" company="MIT License">
+// <copyright file="HoverProvider.cs" company="MIT License">
 // Licensed under the MIT License. See LICENSE file in the project root for license information.
 // </copyright>
 
@@ -36,6 +36,31 @@ namespace SmallBasic.Compiler.Services
             }
 
             var node = parser.SyntaxTree.FindNodeAt(position);
+
+            // Loop control keywords carry no symbol, so they would otherwise
+            // fall through to the library-member checks and produce no hover.
+            if (node is LoopControlStatementSyntax loopControlStatement)
+            {
+                return loopControlStatement.ControlToken.Kind == TokenKind.Break
+                    ? new[] { "Break", "Exits the innermost While or For loop." }
+                    : new[] { "Continue", "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs." };
+            }
+
+            // Same for the Mod keyword and the \ operator: keyword-driven
+            // binary operators carry no symbol of their own.
+            if (node is BinaryOperatorExpressionSyntax binaryOperator &&
+                binaryOperator.OperatorToken.Range.Contains(position))
+            {
+                if (binaryOperator.OperatorToken.Kind == TokenKind.Mod)
+                {
+                    return new[] { "Mod", "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0." };
+                }
+
+                if (binaryOperator.OperatorToken.Kind == TokenKind.Backslash)
+                {
+                    return new[] { "\\", "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0." };
+                }
+            }
 
             if (node is ObjectAccessExpressionSyntax objectAccess &&
                 objectAccess.BaseExpression is IdentifierExpressionSyntax baseExpression)

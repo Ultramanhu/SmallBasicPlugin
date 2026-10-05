@@ -28,7 +28,9 @@ import {
     BoundAdditionExpression,
     BoundSubtractionExpression,
     BoundMultiplicationExpression,
-    BoundDivisionExpression
+    BoundDivisionExpression,
+    BoundIntegerDivisionExpression,
+    BoundModuloExpression
 } from "./bound-nodes";
 import {
     ArrayAccessExpressionSyntax,
@@ -320,6 +322,8 @@ export class ExpressionBinder {
             case TokenKind.Minus: return new BoundSubtractionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
             case TokenKind.Multiply: return new BoundMultiplicationExpression(leftHandSide, rightHandSide, hasErrors, syntax);
             case TokenKind.Divide: return new BoundDivisionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
+            case TokenKind.Backslash: return new BoundIntegerDivisionExpression(leftHandSide, rightHandSide, hasErrors, syntax);
+            case TokenKind.Mod: return new BoundModuloExpression(leftHandSide, rightHandSide, hasErrors, syntax);
             default: throw new Error(`Unexpected token kind ${TokenKind[syntax.operatorToken.kind]}`);
         }
     }

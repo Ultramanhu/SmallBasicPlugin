@@ -78,7 +78,7 @@ namespace SmallBasic.Tests.Editor
         [Fact]
         public void HandlesTheSampleHelloProgram()
         {
-            // Mirrors test/hello/hello.sb, the file used to validate the editor UI.
+            // Mirrors sample/hello/hello.sb, the file used to validate the editor UI.
             IReadOnlyList<OutlineItem> items = OutlineOf(
                 "TextWindow.WriteLine(\"Hello, World!\")",
                 string.Empty,

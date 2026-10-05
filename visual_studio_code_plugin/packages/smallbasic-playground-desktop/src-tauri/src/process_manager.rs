@@ -412,6 +412,12 @@ pub fn resolve_sidecar(app: &AppHandle, base_name: &str) -> Option<PathBuf> {
         if let Ok(exe) = std::env::current_exe() {
             if let Some(dir) = exe.parent() {
                 candidates.push(dir.join(name));
+                // Portable parity with Windows: the Windows resource dir IS the
+                // executable's directory, so <exe>/bin resolves the staged
+                // sidecar with no environment. Linux/macOS have no exe-relative
+                // resource fallback (tauri-utils platform.rs), so probe
+                // <exe>/bin explicitly to keep the portable layout identical.
+                candidates.push(dir.join("bin").join(name));
             }
         }
         if let Ok(resource_dir) = app.path().resource_dir() {
@@ -423,6 +429,13 @@ pub fn resolve_sidecar(app: &AppHandle, base_name: &str) -> Option<PathBuf> {
         }
     }
 
+    if std::env::var_os("SB_PLAYGROUND_DEBUG_RESOLVE").is_some() {
+        eprintln!("[resolve] triple={triple} base={base_name}");
+        for path in &candidates {
+            eprintln!("[resolve]   {} -> file={}", path.display(), path.is_file());
+        }
+    }
+
     candidates.into_iter().find(|path| path.is_file())
 }
 
@@ -430,13 +443,22 @@ pub fn resolve_sidecar(app: &AppHandle, base_name: &str) -> Option<PathBuf> {
 /// for the .NET Framework 4.8 folder host. Tauri encodes the `..` segments of
 /// `bundle.resources` paths as literal `_up_` directories inside the install
 /// dir (`tauri-utils resources.rs`), so the depth is probed instead of assumed;
-/// the portable layout (resource dir == the executable's directory) and the
-/// `SB_PLAYGROUND_STAGE` dev path are covered as well.
+/// the portable layout (the executable inside the staging root, probed through
+/// its own directory) and the `SB_PLAYGROUND_STAGE` dev path are covered as
+/// well.
 pub fn resolve_staged_resource(app: &AppHandle, relative: &str) -> Option<PathBuf> {
     let relative = Path::new(relative);
     let mut candidates: Vec<PathBuf> = Vec::new();
     if let Ok(stage) = std::env::var("SB_PLAYGROUND_STAGE") {
         candidates.push(PathBuf::from(&stage).join(relative));
+    }
+
+    // Portable parity probe: the executable sitting in the staging root
+    // (Windows portable shape, and now Linux/macOS via <exe>/<relative>).
+    if let Ok(exe) = std::env::current_exe() {
+        if let Some(dir) = exe.parent() {
+            candidates.push(dir.join(relative));
+        }
     }
 
     if let Ok(resource_dir) = app.path().resource_dir() {

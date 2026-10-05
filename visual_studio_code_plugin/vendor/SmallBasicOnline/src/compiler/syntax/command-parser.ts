@@ -1,5 +1,5 @@
 import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { IfCommandSyntax, BaseSyntaxNode, BinaryOperatorExpressionSyntax, UnaryOperatorExpressionSyntax, ObjectAccessExpressionSyntax, ArrayAccessExpressionSyntax, InvocationExpressionSyntax, IdentifierExpressionSyntax, ParenthesisExpressionSyntax, ElseIfCommandSyntax, ElseCommandSyntax, EndIfCommandSyntax, ForCommandSyntax, ForStepClauseSyntax, EndForCommandSyntax, WhileCommandSyntax, EndWhileCommandSyntax, LabelCommandSyntax, GoToCommandSyntax, SubCommandSyntax, EndSubCommandSyntax, FunctionCommandSyntax, EndFunctionCommandSyntax, DimCommandSyntax, ReturnCommandSyntax, ExpressionCommandSyntax, ArgumentSyntax, NumberLiteralExpressionSyntax, StringLiteralExpressionSyntax } from "./syntax-nodes";
+import { IfCommandSyntax, BaseSyntaxNode, BinaryOperatorExpressionSyntax, UnaryOperatorExpressionSyntax, ObjectAccessExpressionSyntax, ArrayAccessExpressionSyntax, InvocationExpressionSyntax, IdentifierExpressionSyntax, ParenthesisExpressionSyntax, ElseIfCommandSyntax, ElseCommandSyntax, EndIfCommandSyntax, ForCommandSyntax, ForStepClauseSyntax, EndForCommandSyntax, WhileCommandSyntax, EndWhileCommandSyntax, BreakCommandSyntax, ContinueCommandSyntax, LabelCommandSyntax, GoToCommandSyntax, SubCommandSyntax, EndSubCommandSyntax, FunctionCommandSyntax, EndFunctionCommandSyntax, DimCommandSyntax, ReturnCommandSyntax, ExpressionCommandSyntax, ArgumentSyntax, NumberLiteralExpressionSyntax, StringLiteralExpressionSyntax } from "./syntax-nodes";
 import { TokenKind, Token } from "./tokens";
 import { CompilerRange } from "./ranges";
 import { CommentCommandSyntax, TokenSyntax } from "./syntax-nodes";
@@ -58,6 +58,9 @@ export class CommandsParser {
 
                 case TokenKind.WhileKeyword: this._result.push(this.parseWhileCommand()); break;
                 case TokenKind.EndWhileKeyword: this._result.push(this.parseEndWhileCommand()); break;
+
+                case TokenKind.BreakKeyword: this._result.push(this.parseBreakCommand()); break;
+                case TokenKind.ContinueKeyword: this._result.push(this.parseContinueCommand()); break;
 
                 case TokenKind.GoToKeyword: this._result.push(this.parseGoToCommand()); break;
                 case TokenKind.Identifier:
@@ -169,6 +172,18 @@ export class CommandsParser {
         const endWhileKeyword = this.eat(TokenKind.EndWhileKeyword);
 
         return new EndWhileCommandSyntax(endWhileKeyword);
+    }
+
+    private parseBreakCommand(): BreakCommandSyntax {
+        const breakKeyword = this.eat(TokenKind.BreakKeyword);
+
+        return new BreakCommandSyntax(breakKeyword);
+    }
+
+    private parseContinueCommand(): ContinueCommandSyntax {
+        const continueKeyword = this.eat(TokenKind.ContinueKeyword);
+
+        return new ContinueCommandSyntax(continueKeyword);
     }
 
     private parseLabelCommand(): LabelCommandSyntax {
@@ -339,7 +354,11 @@ export class CommandsParser {
 
     private parseObjectAccessExpression(leftHandSide: BaseSyntaxNode): BaseSyntaxNode {
         const dotToken = this.eat(TokenKind.Dot);
-        const identifierToken = this.eat(TokenKind.Identifier);
+        // `Mod` is a keyword operator, but it is also a library member name
+        // (Math.Mod); accept it as the member token after a dot.
+        const identifierToken = this.isNext(TokenKind.Mod)
+            ? this.eat(TokenKind.Mod)
+            : this.eat(TokenKind.Identifier);
 
         return new ObjectAccessExpressionSyntax(leftHandSide, dotToken, identifierToken);
     }
@@ -486,6 +505,9 @@ export class CommandsParser {
         }
     }
 
+    // Matches the Visual Basic arithmetic ladder: * and / bind tightest, \
+    // (integer division) sits between them and Mod, and Mod binds looser
+    // than both but tighter than + and -.
     private static BinaryOperatorPrecedence: TokenKind[] = [
         TokenKind.Or,
         TokenKind.And,
@@ -497,6 +519,8 @@ export class CommandsParser {
         TokenKind.GreaterThanOrEqual,
         TokenKind.Plus,
         TokenKind.Minus,
+        TokenKind.Mod,
+        TokenKind.Backslash,
         TokenKind.Multiply,
         TokenKind.Divide
     ];

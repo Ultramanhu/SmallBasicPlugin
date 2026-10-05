@@ -36,6 +36,16 @@ describe("method signatures (parameter hints)", () => {
     expect(signature!.label).toBe("Math.GetRandomNumber(maxNumber)");
   });
 
+  it("shows signatures for Math.Div and the keyword-named Math.Mod method", () => {
+    const div = getMethodSignature("x = Math.Div(17, ", "x = Math.Div(17, ".length);
+    expect(div?.label).toBe("Math.Div(dividend, divisor)");
+    expect(div?.activeParameter).toBe(1);
+
+    const mod = getMethodSignature("x = Math.Mod(17, ", "x = Math.Mod(17, ".length);
+    expect(mod?.label).toBe("Math.Mod(dividend, divisor)");
+    expect(mod?.activeParameter).toBe(1);
+  });
+
   it("ignores commas and parens inside string literals", () => {
     const signature = getMethodSignature(
       'Shapes.Move("a, b(c", ',

@@ -3,8 +3,11 @@ import {
   CompilerPosition,
   CompilerUtils,
   RuntimeLibraries,
+  SyntaxKind,
   TokenKind,
+  type BinaryOperatorExpressionSyntax,
   type FunctionDeclarationSyntax,
+  type ObjectAccessExpressionSyntax,
   type SubModuleDeclarationSyntax
 } from "smallbasic-lang-core";
 import type { LanguageSemanticToken, LanguageSemanticTokenType } from "./protocol";
@@ -35,6 +38,8 @@ const keywordKinds = new Set<TokenKind>([
   TokenKind.GoToKeyword,
   TokenKind.WhileKeyword,
   TokenKind.EndWhileKeyword,
+  TokenKind.BreakKeyword,
+  TokenKind.ContinueKeyword,
   TokenKind.SubKeyword,
   TokenKind.EndSubKeyword,
   TokenKind.FunctionKeyword,
@@ -69,6 +74,20 @@ export function provideSemanticTokens(compilation: Compilation): LanguageSemanti
 function mapTokenType(compilation: Compilation, kind: TokenKind, text: string, position: CompilerPosition): LanguageSemanticTokenType | undefined {
   if (keywordKinds.has(kind)) {
     return "keyword";
+  }
+
+  if (kind === TokenKind.Mod) {
+    const binaryExpression = compilation.getSyntaxNode(position, SyntaxKind.BinaryOperatorExpression) as BinaryOperatorExpressionSyntax | undefined;
+    if (binaryExpression?.operatorToken.token.kind === TokenKind.Mod
+      && binaryExpression.operatorToken.range.containsPosition(position)) {
+      return "keyword";
+    }
+
+    const memberAccess = compilation.getSyntaxNode(position, SyntaxKind.ObjectAccessExpression) as ObjectAccessExpressionSyntax | undefined;
+    if (memberAccess?.identifierToken.token.kind === TokenKind.Mod
+      && memberAccess.identifierToken.range.containsPosition(position)) {
+      return "function";
+    }
   }
 
   switch (kind) {

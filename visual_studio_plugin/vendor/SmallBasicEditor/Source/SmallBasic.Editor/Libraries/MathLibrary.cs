@@ -25,6 +25,8 @@ namespace SmallBasic.Editor.Libraries
 
         public decimal Cos(decimal angle) => (decimal)Math.Cos((double)angle);
 
+        public decimal Div(decimal dividend, decimal divisor) => divisor == 0 ? 0 : decimal.Truncate(dividend / divisor);
+
         public decimal Floor(decimal number) => Math.Floor(number);
 
         public decimal GetDegrees(decimal angle) => (180 * angle / (decimal)Math.PI) % 360;
@@ -38,6 +40,8 @@ namespace SmallBasic.Editor.Libraries
         public decimal Max(decimal number1, decimal number2) => Math.Max(number1, number2);
 
         public decimal Min(decimal number1, decimal number2) => Math.Min(number1, number2);
+
+        public decimal Mod(decimal dividend, decimal divisor) => divisor == 0 ? 0 : (dividend % divisor);
 
         public decimal NaturalLog(decimal number) => (decimal)Math.Log((double)number);
 

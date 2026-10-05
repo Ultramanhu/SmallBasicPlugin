@@ -1,4 +1,4 @@
-﻿// <copyright file="ModuleEmitter.cs" company="MIT License">
+// <copyright file="ModuleEmitter.cs" company="MIT License">
 // Licensed under the MIT License. See LICENSE file in the project root for license information.
 // </copyright>
 
@@ -14,6 +14,9 @@ namespace SmallBasic.Compiler.Runtime
 
     internal sealed class ModuleEmitter
     {
+        private readonly Stack<string> breakLabels = new Stack<string>();
+        private readonly Stack<string> continueLabels = new Stack<string>();
+
         private int jumpLabelCounter = 1;
         private List<BaseInstruction> instructions = new List<BaseInstruction>();
 
@@ -33,6 +36,7 @@ namespace SmallBasic.Compiler.Runtime
                 case BoundIfStatement ifStatement: this.EmitIfStatement(ifStatement); break;
                 case BoundWhileStatement whileStatement: this.EmitWhileStatement(whileStatement); break;
                 case BoundForStatement forStatement: this.EmitForStatement(forStatement); break;
+                case BoundLoopControlStatement loopControlStatement: this.EmitLoopControlStatement(loopControlStatement); break;
                 case BoundLabelStatement labelStatement: this.EmitLabelStatement(labelStatement); break;
                 case BoundGoToStatement goToStatement: this.EmitGoToStatement(goToStatement); break;
                 case BoundReturnStatement returnStatement: this.EmitReturnStatement(returnStatement); break;
@@ -96,7 +100,7 @@ namespace SmallBasic.Compiler.Runtime
             this.EmitExpression(statement.Condition);
             this.instructions.Add(new TransientConditionalGoToInstruction(null, endOfLoopLabel, statement.Syntax.Condition.Range));
 
-            this.EmitBlockStatement(statement.Body);
+            this.EmitLoopBody(statement.Body, breakLabel: endOfLoopLabel, continueLabel: startOfLoopLabel);
 
             TextRange endOfLoopRange = this.instructions.Last().Range;
             this.instructions.Add(new TransientUnconditionalGoToInstruction(startOfLoopLabel, endOfLoopRange));
@@ -110,6 +114,7 @@ namespace SmallBasic.Compiler.Runtime
             string negativeLoopLabel = this.GenerateJumpLabel();
             string afterCheckLabel = this.GenerateJumpLabel();
             string endOfBlockLabel = this.GenerateJumpLabel();
+            string continueLabel = this.GenerateJumpLabel();
 
             this.EmitExpression(statement.FromExpression);
             this.instructions.Add(new StoreVariableInstruction(statement.Identifier, statement.Syntax.IdentifierToken.Range));
@@ -141,7 +146,11 @@ namespace SmallBasic.Compiler.Runtime
 
             this.instructions.Add(new TransientLabelInstruction(afterCheckLabel, toExpressionRange));
 
-            this.EmitBlockStatement(statement.Body);
+            // `Continue` must still run this iteration's increment / `Step` and
+            // the boundary check, so it targets the label that sits right before
+            // them instead of the loop header.
+            this.EmitLoopBody(statement.Body, breakLabel: endOfBlockLabel, continueLabel: continueLabel);
+            this.instructions.Add(new TransientLabelInstruction(continueLabel, statement.Syntax.EndForToken.Range));
 
             TextRange endForRange = statement.Syntax.EndForToken.Range;
             this.instructions.Add(new LoadVariableInstruction(statement.Identifier, endForRange));
@@ -170,6 +179,37 @@ namespace SmallBasic.Compiler.Runtime
         private void EmitGoToStatement(BoundGoToStatement statement)
         {
             this.instructions.Add(new TransientUnconditionalGoToInstruction(statement.Label, statement.Syntax.GoToToken.Range));
+        }
+
+        private void EmitLoopBody(BoundStatementBlock body, string breakLabel, string continueLabel)
+        {
+            this.breakLabels.Push(breakLabel);
+            this.continueLabels.Push(continueLabel);
+            try
+            {
+                this.EmitBlockStatement(body);
+            }
+            finally
+            {
+                this.breakLabels.Pop();
+                this.continueLabels.Pop();
+            }
+        }
+
+        private void EmitLoopControlStatement(BoundLoopControlStatement statement)
+        {
+            // A `Break`/`Continue` outside of a loop is a binding error, but the
+            // emitter still runs for language services (e.g. executable lines),
+            // so it must not fail on an already-reported error.
+            if (this.breakLabels.Count == 0)
+            {
+                return;
+            }
+
+            string label = statement.Kind == TokenKind.Continue
+                ? this.continueLabels.Peek()
+                : this.breakLabels.Peek();
+            this.instructions.Add(new TransientUnconditionalGoToInstruction(label, statement.Syntax.ControlToken.Range));
         }
 
         private void EmitReturnStatement(BoundReturnStatement statement)
@@ -305,6 +345,8 @@ namespace SmallBasic.Compiler.Runtime
                 case TokenKind.Minus: binaryInstruction = new SubtractInstruction(expression.Syntax.Range); break;
                 case TokenKind.Multiply: binaryInstruction = new MultiplyInstruction(expression.Syntax.Range); break;
                 case TokenKind.Divide: binaryInstruction = new DivideInstruction(expression.Syntax.Range); break;
+                case TokenKind.Backslash: binaryInstruction = new IntegerDivideInstruction(expression.Syntax.Range); break;
+                case TokenKind.Mod: binaryInstruction = new ModuloInstruction(expression.Syntax.Range); break;
                 default: throw ExceptionUtilities.UnexpectedValue(expression.Kind);
             }
 

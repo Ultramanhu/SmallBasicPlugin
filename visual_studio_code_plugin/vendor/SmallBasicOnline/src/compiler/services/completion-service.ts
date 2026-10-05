@@ -300,6 +300,8 @@ export module CompletionService {
             snippet("For", "For ${1:name} = ${2:start} To ${3:end}\nEndFor"),
             snippet("For Step", "For ${1:name} = ${2:start} To ${3:end} Step ${4:increment}\nEndFor"),
             snippet("EndFor", "EndFor"),
+            snippet("Break", "Break"),
+            snippet("Continue", "Continue"),
             snippet("Sub", "Sub ${1:name}\nEndSub"),
             snippet("EndSub", "EndSub"),
             snippet("Function", "Function ${1:name}(${2:arguments})\n\t${3}\nEndFunction"),

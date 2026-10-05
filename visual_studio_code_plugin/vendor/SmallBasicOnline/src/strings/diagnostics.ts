@@ -21,6 +21,8 @@ export module DiagnosticsResources {
     export const DuplicateLocalVariable = "The local variable '{0}' is already declared in this procedure.";
     export const DimMustBeAtProcedureLevel = "Dim declarations must be direct children of the program, Sub, or Function body.";
     export const ReturnOutsideFunction = "Return can only be used inside a Function.";
+    export const BreakOutsideLoop = "Break can only be used inside a While or For loop.";
+    export const ContinueOutsideLoop = "Continue can only be used inside a While or For loop.";
     export const FunctionCannotBeEventHandler = "A Function cannot be assigned as an event handler. Use a parameterless Sub instead.";
     export const LabelDoesNotExist = "No label with the name '{0}' exists in the same module.";
     export const UnassignedExpressionStatement = "This value is not assigned to anything. Did you mean to assign it to a variable?";

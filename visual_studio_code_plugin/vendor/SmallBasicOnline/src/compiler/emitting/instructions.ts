@@ -34,6 +34,8 @@ export enum InstructionKind {
     Subtract,
     Multiply,
     Divide,
+    IntegerDivide,
+    Modulo,
     PushNumber,
     PushString,
     Duplicate,
@@ -509,6 +511,28 @@ export class DivideInstruction extends BaseBinaryInstruction {
 
     protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
         return leftHandSide.divide(rightHandSide, engine, this);
+    }
+}
+
+export class IntegerDivideInstruction extends BaseBinaryInstruction {
+    public constructor(
+        range: CompilerRange) {
+        super(InstructionKind.IntegerDivide, range);
+    }
+
+    protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
+        return leftHandSide.integerDivide(rightHandSide, engine, this);
+    }
+}
+
+export class ModuloInstruction extends BaseBinaryInstruction {
+    public constructor(
+        range: CompilerRange) {
+        super(InstructionKind.Modulo, range);
+    }
+
+    protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
+        return leftHandSide.modulo(rightHandSide, engine, this);
     }
 }
 

@@ -71,6 +71,51 @@ describe("SmallBasicLanguageService document state", () => {
     }
   });
 
+  it("describes Break and Continue on hover", () => {
+    const service = new SmallBasicLanguageService();
+    const source = [
+      'While "True"',
+      "  Break",
+      "EndWhile",
+      "For I = 1 To 3",
+      "  Continue",
+      "EndFor"
+    ].join("\n");
+
+    expect(service.provideHover(URI, source, 1, { line: 1, column: 4 })?.contents).toEqual([
+      "Break",
+      "Exits the innermost While or For loop."
+    ]);
+    expect(service.provideHover(URI, source, 1, { line: 4, column: 5 })?.contents).toEqual([
+      "Continue",
+      "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs."
+    ]);
+  });
+
+  it("distinguishes arithmetic operator hover from the Math.Mod method hover", () => {
+    const service = new SmallBasicLanguageService();
+    const source = [
+      "A = 7 Mod 2",
+      "B = 7 \\ 2",
+      "C = Math.Mod(7, 2)"
+    ].join("\n");
+
+    expect(service.provideHover(URI, source, 1, { line: 0, column: 7 })?.contents).toEqual([
+      "Mod",
+      "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0."
+    ]);
+    expect(service.provideHover(URI, source, 1, { line: 1, column: 6 })?.contents).toEqual([
+      "\\",
+      "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0."
+    ]);
+    expect(service.provideHover(URI, source, 1, { line: 2, column: 10 })?.contents).toEqual([
+      "Math.Mod(dividend, divisor)",
+      "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero returns 0.",
+      "- **dividend**: The number to divide.",
+      "- **divisor**: The number that divides."
+    ]);
+  });
+
   it("offers Function completions with argument placeholders and signature help", () => {
     const service = new SmallBasicLanguageService();
     const source = [

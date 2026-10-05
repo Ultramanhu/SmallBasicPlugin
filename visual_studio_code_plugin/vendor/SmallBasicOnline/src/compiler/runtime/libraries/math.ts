@@ -44,6 +44,12 @@ export class MathLibrary implements LibraryTypeInstance {
         Abs: { execute: engine => this.executeCalculation(engine, Math.abs) },
         Remainder: { execute: this.executeRemainder.bind(this) },
 
+        // Math.Div / Math.Mod follow the Arithmetic Extension v1 contract: the
+        // same semantics as the \ and Mod operators, with a zero divisor
+        // yielding 0 on every backend (unlike the legacy Remainder above).
+        Div: { execute: engine => this.executeCalculation(engine, (dividend, divisor) => divisor === 0 ? 0 : Math.trunc(dividend / divisor)) },
+        Mod: { execute: engine => this.executeCalculation(engine, (dividend, divisor) => divisor === 0 ? 0 : dividend % divisor) },
+
         Cos: { execute: engine => this.executeCalculation(engine, Math.cos) },
         Sin: { execute: engine => this.executeCalculation(engine, Math.sin) },
         Tan: { execute: engine => this.executeCalculation(engine, Math.tan) },

@@ -738,8 +738,8 @@ Monaco 只承载 glyph margin、装饰与定位；`PlaygroundDebugController` �
 | `npm test -- --reporter=dot` | 通过，29 个测试文件、620 项测试全绿（较基线 +33） |
 | `cargo test --lib`（`smallbasic-playground-desktop/src-tauri`） | 通过，7 项；编译零警告 |
 | `npm run build:playground` 与 `npm run build`（含 `desktop.js`） | 通过 |
-| 三套 CLI sidecar 文本运行冒烟（Node / C# / Blazor，`test/hello/hello.sb`） | 输出一致，退出码 0 |
-| Blazor 图形 run 冒烟（`--no-open`，`test/tutorial/level1.sb`） | stderr 输出一行版本化 JSON 控制消息，stdout 保持人类可读文案 |
+| 三套 CLI sidecar 文本运行冒烟（Node / C# / Blazor，`sample/hello/hello.sb`） | 输出一致，退出码 0 |
+| Blazor 图形 run 冒烟（`--no-open`，`sample/tutorial/level1.sb`） | stderr 输出一行版本化 JSON 控制消息，stdout 保持人类可读文案 |
 | CLI 调试适配器进程级契约（三套后端，`setBreakpoints` 先于 `launch`） | 断点均验证为真并在该行停下，调用栈可用 |
 | `playwright test runhost-web.spec.ts playground-desktop.spec.ts` | 6 项通过（Web 回归 5 + 桌面暂存页 1） |
 

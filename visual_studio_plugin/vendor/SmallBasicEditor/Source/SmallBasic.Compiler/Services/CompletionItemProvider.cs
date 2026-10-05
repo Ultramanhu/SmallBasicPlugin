@@ -1,4 +1,4 @@
-﻿// <copyright file="CompletionItemProvider.cs" company="MIT License">
+// <copyright file="CompletionItemProvider.cs" company="MIT License">
 // Licensed under the MIT License. See LICENSE file in the project root for license information.
 // </copyright>
 
@@ -221,6 +221,8 @@ namespace SmallBasic.Compiler.Services
             addSnippet("For", "For ${1:name} = ${2:start} To ${3:end}", "EndFor");
             addSnippet("For Step", "For ${1:name} = ${2:start} To ${3:end} Step ${4:increment}", "EndFor");
             addSnippet("EndFor", "EndFor");
+            addSnippet("Break", "Break");
+            addSnippet("Continue", "Continue");
 
             addSnippet("Sub", "Sub ${1:name}", "EndSub");
             addSnippet("EndSub", "EndSub");

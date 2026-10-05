@@ -1,8 +1,8 @@
 import { RuntimeLibraries } from "../runtime/libraries";
 import { ExpressionBinder } from "./expression-binder";
 import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { BaseBoundStatement, BoundArrayAccessExpression, BaseBoundExpression, BoundKind, BoundEqualExpression, BoundLibraryEventExpression, BoundLibraryMethodInvocationExpression, BoundLibraryPropertyExpression, BoundSubModuleExpression, BoundSubModuleInvocationExpression, BoundVariableExpression, BoundForStatement, BoundIfStatement, BoundWhileStatement, BoundLabelStatement, BoundGoToStatement, BoundReturnStatement, BoundInvalidExpressionStatement, BoundVariableAssignmentStatement, BoundArrayAssignmentStatement, BoundPropertyAssignmentStatement, BoundEventAssignmentStatement, BoundLibraryMethodInvocationStatement, BoundSubModuleInvocationStatement, BoundIfHeaderStatement, BoundStatementBlock } from "./bound-nodes";
-import { GoToCommandSyntax, BaseSyntaxNode, SyntaxKind, ForStatementSyntax, IfStatementSyntax, WhileStatementSyntax, LabelCommandSyntax, ExpressionCommandSyntax, ReturnCommandSyntax, DimCommandSyntax, BaseStatementSyntax, StatementBlockSyntax } from "../syntax/syntax-nodes";
+import { BaseBoundStatement, BoundArrayAccessExpression, BaseBoundExpression, BoundKind, BoundEqualExpression, BoundLibraryEventExpression, BoundLibraryMethodInvocationExpression, BoundLibraryPropertyExpression, BoundSubModuleExpression, BoundSubModuleInvocationExpression, BoundVariableExpression, BoundForStatement, BoundIfStatement, BoundWhileStatement, BoundLabelStatement, BoundGoToStatement, BoundReturnStatement, BoundInvalidExpressionStatement, BoundVariableAssignmentStatement, BoundArrayAssignmentStatement, BoundPropertyAssignmentStatement, BoundEventAssignmentStatement, BoundLibraryMethodInvocationStatement, BoundSubModuleInvocationStatement, BoundIfHeaderStatement, BoundStatementBlock, BoundLoopControlStatement } from "./bound-nodes";
+import { GoToCommandSyntax, BaseSyntaxNode, SyntaxKind, ForStatementSyntax, IfStatementSyntax, WhileStatementSyntax, BreakCommandSyntax, ContinueCommandSyntax, LabelCommandSyntax, ExpressionCommandSyntax, ReturnCommandSyntax, DimCommandSyntax, BaseStatementSyntax, StatementBlockSyntax } from "../syntax/syntax-nodes";
 import type { ProcedureSymbol } from "./modules-binder";
 
 export class StatementBinder {
@@ -11,6 +11,7 @@ export class StatementBinder {
     private _declaredNames: { [name: string]: string } = {};
     private _declarations: string[] = [];
     private _locals: string[] = [];
+    private _loopDepth: number = 0;
 
     public readonly result: BoundStatementBlock;
 
@@ -90,6 +91,8 @@ export class StatementBinder {
             case SyntaxKind.ForStatement: return this.bindForStatement(syntax as ForStatementSyntax);
             case SyntaxKind.IfStatement: return this.bindIfStatement(syntax as IfStatementSyntax);
             case SyntaxKind.WhileStatement: return this.bindWhileStatement(syntax as WhileStatementSyntax);
+            case SyntaxKind.BreakCommand: return this.bindLoopControlStatement("break", syntax as BreakCommandSyntax);
+            case SyntaxKind.ContinueCommand: return this.bindLoopControlStatement("continue", syntax as ContinueCommandSyntax);
             case SyntaxKind.LabelCommand: return this.bindLabelStatement(syntax as LabelCommandSyntax);
             case SyntaxKind.GoToCommand: return this.bindGoToStatement(syntax as GoToCommandSyntax);
             case SyntaxKind.ReturnCommand: return this.bindReturnStatement(syntax as unknown as ReturnCommandSyntax);
@@ -109,7 +112,7 @@ export class StatementBinder {
             stepExpression = this.bindExpression(syntax.forCommand.stepClauseOpt.expression, true);
         }
 
-        const statementsList = this.bindStatementsBlock(syntax.statementsList);
+        const statementsList = this.bindLoopBody(syntax.statementsList);
 
         return new BoundForStatement(identifier, fromExpression, toExpression, stepExpression, statementsList, syntax);
     }
@@ -137,9 +140,34 @@ export class StatementBinder {
 
     private bindWhileStatement(syntax: WhileStatementSyntax): BoundWhileStatement {
         const condition = this.bindExpression(syntax.whileCommand.expression, true);
-        const statementsList = this.bindStatementsBlock(syntax.statementsList);
+        const statementsList = this.bindLoopBody(syntax.statementsList);
 
         return new BoundWhileStatement(condition, statementsList, syntax);
+    }
+
+    /**
+     * Binds the body of a `While`/`For` loop. The loop counter is what lets
+     * `Break`/`Continue` know whether they are nested inside a loop at all; it
+     * is scoped to the loop body so a `Break` in a procedure that merely sits
+     * after a loop is still reported as being outside of a loop.
+     */
+    private bindLoopBody(statementsList: StatementBlockSyntax): BoundStatementBlock {
+        this._loopDepth++;
+        try {
+            return this.bindStatementsBlock(statementsList);
+        } finally {
+            this._loopDepth--;
+        }
+    }
+
+    private bindLoopControlStatement(loopKind: "break" | "continue", syntax: BaseStatementSyntax): BoundLoopControlStatement {
+        if (this._loopDepth === 0) {
+            this._diagnostics.push(new Diagnostic(
+                loopKind === "break" ? ErrorCode.BreakOutsideLoop : ErrorCode.ContinueOutsideLoop,
+                syntax.range));
+        }
+
+        return new BoundLoopControlStatement(loopKind, syntax);
     }
 
     private bindLabelStatement(syntax: LabelCommandSyntax): BoundLabelStatement {

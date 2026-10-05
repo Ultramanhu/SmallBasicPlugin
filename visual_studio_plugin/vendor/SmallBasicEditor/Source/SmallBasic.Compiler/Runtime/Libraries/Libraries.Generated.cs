@@ -2757,6 +2757,32 @@ namespace SmallBasic.Compiler.Runtime
                         execute: execute));
                 }
 
+                // Initialization code for method Math.Div:
+                {
+                    Task execute(SmallBasicEngine engine)
+                    {
+                        decimal divisor = engine.EvaluationStack.Pop().ToNumber();
+                        decimal dividend = engine.EvaluationStack.Pop().ToNumber();
+                        decimal returnValue = engine.Libraries.Math.Div(dividend: dividend, divisor: divisor);
+                        engine.EvaluationStack.Push(new NumberValue(returnValue));
+                        return Task.CompletedTask;
+                    }
+
+                    methods.Add("Div", new Method(
+                        name: "Div",
+                        description: LibrariesResources.Math_Div,
+                        returnsValue: true,
+                        returnValueDescription: LibrariesResources.Math_Div_ReturnValue,
+                        parameters: new Dictionary<string, Parameter>(StringComparer.CurrentCultureIgnoreCase)
+                        {
+                            { "dividend", new Parameter("dividend", LibrariesResources.Math_Div_dividend) },
+                            { "divisor", new Parameter("divisor", LibrariesResources.Math_Div_divisor) },
+                        },
+                        isDeprecated: false,
+                        needsDesktop: false,
+                        execute: execute));
+                }
+
                 // Initialization code for method Math.Floor:
                 {
                     Task execute(SmallBasicEngine engine)
@@ -2923,6 +2949,32 @@ namespace SmallBasic.Compiler.Runtime
                         {
                             { "number1", new Parameter("number1", LibrariesResources.Math_Min_number1) },
                             { "number2", new Parameter("number2", LibrariesResources.Math_Min_number2) },
+                        },
+                        isDeprecated: false,
+                        needsDesktop: false,
+                        execute: execute));
+                }
+
+                // Initialization code for method Math.Mod:
+                {
+                    Task execute(SmallBasicEngine engine)
+                    {
+                        decimal divisor = engine.EvaluationStack.Pop().ToNumber();
+                        decimal dividend = engine.EvaluationStack.Pop().ToNumber();
+                        decimal returnValue = engine.Libraries.Math.Mod(dividend: dividend, divisor: divisor);
+                        engine.EvaluationStack.Push(new NumberValue(returnValue));
+                        return Task.CompletedTask;
+                    }
+
+                    methods.Add("Mod", new Method(
+                        name: "Mod",
+                        description: LibrariesResources.Math_Mod,
+                        returnsValue: true,
+                        returnValueDescription: LibrariesResources.Math_Mod_ReturnValue,
+                        parameters: new Dictionary<string, Parameter>(StringComparer.CurrentCultureIgnoreCase)
+                        {
+                            { "dividend", new Parameter("dividend", LibrariesResources.Math_Mod_dividend) },
+                            { "divisor", new Parameter("divisor", LibrariesResources.Math_Mod_divisor) },
                         },
                         isDeprecated: false,
                         needsDesktop: false,

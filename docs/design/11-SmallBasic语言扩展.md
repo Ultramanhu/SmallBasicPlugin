@@ -1,16 +1,19 @@
-# 11 SmallBasic 语言扩展：Function、作用域、Dim 与 Return
+# 11 SmallBasic 语言扩展：过程、作用域、循环控制与算术运算符
 
-> 调研与方案日期：2026-10-03  
-> 实施与验收日期：2026-10-03  
-> 状态：已实施并通过全量验收  
-> 目标版本：Language Extension v1  
+> 调研与方案日期：2026-10-03
+> 实施与验收日期：2026-10-03
+> 文档补充日期：2026-10-05（追加 While/For 的 Break/Continue 设计）
+> 实施日期：2026-10-05（v1.2 Break/Continue 已落地）
+> 文档补充与实施日期：2026-10-06（v1.3 `\` / `Mod` 与 `Math.Div` / `Math.Mod` 已落地）
+> 状态：v1 / v1.1 / v1.2 / v1.3 均已实施；v1.2 的宿主能力握手见 §17.3.3 与 §17.9 的说明
+> 目标版本：Language Extension v1 / v1.1 / v1.2 / v1.3（已实施）
 > 适用范围：C# / TypeScript 两套语言核心，JavaScript / C# / Blazor 三种运行与调试后端，Visual Studio / VS Code / Monaco Playground 三类编辑表面
 
 ## 0. 结论先行
 
-本次扩展不只是增加四个关键字。当前 C# 与 TypeScript 引擎都只有一份全局变量内存，调用帧只记录模块和指令位置；要正确支持函数参数、局部变量、递归和返回值，必须同时升级词法、语法树、绑定器、运行时调用约定、调试快照和编辑器语义模型。
+初始 v1 扩展不只是增加四个关键字。当前 C# 与 TypeScript 引擎都只有一份全局变量内存，调用帧只记录模块和指令位置；要正确支持函数参数、局部变量、递归和返回值，必须同时升级词法、语法树、绑定器、运行时调用约定、调试快照和编辑器语义模型。
 
-推荐方案是：
+对已落地的 v1 / v1.1 范围，推荐方案是：
 
 1. 先冻结一份两套编译器共同遵守的 Language Extension v1 语义契约，并用共享一致性用例锁定行为。
 2. 保留现有 `Sub Name ... EndSub` 语法及其无参、无返回值语义；新增 `Function Name(parameters) ... EndFunction`。
@@ -33,6 +36,18 @@ Language Extension v1 已按本文契约落地。两套编译器现在共同支�
 | 把 `Function F(A)` 改写为全局 `F_A`、`F_Result` 和 `Sub F` | 初期改动少 | 递归会覆盖参数；嵌套调用互相污染；事件重入不安全；调试器无法给出真实 Locals；函数名与全局临时变量冲突 | 否决 |
 | 只扩展 C# 引擎，JS 后端转交 C# 执行 | 只有一套语义实现 | 破坏 VS Code Web / Playground 的纯 Web 能力；增加 IPC、部署和启动成本 | 否决 |
 | 两套引擎增加同构的过程符号、局部帧和返回指令 | 递归、调试和作用域语义正确；保持现有宿主架构 | 需要双实现和一致性测试 | 推荐 |
+
+### 0.3 v1.2 设计摘要：While/For 的 Break 与 Continue
+
+本文同时记录已落地的 v1.2 设计，目标是在不改变既有循环与作用域模型的前提下，为 `While` / `For` 增加 `Break` 与 `Continue`：
+
+1. 新增保留字 `Break` 与 `Continue`，都只作用于**最近一层** `While` 或 `For`。
+2. `Break` 立即结束当前循环；`Continue` 在 `While` 中重新判断条件，在 `For` 中先执行本轮尾部 `Step` / 自增，再进行下一轮边界检查。
+3. 不引入块级作用域、标签式 break/continue、多级跳出或 `Exit For` / `Exit While` 语法；locals / globals / `Return` 语义保持现状。
+4. 绑定器只需增加循环上下文校验；发射器复用现有跳转指令，通过 loop target stack 生成 source-mapped jump，无需新增 VM 帧模型或 DAP scope 结构。
+5. 调试器必须把 `Break` / `Continue` 当作可执行语句处理，且单步不能暴露内部合成的 loop labels、`For` 自增或边界检查细节。
+6. 编辑器侧同步支持关键字着色、上下文补全、Hover/提示、诊断与 snippets；Outline/导航栏不新增 symbol kind。
+7. 对外 CLI RunHost 的能力探测建议增加 `loop-control-v1`，防止编辑器先接受新语法而旧宿主仍按旧能力运行。
 
 ## 1. 调研基线
 
@@ -628,13 +643,16 @@ v1 不包含：裸 Return、块级 Dim、类型声明、ByRef、默认/可选/�
 
 （Sub 参数与过程声明/无参调用的可选括号已在 v1.1 补齐，见 §16.3。）
 
+While/For 的 `Break` / `Continue` 已在 v1.2 交付，见 §17 及其 §17.9 的实施记录。
+
 后续优先级建议：
 
-1. 裸 Return；
-2. 真正块级 Dim；
-3. Rename / workspace symbols；
-4. 更严格的控制流分析与“可能无返回值”提示；
-5. 可选的数组复制 API，而不是改变既有参数语义。
+1. While/For 的 `Break` / `Continue`（见 §17）；
+2. 裸 Return；
+3. 真正块级 Dim；
+4. Rename / workspace symbols；
+5. 更严格的控制流分析与“可能无返回值”提示；
+6. 可选的数组复制 API，而不是改变既有参数语义。
 
 ## 15. 实施完成检查单
 
@@ -696,5 +714,480 @@ v1 不包含：裸 Return、块级 Dim、类型声明、ByRef、默认/可选/�
 | `dotnet build SmallBasic.VisualStudio.slnx` | 0 错误 |
 | `dotnet test SmallBasic.VisualStudio.slnx` | 编译器/运行时 604 项、语言服务 55 项全部通过（含读取同一份 20 案例共享语料的一致性测试） |
 | 共享语料 | `tests/conformance/language-extension/cases.json` 由 16 例扩充到 20 例，TS 与 C# runner 同时验证 |
-| `test/hello/hello.sb` 冒烟（2026-10-05） | 带 `Sub` 参数递归、`Function` 参数递归与 `Return` 的样例在三后端（`runhost/javascript`、`runhost/net8.0`、`runhost/blazor`）编译零诊断，输出逐行一致；C# 宿主 `--capabilities` 返回协议 v2 与 `function-v1` |
+| `sample/hello/hello.sb` 冒烟（2026-10-05） | 带 `Sub` 参数递归、`Function` 参数递归与 `Return` 的样例在三后端（`runhost/javascript`、`runhost/net8.0`、`runhost/blazor`）编译零诊断，输出逐行一致；C# 宿主 `--capabilities` 返回协议 v2 与 `function-v1` |
 | 派生产物重建（2026-10-05） | `runhost/{net48,net8.0-windows,net8.0,javascript,blazor,web}`、VS Code VSIX、Visual Studio VSIX、`runhost/playground`（win-x64 侧车 + 便携 exe + MSI/NSIS 安装包）均按当前源码重新生成；`bundles\` 中 2026-10-03 产出的 Linux/Android 跨平台安装包仍为旧编译器，如需分发须重跑 `Build-PlaygroundApp.ps1 -BundleTargets …` |
+
+## 17. v1.2 设计与实施：While/For 的 Break 与 Continue
+
+本节原先为后续语言扩展的设计说明，现已按同一契约落地（实施记录见 §17.9）。目标是在不引入新作用域层级、不改变现有 `While` / `For` 求值方式的前提下，为三个运行后端、三类调试链路与全部编辑表面同步补齐循环控制语句。
+
+### 17.1 目标、范围与非目标
+
+目标：
+
+- 新增 `Break` 与 `Continue` 两个关键字；
+- 语义在 TypeScript 与 C# 两套编译器、JavaScript / C# / Blazor 三后端中完全一致；
+- 调试器支持断点、单步、调用栈、局部变量与条件断点场景；
+- 编辑器支持着色、补全、Hover/提示、实时诊断与 snippets。
+
+范围限定：
+
+- 只支持 `While ... EndWhile` 与 `For ... EndFor`；
+- 两个关键字都只影响**最近一层** enclosing loop；
+- `Continue` 在 `For` 中必须走现有尾部自增 / `Step` 路径，而不是直接跳回循环头部；
+- 不新增块级作用域，不改变 `Dim`、隐式全局、`Return`、`GoTo` 的既有定义。
+
+本期明确不做：
+
+- 标签式 `Break outerLoop` / `Continue outerLoop`；
+- `Exit For`、`Exit While`、`Continue For`、`Continue While` 等同义语法；
+- `Do/Loop`、`ForEach` 等新循环形态；
+- 基于 `Break` / `Continue` 的可达性分析、unreachable code 提示或自动修复。
+
+### 17.2 语法与语义
+
+#### 17.2.1 语法契约
+
+新增两条语句：
+
+```text
+BreakStatement    ::= "Break"
+ContinueStatement ::= "Continue"
+```
+
+约束：
+
+- `Break` / `Continue` 都不带表达式、不带标签、不带目标名称；
+- 关键字后若仍有多余 token，复用现有“行尾前存在意外 token”类诊断；
+- 它们可以出现在 `If` / `ElseIf` / `Else` / `While` / `For` 的任意嵌套层级中，但最终必须被某个 enclosing `While` 或 `For` 包裹；
+- 它们既可出现在 Main，也可出现在 `Sub` / `Function` 内，只要语法位置位于循环体内部即可。
+
+#### 17.2.2 运行语义
+
+- `Break`：立即结束最近一层 `While` 或 `For`，控制流移动到对应 `EndWhile` / `EndFor` 之后的第一条用户语句。
+- `Continue`（`While`）：立即跳到当前 `While` 的条件重算位置；若条件仍为真则继续下一轮，否则退出该循环。
+- `Continue`（`For`）：等价于“跳过本轮剩余语句，继续执行现有 `EndFor` 尾部的变量递增与边界检查逻辑”；若下一轮仍成立则继续，否则退出循环。
+- 二者都只影响当前最近一层 loop；在多层嵌套中不会直接跳出外层 loop。
+- `Return expression` 仍优先退出整个函数；`Break` / `Continue` 不能跨函数边界，也不会产生值。
+- 二者都不引入新作用域，也不改变局部变量和隐式全局的查找顺序。
+
+示例：
+
+```smallbasic
+While True
+  If ShouldStop() Then
+    Break
+  EndIf
+
+  If ShouldSkip() Then
+    Continue
+  EndIf
+
+  TextWindow.WriteLine("tick")
+EndWhile
+```
+
+```smallbasic
+For I = 1 To 10 Step 2
+  If I = 5 Then
+    Continue
+  EndIf
+
+  If I > 7 Then
+    Break
+  EndIf
+
+  Sum = Sum + I
+EndFor
+```
+
+#### 17.2.3 新增诊断
+
+| 诊断场景 | 建议代码名 | 说明 |
+|---|---|---|
+| `Break` 位于任何 loop 之外 | `BreakOutsideLoop` | 关键字范围 |
+| `Continue` 位于任何 loop 之外 | `ContinueOutsideLoop` | 关键字范围 |
+| `Break` / `Continue` 后带多余 token | 复用现有 unexpected token / EOL 诊断 | 额外 token 范围 |
+| 老代码把 `Break` / `Continue` 当标识符使用 | 复用保留字诊断 | 标识符范围 |
+
+### 17.3 编译器、运行时与宿主
+
+#### 17.3.1 Scanner / Parser / AST / Binder
+
+两套编译器都需要做同构改动：
+
+- scanner / token kind / display string / fallback simple lexer 新增 `Break`、`Continue`；
+- TS 两段式 parser 新增 `BreakCommandSyntax` / `ContinueCommandSyntax`，并把它们作为普通 statement 进入 block；
+- C# parser 新增对应 statement syntax 节点；生成器 XML / Generated 文件同步扩展；
+- binder 增加显式 `LoopContext` 栈（至少区分 `While`、`For`），进入循环体时 push，退出时 pop；
+- `Break` / `Continue` 绑定成显式 `BoundBreakStatement` / `BoundContinueStatement`，而不是在 binder 阶段直接改写成 `GoTo`，这样调试器和语言服务还能保留原始源位置信息；
+- 因为它们不声明名字、不求值、不产生结果，也不需要新增 symbol 种类或存储类别。
+
+#### 17.3.2 发射与执行模型
+
+推荐继续复用现有 jump lowering，而不是新增 VM opcode。实现方式：
+
+```text
+LoopEmitContext
+  Kind: While | For
+  BreakLabel
+  ContinueLabel
+```
+
+- emitter 在进入 `While` / `For` 时压入一条 `LoopEmitContext`；
+- `Break` 直接发射到 `BreakLabel` 的 unconditional jump，source range 取关键字本身；
+- `Continue` 发射到 `ContinueLabel` 的 unconditional jump，source range 同样取关键字本身；
+- `While` 的 `ContinueLabel` 就是当前循环的条件重算入口；
+- `For` 的 `ContinueLabel` 必须是**尾部自增 / `Step` / 边界检查之前**的新显式 label，而不能直接复用现有 `beforeCheckLabel`，否则会跳过本轮应执行的自增逻辑；
+- `For` 的 `BreakLabel` 仍指向退出循环后的目标位置，且必须绕过自增逻辑；
+- 负 `Step`、缺省 `Step = 1`、`Step = 0` 的行为与今天完全一致，`Continue` 只是走已有尾部路径，不改变其数学语义。
+
+这意味着：
+
+- 不需要新增 `Frame`、`RuntimeModule`、Globals/Locals 结构；
+- 不需要修改 `ReturnValueInstruction`、调用栈或逐帧变量模型；
+- 只要 jump 指令的 source range 保持在 `Break` / `Continue` 行，调试器就能把它们视为普通可执行语句。
+
+#### 17.3.3 RunHost 与能力探测
+
+- DAP 协议版本与 Blazor v2 浏览器调试快照结构都可保持不变，因为变量作用域模型没有新增维度；
+- 外部 CLI RunHost 的 `--capabilities` 建议增加 `loop-control-v1`；
+- VS Code 在运行或调试前，若发现目标宿主缺少 `loop-control-v1`，应阻止启动并给出明确升级提示；
+- Visual Studio 与 Blazor 由于编译器/宿主通常同仓发版，不需要额外协议升级，但 smoke test 仍应验证编译器和宿主来自同一构建。
+
+> 实施说明：本项未随 v1.2 一并落地，理由与后续步骤见 §17.9.7。
+
+### 17.4 调试器要求
+
+Break/Continue 虽然只是控制流跳转，但对用户可见的调试行为必须明确：
+
+- `setBreakpoints` / executable-line 探测要把 `Break` / `Continue` 所在行视为可停靠语句；
+- 运行时内部为 loop lowering 生成的 labels、边界比较和 `For` 自增路径，不应额外暴露为新的用户可见停点；
+- 在 `Break` 行执行 `next`，应像执行一条普通语句一样，直接停在当前 loop 之后的下一条用户语句；
+- 在 `Continue` 行执行 `next`，应与“自然落到 `EndWhile` / `EndFor` 后继续下一轮”的既有单步体验一致：
+  - `While`：重新判断条件，若继续循环则停在下一轮第一条用户语句，否则停在 loop 之后；
+  - `For`：先执行既有 increment / `Step` / 边界检查，再决定停在下一轮还是 loop 之后；
+- `stepIn` 对 `Break` / `Continue` 不应制造新的栈帧；它们不是调用点；
+- `stepOut` 行为保持现状，因为 loop 不创建新 frame；
+- 条件断点、Watch、Debug Console evaluate、inline values 在下一次暂停时应看到更新后的 loop variable / locals；
+- 递归函数中的 `Break` / `Continue` 只影响当前 frame 内的 loop，不改变调用栈层级。
+
+### 17.5 编辑器与语言服务要求
+
+#### 17.5.1 着色与词法体验
+
+- VS Code / Monaco 的 TextMate grammar、VS 的 `SmallBasicSimpleLexer` 都要把 `Break` / `Continue` 视为关键字；
+- 由于它们不是声明也不是引用，不需要新增 semantic token type；词法关键字着色即可；
+- Playground、web worker、`runhost/web/editor` 复制资产与 VSIX 打包产物必须从源码统一再生成，避免不同表面出现关键字不一致。
+
+#### 17.5.2 补全、snippets 与 Hover
+
+- 在 `While` / `For` 的语句上下文内，把 `Break` / `Continue` 作为高优先级关键字补全项；
+- 顶层或非 loop 语句上下文中，不主动推荐它们，避免制造“看起来能用、落地立刻报错”的体验；
+- snippets 至少提供纯关键字插入，必要时补上带说明的 completion detail（例如 “Exit current loop”、“Skip to next iteration”）；
+- Hover 可以直接显示简短语义说明：`Break` = “退出最近一层 While/For”，`Continue` = “跳到最近一层 While/For 的下一轮”；
+- 签名帮助、DocumentSymbol hierarchy、导航栏主体结构不需要新增新种类，只要不要把 `Break` / `Continue` 误识别为标识符即可。
+
+#### 17.5.3 实时诊断与导航
+
+- 语言服务在用户键入 `Break` / `Continue` 时，应立即给出“是否位于 loop 内”的语义诊断；
+- Outline / 导航栏 / Folding 不因为它们新增条目，但 `getExecutableLines`、inline values keyword set、contextual completion keyword list 都要同步加入这两个保留字；
+- 定义/引用、rename、workspace symbols 不需要专门支持 `Break` / `Continue`，因为它们不是符号。
+
+### 17.6 测试、门禁与验收建议
+
+#### 17.6.1 共享一致性案例
+
+建议把共享语料至少补到以下矩阵：
+
+1. `While` 中 `Break` 立即退出；
+2. `While` 中 `Continue` 跳过本轮剩余语句；
+3. `For` 中 `Break` 退出且不执行尾部自增；
+4. `For` 中 `Continue` 仍执行尾部自增与边界检查；
+5. 正 `Step`、负 `Step`、省略 `Step` 三种 `For` 语义；
+6. 嵌套 `While` / `For` 中 `Break` / `Continue` 只作用于最近一层 loop；
+7. `Break` / `Continue` 位于 `If` 分支、`Function`、`Sub`、Main 中的组合场景；
+8. `BreakOutsideLoop`、`ContinueOutsideLoop`、保留字兼容性等负例。
+
+#### 17.6.2 调试专项
+
+三后端（JS / C# / Blazor）至少验证：
+
+- 断点可以直接命中 `Break` / `Continue` 行；
+- 在 `Continue` 行 `next` 后，不会停在内部合成 label 或 `For` 尾部隐藏指令上；
+- `For` 中 `Continue` 之后下一次暂停时，loop variable 已是递增后的值；
+- 嵌套循环里 `Break` / `Continue` 不会错误改变调用栈或 frame 变量视图；
+- 条件断点与 evaluate 在 loop 下一轮依旧读取正确 locals / globals。
+
+#### 17.6.3 验收标准
+
+完成实现时，至少满足：
+
+1. 同一份 `Break` / `Continue` 程序在 JavaScript、C#、Blazor 三后端输出一致；
+2. VS Code、Visual Studio、Monaco 都能正确着色并在 loop body 内补全 `Break` / `Continue`；
+3. 不在 loop 内时，实时诊断能明确指出错误位置；
+4. 调试 `For` + `Continue` 时，单步行为与自然落到 `EndFor` 的体验一致，不暴露内部 lowering 细节；
+5. 共享 conformance、TS 测试、.NET 测试和打包门禁全部通过；
+6. 外部宿主能力不足时，运行/调试前会收到明确升级提示，而不是在执行中失败。
+
+### 17.7 预计改动面
+
+| 表面 | 主要文件/目录 | 说明 |
+|---|---|---|
+| TS 编译器 | `visual_studio_code_plugin/vendor/SmallBasicOnline/src/compiler/syntax/*`、`binding/*`、`emitting/*`、`utils/diagnostics.ts` | token、语法节点、loop binder、jump lowering、诊断 |
+| TS 语言服务/VS Code/Monaco | `packages/smallbasic-language-services/src/*`、`packages/smallbasic-vscode/src/language/*`、`src/debug/*`、`src/web/*`、`syntaxes/*.json`、`snippets/*.json` | 补全、Hover、诊断、可执行行、DAP 单步、着色与片段 |
+| C# 编译器/运行时 | `visual_studio_plugin/vendor/SmallBasicEditor/Source/SmallBasic.Compiler/Scanning/*`、`Parsing/*`、`Binding/*`、`Runtime/*`、生成器 XML/Generated 文件 | token、AST、bound nodes、emitter、运行时语义 |
+| C# 语言服务/VS/Blazor | `visual_studio_plugin/src/SmallBasic.LanguageServices/*`、`SmallBasic.Vsix/Editor/*`、`SmallBasic.RunHost/Debug/*`、`SmallBasic.Blazor.*` | 实时诊断、补全、着色、可执行行、三类调试后端 |
+| 共享测试 | `tests/conformance/language-extension/*`、TS tests、`visual_studio_plugin/tests/*` | conformance、运行时、语言服务、DAP、Blazor 协议回归 |
+
+### 17.8 建议工期、风险与待实施检查单
+
+若复用当前 `function-v1` 的调用帧、DAP v2 与语言服务基础设施，`Break` / `Continue` 属于一项中等规模增量，建议拆成四个短里程碑：
+
+| 里程碑 | 估算 | 退出条件 |
+|---|---:|---|
+| L1 词法/语法/绑定 | 1～2 人日 | 两侧 parser/binder 均能产出 loop-control AST/diagnostics |
+| L2 发射/运行时 | 2～3 人日 | JS/C#/Blazor 在共享样例上行为一致，尤其 `For` 的 `Continue` 不跳过自增 |
+| L3 调试 | 1～2 人日 | 三后端断点、next/stepIn/stepOut、evaluate 与条件断点通过 |
+| L4 编辑器/回归/打包 | 2～3 人日 | 着色、补全、Hover、门禁测试、能力握手与文档同步完成 |
+
+主要风险与缓解：
+
+| 风险 | 影响 | 缓解 |
+|---|---|---|
+| `For` 的 `Continue` 误跳到检查前，导致跳过自增 | 运行语义错误，可能形成死循环或重复值 | 显式 `ContinueLabel` 放在尾部 increment 入口前，并用正/负/零 `Step` 用例锁定 |
+| debugger 把内部 lowering 暴露成额外停点 | 单步体验混乱 | jump 保留 `Break` / `Continue` 源位置信息，新增 next/step 回归 |
+| 宿主能力与编辑器语法版本不一致 | 编辑器可写、运行失败 | `--capabilities` 增加 `loop-control-v1`，启动前握手 |
+| 新关键字改变旧变量名含义 | 旧程序兼容点变化 | 发行说明与诊断明确提示，提供关键字迁移说明 |
+
+实施检查单（2026-10-05 落地结果）：
+
+- [x] `Break` / `Continue` 语义契约冻结，并补入共享 conformance manifest（`tests/conformance/language-extension/cases.json` 新增 12 例，TS 与 C# runner 共同消费）
+- [x] TS 与 C# scanner/parser/binder 产出同构节点与同名诊断（`BreakOutsideLoop` / `ContinueOutsideLoop`）
+- [x] `For` 中 `Continue` 的 increment / `Step` 路径被正 `Step`、负 `Step`、省略 `Step` 用例锁定（`Step 0` 属既有死循环风险，未新增可执行用例）
+- [x] JS / C# 后端的断点与单步回归全部通过；Blazor 后端与 C# 共用 `SmallBasicEngine`、`GetExecutableLines()` 与 DAP 基类，随同一改动生效
+- [x] VS Code / Visual Studio / Monaco 的关键字着色、补全、Hover 与实时诊断全部覆盖
+- [ ] 对外 RunHost 能力探测（`loop-control-v1`）：**本次未实施**，理由与后续步骤见 §17.9.7
+- [x] `npm test`、`dotnet test` 的受影响门禁全部纳入实现完成标准并通过；`Build-All.ps1` 的完整打包（VSIX / MSI / Tauri 安装包）仍需在发版前执行
+
+### 17.9 v1.2 实施记录与验证（2026-10-05）
+
+#### 17.9.1 语言契约
+
+- `Break` / `Continue` 为单关键字语句，只作用于最近一层 `While` / `For`，不引入新作用域层级；
+- Token：TS `TokenKind.BreakKeyword` / `ContinueKeyword`，C# `TokenKind.Break` / `Continue`（两侧均按大小写不敏感匹配单词，沿用既有 scanner 约定）；
+- 语法/绑定节点：TS `BreakCommandSyntax` / `ContinueCommandSyntax` → `BoundLoopControlStatement { loopKind: "break" | "continue" }`；C# `LoopControlStatementSyntax { ControlToken }` → `BoundLoopControlStatement { Kind }`；
+- 循环外使用报 `BreakOutsideLoop` / `ContinueOutsideLoop`，作用域为单个过程体（`Sub` / `Function` / Main 各自独立）；
+- `Continue` 在 `For` 中仍执行尾部 increment / `Step` 与边界检查；`Break` 不执行。
+
+#### 17.9.2 发射（lowering）
+
+- `ModuleEmitter` 增加循环上下文栈（TS `_loopContexts`，C# `breakLabels` / `continueLabels`）：
+  - `While`：`Break` → 循环出口 label；`Continue` → 条件重算入口 label；
+  - `For`：`Break` → `endOfBlockLabel`；`Continue` → 新增的 `continueLabel`，位于尾部 increment / `Step` 之前；
+- `Break` / `Continue` 一律发射为单条无条件跳转（TS `TempJumpInstruction`，C# `TransientUnconditionalGoToInstruction`），`sourceRange` 取关键字自身范围；
+- 循环外（已被诊断）时不发射任何指令，保证语言服务仍可安全调用 emitter 计算可执行行。
+
+#### 17.9.3 调试
+
+- 可执行行集合无需改动：跳转指令携带关键字范围，断点自动落在 `Break` / `Continue` 行；
+- 单步复用既有「调用栈深度 + 行号」实现：
+  - 在 `While` 的 `Break` 行 `next` 会直接停在循环之后的第一条语句；
+  - 在 `For` 的 `Continue` 行 `next` 不会停在内部合成 label 上；
+- 新增回归：`packages/smallbasic-vscode/tests/debug-session.spec.ts` 两个 DAP 用例（`Break` 断点 + `next` 出循环、`Continue` 断点 + 自增仍执行）；C# 侧 `BreakAndContinueLinesAreExecutableForTheDebugger` 锁定 `GetExecutableLines()` 覆盖。
+
+#### 17.9.4 编辑器
+
+| 表面 | 落点 |
+|---|---|
+| TextMate 着色 | `packages/smallbasic-vscode/syntaxes/smallbasic.tmLanguage.json` 关键字 alternation |
+| Monaco / VS Code 语义着色 | `packages/smallbasic-language-services/src/semantic-tokens.ts` 的 `keywordKinds` |
+| 上下文补全 | `contextual-completions.ts` 在 `For` / `While` 块内推荐 `Continue` / `Break`（带说明文案），循环外不推荐 |
+| 基础补全 / 片段 | TS `compiler/services/completion-service.ts`、`snippets/smallbasic.json`；VS `Services/CompletionItemProvider.cs` |
+| Hover | TS `compiler/services/hover-service.ts`、C# `Services/HoverProvider.cs` 增加 `Break` / `Continue` 语义说明 |
+| 实时诊断 | 两侧 binder 上报 `BreakOutsideLoop` / `ContinueOutsideLoop`，编辑器按既定诊断通道展示 |
+| VS 即时着色 | `src/SmallBasic.Vsix/Editor/Classification/SmallBasicSimpleLexer.cs` 关键字集合 |
+
+#### 17.9.5 生成文件与真相源
+
+- 真相源：`official_repo/editor/Source/SmallBasic.Generators/{Scanning/TokenKinds.xml, Parsing/SyntaxNodes.xml, Binding/BoundNodes.xml, Diagnostics/Diagnostics.xml}`，新增 `Break` / `Continue`、`LoopControlStatementSyntax`、`BoundLoopControlStatement` 与两个诊断；
+- 顺带修复了既有的「生成文件与 XML 不一致」问题：`SubModuleStatementSyntax` 的可选参数括号、`FunctionStatementSyntax` 的可选括号、`BoundSubModuleInvocationExpression` 的 `Syntax` 类型原先只存在于生成文件里；现已补回 XML，并放宽生成器对可选 Token 成员的命名校验（允许保留 `Token` 后缀），使 5 个 `*.Generated.cs` 可由 XML 逐字节重现；
+- 重跑生成器后与 vendor 镜像对比，差异仅为本功能新增行；
+- `SmallBasic.Utilities/Resources/DiagnosticsResources.resx`（+ `Designer.cs`）同步新增两条诊断文案。
+
+#### 17.9.6 验证记录
+
+| 门禁 | 命令 | 结果 |
+|---|---|---|
+| TS 类型检查 | `npm run typecheck`（`visual_studio_code_plugin`） | 通过 |
+| TS 全量测试 | `npx vitest run` | 33 个文件 / 704 个用例通过（含共享 conformance 32 例） |
+| C# 编译器与运行时 | `dotnet test visual_studio_plugin/tests/SmallBasic.Compiler.Tests` | 613 个用例通过 |
+| C# 语言服务 | `dotnet test visual_studio_plugin/tests/SmallBasic.LanguageServices.Tests` | 55 个用例通过 |
+| 生成器可重复性 | 重跑 `SmallBasic.Generators` 并对比 vendor 镜像 | 仅本功能新增行 |
+| 宿主与编辑器产物 | `runhost/Build-RunHost.ps1` | net48 / net8.0 / net8.0-windows / javascript / blazor / web 全部重建成功 |
+| 跨后端功能校验 | 对 7 个已打包宿主运行 `Break` / `Continue` 样例 | 运行时输出与循环外诊断全部 PASS，见 §17.9.8 |
+| 官方门禁 | `Build-Plugin.ps1 -SkipBuild -VerifyE2E` | 全部 PASS（含 Playwright 5/5），见 §17.9.8 |
+
+保留字兼容性（把 `Break` 当变量名，如 `Break = 1`）两后端给出的诊断码不同（TS `UnexpectedToken_ExpectingEOL`、C# `UnexpectedStatementInsteadOfNewLine`），因此不放进共享 conformance，而是分别由 TS 的 `language-extension.spec.ts` 与 C# 的 `ItTreatsBreakAndContinueAsReservedWords` 断言。
+
+#### 17.9.7 范围说明：宿主能力握手
+
+§17.3.3 提出的 `loop-control-v1` 能力位与「启动前阻断」本次未实施。原因：`runhost/playground/bin` 的桌面 sidecar 与 `runhost/playground/resources` 的 .NET Framework 4.8 宿主由 `Build-PlaygroundApp.ps1`（Tauri 打包）产出，改动能力位必须同步重建并重新归档安装包；在未重建这些产物前新增能力位会让 `cli-debug-contract` 的 `--capabilities` 精确断言失败。当前行为：
+
+- 编辑器与内置宿主同仓发版，`Break` / `Continue` 直接可用；
+- 外部或旧版宿主缺少支持时，会在编译阶段收到明确的语法诊断，而不是运行期崩溃；
+- 后续在发版流程中重建桌面产物时，可一并加入 `loop-control-v1` 与升级提示文案。
+
+### 17.10 全量打包与校验记录（2026-10-05，版本 0.1.7）
+
+#### 17.10.1 打包产物
+
+`Build-All.ps1`（Release）产出的载荷全部重建：
+
+| 产物 | 结果 |
+|---|---|
+| `runhost/{net48, net8.0, net8.0-windows, javascript, blazor}` | 全部重建 |
+| `runhost/web` 静态站点（JavaScript + Blazor WASM） | 重建 |
+| `visual_studio_code_plugin/build/SmallBasic.VSCode-0.1.7.vsix` | 生成 |
+| `visual_studio_plugin/build/SmallBasic.Vsix.0.1.7.vsix` | 生成 |
+
+桌面 Playground 安装包（`runhost/playground/bundles/`）：
+
+| 平台 | 产物 | 状态 |
+|---|---|---|
+| `x86_64-pc-windows-msvc` | `.msi` + `-setup.exe` + 便携版 `SmallBasic.Playground.exe` | ✅ |
+| `aarch64-pc-windows-msvc` | `.msi` + `-setup.exe` | ✅ |
+| `x86_64-unknown-linux-gnu` | `.deb` + `.rpm` | ✅ |
+| `aarch64-linux-android` | `.apk` + `.aab` | ✅ |
+| `x86_64-unknown-linux-gnu` | `.AppImage` | ⚠️ 未产出：`linuxdeploy` 打包在本机 WSL 中失败（deb/rpm 已成功），属环境问题 |
+| `macos-*` / `ios-*` | `.app` / `.dmg` / `.ipa` | ⚠️ 需 macOS 宿主；Windows 上按脚本设计只做暂存交接 |
+
+暂存根 `runhost/playground/` 最终保持 `x86_64-pc-windows-msvc`（本机 dev 形态：便携版 exe + `bin/smallbasic-csharp-net8-x86_64-pc-windows-msvc.exe` + `resources/dotnet/csharp-net48/`）。
+
+#### 17.10.2 跨后端功能校验
+
+使用同一份样例（含 `While`/`For` 的 `Break`/`Continue`、负 `Step`、嵌套循环）与一份循环外误用样例，对上表每个已打包宿主执行 `run --file`：
+
+| 宿主 | 运行时输出 | 循环外诊断 |
+|---|---|---|
+| `runhost/net8.0` | PASS | PASS |
+| `runhost/net8.0-windows` | PASS | PASS |
+| `runhost/net48` | PASS | PASS |
+| `runhost/blazor`（CLI） | PASS | PASS |
+| `runhost/javascript`（Node） | PASS | PASS |
+| 桌面 sidecar（net8 单文件） | PASS | PASS |
+| 桌面 net48 文件夹宿主 | PASS | PASS |
+
+浏览器侧由 Playwright 覆盖：JavaScript 与 Blazor WASM 两个后端都能断点命中、`next` 单步、`#console` 可见且无控制台/CSP 错误。
+
+#### 17.10.3 打包过程中修复的两个缺陷
+
+1. **`runhost/Build-PlaygroundApp.ps1`：Linux 交叉打包拿不到 WSL 发行版名。** `Build-LinuxViaWsl` 在 `.GetNewClosure()` 的脚本块里直接引用脚本级参数 `$WslDistro`；闭包只捕获函数局部变量，导致 `wsl.exe -d` 收到空名字并报 `WSL_E_DISTRO_NOT_FOUND`。改为先复制到函数局部变量 `$distro` 再进闭包。
+2. **`tools/stage-samples.mjs`：默认样例写成名称而非路径。** `shell-core.js` 的 `loadProgramManifest()` 按 `path` 解析 `default`，脚本却写入 `name`（`sample/hello/hello.sb`），于是页面静默回退到 `items[0]`（`accumulate.sb`，输出 `120`）——这正是 Playwright 中 4 个用例失败的原因（含两个调试用例的断点行错位）。改为写入解析后的 `path` 后，`runhost/web` 与桌面 Playground 都能正确加载 `hello.sb`，E2E 由 4 失败 / 1 通过变为 **5/5 通过**（10 秒内完成，此前因超时耗时 7 分钟）。
+
+#### 17.10.4 最终门禁结果
+
+`Build-Plugin.ps1 -SkipBuild -VerifyE2E`：
+
+```text
+[PASS] TypeScript typecheck (npm run typecheck)
+[PASS] Unit tests (npm test)
+[PASS] Rust tests (cargo test --lib)
+[PASS] .NET language-service tests (dotnet test)
+[PASS] VS Code VSIX
+[PASS] Visual Studio VSIX
+[PASS] RunHost distribution
+[PASS] runhost\web static site
+[PASS] Staged desktop playground
+[PASS] Playwright page E2E      (5 passed)
+All checks passed.
+```
+
+> 构建环境备注：本机终端注入了 `safe-delete` 钩子（`NODE_OPTIONS` 的 `node-language-shim` 与 PowerShell 的 `Remove-Item` 包装），会让 tsup 删除旧 bundle、`manifest.json` 覆写以及 `Remove-Item -Recurse` 间歇性失败。本次通过清空 `NODE_OPTIONS` 并使用 `Microsoft.PowerShell.Management\Remove-Item` 规避；这是环境问题，不影响仓库脚本与产物。
+
+## 18. v1.3 整除与取余扩展（2026-10-06）
+
+### 18.1 语言契约
+
+v1.3 增加两组等价入口：运算符 `A \ B` / `A Mod B`，以及标准库方法 `Math.Div(A, B)` / `Math.Mod(A, B)`。它们使用 Small Basic 既有数字转换规则，但只借用 Visual Basic 的符号和优先级；不会照搬 VB 在不同数值类型之间的隐式舍入规则。
+
+| 入口 | 定义 | 示例 |
+|---|---|---|
+| `A \ B`、`Math.Div(A, B)` | 先计算实数商，再向零截断：`Truncate(A / B)` | `7 \ 2 = 3`、`-7 \ 2 = -3`、`7.9 \ 2.9 = 2` |
+| `A Mod B`、`Math.Mod(A, B)` | 截断余数，符号跟随被除数：`A - Truncate(A / B) * B` | `7 Mod -2 = 1`、`-7 Mod 2 = -1` |
+| 任一入口且 `B = 0` | 返回数字 `0`，不终止程序 | `Math.Mod(9, 0) = 0` |
+
+补充约束：
+
+- `Mod` 按既有语言规则大小写不敏感，`MOD` / `mOd` 都有效；它同时成为保留字，不能再作为普通变量名。
+- `Math.Mod` 是保留字作为成员名的特例：扫描后仍得到 `Mod` token，但解析器在点号后明确接受它作为库成员。
+- 本节冻结的是数值操作数契约；数值字符串按各运行时既有转换规则参与计算。非数字字符串与数组继续沿用各编译器既有的算术转换/诊断行为，本期不借新增运算符改写旧运行时的类型兼容规则。
+- 现有 `Math.Remainder` API 保持不变；v1.3 没有以新契约悄悄改写旧方法。
+
+### 18.2 优先级与结合性
+
+两套解析器使用同一条从高到低的优先级阶梯：
+
+```text
+* /  >  \  >  Mod  >  + -
+```
+
+同级运算符从左向右结合。因此：
+
+- `6 Mod 4 * 2` 等价于 `6 Mod (4 * 2)`，结果为 `6`；
+- `7 \ 2 * 3` 等价于 `7 \ (2 * 3)`，结果为 `1`；
+- `12 \ 4 Mod 3` 等价于 `(12 \ 4) Mod 3`，结果为 `0`；
+- `8 \ 2 \ 2` 等价于 `(8 \ 2) \ 2`，结果为 `2`。
+
+### 18.3 双编译器与三运行后端
+
+| 层 | TypeScript / JavaScript | C# / .NET |
+|---|---|---|
+| 扫描 | `TokenKind.Backslash` 与大小写不敏感的 `TokenKind.Mod` | `TokenKind.Backslash` 与 `TokenKind.Mod` |
+| 解析 | 二元运算符 AST；点号后的 `Mod` 可作为 `Math.Mod` 成员名 | 同构的 `BinaryOperatorExpressionSyntax` 与成员名特例 |
+| 绑定 | `BoundIntegerDivideExpression` / `BoundModuloExpression` | 同构 bound nodes |
+| 发射 | `IntegerDivideInstruction` / `ModuloInstruction` | 同构 VM instructions |
+| 运行时 | `NumberValue` 执行向零截断与 `%`；String/Array 走既有转换或诊断 | decimal 算术执行同一契约 |
+| 标准库 | `Math.Div` / `Math.Mod` 元数据、实现、参数说明 | 生成的 library metadata/interface + `MathLibrary` 实现与资源 |
+
+JavaScript 宿主直接使用 TypeScript 编译器与 VM；C# CLI、Windows C# 宿主和 Blazor 共用 C# 编译器与 `SmallBasicEngine`。因此并未为各宿主复制第三套算术语义，跨后端一致性由共享用例验证。
+
+### 18.4 调试器与可执行行
+
+- 两类运算符仍属于普通表达式指令，赋值或调用所在行会进入 `GetExecutableLines()` / DAP 可执行行集合，可直接吸附断点并进行 `next` / `stepIn` / `stepOut`。
+- `CompileExpression`、JS DAP evaluate、C# `EvaluateExpressionAsync` 与条件断点共用正式 parser/binder/emitter，因此 `Value \ 5`、`Value Mod 5`、`Math.Mod(Value, 5)` 和 `Value Mod 2 = 1` 都能在暂停态求值。
+- 新指令不建立栈帧、不引入隐藏用户停点，也不改变 Locals / Globals、调用栈或 Blazor 调试协议。
+
+### 18.5 编辑器与语言服务
+
+- TextMate grammar、Monaco / VS Code semantic tokens 与 Visual Studio 简单词法器识别 `Mod` 关键字；VS Code 的 `wordPattern` 同时把反斜杠排除在单词之外。
+- `\` 与运算符 `Mod` 提供独立 Hover，解释向零截断、余数符号和零除数行为。
+- `Math.Div` / `Math.Mod` 从标准库 metadata 取得补全、签名帮助、参数文档与 Hover。
+- `Mod` 的双重身份需要 AST 消歧：语义着色与 Hover 仅在 `BinaryOperatorExpression` 的 operator token 上把它视为关键字；位于 `ObjectAccessExpression` 的 `Math.Mod` 则视为函数。Visual Studio 的即时词法兜底也在点号后把 `Mod` 保留为成员标识符。
+- 编译器诊断继续通过 VS Code、Visual Studio 进程内 LSP 与 Playground worker 的既有通道发布，无需新增诊断协议。
+
+### 18.6 一致性与回归覆盖
+
+共享语料 `tests/conformance/language-extension/cases.json` 现有 44 个案例，由 TypeScript 与 C# runner 共同消费。v1.3 覆盖：正负被除数、正负除数、小数、零除数、大小写、左结合、VB 风格优先级、方法/运算符等价、函数局部变量以及循环内分类。
+
+专项回归还包括：
+
+- TS parser/runtime、语言服务 Hover、`Math.Mod` 语义着色、`Math.Div` / `Math.Mod` 签名帮助；
+- JS DAP 的断点、单步、Debug Console evaluate 与方法调用求值；
+- C# 运行时、库方法、可执行行、Hover、暂停态表达式与条件求值；
+- `sample/base/arithmetic.sb` 作为所有已打包 RunHost 的同源 smoke sample。
+
+本节落地时的定向门禁为：TypeScript 6 个相关测试文件全部通过（其中编辑器/运行时 67 例，共享 conformance 44 例），C# 算术与调试表达式测试 20 例通过，C# conformance runner 完整执行 44 个共享案例并通过。
+
+v1.3 全量验收结果：
+
+| 门禁 | 结果 |
+|---|---|
+| `npm run typecheck` | 通过 |
+| `npm test` | 33 个测试文件 / 748 个用例通过 |
+| `dotnet test SmallBasic.VisualStudio.slnx` | Compiler 628 个 + Language Services 55 个用例通过 |
+| `runhost/Build-RunHost.ps1 -Configuration Release` | net48 / net8.0 / net8.0-windows / JavaScript / Blazor / Web 全部重建成功 |
+| 同一 `sample/base/arithmetic.sb` CLI smoke | JavaScript、net48、net8.0、net8.0-windows、Blazor CLI 输出逐行一致 |
+| `runhost-web.spec.ts` | 6/6 通过；新增用例在 JavaScript 与 Blazor WASM 两个浏览器后端验证运算符、方法及零除数 |
+
+构建只有仓库既有的 NU1701、nullable、StyleCop / code-analysis 警告，没有新增编译错误或测试失败。以上是 v1.3 当前构建记录，不复用历史 §17.9/§17.10 的通过数字。

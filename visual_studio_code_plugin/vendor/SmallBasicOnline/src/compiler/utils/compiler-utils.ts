@@ -52,6 +52,8 @@ export module CompilerUtils {
             case SyntaxKind.EndForCommand: return tokenToDisplayString(TokenKind.EndForKeyword);
             case SyntaxKind.WhileCommand: return tokenToDisplayString(TokenKind.WhileKeyword);
             case SyntaxKind.EndWhileCommand: return tokenToDisplayString(TokenKind.EndWhileKeyword);
+            case SyntaxKind.BreakCommand: return tokenToDisplayString(TokenKind.BreakKeyword);
+            case SyntaxKind.ContinueCommand: return tokenToDisplayString(TokenKind.ContinueKeyword);
             case SyntaxKind.LabelCommand: return CompilerResources.SyntaxNodes_Label;
             case SyntaxKind.GoToCommand: return tokenToDisplayString(TokenKind.GoToKeyword);
             case SyntaxKind.SubCommand: return tokenToDisplayString(TokenKind.SubKeyword);
@@ -79,6 +81,8 @@ export module CompilerUtils {
             case TokenKind.GoToKeyword: return "GoTo";
             case TokenKind.WhileKeyword: return "While";
             case TokenKind.EndWhileKeyword: return "EndWhile";
+            case TokenKind.BreakKeyword: return "Break";
+            case TokenKind.ContinueKeyword: return "Continue";
             case TokenKind.SubKeyword: return "Sub";
             case TokenKind.EndSubKeyword: return "EndSub";
             case TokenKind.FunctionKeyword: return "Function";
@@ -98,6 +102,7 @@ export module CompilerUtils {
             case TokenKind.Minus: return "-";
             case TokenKind.Multiply: return "*";
             case TokenKind.Divide: return "/";
+            case TokenKind.Backslash: return "\\";
             case TokenKind.Colon: return ":";
             case TokenKind.LessThan: return "<";
             case TokenKind.GreaterThan: return ">";
@@ -105,6 +110,7 @@ export module CompilerUtils {
             case TokenKind.GreaterThanOrEqual: return ">=";
             case TokenKind.Or: return "Or";
             case TokenKind.And: return "And";
+            case TokenKind.Mod: return "Mod";
 
             case TokenKind.Identifier: return CompilerResources.SyntaxNodes_Identifier;
             case TokenKind.NumberLiteral: return CompilerResources.SyntaxNodes_NumberLiteral;

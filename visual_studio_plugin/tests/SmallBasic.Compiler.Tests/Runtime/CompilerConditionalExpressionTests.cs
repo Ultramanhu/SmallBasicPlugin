@@ -44,6 +44,22 @@ namespace SmallBasic.Tests
         }
 
         [Fact]
+        public async Task EvaluatesIntegerDivisionAndModuloWhilePaused()
+        {
+            var compilation = new SmallBasicCompilation("i = 17\nx = i > 3\n");
+            SmallBasicEngine engine = await PauseOnSecondLineAsync(compilation).ConfigureAwait(false);
+
+            (await engine.EvaluateExpressionAsync(compilation.CompileExpression("i \\ 5")).ConfigureAwait(false))
+                .ToDisplayString().Should().Be("3");
+            (await engine.EvaluateExpressionAsync(compilation.CompileExpression("i Mod 5")).ConfigureAwait(false))
+                .ToDisplayString().Should().Be("2");
+            (await engine.EvaluateExpressionAsync(compilation.CompileExpression("Math.Mod(i, 5)")).ConfigureAwait(false))
+                .ToDisplayString().Should().Be("2");
+            (await engine.EvaluateConditionAsync(compilation.CompileExpression("i Mod 2 = 1")).ConfigureAwait(false))
+                .Should().Be(true);
+        }
+
+        [Fact]
         public async Task UndefinedVariablesEvaluateToEmptyString()
         {
             var compilation = new SmallBasicCompilation("i = 5\nx = i > 3\n");

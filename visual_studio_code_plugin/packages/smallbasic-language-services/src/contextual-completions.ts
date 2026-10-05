@@ -100,12 +100,12 @@ function popLatest(stack: BlockKind[], kind: BlockKind): void {
   }
 }
 
-function snippet(title: string, insertText: string, priority: number, preselect = false): RankedCompletion {
+function snippet(title: string, insertText: string, priority: number, preselect = false, description = title): RankedCompletion {
   return {
     item: {
       kind: CompletionService.ResultKind.Snippet,
       title,
-      description: title,
+      description,
       insertText
     },
     priority,
@@ -128,9 +128,13 @@ export function getContextualCompletions(
       break;
     case "for":
       results.push(snippet("EndFor", "EndFor", 0, true));
+      results.push(snippet("Continue", "Continue", 1, false, "Skip to the next iteration (still runs the For increment)"));
+      results.push(snippet("Break", "Break", 2, false, "Exit this For loop"));
       break;
     case "while":
       results.push(snippet("EndWhile", "EndWhile", 0, true));
+      results.push(snippet("Continue", "Continue", 1, false, "Re-check this While condition"));
+      results.push(snippet("Break", "Break", 2, false, "Exit this While loop"));
       break;
     case "sub":
       results.push(snippet("EndSub", "EndSub", 0, true));

@@ -43,3 +43,41 @@ describe("semantic token coloring for scoped variables", () => {
     expect(tokenTypeAt(service, source, 7, 0)).toBe("function");
   });
 });
+
+describe("semantic token coloring for loop control keywords", () => {
+  const service = new SmallBasicLanguageService();
+  const source = [
+    "While \"True\"",
+    "  Break",
+    "EndWhile",
+    "For I = 1 To 3",
+    "  Continue",
+    "EndFor"
+  ].join("\n");
+
+  it("colors Break and Continue as keywords", () => {
+    expect(tokenTypeAt(service, source, 1, 2)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 4, 2)).toBe("keyword");
+  });
+
+  it("keeps the surrounding loop keywords unchanged", () => {
+    expect(tokenTypeAt(service, source, 0, 0)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 5, 0)).toBe("keyword");
+  });
+});
+
+describe("semantic token coloring for the Mod operator keyword", () => {
+  const service = new SmallBasicLanguageService();
+  const source = [
+    "TextWindow.WriteLine(7 Mod 2)",
+    "Answer = Math.Mod(7, 2)"
+  ].join("\n");
+
+  it("colors Mod as a keyword", () => {
+    expect(tokenTypeAt(service, source, 0, 23)).toBe("keyword");
+  });
+
+  it("colors Math.Mod as a library method rather than an operator keyword", () => {
+    expect(tokenTypeAt(service, source, 1, 14)).toBe("function");
+  });
+});

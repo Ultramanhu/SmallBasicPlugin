@@ -16,11 +16,13 @@ export { TokenKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/
 export { SyntaxKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes";
 export type {
     BaseSyntaxNode,
+    BinaryOperatorExpressionSyntax,
     DimCommandSyntax,
     ForCommandSyntax,
     FunctionDeclarationSyntax,
     IdentifierExpressionSyntax,
     InvocationExpressionSyntax,
+    ObjectAccessExpressionSyntax,
     StatementBlockSyntax,
     SubModuleDeclarationSyntax,
     TokenSyntax

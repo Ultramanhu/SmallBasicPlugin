@@ -26,6 +26,8 @@ namespace SmallBasic.Compiler.Diagnostics
         DuplicateLocalVariable,
         DimMustBeAtProcedureLevel,
         ReturnOutsideFunction,
+        BreakOutsideLoop,
+        ContinueOutsideLoop,
         FunctionCannotBeEventHandler,
         TwoLabelsWithTheSameName,
         GoToUndefinedLabel,
@@ -64,6 +66,8 @@ namespace SmallBasic.Compiler.Diagnostics
                 case DiagnosticCode.DuplicateLocalVariable: return DiagnosticsResources.DuplicateLocalVariable;
                 case DiagnosticCode.DimMustBeAtProcedureLevel: return DiagnosticsResources.DimMustBeAtProcedureLevel;
                 case DiagnosticCode.ReturnOutsideFunction: return DiagnosticsResources.ReturnOutsideFunction;
+                case DiagnosticCode.BreakOutsideLoop: return DiagnosticsResources.BreakOutsideLoop;
+                case DiagnosticCode.ContinueOutsideLoop: return DiagnosticsResources.ContinueOutsideLoop;
                 case DiagnosticCode.FunctionCannotBeEventHandler: return DiagnosticsResources.FunctionCannotBeEventHandler;
                 case DiagnosticCode.TwoLabelsWithTheSameName: return DiagnosticsResources.TwoLabelsWithTheSameName;
                 case DiagnosticCode.GoToUndefinedLabel: return DiagnosticsResources.GoToUndefinedLabel;

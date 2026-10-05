@@ -113,7 +113,7 @@ runhost/web/
 ├── serve.mjs                   # 零依赖静态服务器（含浏览器自动打开，可选用任意静态服务器替代）
 ├── run.bat                     # Windows 双击入口：检查 Node 后启动 serve.mjs
 ├── run.ps1                     # PowerShell 入口（Windows / Linux / macOS 的 pwsh 均可）
-├── samples/                    # 由仓库 test/ 复制的示例程序 + index.json 清单
+├── samples/                    # 由仓库 sample/ 复制的示例程序 + index.json 清单
 ├── smallbasic-js.js            # JavaScript 后端（tsup 打包的 IIFE，定义 window.SmallBasicWeb）
 └── _framework/                 # Blazor WebAssembly 客户端发布产物（含 .br 预压缩文件）
 ```
@@ -125,7 +125,7 @@ runhost/web/
 | `index.html`、`app.css`、`shell.js`、`serve.mjs`、`run.bat`、`run.ps1` | `visual_studio_plugin/src/SmallBasic.Blazor.Client/wwwroot`（手写源码，仓库跟踪） |
 | `_framework/**` | `dotnet publish` Blazor 宿主的 `wwwroot`（把 `SmallBasic.Blazor.Client` 的静态资源合并进来） |
 | `smallbasic-js.js` | `visual_studio_code_plugin/packages/smallbasic-vscode/dist/web-runhost.js`（`npm run build` 由 `src/runhost/web.ts` 生成） |
-| `samples/**` | `runhost/Build-RunHost.ps1` 复制仓库 `test/**/*.sb` 并生成 `samples/index.json` |
+| `samples/**` | `runhost/Build-RunHost.ps1` 复制仓库 `sample/**/*.sb` 并生成 `samples/index.json` |
 
 > `wwwroot` 在 `.gitignore` 里被整体忽略（生成站点约定），因此 `.gitignore` 对 `SmallBasic.Blazor.Client/wwwroot` 做了白名单，否则外壳页面不会进入仓库 —— 这也正是此前 `runhost/blazor` 缺失 `index.html` 的原因。
 
@@ -203,7 +203,7 @@ interface IWebRunHostBridge {
 ### 页面行为
 
 - 页面没有编辑器：工具栏只有程序列表、`选择 .sb 文件…`、后端下拉框、Run/Stop 与状态；输出面板占满其余空间。
-- 程序列表来自 `samples/index.json`（构建时由仓库 `test/**/*.sb` 生成），默认选中 `test/hello/hello.sb`；清单里 `graphics: true` 的程序（构建时按 `GraphicsWindow`/`Shapes`/`Turtle` 的出现判断）会自动把后端切到 Blazor。
+- 程序列表来自 `samples/index.json`（构建时由仓库 `sample/**/*.sb` 生成），默认选中 `sample/hello/hello.sb`；清单里 `graphics: true` 的程序（构建时按 `GraphicsWindow`/`Shapes`/`Turtle` 的出现判断）会自动把后端切到 Blazor。
 - 用户选择的本地文件（或拖入页面的文件）会成为列表里的"本地文件：xxx.sb"项，可直接运行。
 - `samples/index.json` 不可用时（例如 CLI 宿主不分发示例）回退到内置的 Hello World 程序，页面仍然可用。
 - 探测 `smallbasic-js.js` 是否存在（CLI 宿主不分发它）：缺失时移除 JS 选项并给出提示，仅保留 Blazor 后端。
@@ -231,10 +231,10 @@ node serve.mjs                 # 等价直接调用：--no-open / --port 9000 / 
 
 ```json
 {
-  "default": "test/hello/hello.sb",
+  "default": "sample/hello/hello.sb",
   "items": [
-    { "name": "test/hello/hello.sb", "path": "samples/hello/hello.sb", "graphics": false },
-    { "name": "test/tetris/tetris.sb", "path": "samples/tetris/tetris.sb", "graphics": true }
+    { "name": "sample/hello/hello.sb", "path": "samples/hello/hello.sb", "graphics": false },
+    { "name": "sample/tetris/tetris.sb", "path": "samples/tetris/tetris.sb", "graphics": true }
   ]
 }
 ```
@@ -504,7 +504,7 @@ npm run stage:blazor -w smallbasic-tools-vsc   # 只暂存 runhost/blazor（Web 
 
 | 场景 | 结果 |
 |---|---|
-| 首屏：程序列表 | 列出 `test/` 下 5 个示例并默认选中 `test/hello/hello.sb`，状态显示 `Loaded test/hello/hello.sb`，后端为 JavaScript |
+| 首屏：程序列表 | 列出 `sample/` 下 5 个示例并默认选中 `sample/hello/hello.sb`，状态显示 `Loaded sample/hello/hello.sb`，后端为 JavaScript |
 | 程序列表：`Run`（hello.sb） | 输出 `Hello, World! / 1 / 3 / Hello`，状态 `Completed` |
 | 程序列表：选择 `tetris.sb` | 后端自动切到 Blazor；运行后出现 231 个 SVG 元素（棋盘/方块/文本），Stop 后状态 `Stopped` |
 | 程序列表：选择 `tutorial/level1.sb` | Blazor 渲染背景图 + 海龟轨迹，状态 `Completed` |
@@ -516,7 +516,7 @@ npm run stage:blazor -w smallbasic-tools-vsc   # 只暂存 runhost/blazor（Web 
 | Blazor 后端：文本 + 图形混合、连续运行两次 | 每次运行都会清空上一轮文本与场景，页面只有一个 Runner |
 | Blazor 后端：编译错误 | 页面显示错误卡片与 `Exited with code 2`，Run 恢复可用 |
 | 启动脚本 | `run.ps1 -NoOpen -Port 8455`、`run.bat --no-open --port 8457` 均在指定端口返回 `index.html` 与 `samples/index.json`（`run.ps1` 的 comment-based help 生效） |
-| CLI 模式：`dotnet ... run --file test/tutorial/level1.sb` | 会话页面只显示图形（工具栏隐藏）；程序结束后宿主退出 |
+| CLI 模式：`dotnet ... run --file sample/tutorial/level1.sb` | 会话页面只显示图形（工具栏隐藏）；程序结束后宿主退出 |
 | Webview 文档（跨域载荷，资源域只回 `Access-Control-Allow-Origin: *`，同页跑一次同源对照） | `ready` → `notify:ready` → `output` → `notify:terminated` 全部到达，`#app` 渲染出 1 个 SVG / 3 个图形元素，文本输出镜像到扩展侧，**0 条 CSP 或控制台错误**（Chromium） |
 | Webview 文档 + 页面胶水的单元测试 | `tests/webview-html.spec.ts` 断言 CSP（wasm / connect / style-inline / 禁止 inline script）、绝对 URL、无 `<base>`、payload 尾斜杠容错 |
 | Playwright 页面级用例（`npm run test:web`） | 图形程序跑到 `terminated`、`#app` 有 SVG 与矩形/直线、`output` 收到 `12345`、零控制台错误；Stop 后输出停止增长 |

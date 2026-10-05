@@ -23,7 +23,7 @@ import { extensionPackageRoot, pluginRoot, requireStagedPayload, serveDirectory 
  */
 
 const repositoryRoot = path.resolve(pluginRoot, "..");
-const workspaceFolder = path.join(repositoryRoot, "test");
+const workspaceFolder = path.join(repositoryRoot, "sample");
 const programUnderTest = path.join(workspaceFolder, "tutorial", "level1.sb");
 const ARTIFACTS = path.join(__dirname, "artifacts");
 const WORKBENCH_PORT = 9899;
@@ -78,7 +78,7 @@ test.describe("VS Code Web workbench", () => {
 
     await page.goto(`http://127.0.0.1:${WORKBENCH_PORT}/`);
     await page.locator(".monaco-workbench").waitFor({ timeout: 90_000 });
-    // --default-folder opens the repository's test folder.
+    // --default-folder opens the repository's sample folder.
     await expect(page.locator(".explorer-folders-view")).toContainText("tutorial", { timeout: 60_000 });
 
     await installExtensionFromLocation(page, extensionServer.origin, diagnostics);

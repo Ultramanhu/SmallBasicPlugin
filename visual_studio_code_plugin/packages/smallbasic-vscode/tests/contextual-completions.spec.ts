@@ -16,4 +16,25 @@ describe("contextual completions", () => {
     const items = getContextualCompletions("Sub MainLoop\n", "").map((entry) => entry.item.title);
     expect(items[0]).toBe("EndSub");
   });
+
+  it("suggests Break and Continue inside a For loop", () => {
+    const items = getContextualCompletions("For i = 1 To 10\n", "").map((entry) => entry.item.title);
+    expect(items).toEqual(["EndFor", "Continue", "Break"]);
+  });
+
+  it("suggests Break and Continue inside a While loop", () => {
+    const items = getContextualCompletions("While \"True\"\n", "").map((entry) => entry.item.title);
+    expect(items).toEqual(["EndWhile", "Continue", "Break"]);
+  });
+
+  it("describes loop control suggestions", () => {
+    const items = getContextualCompletions("While \"True\"\n", "").map((entry) => entry.item.description);
+    expect(items).toContain("Exit this While loop");
+  });
+
+  it("does not suggest Break or Continue outside of a loop", () => {
+    const items = getContextualCompletions("TextWindow.WriteLine(\"x\")\n", "").map((entry) => entry.item.title);
+    expect(items).not.toContain("Break");
+    expect(items).not.toContain("Continue");
+  });
 });

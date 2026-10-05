@@ -62,6 +62,9 @@ namespace SmallBasic.Compiler.Parsing
                 case ForStatementSyntax forStatement:
                     this.VisitForStatement(forStatement);
                     break;
+                case LoopControlStatementSyntax loopControlStatement:
+                    this.VisitLoopControlStatement(loopControlStatement);
+                    break;
                 case LabelStatementSyntax labelStatement:
                     this.VisitLabelStatement(labelStatement);
                     break;
@@ -181,6 +184,11 @@ namespace SmallBasic.Compiler.Parsing
         }
 
         private protected virtual void VisitForStatement(ForStatementSyntax node)
+        {
+            this.DefaultVisit(node);
+        }
+
+        private protected virtual void VisitLoopControlStatement(LoopControlStatementSyntax node)
         {
             this.DefaultVisit(node);
         }
@@ -1117,6 +1125,45 @@ namespace SmallBasic.Compiler.Parsing
         }
     }
 
+    internal sealed class LoopControlStatementSyntax : BaseStatementSyntax
+    {
+        public LoopControlStatementSyntax(Token controlToken)
+        {
+            Debug.Assert(!controlToken.IsDefault(), "'controlToken' must not be null.");
+            Debug.Assert(controlToken.Kind == TokenKind.Break || controlToken.Kind == TokenKind.Continue, "'controlToken' must have a TokenKind of 'Break,Continue'.");
+
+            this.ControlToken = controlToken;
+        }
+
+        public Token ControlToken { get; private set; }
+
+        public override IEnumerable<BaseSyntaxNode> Children
+        {
+            get
+            {
+                return Enumerable.Empty<BaseSyntaxNode>();
+            }
+        }
+
+        public override TextRange Range
+        {
+            get
+            {
+                return (calculateStart(), calculateEnd());
+
+                TextPosition calculateStart()
+                {
+                    return this.ControlToken.Range.Start;
+                }
+
+                TextPosition calculateEnd()
+                {
+                    return this.ControlToken.Range.End;
+                }
+            }
+        }
+    }
+
     internal sealed class LabelStatementSyntax : BaseStatementSyntax
     {
         public LabelStatementSyntax(Token labelToken, Token colonToken)
@@ -1375,7 +1422,7 @@ namespace SmallBasic.Compiler.Parsing
         {
             Debug.Assert(!left.IsDefault(), "'left' must not be null.");
             Debug.Assert(!operatorToken.IsDefault(), "'operatorToken' must not be null.");
-            Debug.Assert(operatorToken.Kind == TokenKind.Equal || operatorToken.Kind == TokenKind.NotEqual || operatorToken.Kind == TokenKind.Plus || operatorToken.Kind == TokenKind.Minus || operatorToken.Kind == TokenKind.Multiply || operatorToken.Kind == TokenKind.Divide || operatorToken.Kind == TokenKind.Colon || operatorToken.Kind == TokenKind.LessThan || operatorToken.Kind == TokenKind.GreaterThan || operatorToken.Kind == TokenKind.LessThanOrEqual || operatorToken.Kind == TokenKind.GreaterThanOrEqual || operatorToken.Kind == TokenKind.And || operatorToken.Kind == TokenKind.Or, "'operatorToken' must have a TokenKind of 'Equal,NotEqual,Plus,Minus,Multiply,Divide,Colon,LessThan,GreaterThan,LessThanOrEqual,GreaterThanOrEqual,And,Or'.");
+            Debug.Assert(operatorToken.Kind == TokenKind.Equal || operatorToken.Kind == TokenKind.NotEqual || operatorToken.Kind == TokenKind.Plus || operatorToken.Kind == TokenKind.Minus || operatorToken.Kind == TokenKind.Multiply || operatorToken.Kind == TokenKind.Divide || operatorToken.Kind == TokenKind.Backslash || operatorToken.Kind == TokenKind.Colon || operatorToken.Kind == TokenKind.LessThan || operatorToken.Kind == TokenKind.GreaterThan || operatorToken.Kind == TokenKind.LessThanOrEqual || operatorToken.Kind == TokenKind.GreaterThanOrEqual || operatorToken.Kind == TokenKind.And || operatorToken.Kind == TokenKind.Or || operatorToken.Kind == TokenKind.Mod, "'operatorToken' must have a TokenKind of 'Equal,NotEqual,Plus,Minus,Multiply,Divide,Backslash,Colon,LessThan,GreaterThan,LessThanOrEqual,GreaterThanOrEqual,And,Or,Mod'.");
             Debug.Assert(!right.IsDefault(), "'right' must not be null.");
 
             this.Left = left;
@@ -1427,7 +1474,7 @@ namespace SmallBasic.Compiler.Parsing
             Debug.Assert(!dotToken.IsDefault(), "'dotToken' must not be null.");
             Debug.Assert(dotToken.Kind == TokenKind.Dot, "'dotToken' must have a TokenKind of 'Dot'.");
             Debug.Assert(!identifierToken.IsDefault(), "'identifierToken' must not be null.");
-            Debug.Assert(identifierToken.Kind == TokenKind.Identifier, "'identifierToken' must have a TokenKind of 'Identifier'.");
+            Debug.Assert(identifierToken.Kind == TokenKind.Identifier || identifierToken.Kind == TokenKind.Mod, "'identifierToken' must have a TokenKind of 'Identifier,Mod'.");
 
             this.BaseExpression = baseExpression;
             this.BaseExpression.Parent = this;

@@ -6,8 +6,7 @@
 #                                                   (also refreshes dist\debug\adapter.js used by the VS side)
 #   3. visual_studio_plugin\build\Package-Vsix.ps1 -> builds src\SmallBasic.Vsix
 #                                                -> visual_studio_plugin\build\SmallBasic.Vsix.<version>.vsix
-#   4. runhost\Build-PlaygroundApp.ps1            -> runhost\playground\ (staged app + sidecars)
-#                                                -> runhost\playground\bundles\SmallBasic.Playground-*.msi / -setup.exe
+#   4. runhost\Build-PlaygroundApp.ps1            -> runhost\playground\ (portable Windows/Linux x64 + staged app + sidecars)
 #
 # The packaging scripts in steps 2-3 depend on the RunHost distribution built in
 # step 1 and accept -SkipRunHost for exactly that reason: running them standalone
@@ -20,12 +19,12 @@
 # version of packages\smallbasic-playground-desktop instead (see step 4).
 #
 # Usage examples:
-#   .\Build-All.ps1                    # full Release build
+#   .\Build-All.ps1                    # full Release build (RunHost + VSIX + Playground Win/Linux x64 binaries)
 #   .\Build-All.ps1 -Configuration Debug
 #   .\Build-All.ps1 -SkipVsix          # RunHost distribution + desktop Playground only
 #   .\Build-All.ps1 -SkipJavaScript    # skip the JS run host bundle step of Build-RunHost
 #   .\Build-All.ps1 -SkipWeb           # skip the runhost\web static site assembly
-#   .\Build-All.ps1 -SkipPlayground    # skip the Tauri desktop Playground installers
+#   .\Build-All.ps1 -SkipPlayground    # skip the Tauri desktop Playground binaries
 #   .\Build-All.ps1 -SkipPlaygroundSidecars
 #                                      # reuse the staged runhost\playground\bin sidecars
 [CmdletBinding()]
@@ -109,7 +108,11 @@ if (-not $SkipPlayground) {
         throw "Desktop Playground build script not found: $playgroundScript"
     }
 
-    $playgroundArgs = @{ Configuration = $Configuration }
+    $playgroundArgs = @{
+        Configuration = $Configuration
+        WindowsTargets = @("x64")
+        LinuxTargets = @("x64")
+    }
     # Build-RunHost runs 'npm run build' unless -SkipJavaScript and -SkipWeb are combined.
     if (-not ($SkipWeb -and $SkipJavaScript)) { $playgroundArgs.SkipJavaScript = $true }
     # Build-RunHost runs 'npm run build:playground' unless -SkipWeb.
@@ -129,6 +132,6 @@ if (-not $SkipVsix) {
     Write-Host "  visual_studio_plugin\build\SmallBasic.Vsix.$version.vsix"
 }
 if (-not $SkipPlayground) {
-    Write-Host "  runhost\playground\SmallBasic.Playground.exe (portable)"
-    Write-Host "  runhost\playground\bundles\SmallBasic.Playground-*"
+    Write-Host "  runhost\playground\SmallBasic.Playground.exe (portable, Windows)"
+    Write-Host "  runhost\playground\SmallBasic.Playground (portable ELF, Linux - run via WSL/WSLg)"
 }

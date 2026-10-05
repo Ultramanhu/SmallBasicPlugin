@@ -1,5 +1,5 @@
-# Rebuilds the Tauri desktop Playground (Small Basic Playground) and archives its
-# installers, following ../docs/design/10-Playground与Tauri本地应用.md (§18.5 / §19.1):
+# Rebuilds the Tauri desktop Playground (Small Basic Playground) and, when
+# requested, archives its installers, following ../docs/design/10-Playground与Tauri本地应用.md (§18.5 / §19.1):
 #
 #   1. npm run build                      -> visual_studio_code_plugin\packages\smallbasic-vscode\dist
 #                                            (runhost.js, debug\adapter.js, web-runhost.js)
@@ -8,25 +8,31 @@
 #   4. per target: tauri build / tauri android build / WSL cargo tauri build
 #   5. portable exe copied to runhost\playground\SmallBasic.Playground.exe
 #         (runs in place: on Windows the resource dir is the exe's directory, so
-#          bin\ sidecars and resources\ resolve next to it)
+#          bin\ sidecars and resources\ resolve next to it; the Linux build
+#          copies the WSL ELF as SmallBasic.Playground - see the linux notes)
 #   6. installers copied to runhost\playground\bundles\
 #        SmallBasic.Playground-<version>-<triple>.msi / -setup.exe / .deb / .rpm
-#        / .AppImage / .apk / .aab
+#        / .AppImage / .apk / .aab / .dmg / .ipa
+#        (archiving also removes SmallBasic.Playground-* packages of older
+#         versions; same-version packages of other targets are kept)
 #
 # <version> is read from version.json, the single source shared with the Visual
 # Studio and VS Code extensions; tools\sync-version.mjs keeps tauri.conf.json,
 # the npm package and Cargo.toml in step (Build-All.ps1 runs it automatically).
 #
 # Package shapes:
-#   default        stage + compile + installers + archive into bundles\
-#   -StageOnly     run package only: stage + compile the portable executable,
-#                  no installer bundling and no bundles\ archive
+#   default        stage + compile the selected local binaries only
+#                  (default targets: linux-x64 + win-x64, no installers)
+#   -BuildBundles  also produce installers and archive them into bundles\
+#   -StageOnly     force local-binary-only mode even when bundle targets or
+#                  installer options were selected
 #   -SkipArchive   installers are produced but stay under src-tauri\target
 #
 # -BundleTargets builds and archives several platforms in one run. The staging
 # root holds ONE target's payloads at a time, so the last target of the list
 # also determines what runhost\playground\ (portable exe, bin\, resources\) is
-# left holding; the bundles\ folder accumulates every target.
+# left holding; the bundles\ folder accumulates every target, and archiving
+# prunes SmallBasic.Playground-* packages whose version is no longer current.
 #
 # Platform notes:
 #   windows targets   native `npx tauri build` (cross builds need the matching
@@ -39,28 +45,54 @@
 #                         librsvg2-dev libxdo-dev file curl
 #                       curl ... | sh -s -- -y   # rustup
 #                       cargo install tauri-cli --locked
+#                     The bare ELF is copied out as runhost\playground\
+#                     SmallBasic.Playground; the resolver probes <exe>/bin and
+#                     <exe>/<relative> directly, so it runs from WSL with the
+#                     same zero-configuration portable behavior as Windows:
+#                       wsl -d <distro> --exec \
+#                         <wsl path of runhost\playground\SmallBasic.Playground>
+#                     GUI apps need WSLg (default on Windows 11).
 #   android targets   need the Android SDK (platform-tools, platforms;android-34,
 #                     build-tools;34.0.0, an NDK) and a JDK 17+; see
 #                     -AndroidSdkHome / -JavaHome. No sidecar is bundled.
-#   apple targets     cannot be bundled from Windows (Xcode); stage them for a
-#                     macOS CI runner with -StageOnly instead.
+#                     -AndroidApkOnly builds the universal APK alone (directly
+#                     installable) and skips the Play Store .aab.
+#   macos targets     need a macOS host (Xcode command line tools produce the
+#                     .app + .dmg; cross-arch builds there need
+#                     `rustup target add <triple>`). On Windows/Linux hosts
+#                     they stop after staging: the staged runhost\playground
+#                     tree is the hand-off for a macOS CI runner, which
+#                     finishes the bundle with this same script.
+#   ios targets       need a macOS host with Xcode (`tauri ios init` on first
+#                     use, then `tauri ios build`; the default `debugging`
+#                     export method signs with the local development team,
+#                     store/TestFlight exports need their own signing - see
+#                     -IosExportMethod). No sidecar is bundled; the shell
+#                     ships the two Web backends only.
 #
 # Usage examples (from the repository root):
-#   .\runhost\Build-PlaygroundApp.ps1                     # full Release rebuild + installers (host target)
-#   .\runhost\Build-PlaygroundApp.ps1 -SkipSidecars       # reuse bin\ sidecars (front-end change only)
-#   .\runhost\Build-PlaygroundApp.ps1 -StageOnly          # run package only: stage + portable exe, no installers
-#   .\runhost\Build-PlaygroundApp.ps1 -Target aarch64-pc-windows-msvc
-#   .\runhost\Build-PlaygroundApp.ps1 -BundleTargets win-x64,win-arm64
+#   .\runhost\Build-PlaygroundApp.ps1
+#                                      # default Release rebuild: linux-x64 + win-x64 binaries only
+#   .\runhost\Build-PlaygroundApp.ps1 -SkipSidecars
+#                                      # reuse bin\ sidecars (front-end change only)
+#   .\runhost\Build-PlaygroundApp.ps1 -StageOnly -WindowsTargets x64,arm64
+#                                      # force binary-only mode for the selected Windows targets
+#   .\runhost\Build-PlaygroundApp.ps1 -BuildBundles -WindowsTargets x64,arm64 -LinuxTargets x64
+#   .\runhost\Build-PlaygroundApp.ps1 -BuildBundles -AndroidTargets x64,arm64 -AndroidApkOnly
+#   .\runhost\Build-PlaygroundApp.ps1 -BuildBundles -MacOSTargets x64,arm64 -IOSTargets arm64,sim-arm64
+#                                      # macOS host only; elsewhere stages runhost\playground and stops
 #   .\runhost\Build-PlaygroundApp.ps1 -BundleTargets win-x64,linux-x64,android-arm64
-#   .\runhost\Build-PlaygroundApp.ps1 -BundleTargets linux-x64 -WslDistro Ubuntu-22.04
+#                                      # explicit triple/alias list (implies installer generation)
 [CmdletBinding()]
 param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
 
-    # Rust target triple (or one of the -BundleTargets aliases). Defaults to
-    # the host triple; the staged sidecars in runhost\playground\bin must match
-    # it (see -SkipSidecars). Ignored when -BundleTargets is given.
+    # Rust target triple (or one of the -BundleTargets aliases). When omitted,
+    # the script defaults to the local Linux/Windows x64 binary pair unless
+    # the platform selector parameters below were used instead. The staged
+    # sidecars in runhost\playground\bin must match the targets (see
+    # -SkipSidecars). Ignored when -BundleTargets is given.
     [string]$Target,
 
     # Reuse runhost\playground\bin sidecars instead of re-publishing the .NET
@@ -73,18 +105,45 @@ param(
     # Skip 'npm run build:playground' (the Monaco page bundle).
     [switch]$SkipPlaygroundBundle,
 
-    # Run package only: assemble runhost\playground\ and compile the portable
-    # executable, but do not produce or archive installers. On Android and on
-    # Linux-from-Windows this stops after staging.
+    # Force local-binary-only mode: assemble runhost\playground\ and compile
+    # the selected app binaries, but do not produce or archive installers. On
+    # Android/iOS this stops after staging; on Linux-from-Windows it compiles
+    # in WSL with --no-bundle so the portable ELF is produced.
     [switch]$StageOnly,
 
-    # Keep the fresh installers in src-tauri\target only (no runhost\playground\bundles copy).
+    # Opt in to installer generation. Without this switch (and without
+    # -BundleTargets / -SkipArchive), the script compiles binaries only.
+    [switch]$BuildBundles,
+
+    # Keep the fresh installers in src-tauri\target only (no
+    # runhost\playground\bundles copy). Implies installer generation.
     [switch]$SkipArchive,
 
     # One or more bundle platforms to build and archive in sequence. Accepts
     # aliases (win-x64, win-arm64, linux-x64, linux-arm64, android-arm64,
-    # macos-x64, macos-arm64) or full Rust triples. Overrides -Target.
+    # android-x64, macos-x64, macos-arm64, ios-arm64, ios-sim-arm64,
+    # ios-sim-x64) or full Rust triples. Overrides -Target and the platform
+    # selector parameters below, and implies installer generation unless
+    # -StageOnly is also passed.
     [string[]]$BundleTargets,
+
+    # Higher-level platform selectors. Each accepts one or more architectures;
+    # use them when you want to toggle whole platforms instead of spelling the
+    # Rust triples yourself. Ignored when -BundleTargets is given.
+    [ValidateSet("x64", "arm64")]
+    [string[]]$WindowsTargets,
+
+    [ValidateSet("x64", "arm64")]
+    [string[]]$LinuxTargets,
+
+    [ValidateSet("x64", "arm64")]
+    [string[]]$AndroidTargets,
+
+    [ValidateSet("x64", "arm64")]
+    [string[]]$MacOSTargets,
+
+    [ValidateSet("arm64", "sim-arm64", "sim-x64")]
+    [string[]]$IOSTargets,
 
     # WSL distribution used for Linux bundles when the host is Windows.
     [string]$WslDistro = "Ubuntu",
@@ -93,10 +152,26 @@ param(
     # environment variable and then to the common local installation paths.
     [string]$AndroidSdkHome,
     [string]$JavaHome,
-    [string]$AndroidNdkVersion = "27.0.12077973"
+    [string]$AndroidNdkVersion = "27.0.12077973",
+
+    # Android only: build the universal APK without the .aab. The APK is the
+    # complete, directly installable package; the .aab is only for Play Store
+    # upload. Default builds both.
+    [switch]$AndroidApkOnly,
+
+    # iOS only: passed to `tauri ios build --export-method`. The Tauri default
+    # (`debugging`) signs with the local development team for ad-hoc devices;
+    # release-testing / app-store-connect exports need the matching signing
+    # setup in Xcode.
+    [ValidateSet("", "debugging", "release-testing", "app-store-connect", "enterprise", "developer-id")]
+    [string]$IosExportMethod
 )
 
 $ErrorActionPreference = "Stop"
+
+# wsl.exe emits its own notices (distro lists, the NAT localhost-proxy hint) as
+# UTF-16 unless told otherwise; ask for UTF-8 so the build log stays readable.
+$env:WSL_UTF8 = "1"
 
 # This script lives in runhost\, so the repository root is one level up.
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -133,8 +208,12 @@ $targetAliases = @{
     "linux-x64"     = "x86_64-unknown-linux-gnu"
     "linux-arm64"   = "aarch64-unknown-linux-gnu"
     "android-arm64" = "aarch64-linux-android"
+    "android-x64"   = "x86_64-linux-android"
     "macos-x64"     = "x86_64-apple-darwin"
     "macos-arm64"   = "aarch64-apple-darwin"
+    "ios-arm64"     = "aarch64-apple-ios"
+    "ios-sim-arm64" = "aarch64-apple-ios-sim"
+    "ios-sim-x64"   = "x86_64-apple-ios"
 }
 
 function Resolve-TargetTriple {
@@ -142,9 +221,43 @@ function Resolve-TargetTriple {
 
     $alias = $targetAliases[$Value.ToLowerInvariant()]
     if ($alias) { return $alias }
-    if ($Value -match '^[a-z0-9_]+-[a-z0-9_]+-[a-z0-9_]+$') { return $Value }
+    # 3 or 4 dash-separated segments: aarch64-apple-ios as well as
+    # x86_64-pc-windows-msvc and aarch64-apple-ios-sim.
+    if ($Value -match '^[a-z0-9_]+(-[a-z0-9_]+){2,3}$') { return $Value }
 
     throw "Unknown target '$Value'. Use an alias ($($targetAliases.Keys -join ', ')) or a full Rust triple."
+}
+
+function Add-PlatformTargets {
+    param(
+        [Parameter(Mandatory)]$Targets,
+        [Parameter(Mandatory)][string]$AliasPrefix,
+        [string[]]$Architectures
+    )
+
+    foreach ($architecture in @($Architectures)) {
+        if (-not $architecture) { continue }
+        $Targets.Add((Resolve-TargetTriple "$AliasPrefix-$architecture"))
+    }
+}
+
+function Add-IosTargets {
+    param(
+        [Parameter(Mandatory)]$Targets,
+        [string[]]$Architectures
+    )
+
+    foreach ($architecture in @($Architectures)) {
+        if (-not $architecture) { continue }
+        $alias = switch ($architecture.ToLowerInvariant()) {
+            "arm64" { "ios-arm64" }
+            "sim-arm64" { "ios-sim-arm64" }
+            "sim-x64" { "ios-sim-x64" }
+            default { throw "Unknown iOS target '$architecture'. Use arm64, sim-arm64 or sim-x64." }
+        }
+
+        $Targets.Add((Resolve-TargetTriple $alias))
+    }
 }
 
 function Invoke-Step {
@@ -173,6 +286,25 @@ function Invoke-Step {
     }
 }
 
+function Invoke-Wsl {
+    # Runs wsl.exe with the given arguments; callers judge $LASTEXITCODE. wsl.exe
+    # prints a stderr notice on every invocation (for example the localhost-proxy
+    # hint under NAT mode), and under Windows PowerShell 5.1 a redirected
+    # native-stderr line becomes a terminating NativeCommandError when
+    # $ErrorActionPreference is "Stop" - which used to kill the WSL steps before
+    # they ran. Keep stderr unredirected (it flows straight to the console) and
+    # relax the preference only for the duration of the call.
+    param([Parameter(Mandatory)][string[]]$WslArgs)
+
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        & wsl.exe @WslArgs
+    } finally {
+        $ErrorActionPreference = $previous
+    }
+}
+
 function Convert-ToWslPath {
     param([Parameter(Mandatory)][string]$Path)
 
@@ -186,7 +318,7 @@ function Get-WslHome {
     # through `wsl --exec` (no shell), so quoting never becomes an issue.
     param([Parameter(Mandatory)][string]$Distro)
 
-    $home_ = [string](wsl.exe -d $Distro --exec sh -c "cd; pwd")
+    $home_ = [string](Invoke-Wsl @("-d", $Distro, "--exec", "sh", "-c", "cd; pwd"))
     if (-not $home_ -or -not $home_.StartsWith("/")) {
         throw "Could not resolve the home directory inside WSL distro '$Distro'."
     }
@@ -213,6 +345,28 @@ function Save-FileWithResume {
     throw "Failed to download $Url after $Attempts attempts."
 }
 
+$hostTriple = Get-HostTriple
+$hostIsWindows = $hostTriple -like "*windows*"
+$platformSelectionPassed =
+    $PSBoundParameters.ContainsKey("WindowsTargets") -or
+    $PSBoundParameters.ContainsKey("LinuxTargets") -or
+    $PSBoundParameters.ContainsKey("AndroidTargets") -or
+    $PSBoundParameters.ContainsKey("MacOSTargets") -or
+    $PSBoundParameters.ContainsKey("IOSTargets")
+
+if ($Target -and ($BundleTargets -or $platformSelectionPassed)) {
+    throw "Use -Target by itself, or use -BundleTargets / the platform selector parameters, but not both."
+}
+if ($BundleTargets -and $platformSelectionPassed) {
+    throw "Use either -BundleTargets or the platform selector parameters, not both."
+}
+
+$buildInstallers = (-not $StageOnly) -and ($BuildBundles -or [bool]$BundleTargets -or $SkipArchive)
+$portableOnly = $StageOnly -or (-not $buildInstallers)
+if ($StageOnly -and ($BuildBundles -or $BundleTargets -or $SkipArchive)) {
+    Write-Warning "-StageOnly forces binary-only mode; installer-related options are ignored."
+}
+
 $tripleList = @()
 if ($BundleTargets) {
     foreach ($entry in $BundleTargets) {
@@ -220,11 +374,24 @@ if ($BundleTargets) {
             if ($part.Trim()) { $tripleList += Resolve-TargetTriple $part.Trim() }
         }
     }
+} elseif ($platformSelectionPassed) {
+    $selectedTargets = [System.Collections.Generic.List[string]]::new()
+    Add-PlatformTargets -Targets $selectedTargets -AliasPrefix "android" -Architectures $AndroidTargets
+    Add-PlatformTargets -Targets $selectedTargets -AliasPrefix "macos" -Architectures $MacOSTargets
+    Add-IosTargets -Targets $selectedTargets -Architectures $IOSTargets
+    Add-PlatformTargets -Targets $selectedTargets -AliasPrefix "linux" -Architectures $LinuxTargets
+    Add-PlatformTargets -Targets $selectedTargets -AliasPrefix "win" -Architectures $WindowsTargets
+    $tripleList = @($selectedTargets | Select-Object -Unique)
 } else {
-    $tripleList = @(if ($Target) { Resolve-TargetTriple $Target } else { Get-HostTriple })
+    # Default: build the local Windows/Linux x64 binaries only. Linux stages
+    # first so the root keeps both the portable ELF and the Windows exe.
+    $tripleList = if ($Target) { @(Resolve-TargetTriple $Target) }
+        else { @("x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc") }
 }
-$hostTriple = Get-HostTriple
-$hostIsWindows = $hostTriple -like "*windows*"
+
+if ($tripleList.Count -eq 0) {
+    throw "No Playground target was selected. Pass -Target, -BundleTargets or one of the platform selector parameters."
+}
 
 # version.json is the single source of truth shared with both extensions; the
 # Tauri bundle metadata must have been synced from it before packaging.
@@ -242,7 +409,7 @@ Write-Host "Small Basic Playground $version" -ForegroundColor Green
 Write-Host "  configuration : $Configuration"
 Write-Host "  targets       : $($tripleList -join ', ')"
 Write-Host "  staging root  : $stageRoot"
-Write-Host "  package shape : $(if ($StageOnly) { 'run package (-StageOnly)' } elseif ($SkipArchive) { 'installers without archive (-SkipArchive)' } else { 'installers + bundles archive' })"
+Write-Host "  package shape : $(if ($portableOnly) { if ($StageOnly) { 'local binaries only (-StageOnly)' } else { 'local binaries only (default)' } } elseif ($SkipArchive) { 'installers without archive (-SkipArchive)' } else { 'installers + bundles archive' })"
 
 if (-not (Test-Path (Join-Path $pluginRoot "node_modules"))) {
     Invoke-Step -Name "npm install ($pluginRoot)" -WorkingDirectory $pluginRoot -Action { npm install }
@@ -283,7 +450,7 @@ function Build-DesktopTarget {
 
     $tauriArgs = @("tauri", "build")
     if ($IsCrossBuild) { $tauriArgs += @("--target", $TargetTriple) }
-    if ($StageOnly) { $tauriArgs += "--no-bundle" }
+    if ($portableOnly) { $tauriArgs += "--no-bundle" }
     if ($Configuration -eq "Debug") { $tauriArgs += "--debug" }
 
     Invoke-Step -Name "tauri build ($TargetTriple, $Configuration)" -WorkingDirectory $desktopPackage -Action { npx @tauriArgs }.GetNewClosure()
@@ -298,62 +465,111 @@ function Build-LinuxViaWsl {
         throw "Use the native path for Linux builds on a Linux host (this branch is Windows+WSL only)."
     }
 
-    wsl.exe -d $WslDistro -e true 2>$null
+    Invoke-Wsl @("-d", $WslDistro, "-e", "true")
     if ($LASTEXITCODE -ne 0) {
         throw "WSL distribution '$WslDistro' is not available. Install it or pass -WslDistro."
     }
 
     $toolchainCheck = 'test -x ~/.cargo/bin/cargo-tauri && test -x ~/.cargo/bin/cargo'
-    wsl.exe -d $WslDistro -- bash -lc $toolchainCheck
+    Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $toolchainCheck)
     if ($LASTEXITCODE -ne 0) {
         throw "The WSL distro '$WslDistro' lacks the Rust toolchain or cargo-tauri. See the header of this script for setup."
+    }
+
+    # x86_64 builds natively in the distro; other triples (aarch64) cross
+    # compile with the distro's GNU cross toolchain and emit their binary
+    # under target/<triple>/.
+    $isWslHostTriple = $TargetTriple -eq "x86_64-unknown-linux-gnu"
+    if ($isWslHostTriple) {
+        $nativeCheck = "pkg-config --exists webkit2gtk-4.1 libsoup-3.0 && dpkg -s libayatana-appindicator3-dev >/dev/null 2>&1 && dpkg -s librsvg2-dev >/dev/null 2>&1 && dpkg -s libxdo-dev >/dev/null 2>&1"
+        Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $nativeCheck)
+        if ($LASTEXITCODE -ne 0) {
+            throw "The WSL distro '$WslDistro' cannot build linux-x64 yet. Install: sudo apt install libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev."
+        }
+    } else {
+        if ($TargetTriple -like "aarch64*") {
+            $arm64PkgConfigLibDir = "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/share/pkgconfig:/usr/share/pkgconfig"
+            $crossCheck = "rustup target list --installed | grep -q '^$TargetTriple$' && command -v aarch64-linux-gnu-gcc >/dev/null && PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_LIBDIR=$arm64PkgConfigLibDir pkg-config --exists webkit2gtk-4.1 libsoup-3.0"
+            Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $crossCheck)
+            if ($LASTEXITCODE -ne 0) {
+                throw "The WSL distro '$WslDistro' cannot cross-build $TargetTriple. Install: rustup target add $TargetTriple; sudo dpkg --add-architecture arm64; sudo apt update; sudo apt install gcc-aarch64-linux-gnu libwebkit2gtk-4.1-dev:arm64 libsoup-3.0-dev:arm64 libayatana-appindicator3-dev:arm64 librsvg2-dev:arm64 libxdo-dev:arm64."
+            }
+        } else {
+            throw "No WSL cross-build recipe for $TargetTriple; build it on a native $TargetTriple host."
+        }
     }
 
     $srcTauriWsl = Convert-ToWslPath (Join-Path $desktopPackage "src-tauri")
     # The compile cache stays on the ext4 filesystem: building tauri over the
     # 9p /mnt bridge is an order of magnitude slower.
     $wslCommand = "source ~/.cargo/env && export CARGO_TARGET_DIR=~/tauri-target APPIMAGE_EXTRACT_AND_RUN=1 && cd '$srcTauriWsl' && cargo tauri build"
+    if (-not $isWslHostTriple) {
+        $wslCommand += " --target $TargetTriple"
+        # AppImage is skipped for cross builds: its bundler executes the
+        # architecture-matching linuxdeploy tool, which cannot run under the
+        # foreign host (Exec format error). deb/rpm bundle fine.
+        $wslCommand += " --bundles deb,rpm"
+        if ($TargetTriple -like "aarch64*") {
+            # Multiarch pkg-config: point pkg-config at the :arm64 .pc files
+            # (installed via `sudo apt install libwebkit2gtk-4.1-dev:arm64 ...`).
+            $wslCommand = "export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/share/pkgconfig:/usr/share/pkgconfig && " + $wslCommand
+        }
+    }
     if ($Configuration -eq "Debug") { $wslCommand += " --debug" }
 
-    if ($StageOnly) {
-        Write-Host "  (-StageOnly) Linux run package is the staged tree; skipping the WSL compile." -ForegroundColor DarkGray
-        return
-    }
+    # Portable-only mode still compiles: the bare ELF binary is the portable
+    # Linux executable (copied out below); --no-bundle just skips the
+    # installers.
+    if ($portableOnly) {
+        $wslCommand += " --no-bundle"
+    } elseif ($isWslHostTriple) {
+        # AppImage tooling: the bundler caches its copies under ~/.cache/tauri once
+        # a build succeeded there, and GitHub drops connections on this network -
+        # so the pre-fetch below is best effort (local cache first, warn on
+        # failure) and only matters for a first-ever build. Arm64 has no
+        # linuxdeploy AppImage, so it is skipped for cross builds (deb/rpm
+        # bundle without it).
+        $cacheDir = Join-Path $desktopPackage "obj\appimage-cache"
+        New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+        $appImageTools = @(
+            @{ Url = "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64"; Name = "AppRun-x86_64" },
+            @{ Url = "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage"; Name = "linuxdeploy-x86_64.AppImage" }
+        )
+        foreach ($tool in $appImageTools) {
+            $cached = Join-Path $cacheDir $tool.Name
+            if (-not (Test-Path $cached)) {
+                try {
+                    Save-FileWithResume -Url $tool.Url -Destination $cached
+                } catch {
+                    Write-Warning "Could not pre-fetch $($tool.Name); continuing with the WSL bundler cache."
+                }
+            }
+        }
 
-    # AppImage tooling: the bundler caches its copies under ~/.cache/tauri once
-    # a build succeeded there, and GitHub drops connections on this network -
-    # so the pre-fetch below is best effort (local cache first, warn on
-    # failure) and only matters for a first-ever build.
-    $cacheDir = Join-Path $desktopPackage "obj\appimage-cache"
-    New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
-    $appImageTools = @(
-        @{ Url = "https://github.com/tauri-apps/binary-releases/releases/download/apprun-old/AppRun-x86_64"; Name = "AppRun-x86_64" },
-        @{ Url = "https://github.com/tauri-apps/binary-releases/releases/download/linuxdeploy/linuxdeploy-x86_64.AppImage"; Name = "linuxdeploy-x86_64.AppImage" }
-    )
-    foreach ($tool in $appImageTools) {
-        $cached = Join-Path $cacheDir $tool.Name
-        if (-not (Test-Path $cached)) {
-            try {
-                Save-FileWithResume -Url $tool.Url -Destination $cached
-            } catch {
-                Write-Warning "Could not pre-fetch $($tool.Name); continuing with the WSL bundler cache."
+        $wslHome = Get-WslHome -Distro $WslDistro
+        $buildCache = "$wslHome/tauri-target/release/bundle/appimage/build"
+        $tauriCache = "$wslHome/.cache/tauri"
+        Invoke-Wsl @("-d", $WslDistro, "--exec", "mkdir", "-p", $buildCache, $tauriCache)
+        foreach ($tool in $appImageTools) {
+            $cached = Join-Path $cacheDir $tool.Name
+            if (Test-Path $cached) {
+                Invoke-Wsl @("-d", $WslDistro, "--exec", "cp", (Convert-ToWslPath $cached), "$tauriCache/$($tool.Name)")
+                if ($tool.Name -eq "AppRun-x86_64") {
+                    Invoke-Wsl @("-d", $WslDistro, "--exec", "cp", (Convert-ToWslPath $cached), "$buildCache/AppRun")
+                }
             }
         }
     }
 
-    $wslHome = Get-WslHome -Distro $WslDistro
-    $buildCache = "$wslHome/tauri-target/release/bundle/appimage/build"
-    $tauriCache = "$wslHome/.cache/tauri"
-    wsl.exe -d $WslDistro --exec mkdir -p $buildCache $tauriCache
-    foreach ($tool in $appImageTools) {
-        $cached = Join-Path $cacheDir $tool.Name
-        if (Test-Path $cached) {
-            wsl.exe -d $WslDistro --exec cp (Convert-ToWslPath $cached) "$tauriCache/$($tool.Name)"
-            if ($tool.Name -eq "AppRun-x86_64") {
-                wsl.exe -d $WslDistro --exec cp (Convert-ToWslPath $cached) "$buildCache/AppRun"
-            }
-        }
-    }
+    # GetNewClosure captures this function's locals only, so the script-scope
+    # -WslDistro parameter has to be copied into a local first: referencing it
+    # directly inside the closure passes an empty distro name to wsl.exe
+    # (WSL_E_DISTRO_NOT_FOUND).
+    $distro = $WslDistro
+    # The retry action runs inside a GetNewClosure()-backed dynamic module.
+    # Windows PowerShell 5.1 does not resolve script-scope functions there,
+    # so capture Invoke-Wsl explicitly instead of calling it by name.
+    $invokeWsl = (Get-Command Invoke-Wsl -CommandType Function).ScriptBlock
 
     # The linuxdeploy/plugin downloads inside WSL still fail occasionally even
     # when pre-cached under a different name; one retry rides out the flake.
@@ -363,7 +579,7 @@ function Build-LinuxViaWsl {
         $attempt++
         try {
             Invoke-Step -Name "cargo tauri build in WSL ($WslDistro, attempt $attempt)" -Action {
-                wsl.exe -d $WslDistro -- bash -lc $wslCommand
+                & $invokeWsl @("-d", $distro, "--", "bash", "-lc", $wslCommand)
             }.GetNewClosure()
             break
         } catch {
@@ -461,14 +677,40 @@ function Build-AndroidTarget {
         }
     }
 
-    if ($StageOnly) {
-        Write-Host "  (-StageOnly) Android has no portable run package; stopping after staging." -ForegroundColor DarkGray
+    if ($portableOnly) {
+        Write-Host "  (portable-only mode) Android has no local binary package; stopping after staging." -ForegroundColor DarkGray
         return
     }
 
-    Invoke-Step -Name "tauri android build ($TargetTriple, $Configuration)" -WorkingDirectory $desktopPackage -Action {
-        npx tauri android build --target $cliTarget --apk --aab
-    }.GetNewClosure()
+    $androidArgs = @("android", "build", "--target", $cliTarget, "--apk")
+    if (-not $AndroidApkOnly) { $androidArgs += "--aab" }
+
+    Invoke-Step -Name "tauri android build ($TargetTriple, $Configuration)" -WorkingDirectory $desktopPackage -Action { npx tauri @androidArgs }.GetNewClosure()
+}
+
+function Build-iOSTarget {
+    # iOS has no sidecar (tauri.ios.conf.json empties bundle.externalBin);
+    # the shell ships the two Web backends only. macOS host + Xcode required;
+    # the Xcode project under gen\apple is generated on first use.
+    param([Parameter(Mandatory)][string]$TargetTriple)
+
+    if ($portableOnly) {
+        Write-Host "  (portable-only mode) iOS has no local binary package; stopping after staging." -ForegroundColor DarkGray
+        return
+    }
+
+    $appleProject = Join-Path $desktopPackage "src-tauri\gen\apple"
+    if (-not (Test-Path $appleProject)) {
+        Invoke-Step -Name "tauri ios init" -WorkingDirectory $desktopPackage -Action {
+            npx tauri ios init
+        }
+    }
+
+    $iosArgs = @("ios", "build", "--target", $TargetTriple)
+    if ($IosExportMethod) { $iosArgs += @("--export-method", $IosExportMethod) }
+    if ($Configuration -eq "Debug") { $iosArgs += "--debug" }
+
+    Invoke-Step -Name "tauri ios build ($TargetTriple, $Configuration)" -WorkingDirectory $desktopPackage -Action { npx tauri @iosArgs }.GetNewClosure()
 }
 
 # ---------------------------------------------------------------------------
@@ -480,15 +722,34 @@ $finalPortable = $null
 
 foreach ($current in $tripleList) {
     $isAndroid = $current -like "*-android"
+    $isIOS = $current -like "*apple-ios*"     # device (aarch64-apple-ios) + simulator triples
+    $isDarwin = $current -like "*-darwin"
+    $isApple = $isIOS -or $isDarwin
+    $isMobile = $isAndroid -or $isIOS
+    # $IsMacOS is pwsh-only; Windows PowerShell 5.1 leaves it undefined, which
+    # correctly reads as "not a macOS host".
+    $isMacOSHost = [bool]$IsMacOS
     $isLinuxOnWindows = (-not $isAndroid) -and ($current -like "*linux-gnu") -and $hostIsWindows
-    $isCrossDesktop = (-not $isAndroid) -and (-not $isLinuxOnWindows) -and ($current -ne $hostTriple)
+    $isCrossDesktop = (-not $isMobile) -and (-not $isLinuxOnWindows) -and ($current -ne $hostTriple)
 
     Stage-Target -TargetTriple $current
+
+    # Apple bundles need macOS tooling (Xcode, hdiutil); from any other host
+    # the staged tree is the deliverable, handed off to a macOS runner.
+    if ($isApple -and -not $isMacOSHost) {
+        Write-Host ""
+        Write-Host "runhost\playground is staged for $current. Apple bundles need a macOS host" -ForegroundColor Green
+        Write-Host "(Xcode): finish there with this same script (-BundleTargets ...) or run" -ForegroundColor Green
+        Write-Host "'npx tauri build' / 'npx tauri ios build' in the package directory." -ForegroundColor Green
+        continue
+    }
 
     $toolchain = $null
     if ($isAndroid) { $toolchain = Get-AndroidToolchain }
 
-    if ($isAndroid) {
+    if ($isIOS) {
+        Build-iOSTarget -TargetTriple $current
+    } elseif ($isAndroid) {
         Build-AndroidTarget -TargetTriple $current -Toolchain $toolchain
     } elseif ($isLinuxOnWindows) {
         Build-LinuxViaWsl -TargetTriple $current
@@ -499,8 +760,8 @@ foreach ($current in $tripleList) {
     # Tauri writes the bundles under target\<triple>\<profile>\bundle\ for a
     # cross build and target\<profile>\bundle\ otherwise; the cargo profile
     # directory is lower case.
-    $profile = if ($Configuration -eq "Debug") { "debug" } else { "release" }
-    $targetDir = if ($isCrossDesktop) { "src-tauri\target\$current\$profile" } else { "src-tauri\target\$profile" }
+    $buildProfile = if ($Configuration -eq "Debug") { "debug" } else { "release" }
+    $targetDir = if ($isCrossDesktop) { "src-tauri\target\$current\$buildProfile" } else { "src-tauri\target\$buildProfile" }
     $bundleOutput = Join-Path $desktopPackage "$targetDir\bundle"
 
     # Portable executable in the staging root, next to the sidecars (bin\) and
@@ -508,23 +769,75 @@ foreach ($current in $tripleList) {
     # Tauri resource directory is the directory of the executable (tauri-utils
     # platform.rs) and resolve_sidecar probes <resource_dir>\bin, so this copy
     # runs in place - no installer and no environment variable required.
-    if (-not $isAndroid -and -not $isLinuxOnWindows) {
-        $exeSuffix = if ($current -like "*windows*") { ".exe" } else { "" }
-        $appBinary = Join-Path $desktopPackage "$targetDir\smallbasic-playground-desktop$exeSuffix"
-        if (-not (Test-Path $appBinary)) {
-            throw "The desktop application binary was not produced: $appBinary"
-        }
+    # The Linux binary built in WSL is portable too: the resolver probes
+    # <exe>/bin and <exe>/<relative> directly (Linux has no exe-relative
+    # resource fallback), so it runs from WSL exactly like the Windows
+    # portable. macOS has no equivalent portable shape (the .app/.dmg is the
+    # deliverable), and mobile has no sidecar payload to run.
+    if (-not $isMobile -and -not $isDarwin) {
+        if ($isLinuxOnWindows) {
+            $wslHome = Get-WslHome -Distro $WslDistro
+            # Host builds emit target/<profile>/, cross builds target/<triple>/<profile>/.
+            $wslBinary = if ($current -eq "x86_64-unknown-linux-gnu") {
+                "$wslHome/tauri-target/$buildProfile/smallbasic-playground-desktop"
+            } else {
+                "$wslHome/tauri-target/$current/$buildProfile/smallbasic-playground-desktop"
+            }
+            Invoke-Wsl @("-d", $WslDistro, "--exec", "test", "-f", $wslBinary)
+            if ($LASTEXITCODE -ne 0) {
+                throw "The Linux application binary was not produced in WSL: $wslBinary"
+            }
 
-        $portableBinary = Join-Path $stageRoot "SmallBasic.Playground$exeSuffix"
-        Invoke-Step -Name "Copy the portable executable into runhost\playground ($current)" -Action {
-            Copy-Item -LiteralPath $appBinary -Destination $portableBinary -Force
+            $windowsPath = Join-Path $env:TEMP "smallbasic-linux-portable"
+            Invoke-Wsl @("-d", $WslDistro, "--exec", "cp", $wslBinary, (Convert-ToWslPath $windowsPath))
+            if ($LASTEXITCODE -ne 0) {
+                throw "Failed to copy the Linux application binary out of WSL: $wslBinary"
+            }
+
+            $portableBinary = Join-Path $stageRoot "SmallBasic.Playground"
+            Invoke-Step -Name "Copy the portable executable into runhost\playground ($current)" -Action {
+                Move-Item -LiteralPath $windowsPath -Destination $portableBinary -Force
+            }
+            # drvfs mounts without metadata report 0777 anyway; with metadata
+            # enabled the exec bit must be set explicitly.
+            Invoke-Wsl @("-d", $WslDistro, "--exec", "chmod", "+x", (Convert-ToWslPath $portableBinary))
+            # Self-contained portable: place the Linux sidecar next to the ELF
+            # (resolve_sidecar probes <exe>/<name> first). The staging root
+            # holds ONE target's bin\ at a time, so a later win-x64 re-stage
+            # would otherwise leave the Linux binary without its CLI backend.
+            $linuxSidecar = Join-Path $stageRoot "bin\smallbasic-csharp-net8-$current"
+            if (Test-Path $linuxSidecar) {
+                Invoke-Step -Name "Copy the Linux sidecar next to the portable executable ($current)" -Action {
+                    Copy-Item -LiteralPath $linuxSidecar -Destination (Join-Path $stageRoot "smallbasic-csharp-net8-$current") -Force
+                }.GetNewClosure()
+            } else {
+                Write-Warning "No Linux sidecar staged (bin\smallbasic-csharp-net8-$current); the portable binary will offer the Web backends only."
+            }
+        } else {
+            $exeSuffix = if ($current -like "*windows*") { ".exe" } else { "" }
+            $appBinary = Join-Path $desktopPackage "$targetDir\smallbasic-playground-desktop$exeSuffix"
+            if (-not (Test-Path $appBinary)) {
+                throw "The desktop application binary was not produced: $appBinary"
+            }
+
+            $portableBinary = Join-Path $stageRoot "SmallBasic.Playground$exeSuffix"
+            Invoke-Step -Name "Copy the portable executable into runhost\playground ($current)" -Action {
+                Copy-Item -LiteralPath $appBinary -Destination $portableBinary -Force
+            }
         }
         $finalPortable = $portableBinary
     }
 
-    if ($StageOnly) {
+    if ($portableOnly) {
         Write-Host ""
-        Write-Host "Run package ready for $current (-StageOnly); no installers were bundled." -ForegroundColor Green
+        if (-not $isMobile -and -not $isDarwin) {
+            $modeLabel = if ($StageOnly) { "-StageOnly" } else { "default portable-only mode" }
+            Write-Host "Local binary ready for $current ($modeLabel); no installers were bundled." -ForegroundColor Green
+        } elseif ($isDarwin) {
+            Write-Host "Local macOS app build ready for $current; no installers were bundled." -ForegroundColor Green
+        } else {
+            Write-Host "Staging ready for $current; no installers were bundled." -ForegroundColor Green
+        }
         continue
     }
 
@@ -534,9 +847,11 @@ foreach ($current in $tripleList) {
     if ($isAndroid) {
         $outputs = Join-Path $desktopPackage "src-tauri\gen\android\app\build\outputs"
         $androidArtifacts = @(
-            @{ Path = Join-Path $outputs "apk\universal\release\app-universal-release.apk"; Extension = ".apk" },
-            @{ Path = Join-Path $outputs "bundle\universalRelease\app-universal-release.aab"; Extension = ".aab" }
+            @{ Path = Join-Path $outputs "apk\universal\release\app-universal-release.apk"; Extension = ".apk" }
         )
+        if (-not $AndroidApkOnly) {
+            $androidArtifacts += @{ Path = Join-Path $outputs "bundle\universalRelease\app-universal-release.aab"; Extension = ".aab" }
+        }
         foreach ($artifact in $androidArtifacts) {
             if (-not (Test-Path $artifact.Path)) {
                 throw "The Android $($artifact.Extension) artifact was not produced: $($artifact.Path)"
@@ -550,21 +865,34 @@ foreach ($current in $tripleList) {
     } elseif ($isLinuxOnWindows) {
         # Real WSL paths (resolved via Get-WslHome) passed through `wsl --exec`,
         # which hands each argument to exec directly - no shell, no quoting.
+        # Host builds bundle under target/release/, cross builds under
+        # target/<triple>/release/.
         $wslHome = Get-WslHome -Distro $WslDistro
-        $wslBundleDir = "$wslHome/tauri-target/release/bundle"
+        $wslBundleDir = if ($current -eq "x86_64-unknown-linux-gnu") {
+            "$wslHome/tauri-target/release/bundle"
+        } else {
+            "$wslHome/tauri-target/$current/release/bundle"
+        }
+        # deb/rpm encode the architecture in their file names.
+        $debArch = if ($current -like "aarch64*") { "arm64" } else { "amd64" }
+        $rpmArch = if ($current -like "aarch64*") { "aarch64" } else { "x86_64" }
+        # AppImage bundling needs the architecture-matching linuxdeploy tool,
+        # which only exists for x86_64; arm64 keeps deb/rpm only.
         $linuxArtifacts = @(
-            @{ Wsl = "$wslBundleDir/deb/Small Basic Playground_$($version)_amd64.deb"; Extension = ".deb" },
-            @{ Wsl = "$wslBundleDir/rpm/Small Basic Playground-$version-1.x86_64.rpm"; Extension = ".rpm" },
-            @{ Wsl = "$wslBundleDir/appimage/Small Basic Playground_$($version)_amd64.AppImage"; Extension = ".AppImage" }
+            @{ Wsl = "$wslBundleDir/deb/Small Basic Playground_$($version)_$debArch.deb"; Extension = ".deb" },
+            @{ Wsl = "$wslBundleDir/rpm/Small Basic Playground-$version-1.$rpmArch.rpm"; Extension = ".rpm" }
         )
+        if ($current -eq "x86_64-unknown-linux-gnu") {
+            $linuxArtifacts += @{ Wsl = "$wslBundleDir/appimage/Small Basic Playground_$($version)_amd64.AppImage"; Extension = ".AppImage" }
+        }
         foreach ($artifact in $linuxArtifacts) {
-            wsl.exe -d $WslDistro --exec test -f $artifact.Wsl
+            Invoke-Wsl @("-d", $WslDistro, "--exec", "test", "-f", $artifact.Wsl)
             if ($LASTEXITCODE -ne 0) {
                 throw "The Linux $($artifact.Extension) bundle was not produced: $($artifact.Wsl)"
             }
 
             $windowsPath = Join-Path $env:TEMP ("smallbasic-linux-bundle" + $artifact.Extension)
-            wsl.exe -d $WslDistro --exec cp $artifact.Wsl (Convert-ToWslPath $windowsPath)
+            Invoke-Wsl @("-d", $WslDistro, "--exec", "cp", $artifact.Wsl, (Convert-ToWslPath $windowsPath))
             if ($LASTEXITCODE -ne 0) {
                 throw "Failed to copy the Linux $($artifact.Extension) bundle out of WSL: $($artifact.Wsl)"
             }
@@ -573,6 +901,52 @@ foreach ($current in $tripleList) {
                 Source   = $windowsPath
                 FileName = "SmallBasic.Playground-$version-$current$($artifact.Extension)"
             }
+        }
+    } elseif ($isDarwin) {
+        $dmgDir = Join-Path $bundleOutput "dmg"
+        if (-not (Test-Path $dmgDir)) {
+            throw "The macOS dmg bundle directory was not produced: $dmgDir"
+        }
+
+        $dmgs = @(
+            Get-ChildItem -LiteralPath $dmgDir -File -Filter "*.dmg" |
+                Where-Object { $_.Name -like "*$version*" }
+        )
+        if ($dmgs.Count -ne 1) {
+            throw "Expected exactly one '.dmg' installer for version $version in '$dmgDir', found $($dmgs.Count). Remove the stale files from that folder and build again."
+        }
+
+        $installers += @{
+            Source   = $dmgs[0].FullName
+            FileName = "SmallBasic.Playground-$version-$current.dmg"
+        }
+    } elseif ($isIOS) {
+        # Simulator triples (aarch64-apple-ios-sim, x86_64-apple-ios) build an
+        # .app for the simulator but export no .ipa; only the device triple
+        # archives.
+        if ($current -ne "aarch64-apple-ios") {
+            Write-Host "  ($current) simulator builds export no .ipa; skipping the archive." -ForegroundColor DarkGray
+            continue
+        }
+
+        $ipaDir = Join-Path $desktopPackage "src-tauri\gen\apple\build"
+        $ipas = @()
+        if (Test-Path $ipaDir) {
+            $ipas = @(
+                Get-ChildItem -LiteralPath $ipaDir -Recurse -File -Filter "*.ipa" |
+                    Sort-Object LastWriteTime -Descending
+            )
+        }
+        if ($ipas.Count -eq 0) {
+            throw "No .ipa was produced under '$ipaDir'. Exporting an .ipa requires iOS signing (Xcode: select a development team; see -IosExportMethod)."
+        }
+        if ($ipas.Count -gt 1) {
+            Write-Warning "Multiple .ipa files under '$ipaDir'; archiving the newest ($($ipas[0].Name))."
+        }
+
+        $installers += @{
+            Source   = $ipas[0].FullName
+            FileName = "SmallBasic.Playground-$version-$current.ipa"
         }
     } else {
         foreach ($entry in @(
@@ -585,16 +959,16 @@ foreach ($current in $tripleList) {
             # Only this version's installer: an earlier build leaves its own file
             # in the same folder, and archiving that one would ship a stale
             # package under the new name.
-            $matches = @(
+            $installerMatches = @(
                 Get-ChildItem -LiteralPath $directory -File -Filter "*$($entry.Extension)" |
                     Where-Object { $_.Name -like "*_$version*" }
             )
-            if ($matches.Count -ne 1) {
-                throw "Expected exactly one '$($entry.Extension)' installer for version $version in '$directory', found $($matches.Count). Remove the stale files from that folder and build again."
+            if ($installerMatches.Count -ne 1) {
+                throw "Expected exactly one '$($entry.Extension)' installer for version $version in '$directory', found $($installerMatches.Count). Remove the stale files from that folder and build again."
             }
 
             $installers += @{
-                Source   = $matches[0].FullName
+                Source   = $installerMatches[0].FullName
                 FileName = "SmallBasic.Playground-$version-$current$($entry.Suffix)$($entry.Extension)"
             }
         }
@@ -615,6 +989,20 @@ foreach ($current in $tripleList) {
 
     Invoke-Step -Name "Archive installers into runhost\playground\bundles ($current)" -Action {
         New-Item -ItemType Directory -Force -Path $bundleRoot | Out-Null
+
+        # bundles\ accumulates every target of a release (see -BundleTargets), so
+        # the cleanup matches on the version segment only: packages of older
+        # versions are removed, while same-version packages of other targets and
+        # any unrelated files are kept.
+        $stalePackages = @(
+            Get-ChildItem -LiteralPath $bundleRoot -File |
+                Where-Object { $_.Name -like "SmallBasic.Playground-*" -and $_.Name -notlike "SmallBasic.Playground-$version-*" }
+        )
+        foreach ($stalePackage in $stalePackages) {
+            Write-Host "Removing stale package: $($stalePackage.Name)"
+            Remove-Item -LiteralPath $stalePackage.FullName -Force
+        }
+
         foreach ($installer in $installers) {
             Copy-Item -LiteralPath $installer.Source -Destination (Join-Path $bundleRoot $installer.FileName) -Force
         }
@@ -633,4 +1021,10 @@ if ($archivedAny) {
 }
 if ($finalPortable) {
     Write-Host "  portable exe : $finalPortable (last target: $($tripleList[-1]))"
+    if ($hostIsWindows -and $tripleList[-1] -like "*linux-gnu*") {
+        Write-Host "    run it via WSL:"
+        Write-Host "      wsl -d $WslDistro --exec $(Convert-ToWslPath $finalPortable)"
+        Write-Host "    (this centers the window on screen every run:"
+        Write-Host "      runhost\playground\Start-Playground-Linux.ps1 - WSLg compositor, not the app, places Wayland toplevels)"
+    }
 }
