@@ -1,9 +1,8 @@
 import { LibraryTypeInstance, LibraryMethodInstance, LibraryPropertyInstance, LibraryEventInstance } from "../libraries";
-import { ExecutionEngine, ExecutionMode } from "../../execution-engine";
+import { ExecutionEngine } from "../../execution-engine";
 import { BaseValue } from "../values/base-value";
 import { NumberValue } from "../values/number-value";
-import { Diagnostic, ErrorCode } from "../../utils/diagnostics";
-import { CompilerRange } from "../../syntax/ranges";
+import { RuntimeErrorCode } from "../runtime-error";
 
 export class StackLibrary implements LibraryTypeInstance {
     private _stacks: { [name: string]: BaseValue[] } = {};
@@ -26,13 +25,13 @@ export class StackLibrary implements LibraryTypeInstance {
         engine.pushEvaluationStack(new NumberValue(count));
     }
 
-    private executePopValue(engine: ExecutionEngine, _: ExecutionMode, range: CompilerRange): void {
+    private executePopValue(engine: ExecutionEngine): void {
         const stackName = engine.popEvaluationStack().toValueString();
 
         if (this._stacks[stackName] && this._stacks[stackName].length) {
             engine.pushEvaluationStack(this._stacks[stackName].pop()!);
         } else {
-            engine.terminate(new Diagnostic(ErrorCode.PoppingAnEmptyStack, range));
+            engine.reportRuntimeError(RuntimeErrorCode.EmptyStack);
         }
     }
 

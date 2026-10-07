@@ -46,10 +46,10 @@ TextWindow.WriteLine(Array.GetAllIndices(x))    ' Nothing
 TextWindow.WriteLine(Array.GetAllIndices(ar))`,
             [],
             [
-                "[]",
-                "[]",
-                "[]",
-                `[1="10", 2="first"]`
+                "",
+                "",
+                "",
+                `1=first;2=10;`
             ]);
     });
 

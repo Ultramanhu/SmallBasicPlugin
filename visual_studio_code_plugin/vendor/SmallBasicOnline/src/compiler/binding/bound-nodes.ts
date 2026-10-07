@@ -1,4 +1,4 @@
-import { BaseSyntaxNode } from "../syntax/syntax-nodes";
+import { BaseSyntaxNode, OnErrorAction } from "../syntax/syntax-nodes";
 import { RuntimeLibraries } from "../runtime/libraries";
 
 export enum BoundKind {
@@ -11,6 +11,7 @@ export enum BoundKind {
     LoopControlStatement,
     LabelStatement,
     GoToStatement,
+    OnErrorStatement,
     ReturnStatement,
     SubModuleInvocationStatement,
     LibraryMethodInvocationStatement,
@@ -171,6 +172,24 @@ export class BoundGoToStatement extends BaseBoundStatement {
         public readonly labelName: string,
         syntax: BaseSyntaxNode) {
         super(BoundKind.GoToStatement, syntax);
+    }
+
+    public children(): ReadonlyArray<BaseBoundNode> {
+        return [];
+    }
+}
+
+/**
+ * An `On Error ...` statement. Engine-level error-handling policy: every
+ * subsequent runtime error is aborted, skipped (resume next) or routed to
+ * the named two-parameter handler Sub, until the policy is changed again.
+ */
+export class BoundOnErrorStatement extends BaseBoundStatement {
+    public constructor(
+        public readonly action: OnErrorAction,
+        public readonly handlerName: string | undefined,
+        syntax: BaseSyntaxNode) {
+        super(BoundKind.OnErrorStatement, syntax);
     }
 
     public children(): ReadonlyArray<BaseBoundNode> {
@@ -683,6 +702,7 @@ export class BoundNodeRewriter {
             case BoundKind.LoopControlStatement: return node;
             case BoundKind.LabelStatement: return this.rewriteLabelStatement(node as BoundLabelStatement);
             case BoundKind.GoToStatement: return this.rewriteGoToStatement(node as BoundGoToStatement);
+            case BoundKind.OnErrorStatement: return this.rewriteOnErrorStatement(node as BoundOnErrorStatement);
             case BoundKind.ReturnStatement: return this.rewriteReturnStatement(node as BoundReturnStatement);
             case BoundKind.SubModuleInvocationStatement: return this.rewriteSubModuleInvocationStatement(node as BoundSubModuleInvocationStatement);
             case BoundKind.LibraryMethodInvocationStatement: return this.rewriteLibraryMethodInvocationStatement(node as BoundLibraryMethodInvocationStatement);
@@ -764,6 +784,10 @@ export class BoundNodeRewriter {
     }
 
     public rewriteGoToStatement(node: BoundGoToStatement): BaseBoundNode {
+        return node;
+    }
+
+    public rewriteOnErrorStatement(node: BoundOnErrorStatement): BaseBoundNode {
         return node;
     }
 

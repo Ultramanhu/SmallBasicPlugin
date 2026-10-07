@@ -81,3 +81,36 @@ describe("semantic token coloring for the Mod operator keyword", () => {
     expect(tokenTypeAt(service, source, 1, 14)).toBe("function");
   });
 });
+
+describe("semantic token coloring for GoSub and On Error", () => {
+  const service = new SmallBasicLanguageService();
+  const source = [
+    "On Error Resume Next",
+    "On Error GoTo 0",
+    "On Error GoSub Handler",
+    "GoSub Helper",
+    "Sub Handler(Code, Message)",
+    "EndSub",
+    "Sub Helper",
+    "EndSub"
+  ].join("\n");
+
+  it("colors GoSub as a keyword and its target as a function", () => {
+    expect(tokenTypeAt(service, source, 3, 0)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 3, 6)).toBe("function");
+  });
+
+  it("colors On Error clause words as contextual keywords", () => {
+    expect(tokenTypeAt(service, source, 0, 0)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 0, 3)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 0, 9)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 0, 16)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 1, 9)).toBe("keyword");
+  });
+
+  it("colors the On Error GoSub handler as a function", () => {
+    expect(tokenTypeAt(service, source, 2, 0)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 2, 9)).toBe("keyword");
+    expect(tokenTypeAt(service, source, 2, 15)).toBe("function");
+  });
+});

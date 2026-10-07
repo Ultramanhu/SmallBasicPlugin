@@ -1,9 +1,9 @@
 import { RuntimeLibraries } from "../runtime/libraries";
 import { ExpressionBinder } from "./expression-binder";
 import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { BaseBoundStatement, BoundArrayAccessExpression, BaseBoundExpression, BoundKind, BoundEqualExpression, BoundLibraryEventExpression, BoundLibraryMethodInvocationExpression, BoundLibraryPropertyExpression, BoundSubModuleExpression, BoundSubModuleInvocationExpression, BoundVariableExpression, BoundForStatement, BoundIfStatement, BoundWhileStatement, BoundLabelStatement, BoundGoToStatement, BoundReturnStatement, BoundInvalidExpressionStatement, BoundVariableAssignmentStatement, BoundArrayAssignmentStatement, BoundPropertyAssignmentStatement, BoundEventAssignmentStatement, BoundLibraryMethodInvocationStatement, BoundSubModuleInvocationStatement, BoundIfHeaderStatement, BoundStatementBlock, BoundLoopControlStatement } from "./bound-nodes";
-import { GoToCommandSyntax, BaseSyntaxNode, SyntaxKind, ForStatementSyntax, IfStatementSyntax, WhileStatementSyntax, BreakCommandSyntax, ContinueCommandSyntax, LabelCommandSyntax, ExpressionCommandSyntax, ReturnCommandSyntax, DimCommandSyntax, BaseStatementSyntax, StatementBlockSyntax } from "../syntax/syntax-nodes";
-import type { ProcedureSymbol } from "./modules-binder";
+import { BaseBoundStatement, BoundArrayAccessExpression, BaseBoundExpression, BoundKind, BoundEqualExpression, BoundLibraryEventExpression, BoundLibraryMethodInvocationExpression, BoundLibraryPropertyExpression, BoundSubModuleExpression, BoundSubModuleInvocationExpression, BoundVariableExpression, BoundForStatement, BoundIfStatement, BoundWhileStatement, BoundLabelStatement, BoundGoToStatement, BoundOnErrorStatement, BoundReturnStatement, BoundInvalidExpressionStatement, BoundVariableAssignmentStatement, BoundArrayAssignmentStatement, BoundPropertyAssignmentStatement, BoundEventAssignmentStatement, BoundLibraryMethodInvocationStatement, BoundSubModuleInvocationStatement, BoundIfHeaderStatement, BoundStatementBlock, BoundLoopControlStatement } from "./bound-nodes";
+import { GoToCommandSyntax, GoSubCommandSyntax, OnErrorCommandSyntax, BaseSyntaxNode, SyntaxKind, ForStatementSyntax, IfStatementSyntax, WhileStatementSyntax, BreakCommandSyntax, ContinueCommandSyntax, LabelCommandSyntax, ExpressionCommandSyntax, ReturnCommandSyntax, DimCommandSyntax, BaseStatementSyntax, StatementBlockSyntax } from "../syntax/syntax-nodes";
+import { ProcedureKind, type ProcedureSymbol } from "./modules-binder";
 
 export class StatementBinder {
     private _definedLabels: { [name: string]: boolean } = {};
@@ -95,6 +95,8 @@ export class StatementBinder {
             case SyntaxKind.ContinueCommand: return this.bindLoopControlStatement("continue", syntax as ContinueCommandSyntax);
             case SyntaxKind.LabelCommand: return this.bindLabelStatement(syntax as LabelCommandSyntax);
             case SyntaxKind.GoToCommand: return this.bindGoToStatement(syntax as GoToCommandSyntax);
+            case SyntaxKind.GoSubCommand: return this.bindGoSubStatement(syntax as GoSubCommandSyntax);
+            case SyntaxKind.OnErrorCommand: return this.bindOnErrorStatement(syntax as OnErrorCommandSyntax);
             case SyntaxKind.ReturnCommand: return this.bindReturnStatement(syntax as unknown as ReturnCommandSyntax);
             case SyntaxKind.ExpressionCommand: return this.bindExpressionStatement(syntax as ExpressionCommandSyntax);
             default: throw new Error(`Unexpected statement of kind ${SyntaxKind[syntax.kind]} here`);
@@ -181,6 +183,38 @@ export class StatementBinder {
         this._goToStatements.push(syntax);
 
         return new BoundGoToStatement(syntax.labelToken.token.text, syntax);
+    }
+
+    // `GoSub Handler` is a keyword-form call of a parameterless Sub. The binder
+    // validates the target and the emitter lowers the bound statement to the
+    // regular sub-invocation instruction, so the runtime and the debugger see
+    // an ordinary call frame.
+    private bindGoSubStatement(syntax: GoSubCommandSyntax): BaseBoundStatement {
+        const name = syntax.nameToken.token.text;
+        const procedure = this._definedProcedures[name.toLowerCase()];
+
+        if (!procedure) {
+            this._diagnostics.push(new Diagnostic(ErrorCode.GoSubTargetMustBeSub, syntax.nameToken.range, name));
+        } else if (procedure.kind !== ProcedureKind.Sub || procedure.parameters.length > 0) {
+            this._diagnostics.push(new Diagnostic(ErrorCode.GoSubTargetMustBeParameterlessSub, syntax.nameToken.range, name));
+        }
+
+        return new BoundSubModuleInvocationStatement(name, [], syntax);
+    }
+
+    private bindOnErrorStatement(syntax: OnErrorCommandSyntax): BoundOnErrorStatement {
+        if (syntax.action === "gosub" && syntax.targetToken) {
+            const name = syntax.targetToken.token.text;
+            const procedure = this._definedProcedures[name.toLowerCase()];
+
+            if (!procedure || procedure.kind !== ProcedureKind.Sub) {
+                this._diagnostics.push(new Diagnostic(ErrorCode.OnErrorHandlerMustBeSub, syntax.targetToken.range, name));
+            } else if (procedure.parameters.length !== 2) {
+                this._diagnostics.push(new Diagnostic(ErrorCode.OnErrorHandlerMustAcceptCodeAndMessage, syntax.targetToken.range, name));
+            }
+        }
+
+        return new BoundOnErrorStatement(syntax.action, syntax.targetToken?.token.text, syntax);
     }
 
     private bindReturnStatement(syntax: ReturnCommandSyntax): BoundReturnStatement {

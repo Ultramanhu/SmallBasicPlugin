@@ -2,23 +2,73 @@
   "default": "samples/hello/hello.sb",
   "items": [
     {
-      "name": "sample/base/accumulate.sb",
-      "path": "samples/base/accumulate.sb",
+      "name": "sample/hello/accumulate.sb",
+      "path": "samples/hello/accumulate.sb",
       "graphics": false
     },
     {
-      "name": "sample/base/arithmetic.sb",
-      "path": "samples/base/arithmetic.sb",
+      "name": "sample/hello/arithmetic.sb",
+      "path": "samples/hello/arithmetic.sb",
       "graphics": false
-    },
-    {
-      "name": "sample/base/keyboard_probe.sb",
-      "path": "samples/base/keyboard_probe.sb",
-      "graphics": true
     },
     {
       "name": "sample/hello/hello.sb",
       "path": "samples/hello/hello.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/hello/keyboard_probe.sb",
+      "path": "samples/hello/keyboard_probe.sb",
+      "graphics": true
+    },
+    {
+      "name": "sample/test/language-extension.sb",
+      "path": "samples/test/language-extension.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_arithmetic.sb",
+      "path": "samples/test/test_arithmetic.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_arrays.sb",
+      "path": "samples/test/test_arrays.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_comparison.sb",
+      "path": "samples/test/test_comparison.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_language_extension.sb",
+      "path": "samples/test/test_language_extension.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_loops.sb",
+      "path": "samples/test/test_loops.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_math.sb",
+      "path": "samples/test/test_math.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_procedures.sb",
+      "path": "samples/test/test_procedures.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_runtime.sb",
+      "path": "samples/test/test_runtime.sb",
+      "graphics": false
+    },
+    {
+      "name": "sample/test/test_text.sb",
+      "path": "samples/test/test_text.sb",
       "graphics": false
     },
     {

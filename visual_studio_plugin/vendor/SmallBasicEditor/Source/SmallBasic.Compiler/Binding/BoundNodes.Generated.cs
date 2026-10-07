@@ -11,6 +11,7 @@ namespace SmallBasic.Compiler.Binding
     using System.Diagnostics;
     using System.Linq;
     using SmallBasic.Compiler.Parsing;
+    using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Scanning;
     using SmallBasic.Utilities;
 
@@ -55,6 +56,12 @@ namespace SmallBasic.Compiler.Binding
                     break;
                 case BoundGoToStatement goToStatement:
                     this.VisitGoToStatement(goToStatement);
+                    break;
+                case BoundGoSubStatement goSubStatement:
+                    this.VisitGoSubStatement(goSubStatement);
+                    break;
+                case BoundOnErrorStatement onErrorStatement:
+                    this.VisitOnErrorStatement(onErrorStatement);
                     break;
                 case BoundReturnStatement returnStatement:
                     this.VisitReturnStatement(returnStatement);
@@ -186,6 +193,15 @@ namespace SmallBasic.Compiler.Binding
         }
 
         private protected virtual void VisitGoToStatement(BoundGoToStatement node)
+        {
+            this.DefaultVisit(node);
+        }
+        private protected virtual void VisitGoSubStatement(BoundGoSubStatement node)
+        {
+            this.DefaultVisit(node);
+        }
+
+        private protected virtual void VisitOnErrorStatement(BoundOnErrorStatement node)
         {
             this.DefaultVisit(node);
         }
@@ -702,6 +718,56 @@ namespace SmallBasic.Compiler.Binding
             get
             {
                 yield return this.Expression;
+            }
+        }
+    }
+
+    internal sealed class BoundGoSubStatement : BaseBoundStatement
+    {
+        public BoundGoSubStatement(GoSubStatementSyntax syntax, string name)
+        {
+            Debug.Assert(!syntax.IsDefault(), "'syntax' must not be null.");
+            Debug.Assert(!name.IsDefault(), "'name' must not be null.");
+
+            this.Syntax = syntax;
+            this.Name = name;
+        }
+
+        public GoSubStatementSyntax Syntax { get; private set; }
+
+        public string Name { get; private set; }
+
+        public override IEnumerable<BaseBoundNode> Children
+        {
+            get
+            {
+                return Enumerable.Empty<BaseBoundNode>();
+            }
+        }
+    }
+
+    internal sealed class BoundOnErrorStatement : BaseBoundStatement
+    {
+        public BoundOnErrorStatement(OnErrorStatementSyntax syntax, OnErrorAction action, string handlerNameOpt)
+        {
+            Debug.Assert(!syntax.IsDefault(), "'syntax' must not be null.");
+
+            this.Syntax = syntax;
+            this.Action = action;
+            this.HandlerNameOpt = handlerNameOpt;
+        }
+
+        public OnErrorStatementSyntax Syntax { get; private set; }
+
+        public OnErrorAction Action { get; private set; }
+
+        public string HandlerNameOpt { get; private set; }
+
+        public override IEnumerable<BaseBoundNode> Children
+        {
+            get
+            {
+                return Enumerable.Empty<BaseBoundNode>();
             }
         }
     }

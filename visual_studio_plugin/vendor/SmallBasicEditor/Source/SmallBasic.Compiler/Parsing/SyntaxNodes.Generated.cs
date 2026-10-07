@@ -12,6 +12,7 @@ namespace SmallBasic.Compiler.Parsing
     using System.Diagnostics;
     using System.Linq;
     using SmallBasic.Compiler.Scanning;
+    using SmallBasic.Compiler.Runtime;
     using SmallBasic.Utilities;
 
     public abstract class BaseSyntaxNodeVisitor
@@ -70,6 +71,12 @@ namespace SmallBasic.Compiler.Parsing
                     break;
                 case GoToStatementSyntax goToStatement:
                     this.VisitGoToStatement(goToStatement);
+                    break;
+                case GoSubStatementSyntax goSubStatement:
+                    this.VisitGoSubStatement(goSubStatement);
+                    break;
+                case OnErrorStatementSyntax onErrorStatement:
+                    this.VisitOnErrorStatement(onErrorStatement);
                     break;
                 case UnrecognizedStatementSyntax unrecognizedStatement:
                     this.VisitUnrecognizedStatement(unrecognizedStatement);
@@ -199,6 +206,16 @@ namespace SmallBasic.Compiler.Parsing
         }
 
         private protected virtual void VisitGoToStatement(GoToStatementSyntax node)
+        {
+            this.DefaultVisit(node);
+        }
+
+        private protected virtual void VisitGoSubStatement(GoSubStatementSyntax node)
+        {
+            this.DefaultVisit(node);
+        }
+
+        private protected virtual void VisitOnErrorStatement(OnErrorStatementSyntax node)
         {
             this.DefaultVisit(node);
         }
@@ -1247,6 +1264,114 @@ namespace SmallBasic.Compiler.Parsing
                 TextPosition calculateEnd()
                 {
                     return this.LabelToken.Range.End;
+                }
+            }
+        }
+    }
+
+    internal sealed class GoSubStatementSyntax : BaseStatementSyntax
+    {
+        public GoSubStatementSyntax(Token goSubToken, Token nameToken)
+        {
+            Debug.Assert(!goSubToken.IsDefault(), "'goSubToken' must not be null.");
+            Debug.Assert(goSubToken.Kind == TokenKind.GoSub, "'goSubToken' must have a TokenKind of 'GoSub'.");
+            Debug.Assert(!nameToken.IsDefault(), "'nameToken' must not be null.");
+            Debug.Assert(nameToken.Kind == TokenKind.Identifier, "'nameToken' must have a TokenKind of 'Identifier'.");
+
+            this.GoSubToken = goSubToken;
+            this.NameToken = nameToken;
+        }
+
+        public Token GoSubToken { get; private set; }
+
+        public Token NameToken { get; private set; }
+
+        public override IEnumerable<BaseSyntaxNode> Children
+        {
+            get
+            {
+                return Enumerable.Empty<BaseSyntaxNode>();
+            }
+        }
+
+        public override TextRange Range
+        {
+            get
+            {
+                return (calculateStart(), calculateEnd());
+
+                TextPosition calculateStart()
+                {
+                    return this.GoSubToken.Range.Start;
+                }
+
+                TextPosition calculateEnd()
+                {
+                    return this.NameToken.Range.End;
+                }
+            }
+        }
+    }
+
+    internal sealed class OnErrorStatementSyntax : BaseStatementSyntax
+    {
+        public OnErrorStatementSyntax(Token onToken, Token errorToken, OnErrorAction action, IReadOnlyList<Token> clauseTokens, Token targetToken = default)
+        {
+            Debug.Assert(!onToken.IsDefault(), "'onToken' must not be null.");
+            Debug.Assert(onToken.Kind == TokenKind.Identifier, "'onToken' must have a TokenKind of 'Identifier'.");
+            Debug.Assert(!errorToken.IsDefault(), "'errorToken' must not be null.");
+            Debug.Assert(errorToken.Kind == TokenKind.Identifier, "'errorToken' must have a TokenKind of 'Identifier'.");
+            Debug.Assert(!clauseTokens.IsDefault(), "'clauseTokens' must not be null.");
+
+            this.OnToken = onToken;
+            this.ErrorToken = errorToken;
+            this.Action = action;
+            this.ClauseTokens = clauseTokens;
+            this.TargetToken = targetToken;
+        }
+
+        public Token OnToken { get; private set; }
+
+        public Token ErrorToken { get; private set; }
+
+        public OnErrorAction Action { get; private set; }
+
+        public IReadOnlyList<Token> ClauseTokens { get; private set; }
+
+        public Token TargetToken { get; private set; }
+
+        public override IEnumerable<BaseSyntaxNode> Children
+        {
+            get
+            {
+                return Enumerable.Empty<BaseSyntaxNode>();
+            }
+        }
+
+        public override TextRange Range
+        {
+            get
+            {
+                return (calculateStart(), calculateEnd());
+
+                TextPosition calculateStart()
+                {
+                    return this.OnToken.Range.Start;
+                }
+
+                TextPosition calculateEnd()
+                {
+                    if (!this.TargetToken.IsDefault())
+                    {
+                        return this.TargetToken.Range.End;
+                    }
+
+                    if (this.ClauseTokens.Count > 0)
+                    {
+                        return this.ClauseTokens[this.ClauseTokens.Count - 1].Range.End;
+                    }
+
+                    return this.ErrorToken.Range.End;
                 }
             }
         }

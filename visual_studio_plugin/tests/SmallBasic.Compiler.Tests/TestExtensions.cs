@@ -44,6 +44,29 @@ namespace SmallBasic.Tests
             return VerifyRuntimeAux(compilation, new RuntimeLibrariesCollection(TextReader.Null, TextWriter.Null), memoryContents);
         }
 
+        /// <summary>
+        /// Runs the program to completion and asserts it terminated with the
+        /// given unified runtime error (`[Runtime Error] code: message`), as
+        /// reported by the engine's LastError slot.
+        /// </summary>
+        public static async Task<SmallBasicEngine> VerifyUnhandledRuntimeError(this SmallBasicCompilation compilation, int code, string message)
+        {
+            compilation.VerifyDiagnostics();
+
+            SmallBasicEngine engine = new SmallBasicEngine(compilation, new RuntimeLibrariesCollection(TextReader.Null, TextWriter.Null));
+            while (engine.State != ExecutionState.Terminated)
+            {
+                await engine.Execute().ConfigureAwait(false);
+            }
+
+            engine.State.Should().Be(ExecutionState.Terminated);
+            engine.LastError.Should().NotBeNull();
+            engine.LastError.Code.Should().Be(code);
+            engine.LastError.Message.Should().Be(message);
+
+            return engine;
+        }
+
         public static async Task<SmallBasicEngine> VerifyLoggingRuntime(this SmallBasicCompilation compilation, string expectedLog = default, string memoryContents = default)
         {
             StringBuilder log = new StringBuilder();

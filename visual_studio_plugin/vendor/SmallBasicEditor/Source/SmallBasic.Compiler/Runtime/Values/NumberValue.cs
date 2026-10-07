@@ -15,7 +15,20 @@ namespace SmallBasic.Compiler.Runtime
 
         public decimal Value { get; private set; }
 
-        public override string ToDisplayString() => this.Value.ToString(CultureInfo.CurrentCulture);
+        // decimal remembers the scale of a computation (2.5m + 2.5m == 5.0m) while
+        // the JavaScript backend prints the shortest form, so a trailing fraction of
+        // zeros is dropped: 5.0 displays as "5" and 2.50 as "2.5". The invariant
+        // culture keeps the decimal point "." on every machine.
+        public override string ToDisplayString()
+        {
+            string text = this.Value.ToString(CultureInfo.InvariantCulture);
+            if (text.IndexOf('.') >= 0)
+            {
+                text = text.TrimEnd('0').TrimEnd('.');
+            }
+
+            return text;
+        }
 
         internal override bool ToBoolean() => false;
 

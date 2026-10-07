@@ -1,0 +1,186 @@
+' test_arrays.sb - Small Basic associative arrays and the Array library.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+'
+' Only the parts of the legacy Array library that behave identically on the
+' JavaScript and C# implementations are asserted here; Array.GetValue /
+' SetValue / RemoveValue / GetAllIndices address an internal name registry and
+' are not portable, so the index syntax is exercised instead.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- indexing --------------------------------------------------------------
+Row["name"] = "Ada"
+Row[1] = "first"
+Check("text index", Row["name"], "Ada")
+Check("numeric index", Row[1], "first")
+Check("numeric index spelled as text", Row["1"], "first")
+Check("item count after two writes", Array.GetItemCount(Row), 2)
+
+Row["NAME"] = "Grace"
+Check("index lookup ignores case", Row["name"], "Grace")
+Check("case insensitive write reuses the entry", Array.GetItemCount(Row), 2)
+
+Grid["1,2"] = "cell"
+Check("composite text index", Grid["1,2"], "cell")
+Grid["a"]["b"] = "deep"
+Check("nested index", Grid["a"]["b"], "deep")
+Check("nested array item count", Array.GetItemCount(Grid["a"]), 1)
+
+Key = "dynamic"
+Dynamic[Key] = 5
+Check("index from a variable", Dynamic["dynamic"], 5)
+Dynamic["item" + 1] = "first"
+Check("computed index", Dynamic["item1"], "first")
+
+Counted["a"] = 1
+Counted["b"] = 2
+Counted["c"] = 3
+Check("three entries", Array.GetItemCount(Counted), 3)
+Counted["b"] = 20
+Check("overwrite keeps the count", Array.GetItemCount(Counted), 3)
+Check("overwrite replaces the value", Counted["b"], 20)
+
+' ---- Array.IsArray / GetItemCount -----------------------------------------
+Check("IsArray on an array", Array.IsArray(Row), "True")
+Check("IsArray on a number", Array.IsArray(42), "False")
+Check("IsArray on text", Array.IsArray("plain"), "False")
+Check("IsArray on an unset variable", Array.IsArray(NeverSet), "False")
+Check("item count of a scalar", Array.GetItemCount(42), 0)
+Check("item count of empty text", Array.GetItemCount(""), 0)
+
+' ---- Array.ContainsIndex / ContainsValue ----------------------------------
+Check("contains index", Array.ContainsIndex(Row, "name"), "True")
+Check("contains index ignores case", Array.ContainsIndex(Row, "NaMe"), "True")
+Check("missing index", Array.ContainsIndex(Row, "nope"), "False")
+Check("contains value", Array.ContainsValue(Row, "Grace"), "True")
+Check("contains value is case sensitive", Array.ContainsValue(Row, "grace"), "False")
+Check("missing value", Array.ContainsValue(Row, "MISSING"), "False")
+Check("contains value on a scalar", Array.ContainsValue(42, 42), "False")
+Check("contains numeric text as a number", Array.ContainsValue(Counted, 3), "True")
+Check("fresh array has no keys", Array.ContainsIndex(Counted, "zzz"), "False")
+Check("array text uses index=value pairs", Counted, "a=1;b=20;c=3;")
+Separators["k;1"] = "a=b"
+Check("array text escapes separators in values", Separators, "k;1=a\=b;")
+
+' ---- arrays are reference values -----------------------------------------
+Original["k"] = "v"
+Alias = Original
+Alias["k2"] = "v2"
+Check("alias writes reach the original", Original["k2"], "v2")
+Check("alias sees both entries", Array.GetItemCount(Original), 2)
+
+' ---- arrays travel through procedures -------------------------------------
+Function BuildArray()
+  Dim Built
+  Built["x"] = 1
+  Built["y"] = "two"
+  Return Built
+EndFunction
+Made = BuildArray()
+Check("function returns an array", Array.GetItemCount(Made), 2)
+Check("returned array keeps its values", Made["y"], "two")
+
+Sub Fill(Target)
+  Target["filled"] = "yes"
+  Target["count"] = Array.GetItemCount(Target)
+EndSub
+Bag["seed"] = 1
+Fill(Bag)
+Check("sub mutates the caller array", Bag["filled"], "yes")
+Check("sub observes the caller array", Bag["count"], 2)
+
+Function SumArray(Items)
+  Dim Total, Index
+  Total = 0
+  For Index = 1 To Array.GetItemCount(Items)
+    Total = Total + Items[Index]
+  EndFor
+  Return Total
+EndFunction
+Numbers[1] = 10
+Numbers[2] = 20
+Numbers[3] = 30
+Check("sum of an array of numbers", SumArray(Numbers), 60)
+
+Function Names(Items)
+  Dim Joined, Index
+  Joined = ""
+  For Index = 1 To Array.GetItemCount(Items)
+    Joined = Text.Append(Joined, Items[Index])
+  EndFor
+  Return Joined
+EndFunction
+Words[1] = "a"
+Words[2] = "b"
+Words[3] = "c"
+Check("join an array in a function", Names(Words), "abc")
+
+' ---- locals declared with Dim ---------------------------------------------
+Function CountLocal()
+  Dim Bucket
+  Bucket["one"] = 1
+  Bucket["two"] = 2
+  Return Array.GetItemCount(Bucket)
+EndFunction
+Check("Dim array local stays in the call frame", CountLocal(), 2)
+Check("Dim array local does not leak", Array.GetItemCount(Bucket), 0)
+
+' ---- reading an index that was never written -------------------------------
+Sparse["seed"] = 0
+Check("unset index is not an entry", Array.ContainsIndex(Sparse, "never"), "False")
+Check("unset index reads empty", "[" + Sparse["never"] + "]", "[]")
+Check("reading does not create the entry", Array.GetItemCount(Sparse), 1)
+Check("reading the same index twice is still empty", "[" + Sparse["never"] + "]", "[]")
+
+' ---- index text is normalized like any other text --------------------------
+Indexed["1"] = "one"
+Check("index from numeric text", Indexed["1"], "one")
+Check("index from a number", Indexed[1], "one")
+Check("padded index text", Indexed[" 1 "], "one")
+Check("index written as a decimal", Indexed[1.0], "one")
+Check("index text with leading zeros", Indexed["01"], "one")
+
+' ---- storing empty text removes the element --------------------------------
+Removable["a"] = 1
+Removable["b"] = 2
+Check("two entries before removal", Array.GetItemCount(Removable), 2)
+Removable["a"] = ""
+Check("storing empty text removes the element", Array.GetItemCount(Removable), 1)
+Check("removed element reads empty", "[" + Removable["a"] + "]", "[]")
+
+' ---- the legacy name based Array methods ----------------------------------
+' Array.GetValue / SetValue / RemoveValue address an array by name in a library
+' internal store; Array.GetAllIndices / GetItemCount / Contains* work on the
+' array value that is passed in.
+Array.SetValue("Named", "second", 2)
+Check("SetValue writes into the named array", Array.GetValue("Named", "second"), 2)
+Check("the named store is separate from the variable", "[" + Named["second"] + "]", "[]")
+Check("GetValue of a missing index", "[" + Array.GetValue("Named", "zzz") + "]", "[]")
+Array.RemoveValue("Named", "first")
+Check("RemoveValue of a missing index changes nothing", Array.GetValue("Named", "second"), 2)
+Indices = Array.GetAllIndices(Removable)
+Check("GetAllIndices keeps insertion order", Indices[1], "b")
+Check("GetAllIndices count", Array.GetItemCount(Indices), 1)
+
+Report("arrays")

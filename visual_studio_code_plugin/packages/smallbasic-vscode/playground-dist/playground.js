@@ -241943,6 +241943,7 @@ var smallbasic_tmLanguage_default = {
     { include: "#strings" },
     { include: "#numbers" },
     { include: "#procedure-declarations" },
+    { include: "#on-error" },
     { include: "#keywords" },
     { include: "#library-types" }
   ],
@@ -241977,7 +241978,25 @@ var smallbasic_tmLanguage_default = {
       patterns: [
         {
           name: "keyword.control.smallbasic",
-          match: "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Break|Continue|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|And|Or|Mod)\\b"
+          match: "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Break|Continue|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|GoSub|And|Or|Mod)\\b"
+        }
+      ]
+    },
+    "on-error": {
+      patterns: [
+        {
+          comment: "The `On Error ...` statement: On/Error/Resume/Next are contextual keywords, so they are only highlighted inside this clause.",
+          match: "(?i)^\\s*(On)(\\s+)(Error)(\\s+)(?:(GoTo)(\\s+)(-?\\d+)|(GoSub)(\\s+)([A-Za-z_][A-Za-z0-9_]*)|(Resume)(\\s+)(Next))?",
+          captures: {
+            "1": { name: "keyword.control.smallbasic" },
+            "3": { name: "keyword.control.smallbasic" },
+            "5": { name: "keyword.control.smallbasic" },
+            "7": { name: "constant.numeric.smallbasic" },
+            "8": { name: "keyword.control.smallbasic" },
+            "10": { name: "entity.name.function.smallbasic" },
+            "11": { name: "keyword.control.smallbasic" },
+            "13": { name: "keyword.control.smallbasic" }
+          }
         }
       ]
     },
@@ -242177,1148 +242196,8 @@ var ValueKind = /* @__PURE__ */ ((ValueKind2) => {
 var BaseValue = class {
 };
 
-// ../../vendor/SmallBasicOnline/src/compiler/syntax/ranges.ts
-var CompilerPosition = class {
-  constructor(line, column) {
-    this.line = line;
-    this.column = column;
-  }
-  equals(position) {
-    return this.line === position.line && this.column === position.column;
-  }
-  before(position) {
-    if (this.line > position.line) return false;
-    if (this.line < position.line) return true;
-    return this.column < position.column;
-  }
-  after(position) {
-    if (this.line < position.line) return false;
-    if (this.line > position.line) return true;
-    return this.column > position.column;
-  }
-};
-var CompilerRange = class _CompilerRange {
-  constructor(start, end) {
-    this.start = start;
-    this.end = end;
-  }
-  static fromValues(startLine, startColumn, endLine, endColumn) {
-    return new _CompilerRange(
-      new CompilerPosition(startLine, startColumn),
-      new CompilerPosition(endLine, endColumn)
-    );
-  }
-  static fromPositions(start, end) {
-    return new _CompilerRange(start, end);
-  }
-  static combine(start, end) {
-    return new _CompilerRange(start.start, end.end);
-  }
-  // Spans ranges regardless of their document order: the result covers the
-  // earliest start through the latest end. Unlike `combine`, this is safe for
-  // child collections that may appear in any order (e.g. main statements
-  // located after sub modules).
-  static spanning(ranges) {
-    if (ranges.length === 0) {
-      return _CompilerRange.fromValues(0, 0, 0, 0);
-    }
-    let start = ranges[0].start;
-    let end = ranges[0].end;
-    for (let i2 = 1; i2 < ranges.length; i2++) {
-      if (ranges[i2].start.before(start)) {
-        start = ranges[i2].start;
-      }
-      if (end.before(ranges[i2].end)) {
-        end = ranges[i2].end;
-      }
-    }
-    return new _CompilerRange(start, end);
-  }
-  containsPosition(position) {
-    return (this.start.before(position) || this.start.equals(position)) && (position.before(this.end) || position.equals(this.end));
-  }
-  containsRange(range2) {
-    return this.containsPosition(range2.start) && this.containsPosition(range2.end);
-  }
-};
-
-// ../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes.ts
-function parameterListEndRange(nameToken, parameterTokens, rightParenToken) {
-  if (rightParenToken) {
-    return rightParenToken.range;
-  }
-  if (parameterTokens.length) {
-    return parameterTokens[parameterTokens.length - 1].range;
-  }
-  return nameToken.range;
-}
-var SyntaxKind2 = /* @__PURE__ */ ((SyntaxKind4) => {
-  SyntaxKind4[SyntaxKind4["ParseTree"] = 0] = "ParseTree";
-  SyntaxKind4[SyntaxKind4["SubModuleDeclaration"] = 1] = "SubModuleDeclaration";
-  SyntaxKind4[SyntaxKind4["FunctionDeclaration"] = 2] = "FunctionDeclaration";
-  SyntaxKind4[SyntaxKind4["StatementBlock"] = 3] = "StatementBlock";
-  SyntaxKind4[SyntaxKind4["IfHeader"] = 4] = "IfHeader";
-  SyntaxKind4[SyntaxKind4["IfStatement"] = 5] = "IfStatement";
-  SyntaxKind4[SyntaxKind4["WhileStatement"] = 6] = "WhileStatement";
-  SyntaxKind4[SyntaxKind4["ForStatement"] = 7] = "ForStatement";
-  SyntaxKind4[SyntaxKind4["IfCommand"] = 8] = "IfCommand";
-  SyntaxKind4[SyntaxKind4["ElseCommand"] = 9] = "ElseCommand";
-  SyntaxKind4[SyntaxKind4["ElseIfCommand"] = 10] = "ElseIfCommand";
-  SyntaxKind4[SyntaxKind4["EndIfCommand"] = 11] = "EndIfCommand";
-  SyntaxKind4[SyntaxKind4["ForStepClause"] = 12] = "ForStepClause";
-  SyntaxKind4[SyntaxKind4["ForCommand"] = 13] = "ForCommand";
-  SyntaxKind4[SyntaxKind4["EndForCommand"] = 14] = "EndForCommand";
-  SyntaxKind4[SyntaxKind4["WhileCommand"] = 15] = "WhileCommand";
-  SyntaxKind4[SyntaxKind4["EndWhileCommand"] = 16] = "EndWhileCommand";
-  SyntaxKind4[SyntaxKind4["BreakCommand"] = 17] = "BreakCommand";
-  SyntaxKind4[SyntaxKind4["ContinueCommand"] = 18] = "ContinueCommand";
-  SyntaxKind4[SyntaxKind4["LabelCommand"] = 19] = "LabelCommand";
-  SyntaxKind4[SyntaxKind4["GoToCommand"] = 20] = "GoToCommand";
-  SyntaxKind4[SyntaxKind4["SubCommand"] = 21] = "SubCommand";
-  SyntaxKind4[SyntaxKind4["EndSubCommand"] = 22] = "EndSubCommand";
-  SyntaxKind4[SyntaxKind4["FunctionCommand"] = 23] = "FunctionCommand";
-  SyntaxKind4[SyntaxKind4["EndFunctionCommand"] = 24] = "EndFunctionCommand";
-  SyntaxKind4[SyntaxKind4["DimCommand"] = 25] = "DimCommand";
-  SyntaxKind4[SyntaxKind4["ReturnCommand"] = 26] = "ReturnCommand";
-  SyntaxKind4[SyntaxKind4["ExpressionCommand"] = 27] = "ExpressionCommand";
-  SyntaxKind4[SyntaxKind4["CommentCommand"] = 28] = "CommentCommand";
-  SyntaxKind4[SyntaxKind4["UnaryOperatorExpression"] = 29] = "UnaryOperatorExpression";
-  SyntaxKind4[SyntaxKind4["BinaryOperatorExpression"] = 30] = "BinaryOperatorExpression";
-  SyntaxKind4[SyntaxKind4["ObjectAccessExpression"] = 31] = "ObjectAccessExpression";
-  SyntaxKind4[SyntaxKind4["ArrayAccessExpression"] = 32] = "ArrayAccessExpression";
-  SyntaxKind4[SyntaxKind4["Argument"] = 33] = "Argument";
-  SyntaxKind4[SyntaxKind4["InvocationExpression"] = 34] = "InvocationExpression";
-  SyntaxKind4[SyntaxKind4["ParenthesisExpression"] = 35] = "ParenthesisExpression";
-  SyntaxKind4[SyntaxKind4["IdentifierExpression"] = 36] = "IdentifierExpression";
-  SyntaxKind4[SyntaxKind4["NumberLiteralExpression"] = 37] = "NumberLiteralExpression";
-  SyntaxKind4[SyntaxKind4["StringLiteralExpression"] = 38] = "StringLiteralExpression";
-  SyntaxKind4[SyntaxKind4["Token"] = 39] = "Token";
-  return SyntaxKind4;
-})(SyntaxKind2 || {});
-var BaseSyntaxNode = class {
-  constructor(kind, range2) {
-    this.kind = kind;
-    this.range = range2;
-  }
-  _parentOpt;
-  get parentOpt() {
-    return this._parentOpt;
-  }
-  set parentOpt(parentOpt) {
-    this._parentOpt = parentOpt;
-  }
-};
-var BaseCommandSyntax = class extends BaseSyntaxNode {
-  constructor(kind, range2) {
-    super(kind, range2);
-    this.kind = kind;
-    this.range = range2;
-  }
-};
-var IfCommandSyntax = class extends BaseCommandSyntax {
-  constructor(ifToken, expression, thenToken) {
-    super(8 /* IfCommand */, CompilerRange.combine(ifToken.range, thenToken.range));
-    this.ifToken = ifToken;
-    this.expression = expression;
-    this.thenToken = thenToken;
-  }
-  children() {
-    return [this.ifToken, this.expression, this.thenToken];
-  }
-};
-var ElseCommandSyntax = class extends BaseCommandSyntax {
-  constructor(elseToken) {
-    super(9 /* ElseCommand */, elseToken.range);
-    this.elseToken = elseToken;
-  }
-  children() {
-    return [this.elseToken];
-  }
-};
-var ElseIfCommandSyntax = class extends BaseCommandSyntax {
-  constructor(elseIfToken, expression, thenToken) {
-    super(10 /* ElseIfCommand */, CompilerRange.combine(elseIfToken.range, thenToken.range));
-    this.elseIfToken = elseIfToken;
-    this.expression = expression;
-    this.thenToken = thenToken;
-  }
-  children() {
-    return [this.elseIfToken, this.expression, this.thenToken];
-  }
-};
-var EndIfCommandSyntax = class extends BaseCommandSyntax {
-  constructor(endIfToken) {
-    super(11 /* EndIfCommand */, endIfToken.range);
-    this.endIfToken = endIfToken;
-  }
-  children() {
-    return [this.endIfToken];
-  }
-};
-var ForStepClauseSyntax = class extends BaseCommandSyntax {
-  constructor(stepToken, expression) {
-    super(12 /* ForStepClause */, CompilerRange.combine(stepToken.range, expression.range));
-    this.stepToken = stepToken;
-    this.expression = expression;
-  }
-  children() {
-    return [this.stepToken, this.expression];
-  }
-};
-var ForCommandSyntax = class extends BaseCommandSyntax {
-  constructor(forToken, identifierToken, equalToken, fromExpression, toToken, toExpression, stepClauseOpt) {
-    super(13 /* ForCommand */, CompilerRange.combine(
-      forToken.range,
-      stepClauseOpt ? stepClauseOpt.expression.range : toExpression.range
-    ));
-    this.forToken = forToken;
-    this.identifierToken = identifierToken;
-    this.equalToken = equalToken;
-    this.fromExpression = fromExpression;
-    this.toToken = toToken;
-    this.toExpression = toExpression;
-    this.stepClauseOpt = stepClauseOpt;
-  }
-  children() {
-    const children = [this.forToken, this.identifierToken, this.equalToken, this.fromExpression, this.toToken, this.toExpression];
-    if (this.stepClauseOpt) {
-      children.push(this.stepClauseOpt);
-    }
-    return children;
-  }
-};
-var EndForCommandSyntax = class extends BaseCommandSyntax {
-  constructor(endForToken) {
-    super(14 /* EndForCommand */, endForToken.range);
-    this.endForToken = endForToken;
-  }
-  children() {
-    return [this.endForToken];
-  }
-};
-var WhileCommandSyntax = class extends BaseCommandSyntax {
-  constructor(whileToken, expression) {
-    super(15 /* WhileCommand */, CompilerRange.combine(whileToken.range, expression.range));
-    this.whileToken = whileToken;
-    this.expression = expression;
-  }
-  children() {
-    return [this.whileToken, this.expression];
-  }
-};
-var EndWhileCommandSyntax = class extends BaseCommandSyntax {
-  constructor(endWhileToken) {
-    super(16 /* EndWhileCommand */, endWhileToken.range);
-    this.endWhileToken = endWhileToken;
-  }
-  children() {
-    return [this.endWhileToken];
-  }
-};
-var BreakCommandSyntax = class extends BaseCommandSyntax {
-  constructor(breakToken) {
-    super(17 /* BreakCommand */, breakToken.range);
-    this.breakToken = breakToken;
-  }
-  children() {
-    return [this.breakToken];
-  }
-};
-var ContinueCommandSyntax = class extends BaseCommandSyntax {
-  constructor(continueToken) {
-    super(18 /* ContinueCommand */, continueToken.range);
-    this.continueToken = continueToken;
-  }
-  children() {
-    return [this.continueToken];
-  }
-};
-var LabelCommandSyntax = class extends BaseCommandSyntax {
-  constructor(labelToken, colonToken) {
-    super(19 /* LabelCommand */, CompilerRange.combine(labelToken.range, colonToken.range));
-    this.labelToken = labelToken;
-    this.colonToken = colonToken;
-  }
-  children() {
-    return [this.labelToken, this.colonToken];
-  }
-};
-var GoToCommandSyntax = class extends BaseCommandSyntax {
-  constructor(goToToken, labelToken) {
-    super(20 /* GoToCommand */, CompilerRange.combine(goToToken.range, labelToken.range));
-    this.goToToken = goToToken;
-    this.labelToken = labelToken;
-  }
-  children() {
-    return [this.goToToken, this.labelToken];
-  }
-};
-var SubCommandSyntax = class extends BaseCommandSyntax {
-  constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-    super(21 /* SubCommand */, CompilerRange.combine(
-      subToken.range,
-      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
-    ));
-    this.subToken = subToken;
-    this.nameToken = nameToken;
-    this.leftParenToken = leftParenToken;
-    this.parameterTokens = parameterTokens;
-    this.commaTokens = commaTokens;
-    this.rightParenToken = rightParenToken;
-  }
-  children() {
-    const children = [this.subToken, this.nameToken];
-    if (this.leftParenToken) {
-      children.push(this.leftParenToken);
-    }
-    this.parameterTokens.forEach((parameter, index) => {
-      children.push(parameter);
-      if (index < this.commaTokens.length) {
-        children.push(this.commaTokens[index]);
-      }
-    });
-    if (this.rightParenToken) {
-      children.push(this.rightParenToken);
-    }
-    return children;
-  }
-};
-var EndSubCommandSyntax = class extends BaseCommandSyntax {
-  constructor(endSubToken) {
-    super(22 /* EndSubCommand */, endSubToken.range);
-    this.endSubToken = endSubToken;
-  }
-  children() {
-    return [this.endSubToken];
-  }
-};
-var FunctionCommandSyntax = class extends BaseCommandSyntax {
-  constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
-    super(23 /* FunctionCommand */, CompilerRange.combine(
-      functionToken.range,
-      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
-    ));
-    this.functionToken = functionToken;
-    this.nameToken = nameToken;
-    this.leftParenToken = leftParenToken;
-    this.parameterTokens = parameterTokens;
-    this.commaTokens = commaTokens;
-    this.rightParenToken = rightParenToken;
-  }
-  children() {
-    const children = [this.functionToken, this.nameToken];
-    if (this.leftParenToken) {
-      children.push(this.leftParenToken);
-    }
-    this.parameterTokens.forEach((parameter, index) => {
-      children.push(parameter);
-      if (index < this.commaTokens.length) {
-        children.push(this.commaTokens[index]);
-      }
-    });
-    if (this.rightParenToken) {
-      children.push(this.rightParenToken);
-    }
-    return children;
-  }
-};
-var EndFunctionCommandSyntax = class extends BaseCommandSyntax {
-  constructor(endFunctionToken) {
-    super(24 /* EndFunctionCommand */, endFunctionToken.range);
-    this.endFunctionToken = endFunctionToken;
-  }
-  children() {
-    return [this.endFunctionToken];
-  }
-};
-var DimCommandSyntax = class extends BaseCommandSyntax {
-  constructor(dimToken, variableTokens, commaTokens) {
-    super(25 /* DimCommand */, variableTokens.length ? CompilerRange.combine(dimToken.range, variableTokens[variableTokens.length - 1].range) : dimToken.range);
-    this.dimToken = dimToken;
-    this.variableTokens = variableTokens;
-    this.commaTokens = commaTokens;
-  }
-  children() {
-    const children = [this.dimToken];
-    this.variableTokens.forEach((variable, index) => {
-      children.push(variable);
-      if (index < this.commaTokens.length) {
-        children.push(this.commaTokens[index]);
-      }
-    });
-    return children;
-  }
-};
-var ReturnCommandSyntax = class extends BaseCommandSyntax {
-  constructor(returnToken, expression) {
-    super(26 /* ReturnCommand */, CompilerRange.combine(returnToken.range, expression.range));
-    this.returnToken = returnToken;
-    this.expression = expression;
-  }
-  children() {
-    return [this.returnToken, this.expression];
-  }
-};
-var ExpressionCommandSyntax = class extends BaseCommandSyntax {
-  constructor(expression) {
-    super(27 /* ExpressionCommand */, expression.range);
-    this.expression = expression;
-  }
-  children() {
-    return [this.expression];
-  }
-};
-var CommentCommandSyntax = class extends BaseCommandSyntax {
-  constructor(commentToken) {
-    super(28 /* CommentCommand */, commentToken.range);
-    this.commentToken = commentToken;
-  }
-  children() {
-    return [this.commentToken];
-  }
-};
-var BaseExpressionSyntax = class extends BaseSyntaxNode {
-  constructor(kind, range2) {
-    super(kind, range2);
-    this.kind = kind;
-    this.range = range2;
-  }
-};
-var UnaryOperatorExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(operatorToken, expression) {
-    super(29 /* UnaryOperatorExpression */, CompilerRange.combine(operatorToken.range, expression.range));
-    this.operatorToken = operatorToken;
-    this.expression = expression;
-  }
-  children() {
-    return [this.operatorToken, this.expression];
-  }
-};
-var BinaryOperatorExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(leftExpression, operatorToken, rightExpression) {
-    super(30 /* BinaryOperatorExpression */, CompilerRange.combine(leftExpression.range, rightExpression.range));
-    this.leftExpression = leftExpression;
-    this.operatorToken = operatorToken;
-    this.rightExpression = rightExpression;
-  }
-  children() {
-    return [this.leftExpression, this.operatorToken, this.rightExpression];
-  }
-};
-var ObjectAccessExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(baseExpression, dotToken, identifierToken) {
-    super(31 /* ObjectAccessExpression */, CompilerRange.combine(baseExpression.range, identifierToken.range));
-    this.baseExpression = baseExpression;
-    this.dotToken = dotToken;
-    this.identifierToken = identifierToken;
-  }
-  children() {
-    return [this.baseExpression, this.dotToken, this.identifierToken];
-  }
-};
-var ArrayAccessExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(baseExpression, leftBracketToken, indexExpression, rightBracketToken) {
-    super(32 /* ArrayAccessExpression */, CompilerRange.combine(baseExpression.range, rightBracketToken.range));
-    this.baseExpression = baseExpression;
-    this.leftBracketToken = leftBracketToken;
-    this.indexExpression = indexExpression;
-    this.rightBracketToken = rightBracketToken;
-  }
-  children() {
-    return [this.baseExpression, this.leftBracketToken, this.indexExpression, this.rightBracketToken];
-  }
-};
-var ArgumentSyntax = class extends BaseSyntaxNode {
-  constructor(expression, commaOpt) {
-    super(33 /* Argument */, commaOpt ? CompilerRange.combine(expression.range, commaOpt.range) : expression.range);
-    this.expression = expression;
-    this.commaOpt = commaOpt;
-  }
-  children() {
-    return this.commaOpt ? [this.expression, this.commaOpt] : [this.expression];
-  }
-};
-var InvocationExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(baseExpression, leftParenToken, argumentsList, rightParenToken) {
-    super(34 /* InvocationExpression */, CompilerRange.combine(baseExpression.range, rightParenToken.range));
-    this.baseExpression = baseExpression;
-    this.leftParenToken = leftParenToken;
-    this.argumentsList = argumentsList;
-    this.rightParenToken = rightParenToken;
-  }
-  children() {
-    return [this.baseExpression, this.leftParenToken, ...this.argumentsList, this.rightParenToken];
-  }
-};
-var ParenthesisExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(leftParenToken, expression, rightParenToken) {
-    super(35 /* ParenthesisExpression */, CompilerRange.combine(leftParenToken.range, rightParenToken.range));
-    this.leftParenToken = leftParenToken;
-    this.expression = expression;
-    this.rightParenToken = rightParenToken;
-  }
-  children() {
-    return [this.leftParenToken, this.expression, this.rightParenToken];
-  }
-};
-var IdentifierExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(identifierToken) {
-    super(36 /* IdentifierExpression */, identifierToken.range);
-    this.identifierToken = identifierToken;
-  }
-  children() {
-    return [this.identifierToken];
-  }
-};
-var StringLiteralExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(stringToken) {
-    super(38 /* StringLiteralExpression */, stringToken.range);
-    this.stringToken = stringToken;
-  }
-  children() {
-    return [this.stringToken];
-  }
-};
-var NumberLiteralExpressionSyntax = class extends BaseExpressionSyntax {
-  constructor(numberToken) {
-    super(37 /* NumberLiteralExpression */, numberToken.range);
-    this.numberToken = numberToken;
-  }
-  children() {
-    return [this.numberToken];
-  }
-};
-var TokenSyntax = class extends BaseSyntaxNode {
-  constructor(token) {
-    super(39 /* Token */, token.range);
-    this.token = token;
-  }
-  children() {
-    return [];
-  }
-};
-var SyntaxNodeVisitor = class {
-  visit(node) {
-    switch (node.kind) {
-      case 0 /* ParseTree */:
-        this.visitParseTree(node);
-        break;
-      case 1 /* SubModuleDeclaration */:
-        this.visitSubModuleDeclaration(node);
-        break;
-      case 2 /* FunctionDeclaration */:
-        this.visitFunctionDeclaration(node);
-        break;
-      case 3 /* StatementBlock */:
-        this.visitStatementBlock(node);
-        break;
-      case 4 /* IfHeader */:
-        this.visitIfHeader(node);
-        break;
-      case 5 /* IfStatement */:
-        this.visitIfStatement(node);
-        break;
-      case 6 /* WhileStatement */:
-        this.visitWhileStatement(node);
-        break;
-      case 7 /* ForStatement */:
-        this.visitForStatement(node);
-        break;
-      case 8 /* IfCommand */:
-        this.visitIfCommand(node);
-        break;
-      case 9 /* ElseCommand */:
-        this.visitElseCommand(node);
-        break;
-      case 10 /* ElseIfCommand */:
-        this.visitElseIfCommand(node);
-        break;
-      case 11 /* EndIfCommand */:
-        this.visitEndIfCommand(node);
-        break;
-      case 12 /* ForStepClause */:
-        this.visitForStepClause(node);
-        break;
-      case 13 /* ForCommand */:
-        this.visitForCommand(node);
-        break;
-      case 14 /* EndForCommand */:
-        this.visitEndForCommand(node);
-        break;
-      case 15 /* WhileCommand */:
-        this.visitWhileCommand(node);
-        break;
-      case 16 /* EndWhileCommand */:
-        this.visitEndWhileCommand(node);
-        break;
-      case 17 /* BreakCommand */:
-        this.visitBreakCommand(node);
-        break;
-      case 18 /* ContinueCommand */:
-        this.visitContinueCommand(node);
-        break;
-      case 19 /* LabelCommand */:
-        this.visitLabelCommand(node);
-        break;
-      case 20 /* GoToCommand */:
-        this.visitGoToCommand(node);
-        break;
-      case 21 /* SubCommand */:
-        this.visitSubCommand(node);
-        break;
-      case 22 /* EndSubCommand */:
-        this.visitEndSubCommand(node);
-        break;
-      case 23 /* FunctionCommand */:
-        this.visitFunctionCommand(node);
-        break;
-      case 24 /* EndFunctionCommand */:
-        this.visitEndFunctionCommand(node);
-        break;
-      case 25 /* DimCommand */:
-        this.visitDimCommand(node);
-        break;
-      case 26 /* ReturnCommand */:
-        this.visitReturnCommand(node);
-        break;
-      case 27 /* ExpressionCommand */:
-        this.visitExpressionCommand(node);
-        break;
-      case 28 /* CommentCommand */:
-        this.visitCommentCommand(node);
-        break;
-      case 29 /* UnaryOperatorExpression */:
-        this.visitUnaryOperatorExpression(node);
-        break;
-      case 30 /* BinaryOperatorExpression */:
-        this.visitBinaryOperatorExpression(node);
-        break;
-      case 31 /* ObjectAccessExpression */:
-        this.visitObjectAccessExpression(node);
-        break;
-      case 32 /* ArrayAccessExpression */:
-        this.visitArrayAccessExpression(node);
-        break;
-      case 33 /* Argument */:
-        this.visitArgument(node);
-        break;
-      case 34 /* InvocationExpression */:
-        this.visitInvocationExpression(node);
-        break;
-      case 35 /* ParenthesisExpression */:
-        this.visitParenthesisExpression(node);
-        break;
-      case 36 /* IdentifierExpression */:
-        this.visitIdentifierExpression(node);
-        break;
-      case 37 /* NumberLiteralExpression */:
-        this.visitNumberLiteralExpression(node);
-        break;
-      case 38 /* StringLiteralExpression */:
-        this.visitStringLiteralExpression(node);
-        break;
-      case 39 /* Token */:
-        this.visitToken(node);
-        break;
-      default:
-        throw new Error(`Unexpected syntax kind: '${SyntaxKind2[node.kind]}'`);
-    }
-  }
-  visitParseTree(node) {
-    this.defaultVisit(node);
-  }
-  visitSubModuleDeclaration(node) {
-    this.defaultVisit(node);
-  }
-  visitFunctionDeclaration(node) {
-    this.defaultVisit(node);
-  }
-  visitStatementBlock(node) {
-    this.defaultVisit(node);
-  }
-  visitIfHeader(node) {
-    this.defaultVisit(node);
-  }
-  visitIfStatement(node) {
-    this.defaultVisit(node);
-  }
-  visitWhileStatement(node) {
-    this.defaultVisit(node);
-  }
-  visitForStatement(node) {
-    this.defaultVisit(node);
-  }
-  visitIfCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitElseCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitElseIfCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitEndIfCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitForStepClause(node) {
-    this.defaultVisit(node);
-  }
-  visitForCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitEndForCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitWhileCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitEndWhileCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitBreakCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitContinueCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitLabelCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitGoToCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitSubCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitEndSubCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitFunctionCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitEndFunctionCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitDimCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitReturnCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitExpressionCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitCommentCommand(node) {
-    this.defaultVisit(node);
-  }
-  visitUnaryOperatorExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitBinaryOperatorExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitObjectAccessExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitArrayAccessExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitArgument(node) {
-    this.defaultVisit(node);
-  }
-  visitInvocationExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitParenthesisExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitIdentifierExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitNumberLiteralExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitStringLiteralExpression(node) {
-    this.defaultVisit(node);
-  }
-  visitToken(node) {
-    this.defaultVisit(node);
-  }
-  defaultVisit(node) {
-    node.children().forEach((child) => this.visit(child));
-  }
-};
-
-// ../../vendor/SmallBasicOnline/src/compiler/syntax/tokens.ts
-var TokenKind = /* @__PURE__ */ ((TokenKind2) => {
-  TokenKind2[TokenKind2["UnrecognizedToken"] = 0] = "UnrecognizedToken";
-  TokenKind2[TokenKind2["IfKeyword"] = 1] = "IfKeyword";
-  TokenKind2[TokenKind2["ThenKeyword"] = 2] = "ThenKeyword";
-  TokenKind2[TokenKind2["ElseKeyword"] = 3] = "ElseKeyword";
-  TokenKind2[TokenKind2["ElseIfKeyword"] = 4] = "ElseIfKeyword";
-  TokenKind2[TokenKind2["EndIfKeyword"] = 5] = "EndIfKeyword";
-  TokenKind2[TokenKind2["ForKeyword"] = 6] = "ForKeyword";
-  TokenKind2[TokenKind2["ToKeyword"] = 7] = "ToKeyword";
-  TokenKind2[TokenKind2["StepKeyword"] = 8] = "StepKeyword";
-  TokenKind2[TokenKind2["EndForKeyword"] = 9] = "EndForKeyword";
-  TokenKind2[TokenKind2["GoToKeyword"] = 10] = "GoToKeyword";
-  TokenKind2[TokenKind2["WhileKeyword"] = 11] = "WhileKeyword";
-  TokenKind2[TokenKind2["EndWhileKeyword"] = 12] = "EndWhileKeyword";
-  TokenKind2[TokenKind2["BreakKeyword"] = 13] = "BreakKeyword";
-  TokenKind2[TokenKind2["ContinueKeyword"] = 14] = "ContinueKeyword";
-  TokenKind2[TokenKind2["SubKeyword"] = 15] = "SubKeyword";
-  TokenKind2[TokenKind2["EndSubKeyword"] = 16] = "EndSubKeyword";
-  TokenKind2[TokenKind2["FunctionKeyword"] = 17] = "FunctionKeyword";
-  TokenKind2[TokenKind2["EndFunctionKeyword"] = 18] = "EndFunctionKeyword";
-  TokenKind2[TokenKind2["DimKeyword"] = 19] = "DimKeyword";
-  TokenKind2[TokenKind2["ReturnKeyword"] = 20] = "ReturnKeyword";
-  TokenKind2[TokenKind2["Dot"] = 21] = "Dot";
-  TokenKind2[TokenKind2["RightParen"] = 22] = "RightParen";
-  TokenKind2[TokenKind2["LeftParen"] = 23] = "LeftParen";
-  TokenKind2[TokenKind2["RightSquareBracket"] = 24] = "RightSquareBracket";
-  TokenKind2[TokenKind2["LeftSquareBracket"] = 25] = "LeftSquareBracket";
-  TokenKind2[TokenKind2["Comma"] = 26] = "Comma";
-  TokenKind2[TokenKind2["Equal"] = 27] = "Equal";
-  TokenKind2[TokenKind2["NotEqual"] = 28] = "NotEqual";
-  TokenKind2[TokenKind2["Plus"] = 29] = "Plus";
-  TokenKind2[TokenKind2["Minus"] = 30] = "Minus";
-  TokenKind2[TokenKind2["Multiply"] = 31] = "Multiply";
-  TokenKind2[TokenKind2["Divide"] = 32] = "Divide";
-  TokenKind2[TokenKind2["Backslash"] = 33] = "Backslash";
-  TokenKind2[TokenKind2["Colon"] = 34] = "Colon";
-  TokenKind2[TokenKind2["LessThan"] = 35] = "LessThan";
-  TokenKind2[TokenKind2["GreaterThan"] = 36] = "GreaterThan";
-  TokenKind2[TokenKind2["LessThanOrEqual"] = 37] = "LessThanOrEqual";
-  TokenKind2[TokenKind2["GreaterThanOrEqual"] = 38] = "GreaterThanOrEqual";
-  TokenKind2[TokenKind2["Or"] = 39] = "Or";
-  TokenKind2[TokenKind2["And"] = 40] = "And";
-  TokenKind2[TokenKind2["Mod"] = 41] = "Mod";
-  TokenKind2[TokenKind2["Identifier"] = 42] = "Identifier";
-  TokenKind2[TokenKind2["NumberLiteral"] = 43] = "NumberLiteral";
-  TokenKind2[TokenKind2["StringLiteral"] = 44] = "StringLiteral";
-  TokenKind2[TokenKind2["Comment"] = 45] = "Comment";
-  return TokenKind2;
-})(TokenKind || {});
-var Token4 = class {
-  constructor(text2, kind, range2) {
-    this.text = text2;
-    this.kind = kind;
-    this.range = range2;
-  }
-};
-
-// ../../vendor/SmallBasicOnline/src/strings/compiler.ts
-var CompilerResources;
-((CompilerResources2) => {
-  CompilerResources2.SyntaxNodes_Identifier = "identifier";
-  CompilerResources2.SyntaxNodes_StringLiteral = "string";
-  CompilerResources2.SyntaxNodes_NumberLiteral = "number";
-  CompilerResources2.SyntaxNodes_Comment = "comment";
-  CompilerResources2.SyntaxNodes_Label = "label";
-  CompilerResources2.SyntaxNodes_Expression = "expression";
-  CompilerResources2.ProgramKind_TextWindow = "Text Window";
-  CompilerResources2.ProgramKind_Turtle = "Turtle";
-  function get(key) {
-    return CompilerResources2[key];
-  }
-  CompilerResources2.get = get;
-})(CompilerResources || (CompilerResources = {}));
-
-// ../../vendor/SmallBasicOnline/src/compiler/utils/compiler-utils.ts
-var CompilerUtils;
-((CompilerUtils2) => {
-  function formatString(template, args) {
-    return template.replace(/{[0-9]+}/g, (match2) => args[parseInt(match2.replace(/^{/, "").replace(/}$/, ""))]);
-  }
-  CompilerUtils2.formatString = formatString;
-  function stringStartsWith(value, prefix) {
-    if (!prefix || !prefix.length) {
-      return true;
-    }
-    value = value.toLowerCase();
-    prefix = prefix.toLowerCase();
-    return value.length >= prefix.length && value.substr(0, prefix.length) === prefix;
-  }
-  CompilerUtils2.stringStartsWith = stringStartsWith;
-  function findKeyIgnoreCase(parent, name) {
-    if (Object.prototype.hasOwnProperty.call(parent, name)) {
-      return name;
-    }
-    const lower = name.toLowerCase();
-    for (const key of Object.keys(parent)) {
-      if (key.toLowerCase() === lower) {
-        return key;
-      }
-    }
-    return void 0;
-  }
-  CompilerUtils2.findKeyIgnoreCase = findKeyIgnoreCase;
-  function lookupIgnoreCase(parent, name) {
-    const key = findKeyIgnoreCase(parent, name);
-    return key === void 0 ? void 0 : parent[key];
-  }
-  CompilerUtils2.lookupIgnoreCase = lookupIgnoreCase;
-  function values(parent) {
-    return Object.keys(parent).map((key) => parent[key]);
-  }
-  CompilerUtils2.values = values;
-  function commandToDisplayString(kind) {
-    switch (kind) {
-      case 8 /* IfCommand */:
-        return tokenToDisplayString(1 /* IfKeyword */);
-      case 9 /* ElseCommand */:
-        return tokenToDisplayString(3 /* ElseKeyword */);
-      case 10 /* ElseIfCommand */:
-        return tokenToDisplayString(4 /* ElseIfKeyword */);
-      case 11 /* EndIfCommand */:
-        return tokenToDisplayString(5 /* EndIfKeyword */);
-      case 13 /* ForCommand */:
-        return tokenToDisplayString(6 /* ForKeyword */);
-      case 14 /* EndForCommand */:
-        return tokenToDisplayString(9 /* EndForKeyword */);
-      case 15 /* WhileCommand */:
-        return tokenToDisplayString(11 /* WhileKeyword */);
-      case 16 /* EndWhileCommand */:
-        return tokenToDisplayString(12 /* EndWhileKeyword */);
-      case 17 /* BreakCommand */:
-        return tokenToDisplayString(13 /* BreakKeyword */);
-      case 18 /* ContinueCommand */:
-        return tokenToDisplayString(14 /* ContinueKeyword */);
-      case 19 /* LabelCommand */:
-        return CompilerResources.SyntaxNodes_Label;
-      case 20 /* GoToCommand */:
-        return tokenToDisplayString(10 /* GoToKeyword */);
-      case 21 /* SubCommand */:
-        return tokenToDisplayString(15 /* SubKeyword */);
-      case 22 /* EndSubCommand */:
-        return tokenToDisplayString(16 /* EndSubKeyword */);
-      case 23 /* FunctionCommand */:
-        return tokenToDisplayString(17 /* FunctionKeyword */);
-      case 24 /* EndFunctionCommand */:
-        return tokenToDisplayString(18 /* EndFunctionKeyword */);
-      case 25 /* DimCommand */:
-        return tokenToDisplayString(19 /* DimKeyword */);
-      case 26 /* ReturnCommand */:
-        return tokenToDisplayString(20 /* ReturnKeyword */);
-      case 27 /* ExpressionCommand */:
-        return CompilerResources.SyntaxNodes_Expression;
-      default:
-        throw new Error(`Unexpected syntax kind: ${SyntaxKind2[kind]}`);
-    }
-  }
-  CompilerUtils2.commandToDisplayString = commandToDisplayString;
-  function tokenToDisplayString(kind) {
-    switch (kind) {
-      case 1 /* IfKeyword */:
-        return "If";
-      case 2 /* ThenKeyword */:
-        return "Then";
-      case 3 /* ElseKeyword */:
-        return "Else";
-      case 4 /* ElseIfKeyword */:
-        return "ElseIf";
-      case 5 /* EndIfKeyword */:
-        return "EndIf";
-      case 6 /* ForKeyword */:
-        return "For";
-      case 7 /* ToKeyword */:
-        return "To";
-      case 8 /* StepKeyword */:
-        return "Step";
-      case 9 /* EndForKeyword */:
-        return "EndFor";
-      case 10 /* GoToKeyword */:
-        return "GoTo";
-      case 11 /* WhileKeyword */:
-        return "While";
-      case 12 /* EndWhileKeyword */:
-        return "EndWhile";
-      case 13 /* BreakKeyword */:
-        return "Break";
-      case 14 /* ContinueKeyword */:
-        return "Continue";
-      case 15 /* SubKeyword */:
-        return "Sub";
-      case 16 /* EndSubKeyword */:
-        return "EndSub";
-      case 17 /* FunctionKeyword */:
-        return "Function";
-      case 18 /* EndFunctionKeyword */:
-        return "EndFunction";
-      case 19 /* DimKeyword */:
-        return "Dim";
-      case 20 /* ReturnKeyword */:
-        return "Return";
-      case 21 /* Dot */:
-        return ".";
-      case 22 /* RightParen */:
-        return ")";
-      case 23 /* LeftParen */:
-        return "(";
-      case 24 /* RightSquareBracket */:
-        return "]";
-      case 25 /* LeftSquareBracket */:
-        return "[";
-      case 26 /* Comma */:
-        return ",";
-      case 27 /* Equal */:
-        return "=";
-      case 28 /* NotEqual */:
-        return "<>";
-      case 29 /* Plus */:
-        return "+";
-      case 30 /* Minus */:
-        return "-";
-      case 31 /* Multiply */:
-        return "*";
-      case 32 /* Divide */:
-        return "/";
-      case 33 /* Backslash */:
-        return "\\";
-      case 34 /* Colon */:
-        return ":";
-      case 35 /* LessThan */:
-        return "<";
-      case 36 /* GreaterThan */:
-        return ">";
-      case 37 /* LessThanOrEqual */:
-        return "<=";
-      case 38 /* GreaterThanOrEqual */:
-        return ">=";
-      case 39 /* Or */:
-        return "Or";
-      case 40 /* And */:
-        return "And";
-      case 41 /* Mod */:
-        return "Mod";
-      case 42 /* Identifier */:
-        return CompilerResources.SyntaxNodes_Identifier;
-      case 43 /* NumberLiteral */:
-        return CompilerResources.SyntaxNodes_NumberLiteral;
-      case 44 /* StringLiteral */:
-        return CompilerResources.SyntaxNodes_StringLiteral;
-      case 45 /* Comment */:
-        return CompilerResources.SyntaxNodes_Comment;
-      default:
-        throw new Error(`Unrecognized token kind: ${TokenKind[kind]}`);
-    }
-  }
-  CompilerUtils2.tokenToDisplayString = tokenToDisplayString;
-})(CompilerUtils || (CompilerUtils = {}));
-
-// ../../vendor/SmallBasicOnline/src/strings/diagnostics.ts
-var DiagnosticsResources;
-((DiagnosticsResources2) => {
-  DiagnosticsResources2.UnrecognizedCharacter = "I don't understand this character '{0}'.";
-  DiagnosticsResources2.UnterminatedStringLiteral = "This string is missing its right double quotes.";
-  DiagnosticsResources2.UnrecognizedCommand = "'{0}' is not a valid command.";
-  DiagnosticsResources2.UnexpectedToken_ExpectingExpression = "Unexpected '{0}' here. I was expecting an expression instead.";
-  DiagnosticsResources2.UnexpectedToken_ExpectingToken = "Unexpected '{0}' here. I was expecting a token of type '{1}' instead.";
-  DiagnosticsResources2.UnexpectedToken_ExpectingEOL = "Unexpected '{0}' here. I was expecting a new line after the previous command.";
-  DiagnosticsResources2.UnexpectedEOL_ExpectingExpression = "Unexpected end of line here. I was expecting an expression instead.";
-  DiagnosticsResources2.UnexpectedEOL_ExpectingToken = "Unexpected end of line here. I was expecting a token of type '{0}' instead.";
-  DiagnosticsResources2.UnexpectedCommand_ExpectingCommand = "Unexpected command of type '{0}'. I was expecting a command of type '{1}'.";
-  DiagnosticsResources2.UnexpectedEOF_ExpectingCommand = "Unexpected end of file. I was expecting a command of type '{0}'.";
-  DiagnosticsResources2.CannotDefineASubInsideAnotherSub = "You cannot define a sub-module inside another sub-module.";
-  DiagnosticsResources2.CannotDefineProcedureInsideProcedure = "You cannot define a Sub or Function inside another procedure.";
-  DiagnosticsResources2.CannotHaveCommandWithoutPreviousCommand = "You cannot write a command of type '{0}' without an earlier command of type '{1}'.";
-  DiagnosticsResources2.TwoSubModulesWithTheSameName = "Another sub-module with the same name '{0}' is already defined.";
-  DiagnosticsResources2.TwoProceduresWithTheSameName = "Another Sub or Function with the same name '{0}' is already defined.";
-  DiagnosticsResources2.ProcedureConflictsWithLibrary = "The procedure name '{0}' conflicts with a Small Basic library name.";
-  DiagnosticsResources2.DuplicateParameter = "The parameter '{0}' is already declared in this function.";
-  DiagnosticsResources2.DuplicateLocalVariable = "The local variable '{0}' is already declared in this procedure.";
-  DiagnosticsResources2.DimMustBeAtProcedureLevel = "Dim declarations must be direct children of the program, Sub, or Function body.";
-  DiagnosticsResources2.ReturnOutsideFunction = "Return can only be used inside a Function.";
-  DiagnosticsResources2.BreakOutsideLoop = "Break can only be used inside a While or For loop.";
-  DiagnosticsResources2.ContinueOutsideLoop = "Continue can only be used inside a While or For loop.";
-  DiagnosticsResources2.FunctionCannotBeEventHandler = "A Function cannot be assigned as an event handler. Use a parameterless Sub instead.";
-  DiagnosticsResources2.LabelDoesNotExist = "No label with the name '{0}' exists in the same module.";
-  DiagnosticsResources2.UnassignedExpressionStatement = "This value is not assigned to anything. Did you mean to assign it to a variable?";
-  DiagnosticsResources2.InvalidExpressionStatement = "This expression is not a valid statement.";
-  DiagnosticsResources2.UnexpectedVoid_ExpectingValue = "This expression must return a value to be used here.";
-  DiagnosticsResources2.UnsupportedArrayBaseExpression = "This expression is not a valid array.";
-  DiagnosticsResources2.UnsupportedCallBaseExpression = "This expression is not a valid submodule or method to be called.";
-  DiagnosticsResources2.UnexpectedArgumentsCount = "I was expecting {0} arguments, but found {1} instead.";
-  DiagnosticsResources2.PropertyHasNoSetter = "This property cannot be set. You can only get its value.";
-  DiagnosticsResources2.AssigningNonSubModuleToEvent = "You can only assign submodules to events.";
-  DiagnosticsResources2.UnsupportedDotBaseExpression = "You can only use dot access with a library. Did you mean to use an existing library instead?";
-  DiagnosticsResources2.LibraryMemberNotFound = "The library '{0}' has no member named '{1}'.";
-  DiagnosticsResources2.ValueIsNotANumber = "The value '{0}' is not a valid number.";
-  DiagnosticsResources2.ValueIsNotAssignable = "You cannot assign to this expression. Did you mean to use a variable instead?";
-  DiagnosticsResources2.CannotUseAnArrayAsAnIndexToAnotherArray = "You cannot use an array as an index to access another array. Did you mean to use a string or a number instead?";
-  DiagnosticsResources2.CannotUseOperatorWithAnArray = "You cannot use the operator '{0}' with an array value";
-  DiagnosticsResources2.CannotUseOperatorWithAString = "You cannot use the operator '{0}' with a string value";
-  DiagnosticsResources2.CannotDivideByZero = "You cannot divide by zero. Please consider checking the divisor before dividing.";
-  DiagnosticsResources2.PoppingAnEmptyStack = "This stack has no elements to be popped";
-  function get(key) {
-    return DiagnosticsResources2[key];
-  }
-  DiagnosticsResources2.get = get;
-})(DiagnosticsResources || (DiagnosticsResources = {}));
-
-// ../../vendor/SmallBasicOnline/src/compiler/utils/diagnostics.ts
-var ErrorCode2 = /* @__PURE__ */ ((ErrorCode3) => {
-  ErrorCode3[ErrorCode3["UnrecognizedCharacter"] = 0] = "UnrecognizedCharacter";
-  ErrorCode3[ErrorCode3["UnterminatedStringLiteral"] = 1] = "UnterminatedStringLiteral";
-  ErrorCode3[ErrorCode3["UnrecognizedCommand"] = 2] = "UnrecognizedCommand";
-  ErrorCode3[ErrorCode3["UnexpectedToken_ExpectingExpression"] = 3] = "UnexpectedToken_ExpectingExpression";
-  ErrorCode3[ErrorCode3["UnexpectedToken_ExpectingToken"] = 4] = "UnexpectedToken_ExpectingToken";
-  ErrorCode3[ErrorCode3["UnexpectedToken_ExpectingEOL"] = 5] = "UnexpectedToken_ExpectingEOL";
-  ErrorCode3[ErrorCode3["UnexpectedEOL_ExpectingExpression"] = 6] = "UnexpectedEOL_ExpectingExpression";
-  ErrorCode3[ErrorCode3["UnexpectedEOL_ExpectingToken"] = 7] = "UnexpectedEOL_ExpectingToken";
-  ErrorCode3[ErrorCode3["UnexpectedCommand_ExpectingCommand"] = 8] = "UnexpectedCommand_ExpectingCommand";
-  ErrorCode3[ErrorCode3["UnexpectedEOF_ExpectingCommand"] = 9] = "UnexpectedEOF_ExpectingCommand";
-  ErrorCode3[ErrorCode3["CannotDefineASubInsideAnotherSub"] = 10] = "CannotDefineASubInsideAnotherSub";
-  ErrorCode3[ErrorCode3["CannotDefineProcedureInsideProcedure"] = 11] = "CannotDefineProcedureInsideProcedure";
-  ErrorCode3[ErrorCode3["CannotHaveCommandWithoutPreviousCommand"] = 12] = "CannotHaveCommandWithoutPreviousCommand";
-  ErrorCode3[ErrorCode3["ValueIsNotANumber"] = 13] = "ValueIsNotANumber";
-  ErrorCode3[ErrorCode3["TwoSubModulesWithTheSameName"] = 14] = "TwoSubModulesWithTheSameName";
-  ErrorCode3[ErrorCode3["TwoProceduresWithTheSameName"] = 15] = "TwoProceduresWithTheSameName";
-  ErrorCode3[ErrorCode3["ProcedureConflictsWithLibrary"] = 16] = "ProcedureConflictsWithLibrary";
-  ErrorCode3[ErrorCode3["DuplicateParameter"] = 17] = "DuplicateParameter";
-  ErrorCode3[ErrorCode3["DuplicateLocalVariable"] = 18] = "DuplicateLocalVariable";
-  ErrorCode3[ErrorCode3["DimMustBeAtProcedureLevel"] = 19] = "DimMustBeAtProcedureLevel";
-  ErrorCode3[ErrorCode3["ReturnOutsideFunction"] = 20] = "ReturnOutsideFunction";
-  ErrorCode3[ErrorCode3["BreakOutsideLoop"] = 21] = "BreakOutsideLoop";
-  ErrorCode3[ErrorCode3["ContinueOutsideLoop"] = 22] = "ContinueOutsideLoop";
-  ErrorCode3[ErrorCode3["FunctionCannotBeEventHandler"] = 23] = "FunctionCannotBeEventHandler";
-  ErrorCode3[ErrorCode3["LabelDoesNotExist"] = 24] = "LabelDoesNotExist";
-  ErrorCode3[ErrorCode3["UnassignedExpressionStatement"] = 25] = "UnassignedExpressionStatement";
-  ErrorCode3[ErrorCode3["InvalidExpressionStatement"] = 26] = "InvalidExpressionStatement";
-  ErrorCode3[ErrorCode3["UnexpectedVoid_ExpectingValue"] = 27] = "UnexpectedVoid_ExpectingValue";
-  ErrorCode3[ErrorCode3["UnsupportedArrayBaseExpression"] = 28] = "UnsupportedArrayBaseExpression";
-  ErrorCode3[ErrorCode3["UnsupportedCallBaseExpression"] = 29] = "UnsupportedCallBaseExpression";
-  ErrorCode3[ErrorCode3["UnexpectedArgumentsCount"] = 30] = "UnexpectedArgumentsCount";
-  ErrorCode3[ErrorCode3["PropertyHasNoSetter"] = 31] = "PropertyHasNoSetter";
-  ErrorCode3[ErrorCode3["AssigningNonSubModuleToEvent"] = 32] = "AssigningNonSubModuleToEvent";
-  ErrorCode3[ErrorCode3["UnsupportedDotBaseExpression"] = 33] = "UnsupportedDotBaseExpression";
-  ErrorCode3[ErrorCode3["LibraryMemberNotFound"] = 34] = "LibraryMemberNotFound";
-  ErrorCode3[ErrorCode3["ValueIsNotAssignable"] = 35] = "ValueIsNotAssignable";
-  ErrorCode3[ErrorCode3["CannotUseAnArrayAsAnIndexToAnotherArray"] = 36] = "CannotUseAnArrayAsAnIndexToAnotherArray";
-  ErrorCode3[ErrorCode3["CannotUseOperatorWithAnArray"] = 37] = "CannotUseOperatorWithAnArray";
-  ErrorCode3[ErrorCode3["CannotUseOperatorWithAString"] = 38] = "CannotUseOperatorWithAString";
-  ErrorCode3[ErrorCode3["CannotDivideByZero"] = 39] = "CannotDivideByZero";
-  ErrorCode3[ErrorCode3["PoppingAnEmptyStack"] = 40] = "PoppingAnEmptyStack";
-  return ErrorCode3;
-})(ErrorCode2 || {});
-var Diagnostic2 = class {
-  constructor(code, range2, ...args) {
-    this.code = code;
-    this.range = range2;
-    this.args = args;
-  }
-  args;
-  toString() {
-    const template = DiagnosticsResources.get(ErrorCode2[this.code]);
-    if (!template) {
-      throw new Error(`Error code ${ErrorCode2[this.code]} has no string resource`);
-    }
-    return CompilerUtils.formatString(template, this.args);
-  }
-};
-
 // ../../vendor/SmallBasicOnline/src/compiler/runtime/values/number-value.ts
-var NumberValue = class _NumberValue extends BaseValue {
+var NumberValue = class extends BaseValue {
   constructor(value) {
     super();
     this.value = value;
@@ -243332,150 +242211,14 @@ var NumberValue = class _NumberValue extends BaseValue {
   toValueString() {
     return this.toDebuggerString();
   }
-  get kind() {
-    return 1 /* Number */;
+  toNumber() {
+    return this.value;
   }
   tryConvertToNumber() {
     return this;
   }
-  isEqualTo(other) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        return this.value.toString() === other.value;
-      case 1 /* Number */:
-        return this.value === other.value;
-      case 2 /* Array */:
-        return false;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  isLessThan(other) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-      case 2 /* Array */:
-        return false;
-      case 1 /* Number */:
-        return this.value < other.value;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  isGreaterThan(other) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-      case 2 /* Array */:
-        return false;
-      case 1 /* Number */:
-        return this.value > other.value;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  add(other, engine, instruction) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        return new StringValue2(this.value.toString() + other.value);
-      case 1 /* Number */:
-        return new _NumberValue(this.value + other.value);
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Plus */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  subtract(other, engine, instruction) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
-        return this;
-      case 1 /* Number */:
-        return new _NumberValue(this.value - other.value);
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  multiply(other, engine, instruction) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
-        return this;
-      case 1 /* Number */:
-        return new _NumberValue(this.value * other.value);
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  divide(other, engine, instruction) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
-        return this;
-      case 1 /* Number */:
-        const otherValue = other.value;
-        if (otherValue === 0) {
-          engine.terminate(new Diagnostic2(39 /* CannotDivideByZero */, instruction.sourceRange));
-          return this;
-        } else {
-          return new _NumberValue(this.value / otherValue);
-        }
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  // Integer division (A \ B) truncates the real quotient toward zero. A zero
-  // divisor yields 0 instead of terminating, matching the shared extension
-  // contract for the arithmetic operators added by Arithmetic Extension v1.
-  integerDivide(other, engine, instruction) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
-        return this;
-      case 1 /* Number */:
-        const otherValue = other.value;
-        return new _NumberValue(otherValue === 0 ? 0 : Math.trunc(this.value / otherValue));
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  // A Mod B keeps the sign of the dividend (truncated remainder), like the
-  // C# and JavaScript % operators. A zero divisor yields 0.
-  modulo(other, engine, instruction) {
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
-        return this;
-      case 1 /* Number */:
-        const otherValue = other.value;
-        return new _NumberValue(otherValue === 0 ? 0 : this.value % otherValue);
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
+  get kind() {
+    return 1 /* Number */;
   }
 };
 
@@ -243484,6 +242227,52 @@ var StringValue2 = class _StringValue extends BaseValue {
   constructor(value) {
     super();
     this.value = value;
+  }
+  /*
+   * Mirrors the number style of SmallBasic.Compiler's StringValue.Create
+   * (NumberStyles.Integer | AllowTrailingSign | AllowDecimalPoint): an
+   * optional sign at either end, digits with at most one decimal point, and
+   * no thousands separators or exponents.
+   */
+  static NumericTextPattern = /^([+-]?)(\d+(\.\d*)?|\.\d+)([+-]?)$/u;
+  // decimal (the C# value type) tops out at 7.9e28; larger magnitudes are kept
+  // as text there, so they are kept as text here as well.
+  static MaxDecimalMagnitude = 7922816251426434e13;
+  /**
+   * Mirrors SmallBasic.Compiler's StringValue.Create: text that looks like a
+   * boolean or a plain decimal number materializes as that value kind, so both
+   * implementations agree on cases such as "0012", "0." or " true ".
+   */
+  static Create(text2) {
+    switch (text2.trim().toLowerCase()) {
+      case "true":
+        return new _StringValue(Constants.True);
+      case "false":
+        return new _StringValue(Constants.False);
+      default:
+        break;
+    }
+    const converted = _StringValue.tryParseNumber(text2.trim());
+    return converted === void 0 ? new _StringValue(text2) : new NumberValue(converted);
+  }
+  /**
+   * Applies the text-to-value conversion to a value that is about to be used
+   * by the program. Values that are not plain text pass through unchanged, so
+   * the conversion is idempotent.
+   */
+  static Fold(value) {
+    return value.kind === 0 /* String */ ? _StringValue.Create(value.value) : value;
+  }
+  static tryParseNumber(text2) {
+    const match2 = _StringValue.NumericTextPattern.exec(text2);
+    if (!match2 || match2[1].length > 0 && match2[4].length > 0) {
+      return void 0;
+    }
+    const magnitude = Number(match2[2]);
+    if (!Number.isFinite(magnitude) || magnitude > _StringValue.MaxDecimalMagnitude) {
+      return void 0;
+    }
+    return match2[1] === "-" || match2[4] === "-" ? -magnitude : magnitude;
   }
   toBoolean() {
     return this.value.toLowerCase() === Constants.True.toLowerCase();
@@ -243494,107 +242283,15 @@ var StringValue2 = class _StringValue extends BaseValue {
   toValueString() {
     return this.value;
   }
-  get kind() {
-    return 0 /* String */;
+  toNumber() {
+    return _StringValue.tryParseNumber(this.value.trim()) ?? 0;
   }
   tryConvertToNumber() {
-    const number = parseFloat(this.value.trim());
-    if (isNaN(number)) {
-      return this;
-    } else {
-      return new NumberValue(number);
-    }
+    const converted = _StringValue.tryParseNumber(this.value.trim());
+    return converted === void 0 ? this : new NumberValue(converted);
   }
-  isEqualTo(other) {
-    switch (other.kind) {
-      case 0 /* String */:
-        return this.value === other.value;
-      case 1 /* Number */:
-        return this.value.trim() === other.value.toString();
-      case 2 /* Array */:
-        return false;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  isLessThan(other) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      return false;
-    } else {
-      return thisConverted.isLessThan(other);
-    }
-  }
-  isGreaterThan(other) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      return false;
-    } else {
-      return thisConverted.isGreaterThan(other);
-    }
-  }
-  add(other, engine, instruction) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind !== 0 /* String */) {
-      return thisConverted.add(other, engine, instruction);
-    }
-    other = other.tryConvertToNumber();
-    switch (other.kind) {
-      case 0 /* String */:
-        return new _StringValue(this.value + other.value);
-      case 1 /* Number */:
-        return new _StringValue(this.value + other.value.toString());
-      case 2 /* Array */:
-        engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Plus */)));
-        return this;
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
-    }
-  }
-  subtract(other, engine, instruction) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
-      return this;
-    } else {
-      return thisConverted.subtract(other, engine, instruction);
-    }
-  }
-  multiply(other, engine, instruction) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
-      return this;
-    } else {
-      return thisConverted.multiply(other, engine, instruction);
-    }
-  }
-  divide(other, engine, instruction) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
-      return this;
-    } else {
-      return thisConverted.divide(other, engine, instruction);
-    }
-  }
-  integerDivide(other, engine, instruction) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
-      return this;
-    } else {
-      return thisConverted.integerDivide(other, engine, instruction);
-    }
-  }
-  modulo(other, engine, instruction) {
-    const thisConverted = this.tryConvertToNumber();
-    if (thisConverted.tryConvertToNumber().kind === 0 /* String */) {
-      engine.terminate(new Diagnostic2(38 /* CannotUseOperatorWithAString */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
-      return this;
-    } else {
-      return thisConverted.modulo(other, engine, instruction);
-    }
+  get kind() {
+    return 0 /* String */;
   }
 };
 
@@ -243624,6 +242321,10 @@ var TextWindowLibrary = class {
     if (!this._pluginInstance) {
       throw new Error("Plugin is not set.");
     }
+    return this._pluginInstance;
+  }
+  /** Optional access for engine internals (runtime error output) that must not throw when no host is attached. */
+  get pluginOpt() {
     return this._pluginInstance;
   }
   set plugin(plugin) {
@@ -243741,28 +242442,41 @@ var ClockLibrary = class {
 };
 
 // ../../vendor/SmallBasicOnline/src/compiler/runtime/values/array-value.ts
-var ArrayValue = class extends BaseValue {
-  _values;
+var ArrayValue = class _ArrayValue extends BaseValue {
+  // A Map keeps insertion order, exactly like the Dictionary the C# backends
+  // use. A plain object would list integer-like keys (array indices such as
+  // "2") before the others, so Array.GetAllIndices and the text form of an
+  // array would disagree between the two implementations.
+  _values = /* @__PURE__ */ new Map();
   constructor(value = {}) {
     super();
-    this._values = value;
+    Object.keys(value).forEach((key) => this._values.set(key, value[key]));
+  }
+  /** Index names in insertion order. */
+  get keys() {
+    return [...this._values.keys()];
+  }
+  get count() {
+    return this._values.size;
   }
   get values() {
-    return this._values;
+    const result = {};
+    this._values.forEach((value, key) => result[key] = value);
+    return result;
   }
   setIndex(index, value) {
-    this._values[this.resolveKey(index)] = value;
+    this._values.set(this.resolveKey(index), value);
   }
   getValue(index) {
-    return this._values[this.resolveKey(index)];
+    return this._values.get(this.resolveKey(index));
   }
   deleteIndex(index) {
-    delete this._values[this.resolveKey(index)];
+    this._values.delete(this.resolveKey(index));
   }
   // Small Basic array indices (and thus variable names) are case insensitive.
   resolveKey(index) {
     const lower = index.toLowerCase();
-    for (const key of Object.keys(this._values)) {
+    for (const key of this._values.keys()) {
       if (key.toLowerCase() === lower) {
         return key;
       }
@@ -243773,57 +242487,43 @@ var ArrayValue = class extends BaseValue {
     return false;
   }
   toDebuggerString() {
-    return `[${Object.keys(this._values).map((key) => `${key}=${this._values[key].toDebuggerString()}`).join(", ")}]`;
+    return `[${this.keys.map((key) => `${key}=${this._values.get(key).toDebuggerString()}`).join(", ")}]`;
   }
+  // The C# backends render an array as "index=value;" pairs with ';', '=' and
+  // '\' escaped, which is what a program sees when an array is written or
+  // converted to text.
   toValueString() {
-    return this.toDebuggerString();
+    let result = "";
+    this._values.forEach((value, key) => {
+      result += `${key}=${_ArrayValue.escape(value.toValueString())};`;
+    });
+    return result;
   }
-  get kind() {
-    return 2 /* Array */;
+  toNumber() {
+    return 0;
   }
   tryConvertToNumber() {
     return this;
   }
-  isEqualTo(other) {
-    switch (other.kind) {
-      case 0 /* String */:
-      case 1 /* Number */:
-        return false;
-      case 2 /* Array */:
-        return this.toDebuggerString() === other.toDebuggerString();
-      default:
-        throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
+  get kind() {
+    return 2 /* Array */;
+  }
+  static escape(value) {
+    let result = "";
+    for (let index = 0; index < value.length; index++) {
+      const character = value[index];
+      switch (character) {
+        case ";":
+        case "=":
+        case "\\":
+          result += "\\";
+          break;
+        default:
+          break;
+      }
+      result += character;
     }
-  }
-  isLessThan(_) {
-    return false;
-  }
-  isGreaterThan(_) {
-    return false;
-  }
-  add(_, engine, instruction) {
-    engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(29 /* Plus */)));
-    return this;
-  }
-  subtract(_, engine, instruction) {
-    engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(30 /* Minus */)));
-    return this;
-  }
-  multiply(_, engine, instruction) {
-    engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(31 /* Multiply */)));
-    return this;
-  }
-  divide(_, engine, instruction) {
-    engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(32 /* Divide */)));
-    return this;
-  }
-  integerDivide(_, engine, instruction) {
-    engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(33 /* Backslash */)));
-    return this;
-  }
-  modulo(_, engine, instruction) {
-    engine.terminate(new Diagnostic2(37 /* CannotUseOperatorWithAnArray */, instruction.sourceRange, CompilerUtils.tokenToDisplayString(41 /* Mod */)));
-    return this;
+    return result;
   }
 };
 
@@ -243839,14 +242539,14 @@ var ArrayLibrary = class {
   }
   executeGetItemCount(engine) {
     const array2 = engine.popEvaluationStack();
-    const itemCount = array2.kind === 2 /* Array */ ? Object.keys(array2.values).length : 0;
+    const itemCount = array2.kind === 2 /* Array */ ? array2.count : 0;
     engine.pushEvaluationStack(new NumberValue(itemCount));
   }
   executeGetAllIndices(engine) {
     const array2 = engine.popEvaluationStack();
     const newArray = {};
     if (array2.kind === 2 /* Array */) {
-      Object.keys(array2.values).forEach((key, i2) => {
+      array2.keys.forEach((key, i2) => {
         newArray[i2 + 1] = new StringValue2(key);
       });
     }
@@ -243857,9 +242557,9 @@ var ArrayLibrary = class {
     const array2 = engine.popEvaluationStack();
     let result = Constants.False;
     if (array2.kind === 2 /* Array */) {
-      const arrayValue = array2.values;
-      for (let key in arrayValue) {
-        if (arrayValue[key].isEqualTo(value)) {
+      const arrayValue = array2;
+      for (const key of arrayValue.keys) {
+        if (arrayValue.getValue(key).toValueString() === value.toValueString()) {
           result = Constants.True;
           break;
         }
@@ -243933,12 +242633,12 @@ var StackLibrary = class {
     const count = this._stacks[stackName] ? this._stacks[stackName].length : 0;
     engine.pushEvaluationStack(new NumberValue(count));
   }
-  executePopValue(engine, _, range2) {
+  executePopValue(engine) {
     const stackName = engine.popEvaluationStack().toValueString();
     if (this._stacks[stackName] && this._stacks[stackName].length) {
       engine.pushEvaluationStack(this._stacks[stackName].pop());
     } else {
-      engine.terminate(new Diagnostic2(40 /* PoppingAnEmptyStack */, range2));
+      engine.reportRuntimeError(1101 /* EmptyStack */);
     }
   }
   methods = {
@@ -244367,6 +243067,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "\u200F\u200FThe ElseIf keyword helps provide an alternate condition while making decisions using the If statement.",
     "Keywords_EndIf": "\u200F\u200F\u0631\u0627\u062C\u0639 \u0628\u064A\u0627\u0646 If \u0645\u0646 \u0623\u062C\u0644 \u0627\u0644\u062A\u062D\u0642\u0642 \u0645\u0646 \u0627\u0644\u0645\u0639\u0644\u0648\u0645\u0627\u062A \u062D\u0648\u0644 \u0627\u0644\u0643\u0644\u0645\u0629 \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629 EndIf.",
     "Keywords_Goto": "\u200F\u200F\u0627\u0644\u0628\u064A\u0627\u0646 Goto \u064A\u0633\u0645\u062D \u0628\u0627\u0644\u062A\u0641\u0631\u0639 \u0625\u0644\u0649 \u0645\u0648\u0642\u0639 \u062C\u062F\u064A\u062F \u0641\u064A \u0627\u0644\u0628\u0631\u0646\u0627\u0645\u062C.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "\u200F\u200F\u0628\u064A\u0627\u0646 Sub (Subrotine) \u064A\u0633\u0645\u062D \u0644\u0643 \u0623\u0646 \u062A\u0641\u0639\u0644 \u0645\u062C\u0645\u0648\u0639\u0627\u062A \u0645\u0646 \u0627\u0644\u0623\u0634\u064A\u0627\u0621 \u0628\u0627\u0633\u062A\u062E\u062F\u0627\u0645 \u0627\u0633\u062A\u062F\u0639\u0627\u0621 \u0648\u0627\u062D\u062F.",
     "Keywords_EndSub": "\u200F\u200F\u0631\u0627\u062C\u0639 \u0628\u064A\u0627\u0646 Sub \u0645\u0646 \u0623\u062C\u0644 \u0627\u0644\u062A\u062D\u0642\u0642 \u0645\u0646 \u0627\u0644\u0645\u0639\u0644\u0648\u0645\u0627\u062A \u062D\u0648\u0644 \u0627\u0644\u0643\u0644\u0645\u0629 \u0627\u0644\u0631\u0626\u064A\u0633\u064A\u0629 EndSub.",
     "Keywords_While": "\u200F\u200F\u0627\u0644\u0628\u064A\u0627\u0646 While \u064A\u0633\u0645\u062D \u0644\u0643 \u0623\u0646 \u062A\u0643\u0631\u0631 \u0634\u064A\u0626\u0627 \u062D\u062A\u0649 \u0627\u0644\u0648\u0635\u0648\u0644 \u0627\u0644\u0649 \u0627\u0644\u0646\u062A\u064A\u062C\u0629 \u0627\u0644\u0645\u0631\u062C\u0648\u0629.",
@@ -244789,6 +243494,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "\u041A\u043B\u044E\u0447\u043E\u0432\u0430\u0442\u0430 \u0434\u0443\u043C\u0430 ElseIf \u043F\u043E\u043C\u0430\u0433\u0430 \u0434\u0430 \u0441\u0435 \u043E\u0441\u0438\u0433\u0443\u0440\u0438 \u0430\u043B\u0442\u0435\u0440\u043D\u0430\u0442\u0438\u0432\u043D\u043E \u0443\u0441\u043B\u043E\u0432\u0438\u0435, \u0434\u043E\u043A\u0430\u0442\u043E \u0441\u0435 \u0432\u0437\u0435\u043C\u0430\u0442 \u0440\u0435\u0448\u0435\u043D\u0438\u044F, \u0438\u0437\u043F\u043E\u043B\u0437\u0432\u0430\u0439\u043A\u0438 \u0438\u0437\u044F\u0432\u043B\u0435\u043D\u0438\u0435\u0442\u043E If.",
     "Keywords_EndIf": "\u041F\u0440\u043E\u0432\u0435\u0440\u0435\u0442\u0435 \u0438\u0437\u044F\u0432\u043B\u0435\u043D\u0438\u0435\u0442\u043E If \u0437\u0430 \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F \u0437\u0430 \u043A\u043B\u044E\u0447\u043E\u0432\u0430\u0442\u0430 \u0434\u0443\u043C\u0430 EndIf.",
     "Keywords_Goto": "\u041F\u0440\u0438\u043B\u043E\u0436\u0435\u043D\u0438\u0435\u0442\u043E Goto \u043F\u043E\u0437\u0432\u043E\u043B\u044F\u0432\u0430 \u0438\u0437\u043F\u044A\u043B\u043D\u0435\u043D\u0438\u0435 \u043D\u0430 \u0434\u0440\u0443\u0433\u043E \u043C\u044F\u0441\u0442\u043E \u043E\u0442 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u0430\u0442\u0430.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "\u041F\u043E\u0434\u043C\u0435\u043D\u044E\u0442\u043E Sub (Subroutine) \u0432\u0438 \u043F\u043E\u0437\u0432\u043E\u043B\u044F\u0432\u0430 \u0434\u0430 \u0438\u0437\u043F\u044A\u043B\u043D\u044F\u0432\u0430\u0442\u0435 \u0433\u0440\u0443\u043F\u0430 \u043E\u0442 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u044F \u0441 \u0435\u0434\u043D\u043E \u043F\u043E\u0432\u0438\u043A\u0432\u0430\u043D\u0435.",
     "Keywords_EndSub": "\u041F\u0440\u043E\u0432\u0435\u0440\u0435\u0442\u0435 \u0438\u0437\u044F\u0432\u043B\u0435\u043D\u0438\u0435\u0442\u043E Sub \u0437\u0430 \u0438\u043D\u0444\u043E\u0440\u043C\u0430\u0446\u0438\u044F \u043E\u0442\u043D\u043E\u0441\u043D\u043E \u043A\u043B\u044E\u0447\u043E\u0432\u0430\u0442\u0430 \u0434\u0443\u043C\u0430 EndSub.",
     "Keywords_While": "\u0418\u0437\u044F\u0432\u043B\u0435\u043D\u0438\u0435\u0442\u043E While \u0432\u0438 \u043F\u043E\u0437\u0432\u043E\u043B\u044F\u0432\u0430 \u0434\u0430 \u043F\u043E\u0432\u0442\u0430\u0440\u044F\u0442\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435, \u0434\u043E\u043A\u0430\u0442\u043E \u043F\u043E\u0441\u0442\u0438\u0433\u043D\u0435\u0442\u0435 \u0436\u0435\u043B\u0430\u043D \u0440\u0435\u0437\u0443\u043B\u0442\u0430\u0442.",
@@ -245211,6 +243921,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "Kl\xED\u010Dov\xE9 slovo ElseIf umo\u017E\u0148uje zadat dal\u0161\xED podm\xEDnku v p\u0159\xEDkazu IF.",
     "Keywords_EndIf": "Ukon\u010Duje podm\xEDn\u011Bnou \u010D\xE1st programu. V\xEDce viz p\u0159\xEDkaz If.",
     "Keywords_Goto": 'Kl\xED\u010Dov\xE9 slovo Goto umo\u017E\u0148uje p\u0159i zpracov\xE1n\xED programu sko\u010Dit na jinou \u010D\xE1st programu. Je t\u0159eba zadat tzv. n\xE1v\u011B\u0161t\xED, pomoc\xED kter\xE9ho se odkazuje m\xEDsto, na kter\xE9 program "sko\u010D\xED".',
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Kl\xED\u010Dov\xE9 slovo Sub ozna\u010Duje za\u010D\xE1tek podprogramu. Podprogram se ukon\u010Duje slovem EndSub. Podprogramy se definuj\xED na konci z\xE1kladn\xEDho programu.",
     "Keywords_EndSub": "Ukon\u010Duje podprogram. V\xEDce viz Sub.",
     "Keywords_While": "Kl\xED\u010Dov\xE9 slovo jazyka Small Basic. Pomoc\xED While se zapisuje cyklus (opakovan\xE1 \u010D\xE1st programu), o kter\xE9 nev\xEDme dop\u0159edu, kolikr\xE1t se m\xE1 opakovat, a po\u010Det opakov\xE1n\xED je z\xE1visl\xFD na platnosti n\u011Bjak\xE9 podm\xEDnky.",
@@ -245633,6 +244348,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "Das ElseIf Schl\xFCsselwort bietet eine alternative Bedingung w\xE4hrend der Verwendung der If Anweisung.",
     "Keywords_EndIf": "Siehe 'If' Anweisung f\xFCr Informationen zum EndIf Schl\xFCsselwort.",
     "Keywords_Goto": "Die Goto Anweisung erm\xF6glicht das Verzweigen zu einer anderen Stelle im Programm. Nicht aus einer Sub heraus.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Mit der Sub Anweisung (Sub f\xFCr Subroutine, also Unterprogramm) k\xF6nnen mehrere Befehle durch einen einzigen Programmaufruf ausgef\xFChrt werden.",
     "Keywords_EndSub": "Siehe 'Sub' Anweisung f\xFCr Informationen zum EndSub Schl\xFCsselwort.",
     "Keywords_While": 'Die While Anweisung erm\xF6glicht das Wiederholen von Schritten, bis das gew\xFCnschte Resultat erzielt wurde. Abfrage/Vergleich am Schleifenstart. Bedingung ev. in Variable definieren, zB. bool = "True", While bool ...',
@@ -246055,6 +244775,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "La palabra clave ElseIf proporciona una condici\xF3n alternativa a la vez que toma decisiones utilizando la instrucci\xF3n If.",
     "Keywords_EndIf": "Consulte la instrucci\xF3n If para obtener informaci\xF3n acerca de la palabra clave EndIf.",
     "Keywords_Goto": "La instrucci\xF3n Goto contin\xFAa la ejecuci\xF3n en una nueva posici\xF3n del programa.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "La instrucci\xF3n Sub (Subrutina) le permite agrupar acciones en una sola llamada.",
     "Keywords_EndSub": "Consulte la instrucci\xF3n Sub para obtener informaci\xF3n acerca de la palabra clave EndSub.",
     "Keywords_While": "La instrucci\xF3n While (mientras) repite algo hasta que se alcanza el resultado deseado.",
@@ -246477,6 +245202,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "Le mot-cl\xE9 ElseIf permet d'introduire une condition alternative lors de tests effectu\xE9s \xE0 l'aide de l'instruction If.",
     "Keywords_EndIf": "Consultez l'instruction If pour plus d'informations sur le mot cl\xE9 EndIf.",
     "Keywords_Goto": "L'instruction Goto vous permet de vous d\xE9placer dans le programme.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "L'instruction Sub (Subroutine) permet de lancer un ensemble d'op\xE9rations avec un seul appel.",
     "Keywords_EndSub": "Consultez l'instruction Sub pour plus d'informations sur le mot cl\xE9 EndSub.",
     "Keywords_While": "L'instruction While permet de r\xE9p\xE9ter une op\xE9ration jusqu'\xE0 l'obtention du r\xE9sultat attendu.",
@@ -246899,6 +245629,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "\u05D4\u05DE\u05D9\u05DC\u05D4 \u05D4\u05E9\u05DE\u05D5\u05E8\u05D4 ElseIf \u05DE\u05D0\u05E4\u05E9\u05E8\u05EA \u05EA\u05E0\u05D0\u05D9 \u05D7\u05DC\u05D9\u05E4\u05D9 \u05DB\u05D0\u05E9\u05E8 \u05DE\u05E9\u05E4\u05D8\u05D9\u05DD \u05D1\u05E4\u05E7\u05D5\u05D3\u05EA \u05D4-If.",
     "Keywords_EndIf": "\u05E2\u05D1\u05D5\u05E8 \u05D4\u05DE\u05D9\u05DC\u05D4 \u05D4\u05E9\u05DE\u05D5\u05E8\u05D4 EndIf, \u05D1\u05D3\u05E7\u05D5 \u05D0\u05EA \u05D4\u05DE\u05D9\u05D3\u05E2 \u05E2\u05DC \u05E4\u05E7\u05D5\u05D3\u05EA \u05D4-If.",
     "Keywords_Goto": "\u05E4\u05E7\u05D5\u05D3\u05EA \u05D4-Goto (\u05E2\u05D1\u05D5\u05E8 \u05D0\u05DC) \u05DE\u05D0\u05E4\u05E9\u05E8\u05EA \u05D4\u05E2\u05D1\u05E8\u05EA \u05D4\u05D1\u05D9\u05E6\u05D5\u05E2 \u05DC\u05DE\u05E7\u05D5\u05DD \u05D0\u05D7\u05E8 \u05D1\u05EA\u05D5\u05DB\u05E0\u05D9\u05EA.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "\u05E4\u05E7\u05D5\u05D3\u05EA \u05D4-Sub (\u05E9\u05D2\u05E8\u05D4) \u05DE\u05D0\u05E4\u05E9\u05E8\u05EA \u05DC\u05E7\u05D1\u05E5 \u05DE\u05E9\u05E4\u05D8\u05D9\u05DD \u05E7\u05E9\u05D5\u05E8\u05D9\u05DD \u05EA\u05D7\u05EA \u05E9\u05DD \u05D0\u05D7\u05D3.",
     "Keywords_EndSub": "\u05E2\u05D1\u05D5\u05E8 \u05D4\u05DE\u05D9\u05DC\u05D4 \u05D4\u05E9\u05DE\u05D5\u05E8\u05D4 EndSub, \u05D1\u05D3\u05E7\u05D5 \u05D0\u05EA \u05D4\u05DE\u05D9\u05D3\u05E2 \u05E2\u05DC \u05E4\u05E7\u05D5\u05D3\u05EA \u05D4-Sub.",
     "Keywords_While": "\u05E4\u05E7\u05D5\u05D3\u05EA \u05D4-While (\u05DB\u05DC \u05E2\u05D5\u05D3), \u05DE\u05D0\u05E4\u05E9\u05E8\u05EA \u05DC\u05D7\u05D6\u05D5\u05E8 \u05E2\u05DC \u05D1\u05D9\u05E6\u05D5\u05E2 \u05DE\u05E9\u05E4\u05D8\u05D9\u05DD \u05E2\u05D3 \u05E9\u05DE\u05D2\u05D9\u05E2\u05D9\u05DD \u05DC\u05EA\u05D5\u05E6\u05D0\u05D4 \u05E8\u05E6\u05D5\u05D9\u05D4.",
@@ -247321,6 +246056,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "ElseIf klju\u010Dna rije\u010D pru\u017Ea alternativno stanje kod dono\u0161enja odluka koriste\u0107i If izjavu.",
     "Keywords_EndIf": "Pogledajte If izjavu za informaciju o Endl klju\u010Dnoj rije\u010Di.",
     "Keywords_Goto": "Goto omogu\u0107uje grananje na novu lokaciju unutar programa.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Sub (Podprogram) izjava vam omogu\u0107uje radnju skupine stvari sa samo jednim pozivom.",
     "Keywords_EndSub": "Pogledajte Sub izjavu za informacije o EndSub klju\u010Dnoj rije\u010Di.",
     "Keywords_While": "While izjava vam omogu\u0107uje ponavljanje ne\u010Dega dok vi arhivirate \u017Eeljeni rezultat.",
@@ -247743,6 +246483,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "Me\xF0 ElseIf lykilor\xF0inu er l\xEDka h\xE6gt a\xF0 setja skilyr\xF0i \xE1 hva\xF0 gerist annars ef If skilyr\xF0i\xF0 er ekki uppfyllt.",
     "Keywords_EndIf": "EndIf: Sj\xE1 hj\xE1lpina fyrir If.",
     "Keywords_Goto": "Me\xF0 Goto skipuninni er sett grein \xED forrit, \xFE.e. lestur skipana er l\xE1tinn f\xE6rast \xE1 tiltekinn sta\xF0 \xED forritinu.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Sub skipunin skilgreinir undirforrit (stefju) sem h\xE6gt er a\xF0 kalla \xE1 me\xF0 \xFEv\xED a\xF0 nota heiti stefjunnar sem skipun.",
     "Keywords_EndSub": "EndSub: Sj\xE1 hj\xE1lpina fyrir Sub.",
     "Keywords_While": "While skipunin afmarkar lykkju sem endurtekur einhverjar skipanir \xFEar til tilteki\xF0 skilyr\xF0i er uppfyllt.",
@@ -248165,6 +246910,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "La parola chiave ElseIf fornisce una condizione alternativa a seguito della decisione presa nell'istruzione If.",
     "Keywords_EndIf": "Per informazioni sulla parola chiave EndIf vedere l'istruzione If.",
     "Keywords_Goto": "L'istruzione Goto consente di saltare ad un'altra posizione all'interno del programma.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "L'istruzione Sub (Subroutine) consente di eseguire un gruppo di azioni con una singola chiamata.",
     "Keywords_EndSub": "Per informazioni sulla parola chiave EndSub vedere l'istruzione Sub.",
     "Keywords_While": "L'istruzione While consente di ripetere qualcosa fino al raggiungimento del risultato.",
@@ -248587,6 +247337,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "ElseIf \u30AD\u30FC\u30EF\u30FC\u30C9\u306F\u3001If \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u3092\u4F7F\u3063\u3066\u6C7A\u5B9A\u3092\u3059\u308B\u3068\u304D\u306B\u3001\u6761\u4EF6\u306B\u5408\u308F\u306A\u304B\u3063\u305F\u5834\u5408\u306E\u4EE3\u66FF\u306E\u52D5\u4F5C\u3092\u63D0\u4F9B\u3059\u308B\u306E\u306B\u5F79\u306B\u7ACB\u3061\u307E\u3059\u3002",
     "Keywords_EndIf": "EndIf \u30AD\u30FC\u30EF\u30FC\u30C9\u306B\u95A2\u3059\u308B\u60C5\u5831\u3092\u898B\u308B\u306B\u306F\u3001If \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u3092\u30C1\u30A7\u30C3\u30AF\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
     "Keywords_Goto": "Goto \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u306F\u3001\u30D7\u30ED\u30B0\u30E9\u30E0\u4E2D\u3067\u65B0\u3057\u3044\u5834\u6240\u3078\u5206\u304B\u308C\u308B\u3068\u304D\u306B\u4F7F\u3044\u307E\u3059\u3002",
+    "Keywords_GoSub": "GoSub \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u306F\u3001\u5F15\u6570\u306E\u306A\u3044 Sub \u3092\u547C\u3073\u51FA\u3057\u3001\u547C\u3073\u51FA\u3057\u306E\u6B21\u306E\u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u304B\u3089\u5B9F\u884C\u3092\u7D9A\u3051\u307E\u3059\u3002",
+    "Keywords_OnErrorResumeNext": "\u5B9F\u884C\u6642\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3057\u305F\u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u3092\u30B9\u30AD\u30C3\u30D7\u3057\u3001\u30A8\u30E9\u30FC\u3092\u30B3\u30F3\u30BD\u30FC\u30EB\u306B [Runtime Error] \u30B3\u30FC\u30C9: \u30E1\u30C3\u30BB\u30FC\u30B8 \u3068\u3057\u3066\u51FA\u529B\u3057\u3066\u3001\u5B9F\u884C\u3092\u7D9A\u3051\u307E\u3059\u3002",
+    "Keywords_OnErrorGoToMinus1": "\u73FE\u5728\u306E\u30A8\u30E9\u30FC\u72B6\u614B\u3092\u30AF\u30EA\u30A2\u3057\u3001\u65E2\u5B9A\u306E\u52D5\u4F5C\uFF08\u5B9F\u884C\u6642\u30A8\u30E9\u30FC\u3067\u30D7\u30ED\u30B0\u30E9\u30E0\u3092\u7D42\u4E86\u3059\u308B\uFF09\u306B\u623B\u3057\u307E\u3059\u3002",
+    "Keywords_OnErrorGoTo0": "\u73FE\u5728\u306E On Error \u30CF\u30F3\u30C9\u30E9\u30FC\u3092\u7121\u52B9\u306B\u3057\u3001\u5B9F\u884C\u6642\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3059\u308B\u3068\u30D7\u30ED\u30B0\u30E9\u30E0\u3092\u7D42\u4E86\u3057\u307E\u3059\u3002",
+    "Keywords_OnErrorGoSub": "\u5B9F\u884C\u6642\u30A8\u30E9\u30FC\u304C\u767A\u751F\u3059\u308B\u3068\u3001\u30A8\u30E9\u30FC\u3092\u30B3\u30F3\u30BD\u30FC\u30EB\u306B\u51FA\u529B\u3057\u3001\u30A8\u30E9\u30FC\u30B3\u30FC\u30C9\u3068\u30E1\u30C3\u30BB\u30FC\u30B8\u3092\u5F15\u6570\u3068\u3057\u3066\u30CF\u30F3\u30C9\u30E9\u30FC Sub \u3092\u547C\u3073\u51FA\u3057\u307E\u3059\u3002\u30CF\u30F3\u30C9\u30E9\u30FC\u304B\u3089\u623B\u3063\u305F\u5F8C\u306F\u3001\u5931\u6557\u3057\u305F\u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u306E\u6B21\u304B\u3089\u5B9F\u884C\u3092\u7D9A\u3051\u307E\u3059\u3002",
     "Keywords_Sub": "Sub (\u30B5\u30D6\u30EB\u30FC\u30C1\u30F3) \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u3092\u4F7F\u3046\u3068\u3001\u4E00\u56DE\u306E\u547C\u3073\u51FA\u3057\u3067\u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u306E\u30B0\u30EB\u30FC\u30D7\u3092\u547C\u3073\u51FA\u3059\u3053\u3068\u304C\u3067\u304D\u307E\u3059\u3002",
     "Keywords_EndSub": "EndSub \u30AD\u30FC\u30EF\u30FC\u30C9\u306B\u95A2\u3059\u308B\u60C5\u5831\u3092\u898B\u308B\u306B\u306F\u3001Sub \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u3092\u30C1\u30A7\u30C3\u30AF\u3057\u3066\u304F\u3060\u3055\u3044\u3002",
     "Keywords_While": "While \u30B9\u30C6\u30FC\u30C8\u30E1\u30F3\u30C8\u3092\u4F7F\u3063\u3066\u3001\u671B\u3080\u7D50\u679C\u304C\u51FA\u308B\u307E\u3067\u540C\u3058\u3053\u3068\u3092\u4F55\u5EA6\u3082\u7E70\u308A\u8FD4\u3059\u3053\u3068\u304C\u3067\u304D\u307E\u3059\u3002",
@@ -249009,6 +247764,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "ElseIf \uAD6C\uBB38\uC740 If \uAD6C\uBB38\uC744 \uC0AC\uC6A9\uD558\uC5EC \uD310\uB2E8\uC2DC \uBCC4\uB3C4\uC758 \uC870\uAC74\uC744 \uC81C\uACF5\uD560\uC218 \uC788\uB3C4\uB85D \uB3C4\uC640 \uC90D\uB2C8\uB2E4.",
     "Keywords_EndIf": "Endif \uD0A4\uC6CC\uB4DC\uC5D0 \uB300\uD55C \uC124\uBA85\uC740 If \uAD6C\uBB38\uC744 \uCC38\uC870\uD558\uC2ED\uC2DC\uC694.",
     "Keywords_Goto": "Goto \uD0A4\uC6CC\uB4DC\uB294 \uD504\uB85C\uADF8\uB7A8 \uC548\uC5D0\uC11C \uB77C\uBCA8\uC774 \uD45C\uC2DC\uB41C \uACF3\uC73C\uB85C \uC774\uB3D9\uD560 \uB54C \uC0AC\uC6A9\uD569\uB2C8\uB2E4.",
+    "Keywords_GoSub": "GoSub \uBB38\uC740 \uB9E4\uAC1C \uBCC0\uC218\uAC00 \uC5C6\uB294 Sub\uB97C \uD638\uCD9C\uD55C \uB2E4\uC74C \uD638\uCD9C \uB2E4\uC74C \uBB38\uC5D0\uC11C \uACC4\uC18D \uC2E4\uD589\uB429\uB2C8\uB2E4.",
+    "Keywords_OnErrorResumeNext": "\uB7F0\uD0C0\uC784 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD55C \uBB38\uC744 \uAC74\uB108\uB6F0\uACE0, \uC624\uB958\uB97C \uCF58\uC194\uC5D0 [Runtime Error] \uCF54\uB4DC: \uBA54\uC2DC\uC9C0 \uD615\uC2DD\uC73C\uB85C \uCD9C\uB825\uD55C \uB4A4 \uACC4\uC18D \uC2E4\uD589\uD569\uB2C8\uB2E4.",
+    "Keywords_OnErrorGoToMinus1": "\uD604\uC7AC \uC624\uB958 \uC0C1\uD0DC\uB97C \uC9C0\uC6B0\uACE0 \uAE30\uBCF8 \uB3D9\uC791(\uB7F0\uD0C0\uC784 \uC624\uB958 \uC2DC \uD504\uB85C\uADF8\uB7A8 \uC885\uB8CC)\uC744 \uBCF5\uC6D0\uD569\uB2C8\uB2E4.",
+    "Keywords_OnErrorGoTo0": "\uD604\uC7AC On Error \uCC98\uB9AC\uAE30\uB97C \uD574\uC81C\uD569\uB2C8\uB2E4. \uB7F0\uD0C0\uC784 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD558\uBA74 \uD504\uB85C\uADF8\uB7A8\uC774 \uB2E4\uC2DC \uC885\uB8CC\uB429\uB2C8\uB2E4.",
+    "Keywords_OnErrorGoSub": "\uB7F0\uD0C0\uC784 \uC624\uB958\uAC00 \uBC1C\uC0DD\uD558\uBA74 \uC624\uB958\uB97C \uCF58\uC194\uC5D0 \uCD9C\uB825\uD558\uACE0 \uC624\uB958 \uCF54\uB4DC\uC640 \uBA54\uC2DC\uC9C0\uB97C \uC778\uC218\uB85C \uCC98\uB9AC\uAE30 Sub\uB97C \uD638\uCD9C\uD569\uB2C8\uB2E4. \uCC98\uB9AC\uAE30\uAC00 \uBC18\uD658\uB418\uBA74 \uC2E4\uD328\uD55C \uBB38 \uB2E4\uC74C\uBD80\uD130 \uC2E4\uD589\uC744 \uACC4\uC18D\uD569\uB2C8\uB2E4.",
     "Keywords_Sub": "Sub (\uC11C\uBE0C\uB8E8\uD2F4) \uD0A4\uC6CC\uB4DC\uB294 \uC5EC\uB7EC \uAC00\uC9C0 \uB0B4\uC6A9\uC758 \uC2E4\uD589\uC744 \uD55C\uBC88\uC758 \uD638\uCD9C\uB85C \uAC00\uB2A5\uD558\uB3C4\uB85D \uD569\uB2C8\uB2E4.",
     "Keywords_EndSub": "Elsesub \uD0A4\uC6CC\uB4DC\uC5D0 \uB300\uD55C \uC124\uBA85\uC740 Sub \uAD6C\uBB38\uC744 \uCC38\uC870\uD558\uC2ED\uC2DC\uC694.",
     "Keywords_While": "While \uD0A4\uC6CC\uB4DC\uB294 \uBC14\uB77C\uB294 \uACB0\uACFC\uB97C \uC5BB\uC744 \uB54C\uAE4C\uC9C0 \uBC18\uBCF5\uD558\uC5EC \uC2E4\uD589\uD569\uB2C8\uB2E4.",
@@ -249431,6 +248191,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "Het ElseIf trefwoord helpt in het voorzien van een alternative conditie terwijl er gebruik gemaakt wordt van het If-statement.",
     "Keywords_EndIf": "Bekijk het If trefwoord voor informatie over EndIf.",
     "Keywords_Goto": "Met GoTo (GaNaar) springt het programma naar een met : benoemde plek.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Met Sub wordt een groep bewerkingen samen gebracht. Hiermee wordt een nieuwe bewerking (Subroutine) gemaakt.",
     "Keywords_EndSub": "Bekijk het Sub trefwoord voor informatie over EndSub.",
     "Keywords_While": "Met While (Zolang) worden bewerkingen uitgevoerd zolang een vergelijking waar is.",
@@ -249853,6 +248618,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "Polecenie ElseIf pomaga podejmowa\u0107 alternatywne decyzje w z\u0142o\u017Conych warunkach zaczynaj\u0105cych si\u0119 od If.",
     "Keywords_EndIf": "Zobacz polecenie If.",
     "Keywords_Goto": "Polecenie Goto pozwala na wykonanie bezwarunkowego skoku w inne miejsce programu.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Polecenie Sub (Subroutine, procedura) pozwala grupowa\u0107 zestawy instrukcji do wykonania przy pomocy jednego wywo\u0142ania.",
     "Keywords_EndSub": "Zobacz polecenie Sub.",
     "Keywords_While": "Polecenie While pozwala na powtarzanie akcji do momentu uzyskania oczekiwanego rezultatu.",
@@ -250275,6 +249045,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "A palavra chave ElseIf fornece uma condi\xE7\xE3o alternativa durante a tomada de decis\xE3o no uso da instru\xE7\xE3o If.",
     "Keywords_EndIf": "Consulte a instru\xE7\xE3o If para informa\xE7\xE3o sobre a palavra-chave EndIf.",
     "Keywords_Goto": "A instru\xE7\xE3o Goto permite ramifica\xE7\xF5es para uma nova localiza\xE7\xE3o no programa.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "A instru\xE7\xE3o Sub (sub-rotina) permite que voc\xEA realize um grupo de coisas com uma s\xF3 chamada.",
     "Keywords_EndSub": "Consulte a instru\xE7\xE3o Sub para informa\xE7\xE3o sobre a palavra-chave EndSub.",
     "Keywords_While": "A instru\xE7\xE3o While permite que voc\xEA repita algo at\xE9 que um resultado desejado seja alcan\xE7ado.",
@@ -250697,6 +249472,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "A palavra chave ElseIf fornece uma condi\xE7\xE3o alternativa durante a tomada de decis\xE3o no uso da instru\xE7\xE3o If.",
     "Keywords_EndIf": "Consulte a instru\xE7\xE3o If para informa\xE7\xE3o sobre a palavra-chave EndIf.",
     "Keywords_Goto": "A instru\xE7\xE3o Goto permite ramifica\xE7\xF5es para uma nova localiza\xE7\xE3o no programa.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "A instru\xE7\xE3o Sub (sub-rotina) permite que voc\xEA realize um grupo de coisas com uma s\xF3 chamada.",
     "Keywords_EndSub": "Consulte a instru\xE7\xE3o Sub para informa\xE7\xE3o sobre a palavra-chave EndSub.",
     "Keywords_While": "A instru\xE7\xE3o While permite que voc\xEA repita algo at\xE9 que um resultado desejado seja alcan\xE7ado.",
@@ -251119,6 +249899,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "A palavra-chave ElseIf fornece uma condi\xE7\xE3o alternativa ao tomar decis\xF5es utilizando a declara\xE7\xE3o If.",
     "Keywords_EndIf": "Verifique a declara\xE7\xE3o If para informa\xE7\xE3o acerca da palavra-chave EndIf.",
     "Keywords_Goto": "A declara\xE7\xE3o Goto permite criar ramos para uma nova localiza\xE7\xE3o no programa.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "A declara\xE7\xE3o Sub (Subroutine) permite fazer grupos de coisas com uma \xFAnica chamada.",
     "Keywords_EndSub": "Verifica a declara\xE7\xE3o Sub para informa\xE7\xE3o acerca da palavra-chave EndSub.",
     "Keywords_While": "A declara\xE7\xE3o While permite repetir algo at\xE9 conseguir o resultado desejado.",
@@ -251541,6 +250326,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "\u041A\u043B\u044E\u0447\u0435\u0432\u043E\u0435 \u0441\u043B\u043E\u0432\u043E ElseIf \u043F\u043E\u0437\u0432\u043E\u043B\u044F\u0435\u0442 \u043E\u043F\u0440\u0435\u0434\u0435\u043B\u0438\u0442\u044C \u0430\u043B\u044C\u0442\u0435\u0440\u043D\u0430\u0442\u0438\u0432\u043D\u043E\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0435 \u0434\u043B\u044F \u043E\u043F\u0435\u0440\u0430\u0442\u043E\u0440\u0430 If.",
     "Keywords_EndIf": "\u0421\u043C\u043E\u0442\u0440\u0438\u0442\u0435 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043A\u043B\u044E\u0447\u0435\u0432\u043E\u0433\u043E \u0441\u043B\u043E\u0432\u0430 EndIf \u0432 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0438 \u043E\u043F\u0435\u0440\u0430\u0442\u043E\u0440\u0430 If.",
     "Keywords_Goto": "\u041E\u043F\u0435\u0440\u0430\u0442\u043E\u0440 Goto \u043F\u043E\u0437\u0432\u043E\u043B\u044F\u0435\u0442 \u043F\u0435\u0440\u0435\u0445\u043E\u0434\u0438\u0442\u044C \u0432 \u043B\u044E\u0431\u0443\u044E \u0442\u043E\u0447\u043A\u0443 \u043F\u0440\u043E\u0433\u0440\u0430\u043C\u043C\u044B.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "\u041E\u043F\u0435\u0440\u0430\u0442\u043E\u0440 Sub (Subroutine - \u043F\u0440\u043E\u0446\u0435\u0434\u0443\u0440\u0430) \u043F\u043E\u0437\u0432\u043E\u043B\u044F\u0435\u0442 \u0433\u0440\u0443\u043F\u043F\u0438\u0440\u043E\u0432\u0430\u0442\u044C \u0440\u044F\u0434 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0434\u043B\u044F \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u044F \u0438\u0445 \u0441 \u043F\u043E\u043C\u043E\u0449\u044C\u044E \u043E\u0434\u043D\u043E\u0433\u043E \u0432\u044B\u0437\u043E\u0432\u0430 \u043F\u0440\u043E\u0446\u0435\u0434\u0443\u0440\u044B.",
     "Keywords_EndSub": "\u0421\u043C\u043E\u0442\u0440\u0438\u0442\u0435 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0435 \u043A\u043B\u044E\u0447\u0435\u0432\u043E\u0433\u043E \u0441\u043B\u043E\u0432\u0430 EndSub \u0432 \u043E\u043F\u0438\u0441\u0430\u043D\u0438\u0438 \u043E\u043F\u0435\u0440\u0430\u0442\u043E\u0440\u0430 Sub.",
     "Keywords_While": "\u041E\u043F\u0435\u0440\u0430\u0442\u043E\u0440 While \u043E\u0431\u0435\u0441\u043F\u0435\u0447\u0438\u0432\u0430\u0435\u0442 \u0432\u044B\u043F\u043E\u043B\u043D\u0435\u043D\u0438\u0435 \u0434\u0435\u0439\u0441\u0442\u0432\u0438\u0439 \u0434\u043E \u0442\u0435\u0445 \u043F\u043E\u0440, \u043F\u043E\u043A\u0430 \u043D\u0435 \u0431\u0443\u0434\u0435\u0442 \u0434\u043E\u0441\u0442\u0438\u0433\u043D\u0443\u0442 \u0442\u0440\u0435\u0431\u0443\u0435\u043C\u044B\u0439 \u0440\u0435\u0437\u0443\u043B\u044C\u0442\u0430\u0442.",
@@ -251963,6 +250753,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "ElseIf anahtar s\xF6zc\xFC\u011F\xFC If deyimini kullanarak kararlar verirken alternatif durumlar olu\u015Fturabilmemize yard\u0131m eder.",
     "Keywords_EndIf": "EndIf anahtar s\xF6zc\xFC\u011F\xFC hakk\u0131nda bilgi i\xE7in If deyimini kontrol edin.",
     "Keywords_Goto": "Goto deyimi program i\xE7erisinde yeni bir konuma gidebilmenize olanak verir.",
+    "Keywords_GoSub": "The GoSub statement calls a parameterless Sub and returns to the statement after the call.",
+    "Keywords_OnErrorResumeNext": "Skips the statement that caused a runtime error, mirrors it to the console as [Runtime Error] code: message, and keeps running.",
+    "Keywords_OnErrorGoToMinus1": "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+    "Keywords_OnErrorGoTo0": "Disables the current On Error handler; runtime errors terminate the program again.",
+    "Keywords_OnErrorGoSub": "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
     "Keywords_Sub": "Yordam (Alt Yordam) deyimi gruplar halindeki kod sat\u0131rlar\u0131n\u0131 tek bir \xE7a\u011Fr\u0131 ile yapabilmenize olanak verir.",
     "Keywords_EndSub": "EndSub anahtar s\xF6zc\xFC\u011F\xFC hakk\u0131nda bilgi i\xE7in Sub deyimini kontrol edin.",
     "Keywords_While": "While deyimi arzu edilen sonuca ula\u015F\u0131lana kadar bir\u015Feyi defalarca tekrar edebilmenize olanak verir.",
@@ -252385,6 +251180,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "ElseIf \u5173\u952E\u5B57\u5141\u8BB8\u60A8\u5728\u4F7F\u7528 If \u8BED\u53E5\u4F5C\u5224\u65AD\u65F6\u4F7F\u7528\u989D\u5916\u7684\u6761\u4EF6\u3002",
     "Keywords_EndIf": "\u68C0\u67E5 If \u8BED\u53E5\u7684 EndIf \u5173\u952E\u5B57\u3002",
     "Keywords_Goto": "Goto \u8BED\u53E5\u5141\u8BB8\u60A8\u8DF3\u5230\u7A0B\u5E8F\u4E2D\u7684\u65B0\u4F4D\u7F6E\u3002",
+    "Keywords_GoSub": "GoSub \u8BED\u53E5\u8C03\u7528\u4E00\u4E2A\u4E0D\u5E26\u53C2\u6570\u7684 Sub\uFF0C\u5E76\u5728\u8C03\u7528\u4E4B\u540E\u4ECE\u4E0B\u4E00\u6761\u8BED\u53E5\u7EE7\u7EED\u6267\u884C\u3002",
+    "Keywords_OnErrorResumeNext": "\u8DF3\u8FC7\u5F15\u53D1\u8FD0\u884C\u65F6\u9519\u8BEF\u7684\u8BED\u53E5\uFF0C\u5C06\u8BE5\u9519\u8BEF\u4EE5 [Runtime Error] \u9519\u8BEF\u7801: \u9519\u8BEF\u6D88\u606F \u7684\u5F62\u5F0F\u8F93\u51FA\u5230\u63A7\u5236\u53F0\uFF0C\u7136\u540E\u7EE7\u7EED\u8FD0\u884C\u3002",
+    "Keywords_OnErrorGoToMinus1": "\u6E05\u9664\u5F53\u524D\u7684\u9519\u8BEF\u72B6\u6001\u5E76\u6062\u590D\u9ED8\u8BA4\u884C\u4E3A\uFF1A\u53D1\u751F\u8FD0\u884C\u65F6\u9519\u8BEF\u65F6\u7EC8\u6B62\u7A0B\u5E8F\u3002",
+    "Keywords_OnErrorGoTo0": "\u505C\u7528\u5F53\u524D\u7684 On Error \u5904\u7406\u7A0B\u5E8F\uFF1B\u53D1\u751F\u8FD0\u884C\u65F6\u9519\u8BEF\u65F6\u5C06\u518D\u6B21\u7EC8\u6B62\u7A0B\u5E8F\u3002",
+    "Keywords_OnErrorGoSub": "\u53D1\u751F\u8FD0\u884C\u65F6\u9519\u8BEF\u65F6\uFF0C\u5148\u5C06\u9519\u8BEF\u8F93\u51FA\u5230\u63A7\u5236\u53F0\uFF0C\u518D\u4EE5\u9519\u8BEF\u7801\u548C\u9519\u8BEF\u6D88\u606F\u4E3A\u53C2\u6570\u8C03\u7528\u5904\u7406\u7A0B\u5E8F Sub\uFF1B\u5904\u7406\u7A0B\u5E8F\u8FD4\u56DE\u540E\u4ECE\u5931\u8D25\u8BED\u53E5\u7684\u4E0B\u4E00\u6761\u7EE7\u7EED\u6267\u884C\u3002",
     "Keywords_Sub": "Sub (\u5B50\u4F8B\u7A0B) \u8BED\u53E5\u5141\u8BB8\u60A8\u901A\u8FC7\u4E00\u4E2A\u8C03\u7528\u6765\u5B8C\u6210\u4E00\u7EC4\u4E8B\u60C5\u3002",
     "Keywords_EndSub": "\u68C0\u67E5 Sub \u8BED\u53E5\u7684 EndSub \u5173\u952E\u5B57\u3002",
     "Keywords_While": "While \u8BED\u53E5\u5141\u8BB8\u60A8\u91CD\u590D\u67D0\u4E9B\u52A8\u4F5C\u76F4\u5230\u5F97\u5230\u60F3\u8981\u7684\u7ED3\u679C\u3002",
@@ -252807,6 +251607,11 @@ var documentationLocales = {
     "Keywords_ElseIf": "ElseIf \u95DC\u9375\u5B57\u5141\u8A31\u60A8\u5728\u4F7F\u7528 If \u8A9E\u53E5\u4F5C\u5224\u65B7\u6642\u4F7F\u7528\u984D\u5916\u7684\u689D\u4EF6\u3002",
     "Keywords_EndIf": "\u6AA2\u67E5 If \u8A9E\u53E5\u4F86\u627E\u51FA\u95DC\u65BC Endif \u95DC\u9375\u5B57\u7684\u8CC7\u8A0A\u3002",
     "Keywords_Goto": "Goto \u8A9E\u53E5\u53EF\u5141\u8A31\u7A0B\u5E8F\u8DF3\u5230\u4E00\u500B\u65B0\u4F4D\u7F6E\u3002",
+    "Keywords_GoSub": "GoSub \u8A9E\u53E5\u547C\u53EB\u4E00\u500B\u4E0D\u5E36\u53C3\u6578\u7684 Sub\uFF0C\u4E26\u5728\u547C\u53EB\u4E4B\u5F8C\u5F9E\u4E0B\u4E00\u689D\u8A9E\u53E5\u7E7C\u7E8C\u57F7\u884C\u3002",
+    "Keywords_OnErrorResumeNext": "\u7565\u904E\u5F15\u767C\u57F7\u884C\u968E\u6BB5\u932F\u8AA4\u7684\u8A9E\u53E5\uFF0C\u5C07\u8A72\u932F\u8AA4\u4EE5 [Runtime Error] \u932F\u8AA4\u78BC: \u932F\u8AA4\u8A0A\u606F \u7684\u5F62\u5F0F\u8F38\u51FA\u5230\u4E3B\u63A7\u53F0\uFF0C\u7136\u5F8C\u7E7C\u7E8C\u57F7\u884C\u3002",
+    "Keywords_OnErrorGoToMinus1": "\u6E05\u9664\u76EE\u524D\u7684\u932F\u8AA4\u72C0\u614B\u4E26\u9084\u539F\u9810\u8A2D\u884C\u70BA\uFF1A\u767C\u751F\u57F7\u884C\u968E\u6BB5\u932F\u8AA4\u6642\u7D42\u6B62\u7A0B\u5F0F\u3002",
+    "Keywords_OnErrorGoTo0": "\u505C\u7528\u76EE\u524D\u7684 On Error \u8655\u7406\u5E38\u5F0F\uFF1B\u767C\u751F\u57F7\u884C\u968E\u6BB5\u932F\u8AA4\u6642\u5C07\u518D\u6B21\u7D42\u6B62\u7A0B\u5F0F\u3002",
+    "Keywords_OnErrorGoSub": "\u767C\u751F\u57F7\u884C\u968E\u6BB5\u932F\u8AA4\u6642\uFF0C\u5148\u5C07\u932F\u8AA4\u8F38\u51FA\u5230\u4E3B\u63A7\u53F0\uFF0C\u518D\u4EE5\u932F\u8AA4\u78BC\u548C\u932F\u8AA4\u8A0A\u606F\u70BA\u53C3\u6578\u547C\u53EB\u8655\u7406\u5E38\u5F0F Sub\uFF1B\u8655\u7406\u5E38\u5F0F\u50B3\u56DE\u5F8C\u5F9E\u5931\u6557\u8A9E\u53E5\u7684\u4E0B\u4E00\u689D\u7E7C\u7E8C\u57F7\u884C\u3002",
     "Keywords_Sub": "Sub (\u5B50\u7A0B\u5E8F) \u8A9E\u53E5\u5141\u8A31\u60A8\u901A\u904E\u4E00\u6B21\u7684\u8ABF\u7528\u4F86\u5B8C\u6210\u4E00\u7D44\u4E8B\u60C5\u3002",
     "Keywords_EndSub": "\u6AA2\u67E5 Sub \u8A9E\u53E5\u4E2D\u6709\u95DC\u8A72 EndSub \u95DC\u9375\u5B57\u7684\u8CC7\u8A0A\u3002",
     "Keywords_While": "While \u8A9E\u53E5\u5141\u8A31\u4F60\u91CD\u8907\u67D0\u4E9B\u52D5\u4F5C\uFF0C\u76F4\u5230\u9054\u5230\u9810\u671F\u7684\u7D50\u679C\u70BA\u6B62\u3002",
@@ -252891,10 +251696,10 @@ var DocumentationResources;
   DocumentationResources2.Math_Remainder = "Divides the first number by the second and returns the remainder.";
   DocumentationResources2.Math_Remainder_Dividend = "The number to divide.";
   DocumentationResources2.Math_Remainder_Divisor = "The number that divides.";
-  DocumentationResources2.Math_Div = "Divides the first number by the second and returns the integer part of the quotient (truncated toward zero). For example, Math.Div(7, 2) returns 3 and Math.Div(-7, 2) returns -3. Dividing by zero returns 0.";
+  DocumentationResources2.Math_Div = "Divides the first number by the second and returns the integer part of the quotient (truncated toward zero). For example, Math.Div(7, 2) returns 3 and Math.Div(-7, 2) returns -3. Dividing by zero is a runtime error that On Error can catch.";
   DocumentationResources2.Math_Div_Dividend = "The number to divide.";
   DocumentationResources2.Math_Div_Divisor = "The number that divides.";
-  DocumentationResources2.Math_Mod = "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero returns 0.";
+  DocumentationResources2.Math_Mod = "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero is a runtime error that On Error can catch.";
   DocumentationResources2.Math_Mod_Dividend = "The number to divide.";
   DocumentationResources2.Math_Mod_Divisor = "The number that divides.";
   DocumentationResources2.Math_Cos = "Gets the cosine of the given angle in radians.";
@@ -253705,9 +252510,23 @@ var LibrariesMetadata = class {
 };
 
 // ../../vendor/SmallBasicOnline/src/compiler/runtime/libraries/math.ts
-var MathLibrary = class {
+var MathLibrary = class _MathLibrary {
   getPi() {
     return new NumberValue(Math.PI);
+  }
+  // decimal.Round, which the C# library calls, rounds half to even: 2.5 is 2
+  // and 3.5 is 4. JavaScript's Math.round rounds half up instead, so the C#
+  // behaviour is implemented explicitly here.
+  static roundHalfToEven(value) {
+    const below = Math.floor(value);
+    const fraction = value - below;
+    if (fraction > 0.5) {
+      return below + 1;
+    }
+    if (fraction < 0.5) {
+      return below;
+    }
+    return below % 2 === 0 ? below : below + 1;
   }
   executeCalculation(engine, calculation) {
     const args = new Array(calculation.length);
@@ -253722,14 +252541,16 @@ var MathLibrary = class {
     }
     const result = calculation(...args);
     if (engine.state !== 3 /* Terminated */) {
+      if (!Number.isFinite(result)) {
+        engine.reportRuntimeError(1003 /* InvalidNumericResult */);
+      }
       engine.pushEvaluationStack(new NumberValue(result));
     }
   }
-  executeRemainder(engine, _, range2) {
+  executeRemainder(engine, _, _2) {
     return this.executeCalculation(engine, (dividend, divisor) => {
       if (divisor === 0) {
-        engine.terminate(new Diagnostic2(39 /* CannotDivideByZero */, range2));
-        return 0;
+        engine.reportRuntimeError(1001 /* DivideByZero */);
       }
       return dividend % divisor;
     });
@@ -253737,29 +252558,82 @@ var MathLibrary = class {
   methods = {
     Abs: { execute: (engine) => this.executeCalculation(engine, Math.abs) },
     Remainder: { execute: this.executeRemainder.bind(this) },
-    // Math.Div / Math.Mod follow the Arithmetic Extension v1 contract: the
-    // same semantics as the \ and Mod operators, with a zero divisor
-    // yielding 0 on every backend (unlike the legacy Remainder above).
-    Div: { execute: (engine) => this.executeCalculation(engine, (dividend, divisor) => divisor === 0 ? 0 : Math.trunc(dividend / divisor)) },
-    Mod: { execute: (engine) => this.executeCalculation(engine, (dividend, divisor) => divisor === 0 ? 0 : dividend % divisor) },
+    // Math.Div / Math.Mod keep the Arithmetic Extension v1 operator
+    // semantics (\ and Mod), except that a zero divisor is now a runtime
+    // error that `On Error` can catch instead of a silent 0.
+    Div: {
+      execute: (engine) => this.executeCalculation(engine, (dividend, divisor) => {
+        if (divisor === 0) {
+          engine.reportRuntimeError(1001 /* DivideByZero */);
+        }
+        return Math.trunc(dividend / divisor);
+      })
+    },
+    Mod: {
+      execute: (engine) => this.executeCalculation(engine, (dividend, divisor) => {
+        if (divisor === 0) {
+          engine.reportRuntimeError(1001 /* DivideByZero */);
+        }
+        return dividend % divisor;
+      })
+    },
     Cos: { execute: (engine) => this.executeCalculation(engine, Math.cos) },
     Sin: { execute: (engine) => this.executeCalculation(engine, Math.sin) },
     Tan: { execute: (engine) => this.executeCalculation(engine, Math.tan) },
-    ArcCos: { execute: (engine) => this.executeCalculation(engine, Math.acos) },
-    ArcSin: { execute: (engine) => this.executeCalculation(engine, Math.asin) },
+    ArcCos: {
+      execute: (engine) => this.executeCalculation(engine, (value) => {
+        if (value < -1 || value > 1) {
+          engine.reportRuntimeError(1002 /* InvalidMathOperation */);
+        }
+        return Math.acos(value);
+      })
+    },
+    ArcSin: {
+      execute: (engine) => this.executeCalculation(engine, (value) => {
+        if (value < -1 || value > 1) {
+          engine.reportRuntimeError(1002 /* InvalidMathOperation */);
+        }
+        return Math.asin(value);
+      })
+    },
     ArcTan: { execute: (engine) => this.executeCalculation(engine, Math.atan) },
     Ceiling: { execute: (engine) => this.executeCalculation(engine, Math.ceil) },
     Floor: { execute: (engine) => this.executeCalculation(engine, Math.floor) },
-    Round: { execute: (engine) => this.executeCalculation(engine, Math.round) },
+    Round: { execute: (engine) => this.executeCalculation(engine, _MathLibrary.roundHalfToEven) },
     GetDegrees: { execute: (engine) => this.executeCalculation(engine, (angle) => 180 * angle / Math.PI % 360) },
     GetRadians: { execute: (engine) => this.executeCalculation(engine, (angle) => angle % 360 * Math.PI / 180) },
-    GetRandomNumber: { execute: (engine) => this.executeCalculation(engine, (maxNumber) => Math.floor(Math.random() * (Math.max(1, maxNumber) - 1)) + 1) },
-    Log: { execute: (engine) => this.executeCalculation(engine, (value) => Math.log(value) / Math.LN10) },
-    NaturalLog: { execute: (engine) => this.executeCalculation(engine, Math.log) },
+    // Random.Next((int)max) + 1 on the C# side: the bound is truncated and
+    // reachable (the previous version stopped one short of the maximum).
+    GetRandomNumber: { execute: (engine) => this.executeCalculation(engine, (maxNumber) => Math.floor(Math.random() * Math.floor(Math.max(1, maxNumber))) + 1) },
+    // Math.Log10 on the C# side; Math.log(x) / Math.LN10 loses precision
+    // (log(1000) would come out as 2.9999999999999996).
+    Log: {
+      execute: (engine) => this.executeCalculation(engine, (value) => {
+        if (value <= 0) {
+          engine.reportRuntimeError(1002 /* InvalidMathOperation */);
+        }
+        return Math.log10(value);
+      })
+    },
+    NaturalLog: {
+      execute: (engine) => this.executeCalculation(engine, (value) => {
+        if (value <= 0) {
+          engine.reportRuntimeError(1002 /* InvalidMathOperation */);
+        }
+        return Math.log(value);
+      })
+    },
     Max: { execute: (engine) => this.executeCalculation(engine, (value1, value2) => Math.max(value1, value2)) },
     Min: { execute: (engine) => this.executeCalculation(engine, (value1, value2) => Math.min(value1, value2)) },
     Power: { execute: (engine) => this.executeCalculation(engine, (baseNumber, exponent) => Math.pow(baseNumber, exponent)) },
-    SquareRoot: { execute: (engine) => this.executeCalculation(engine, (value) => value < 0 ? 0 : Math.sqrt(value)) }
+    SquareRoot: {
+      execute: (engine) => this.executeCalculation(engine, (value) => {
+        if (value < 0) {
+          engine.reportRuntimeError(1002 /* InvalidMathOperation */);
+        }
+        return Math.sqrt(value);
+      })
+    }
   };
   properties = {
     Pi: { getter: this.getPi.bind(this) }
@@ -254302,6 +253176,1201 @@ var RuntimeLibraries = class {
 // ../../vendor/SmallBasicOnline/src/compiler/utils/notifications.ts
 var PubSub = __toESM(require_pubsub());
 
+// ../../vendor/SmallBasicOnline/src/compiler/syntax/ranges.ts
+var CompilerPosition = class {
+  constructor(line, column) {
+    this.line = line;
+    this.column = column;
+  }
+  equals(position) {
+    return this.line === position.line && this.column === position.column;
+  }
+  before(position) {
+    if (this.line > position.line) return false;
+    if (this.line < position.line) return true;
+    return this.column < position.column;
+  }
+  after(position) {
+    if (this.line < position.line) return false;
+    if (this.line > position.line) return true;
+    return this.column > position.column;
+  }
+};
+var CompilerRange = class _CompilerRange {
+  constructor(start, end) {
+    this.start = start;
+    this.end = end;
+  }
+  static fromValues(startLine, startColumn, endLine, endColumn) {
+    return new _CompilerRange(
+      new CompilerPosition(startLine, startColumn),
+      new CompilerPosition(endLine, endColumn)
+    );
+  }
+  static fromPositions(start, end) {
+    return new _CompilerRange(start, end);
+  }
+  static combine(start, end) {
+    return new _CompilerRange(start.start, end.end);
+  }
+  // Spans ranges regardless of their document order: the result covers the
+  // earliest start through the latest end. Unlike `combine`, this is safe for
+  // child collections that may appear in any order (e.g. main statements
+  // located after sub modules).
+  static spanning(ranges) {
+    if (ranges.length === 0) {
+      return _CompilerRange.fromValues(0, 0, 0, 0);
+    }
+    let start = ranges[0].start;
+    let end = ranges[0].end;
+    for (let i2 = 1; i2 < ranges.length; i2++) {
+      if (ranges[i2].start.before(start)) {
+        start = ranges[i2].start;
+      }
+      if (end.before(ranges[i2].end)) {
+        end = ranges[i2].end;
+      }
+    }
+    return new _CompilerRange(start, end);
+  }
+  containsPosition(position) {
+    return (this.start.before(position) || this.start.equals(position)) && (position.before(this.end) || position.equals(this.end));
+  }
+  containsRange(range2) {
+    return this.containsPosition(range2.start) && this.containsPosition(range2.end);
+  }
+};
+
+// ../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes.ts
+function parameterListEndRange(nameToken, parameterTokens, rightParenToken) {
+  if (rightParenToken) {
+    return rightParenToken.range;
+  }
+  if (parameterTokens.length) {
+    return parameterTokens[parameterTokens.length - 1].range;
+  }
+  return nameToken.range;
+}
+var SyntaxKind2 = /* @__PURE__ */ ((SyntaxKind4) => {
+  SyntaxKind4[SyntaxKind4["ParseTree"] = 0] = "ParseTree";
+  SyntaxKind4[SyntaxKind4["SubModuleDeclaration"] = 1] = "SubModuleDeclaration";
+  SyntaxKind4[SyntaxKind4["FunctionDeclaration"] = 2] = "FunctionDeclaration";
+  SyntaxKind4[SyntaxKind4["StatementBlock"] = 3] = "StatementBlock";
+  SyntaxKind4[SyntaxKind4["IfHeader"] = 4] = "IfHeader";
+  SyntaxKind4[SyntaxKind4["IfStatement"] = 5] = "IfStatement";
+  SyntaxKind4[SyntaxKind4["WhileStatement"] = 6] = "WhileStatement";
+  SyntaxKind4[SyntaxKind4["ForStatement"] = 7] = "ForStatement";
+  SyntaxKind4[SyntaxKind4["IfCommand"] = 8] = "IfCommand";
+  SyntaxKind4[SyntaxKind4["ElseCommand"] = 9] = "ElseCommand";
+  SyntaxKind4[SyntaxKind4["ElseIfCommand"] = 10] = "ElseIfCommand";
+  SyntaxKind4[SyntaxKind4["EndIfCommand"] = 11] = "EndIfCommand";
+  SyntaxKind4[SyntaxKind4["ForStepClause"] = 12] = "ForStepClause";
+  SyntaxKind4[SyntaxKind4["ForCommand"] = 13] = "ForCommand";
+  SyntaxKind4[SyntaxKind4["EndForCommand"] = 14] = "EndForCommand";
+  SyntaxKind4[SyntaxKind4["WhileCommand"] = 15] = "WhileCommand";
+  SyntaxKind4[SyntaxKind4["EndWhileCommand"] = 16] = "EndWhileCommand";
+  SyntaxKind4[SyntaxKind4["BreakCommand"] = 17] = "BreakCommand";
+  SyntaxKind4[SyntaxKind4["ContinueCommand"] = 18] = "ContinueCommand";
+  SyntaxKind4[SyntaxKind4["LabelCommand"] = 19] = "LabelCommand";
+  SyntaxKind4[SyntaxKind4["GoToCommand"] = 20] = "GoToCommand";
+  SyntaxKind4[SyntaxKind4["GoSubCommand"] = 21] = "GoSubCommand";
+  SyntaxKind4[SyntaxKind4["OnErrorCommand"] = 22] = "OnErrorCommand";
+  SyntaxKind4[SyntaxKind4["SubCommand"] = 23] = "SubCommand";
+  SyntaxKind4[SyntaxKind4["EndSubCommand"] = 24] = "EndSubCommand";
+  SyntaxKind4[SyntaxKind4["FunctionCommand"] = 25] = "FunctionCommand";
+  SyntaxKind4[SyntaxKind4["EndFunctionCommand"] = 26] = "EndFunctionCommand";
+  SyntaxKind4[SyntaxKind4["DimCommand"] = 27] = "DimCommand";
+  SyntaxKind4[SyntaxKind4["ReturnCommand"] = 28] = "ReturnCommand";
+  SyntaxKind4[SyntaxKind4["ExpressionCommand"] = 29] = "ExpressionCommand";
+  SyntaxKind4[SyntaxKind4["CommentCommand"] = 30] = "CommentCommand";
+  SyntaxKind4[SyntaxKind4["UnaryOperatorExpression"] = 31] = "UnaryOperatorExpression";
+  SyntaxKind4[SyntaxKind4["BinaryOperatorExpression"] = 32] = "BinaryOperatorExpression";
+  SyntaxKind4[SyntaxKind4["ObjectAccessExpression"] = 33] = "ObjectAccessExpression";
+  SyntaxKind4[SyntaxKind4["ArrayAccessExpression"] = 34] = "ArrayAccessExpression";
+  SyntaxKind4[SyntaxKind4["Argument"] = 35] = "Argument";
+  SyntaxKind4[SyntaxKind4["InvocationExpression"] = 36] = "InvocationExpression";
+  SyntaxKind4[SyntaxKind4["ParenthesisExpression"] = 37] = "ParenthesisExpression";
+  SyntaxKind4[SyntaxKind4["IdentifierExpression"] = 38] = "IdentifierExpression";
+  SyntaxKind4[SyntaxKind4["NumberLiteralExpression"] = 39] = "NumberLiteralExpression";
+  SyntaxKind4[SyntaxKind4["StringLiteralExpression"] = 40] = "StringLiteralExpression";
+  SyntaxKind4[SyntaxKind4["Token"] = 41] = "Token";
+  return SyntaxKind4;
+})(SyntaxKind2 || {});
+var BaseSyntaxNode = class {
+  constructor(kind, range2) {
+    this.kind = kind;
+    this.range = range2;
+  }
+  _parentOpt;
+  get parentOpt() {
+    return this._parentOpt;
+  }
+  set parentOpt(parentOpt) {
+    this._parentOpt = parentOpt;
+  }
+};
+var BaseCommandSyntax = class extends BaseSyntaxNode {
+  constructor(kind, range2) {
+    super(kind, range2);
+    this.kind = kind;
+    this.range = range2;
+  }
+};
+var IfCommandSyntax = class extends BaseCommandSyntax {
+  constructor(ifToken, expression, thenToken) {
+    super(8 /* IfCommand */, CompilerRange.combine(ifToken.range, thenToken.range));
+    this.ifToken = ifToken;
+    this.expression = expression;
+    this.thenToken = thenToken;
+  }
+  children() {
+    return [this.ifToken, this.expression, this.thenToken];
+  }
+};
+var ElseCommandSyntax = class extends BaseCommandSyntax {
+  constructor(elseToken) {
+    super(9 /* ElseCommand */, elseToken.range);
+    this.elseToken = elseToken;
+  }
+  children() {
+    return [this.elseToken];
+  }
+};
+var ElseIfCommandSyntax = class extends BaseCommandSyntax {
+  constructor(elseIfToken, expression, thenToken) {
+    super(10 /* ElseIfCommand */, CompilerRange.combine(elseIfToken.range, thenToken.range));
+    this.elseIfToken = elseIfToken;
+    this.expression = expression;
+    this.thenToken = thenToken;
+  }
+  children() {
+    return [this.elseIfToken, this.expression, this.thenToken];
+  }
+};
+var EndIfCommandSyntax = class extends BaseCommandSyntax {
+  constructor(endIfToken) {
+    super(11 /* EndIfCommand */, endIfToken.range);
+    this.endIfToken = endIfToken;
+  }
+  children() {
+    return [this.endIfToken];
+  }
+};
+var ForStepClauseSyntax = class extends BaseCommandSyntax {
+  constructor(stepToken, expression) {
+    super(12 /* ForStepClause */, CompilerRange.combine(stepToken.range, expression.range));
+    this.stepToken = stepToken;
+    this.expression = expression;
+  }
+  children() {
+    return [this.stepToken, this.expression];
+  }
+};
+var ForCommandSyntax = class extends BaseCommandSyntax {
+  constructor(forToken, identifierToken, equalToken, fromExpression, toToken, toExpression, stepClauseOpt) {
+    super(13 /* ForCommand */, CompilerRange.combine(
+      forToken.range,
+      stepClauseOpt ? stepClauseOpt.expression.range : toExpression.range
+    ));
+    this.forToken = forToken;
+    this.identifierToken = identifierToken;
+    this.equalToken = equalToken;
+    this.fromExpression = fromExpression;
+    this.toToken = toToken;
+    this.toExpression = toExpression;
+    this.stepClauseOpt = stepClauseOpt;
+  }
+  children() {
+    const children = [this.forToken, this.identifierToken, this.equalToken, this.fromExpression, this.toToken, this.toExpression];
+    if (this.stepClauseOpt) {
+      children.push(this.stepClauseOpt);
+    }
+    return children;
+  }
+};
+var EndForCommandSyntax = class extends BaseCommandSyntax {
+  constructor(endForToken) {
+    super(14 /* EndForCommand */, endForToken.range);
+    this.endForToken = endForToken;
+  }
+  children() {
+    return [this.endForToken];
+  }
+};
+var WhileCommandSyntax = class extends BaseCommandSyntax {
+  constructor(whileToken, expression) {
+    super(15 /* WhileCommand */, CompilerRange.combine(whileToken.range, expression.range));
+    this.whileToken = whileToken;
+    this.expression = expression;
+  }
+  children() {
+    return [this.whileToken, this.expression];
+  }
+};
+var EndWhileCommandSyntax = class extends BaseCommandSyntax {
+  constructor(endWhileToken) {
+    super(16 /* EndWhileCommand */, endWhileToken.range);
+    this.endWhileToken = endWhileToken;
+  }
+  children() {
+    return [this.endWhileToken];
+  }
+};
+var BreakCommandSyntax = class extends BaseCommandSyntax {
+  constructor(breakToken) {
+    super(17 /* BreakCommand */, breakToken.range);
+    this.breakToken = breakToken;
+  }
+  children() {
+    return [this.breakToken];
+  }
+};
+var ContinueCommandSyntax = class extends BaseCommandSyntax {
+  constructor(continueToken) {
+    super(18 /* ContinueCommand */, continueToken.range);
+    this.continueToken = continueToken;
+  }
+  children() {
+    return [this.continueToken];
+  }
+};
+var LabelCommandSyntax = class extends BaseCommandSyntax {
+  constructor(labelToken, colonToken) {
+    super(19 /* LabelCommand */, CompilerRange.combine(labelToken.range, colonToken.range));
+    this.labelToken = labelToken;
+    this.colonToken = colonToken;
+  }
+  children() {
+    return [this.labelToken, this.colonToken];
+  }
+};
+var GoToCommandSyntax = class extends BaseCommandSyntax {
+  constructor(goToToken, labelToken) {
+    super(20 /* GoToCommand */, CompilerRange.combine(goToToken.range, labelToken.range));
+    this.goToToken = goToToken;
+    this.labelToken = labelToken;
+  }
+  children() {
+    return [this.goToToken, this.labelToken];
+  }
+};
+var GoSubCommandSyntax = class extends BaseCommandSyntax {
+  constructor(goSubToken, nameToken) {
+    super(21 /* GoSubCommand */, CompilerRange.combine(goSubToken.range, nameToken.range));
+    this.goSubToken = goSubToken;
+    this.nameToken = nameToken;
+  }
+  children() {
+    return [this.goSubToken, this.nameToken];
+  }
+};
+var OnErrorCommandSyntax = class extends BaseCommandSyntax {
+  constructor(onToken, errorToken, action, clauseTokens, targetToken) {
+    const lastToken = targetToken ?? clauseTokens[clauseTokens.length - 1] ?? errorToken;
+    super(22 /* OnErrorCommand */, CompilerRange.combine(onToken.range, lastToken.range));
+    this.onToken = onToken;
+    this.errorToken = errorToken;
+    this.action = action;
+    this.clauseTokens = clauseTokens;
+    this.targetToken = targetToken;
+  }
+  children() {
+    return [this.onToken, this.errorToken, ...this.clauseTokens, ...this.targetToken ? [this.targetToken] : []];
+  }
+};
+var SubCommandSyntax = class extends BaseCommandSyntax {
+  constructor(subToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
+    super(23 /* SubCommand */, CompilerRange.combine(
+      subToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
+    this.subToken = subToken;
+    this.nameToken = nameToken;
+    this.leftParenToken = leftParenToken;
+    this.parameterTokens = parameterTokens;
+    this.commaTokens = commaTokens;
+    this.rightParenToken = rightParenToken;
+  }
+  children() {
+    const children = [this.subToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
+    this.parameterTokens.forEach((parameter, index) => {
+      children.push(parameter);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
+    return children;
+  }
+};
+var EndSubCommandSyntax = class extends BaseCommandSyntax {
+  constructor(endSubToken) {
+    super(24 /* EndSubCommand */, endSubToken.range);
+    this.endSubToken = endSubToken;
+  }
+  children() {
+    return [this.endSubToken];
+  }
+};
+var FunctionCommandSyntax = class extends BaseCommandSyntax {
+  constructor(functionToken, nameToken, leftParenToken, parameterTokens, commaTokens, rightParenToken) {
+    super(25 /* FunctionCommand */, CompilerRange.combine(
+      functionToken.range,
+      parameterListEndRange(nameToken, parameterTokens, rightParenToken)
+    ));
+    this.functionToken = functionToken;
+    this.nameToken = nameToken;
+    this.leftParenToken = leftParenToken;
+    this.parameterTokens = parameterTokens;
+    this.commaTokens = commaTokens;
+    this.rightParenToken = rightParenToken;
+  }
+  children() {
+    const children = [this.functionToken, this.nameToken];
+    if (this.leftParenToken) {
+      children.push(this.leftParenToken);
+    }
+    this.parameterTokens.forEach((parameter, index) => {
+      children.push(parameter);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    if (this.rightParenToken) {
+      children.push(this.rightParenToken);
+    }
+    return children;
+  }
+};
+var EndFunctionCommandSyntax = class extends BaseCommandSyntax {
+  constructor(endFunctionToken) {
+    super(26 /* EndFunctionCommand */, endFunctionToken.range);
+    this.endFunctionToken = endFunctionToken;
+  }
+  children() {
+    return [this.endFunctionToken];
+  }
+};
+var DimCommandSyntax = class extends BaseCommandSyntax {
+  constructor(dimToken, variableTokens, commaTokens) {
+    super(27 /* DimCommand */, variableTokens.length ? CompilerRange.combine(dimToken.range, variableTokens[variableTokens.length - 1].range) : dimToken.range);
+    this.dimToken = dimToken;
+    this.variableTokens = variableTokens;
+    this.commaTokens = commaTokens;
+  }
+  children() {
+    const children = [this.dimToken];
+    this.variableTokens.forEach((variable, index) => {
+      children.push(variable);
+      if (index < this.commaTokens.length) {
+        children.push(this.commaTokens[index]);
+      }
+    });
+    return children;
+  }
+};
+var ReturnCommandSyntax = class extends BaseCommandSyntax {
+  constructor(returnToken, expression) {
+    super(28 /* ReturnCommand */, CompilerRange.combine(returnToken.range, expression.range));
+    this.returnToken = returnToken;
+    this.expression = expression;
+  }
+  children() {
+    return [this.returnToken, this.expression];
+  }
+};
+var ExpressionCommandSyntax = class extends BaseCommandSyntax {
+  constructor(expression) {
+    super(29 /* ExpressionCommand */, expression.range);
+    this.expression = expression;
+  }
+  children() {
+    return [this.expression];
+  }
+};
+var CommentCommandSyntax = class extends BaseCommandSyntax {
+  constructor(commentToken) {
+    super(30 /* CommentCommand */, commentToken.range);
+    this.commentToken = commentToken;
+  }
+  children() {
+    return [this.commentToken];
+  }
+};
+var BaseExpressionSyntax = class extends BaseSyntaxNode {
+  constructor(kind, range2) {
+    super(kind, range2);
+    this.kind = kind;
+    this.range = range2;
+  }
+};
+var UnaryOperatorExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(operatorToken, expression) {
+    super(31 /* UnaryOperatorExpression */, CompilerRange.combine(operatorToken.range, expression.range));
+    this.operatorToken = operatorToken;
+    this.expression = expression;
+  }
+  children() {
+    return [this.operatorToken, this.expression];
+  }
+};
+var BinaryOperatorExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(leftExpression, operatorToken, rightExpression) {
+    super(32 /* BinaryOperatorExpression */, CompilerRange.combine(leftExpression.range, rightExpression.range));
+    this.leftExpression = leftExpression;
+    this.operatorToken = operatorToken;
+    this.rightExpression = rightExpression;
+  }
+  children() {
+    return [this.leftExpression, this.operatorToken, this.rightExpression];
+  }
+};
+var ObjectAccessExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(baseExpression, dotToken, identifierToken) {
+    super(33 /* ObjectAccessExpression */, CompilerRange.combine(baseExpression.range, identifierToken.range));
+    this.baseExpression = baseExpression;
+    this.dotToken = dotToken;
+    this.identifierToken = identifierToken;
+  }
+  children() {
+    return [this.baseExpression, this.dotToken, this.identifierToken];
+  }
+};
+var ArrayAccessExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(baseExpression, leftBracketToken, indexExpression, rightBracketToken) {
+    super(34 /* ArrayAccessExpression */, CompilerRange.combine(baseExpression.range, rightBracketToken.range));
+    this.baseExpression = baseExpression;
+    this.leftBracketToken = leftBracketToken;
+    this.indexExpression = indexExpression;
+    this.rightBracketToken = rightBracketToken;
+  }
+  children() {
+    return [this.baseExpression, this.leftBracketToken, this.indexExpression, this.rightBracketToken];
+  }
+};
+var ArgumentSyntax = class extends BaseSyntaxNode {
+  constructor(expression, commaOpt) {
+    super(35 /* Argument */, commaOpt ? CompilerRange.combine(expression.range, commaOpt.range) : expression.range);
+    this.expression = expression;
+    this.commaOpt = commaOpt;
+  }
+  children() {
+    return this.commaOpt ? [this.expression, this.commaOpt] : [this.expression];
+  }
+};
+var InvocationExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(baseExpression, leftParenToken, argumentsList, rightParenToken) {
+    super(36 /* InvocationExpression */, CompilerRange.combine(baseExpression.range, rightParenToken.range));
+    this.baseExpression = baseExpression;
+    this.leftParenToken = leftParenToken;
+    this.argumentsList = argumentsList;
+    this.rightParenToken = rightParenToken;
+  }
+  children() {
+    return [this.baseExpression, this.leftParenToken, ...this.argumentsList, this.rightParenToken];
+  }
+};
+var ParenthesisExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(leftParenToken, expression, rightParenToken) {
+    super(37 /* ParenthesisExpression */, CompilerRange.combine(leftParenToken.range, rightParenToken.range));
+    this.leftParenToken = leftParenToken;
+    this.expression = expression;
+    this.rightParenToken = rightParenToken;
+  }
+  children() {
+    return [this.leftParenToken, this.expression, this.rightParenToken];
+  }
+};
+var IdentifierExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(identifierToken) {
+    super(38 /* IdentifierExpression */, identifierToken.range);
+    this.identifierToken = identifierToken;
+  }
+  children() {
+    return [this.identifierToken];
+  }
+};
+var StringLiteralExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(stringToken) {
+    super(40 /* StringLiteralExpression */, stringToken.range);
+    this.stringToken = stringToken;
+  }
+  children() {
+    return [this.stringToken];
+  }
+};
+var NumberLiteralExpressionSyntax = class extends BaseExpressionSyntax {
+  constructor(numberToken) {
+    super(39 /* NumberLiteralExpression */, numberToken.range);
+    this.numberToken = numberToken;
+  }
+  children() {
+    return [this.numberToken];
+  }
+};
+var TokenSyntax = class extends BaseSyntaxNode {
+  constructor(token) {
+    super(41 /* Token */, token.range);
+    this.token = token;
+  }
+  children() {
+    return [];
+  }
+};
+var SyntaxNodeVisitor = class {
+  visit(node) {
+    switch (node.kind) {
+      case 0 /* ParseTree */:
+        this.visitParseTree(node);
+        break;
+      case 1 /* SubModuleDeclaration */:
+        this.visitSubModuleDeclaration(node);
+        break;
+      case 2 /* FunctionDeclaration */:
+        this.visitFunctionDeclaration(node);
+        break;
+      case 3 /* StatementBlock */:
+        this.visitStatementBlock(node);
+        break;
+      case 4 /* IfHeader */:
+        this.visitIfHeader(node);
+        break;
+      case 5 /* IfStatement */:
+        this.visitIfStatement(node);
+        break;
+      case 6 /* WhileStatement */:
+        this.visitWhileStatement(node);
+        break;
+      case 7 /* ForStatement */:
+        this.visitForStatement(node);
+        break;
+      case 8 /* IfCommand */:
+        this.visitIfCommand(node);
+        break;
+      case 9 /* ElseCommand */:
+        this.visitElseCommand(node);
+        break;
+      case 10 /* ElseIfCommand */:
+        this.visitElseIfCommand(node);
+        break;
+      case 11 /* EndIfCommand */:
+        this.visitEndIfCommand(node);
+        break;
+      case 12 /* ForStepClause */:
+        this.visitForStepClause(node);
+        break;
+      case 13 /* ForCommand */:
+        this.visitForCommand(node);
+        break;
+      case 14 /* EndForCommand */:
+        this.visitEndForCommand(node);
+        break;
+      case 15 /* WhileCommand */:
+        this.visitWhileCommand(node);
+        break;
+      case 16 /* EndWhileCommand */:
+        this.visitEndWhileCommand(node);
+        break;
+      case 17 /* BreakCommand */:
+        this.visitBreakCommand(node);
+        break;
+      case 18 /* ContinueCommand */:
+        this.visitContinueCommand(node);
+        break;
+      case 19 /* LabelCommand */:
+        this.visitLabelCommand(node);
+        break;
+      case 20 /* GoToCommand */:
+        this.visitGoToCommand(node);
+        break;
+      case 21 /* GoSubCommand */:
+        this.visitGoSubCommand(node);
+        break;
+      case 22 /* OnErrorCommand */:
+        this.visitOnErrorCommand(node);
+        break;
+      case 23 /* SubCommand */:
+        this.visitSubCommand(node);
+        break;
+      case 24 /* EndSubCommand */:
+        this.visitEndSubCommand(node);
+        break;
+      case 25 /* FunctionCommand */:
+        this.visitFunctionCommand(node);
+        break;
+      case 26 /* EndFunctionCommand */:
+        this.visitEndFunctionCommand(node);
+        break;
+      case 27 /* DimCommand */:
+        this.visitDimCommand(node);
+        break;
+      case 28 /* ReturnCommand */:
+        this.visitReturnCommand(node);
+        break;
+      case 29 /* ExpressionCommand */:
+        this.visitExpressionCommand(node);
+        break;
+      case 30 /* CommentCommand */:
+        this.visitCommentCommand(node);
+        break;
+      case 31 /* UnaryOperatorExpression */:
+        this.visitUnaryOperatorExpression(node);
+        break;
+      case 32 /* BinaryOperatorExpression */:
+        this.visitBinaryOperatorExpression(node);
+        break;
+      case 33 /* ObjectAccessExpression */:
+        this.visitObjectAccessExpression(node);
+        break;
+      case 34 /* ArrayAccessExpression */:
+        this.visitArrayAccessExpression(node);
+        break;
+      case 35 /* Argument */:
+        this.visitArgument(node);
+        break;
+      case 36 /* InvocationExpression */:
+        this.visitInvocationExpression(node);
+        break;
+      case 37 /* ParenthesisExpression */:
+        this.visitParenthesisExpression(node);
+        break;
+      case 38 /* IdentifierExpression */:
+        this.visitIdentifierExpression(node);
+        break;
+      case 39 /* NumberLiteralExpression */:
+        this.visitNumberLiteralExpression(node);
+        break;
+      case 40 /* StringLiteralExpression */:
+        this.visitStringLiteralExpression(node);
+        break;
+      case 41 /* Token */:
+        this.visitToken(node);
+        break;
+      default:
+        throw new Error(`Unexpected syntax kind: '${SyntaxKind2[node.kind]}'`);
+    }
+  }
+  visitParseTree(node) {
+    this.defaultVisit(node);
+  }
+  visitSubModuleDeclaration(node) {
+    this.defaultVisit(node);
+  }
+  visitFunctionDeclaration(node) {
+    this.defaultVisit(node);
+  }
+  visitStatementBlock(node) {
+    this.defaultVisit(node);
+  }
+  visitIfHeader(node) {
+    this.defaultVisit(node);
+  }
+  visitIfStatement(node) {
+    this.defaultVisit(node);
+  }
+  visitWhileStatement(node) {
+    this.defaultVisit(node);
+  }
+  visitForStatement(node) {
+    this.defaultVisit(node);
+  }
+  visitIfCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitElseCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitElseIfCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitEndIfCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitForStepClause(node) {
+    this.defaultVisit(node);
+  }
+  visitForCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitEndForCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitWhileCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitEndWhileCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitBreakCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitContinueCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitLabelCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitGoToCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitGoSubCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitOnErrorCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitSubCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitEndSubCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitFunctionCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitEndFunctionCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitDimCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitReturnCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitExpressionCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitCommentCommand(node) {
+    this.defaultVisit(node);
+  }
+  visitUnaryOperatorExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitBinaryOperatorExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitObjectAccessExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitArrayAccessExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitArgument(node) {
+    this.defaultVisit(node);
+  }
+  visitInvocationExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitParenthesisExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitIdentifierExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitNumberLiteralExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitStringLiteralExpression(node) {
+    this.defaultVisit(node);
+  }
+  visitToken(node) {
+    this.defaultVisit(node);
+  }
+  defaultVisit(node) {
+    node.children().forEach((child) => this.visit(child));
+  }
+};
+
+// ../../vendor/SmallBasicOnline/src/compiler/syntax/tokens.ts
+var TokenKind = /* @__PURE__ */ ((TokenKind2) => {
+  TokenKind2[TokenKind2["UnrecognizedToken"] = 0] = "UnrecognizedToken";
+  TokenKind2[TokenKind2["IfKeyword"] = 1] = "IfKeyword";
+  TokenKind2[TokenKind2["ThenKeyword"] = 2] = "ThenKeyword";
+  TokenKind2[TokenKind2["ElseKeyword"] = 3] = "ElseKeyword";
+  TokenKind2[TokenKind2["ElseIfKeyword"] = 4] = "ElseIfKeyword";
+  TokenKind2[TokenKind2["EndIfKeyword"] = 5] = "EndIfKeyword";
+  TokenKind2[TokenKind2["ForKeyword"] = 6] = "ForKeyword";
+  TokenKind2[TokenKind2["ToKeyword"] = 7] = "ToKeyword";
+  TokenKind2[TokenKind2["StepKeyword"] = 8] = "StepKeyword";
+  TokenKind2[TokenKind2["EndForKeyword"] = 9] = "EndForKeyword";
+  TokenKind2[TokenKind2["GoToKeyword"] = 10] = "GoToKeyword";
+  TokenKind2[TokenKind2["GoSubKeyword"] = 11] = "GoSubKeyword";
+  TokenKind2[TokenKind2["WhileKeyword"] = 12] = "WhileKeyword";
+  TokenKind2[TokenKind2["EndWhileKeyword"] = 13] = "EndWhileKeyword";
+  TokenKind2[TokenKind2["BreakKeyword"] = 14] = "BreakKeyword";
+  TokenKind2[TokenKind2["ContinueKeyword"] = 15] = "ContinueKeyword";
+  TokenKind2[TokenKind2["SubKeyword"] = 16] = "SubKeyword";
+  TokenKind2[TokenKind2["EndSubKeyword"] = 17] = "EndSubKeyword";
+  TokenKind2[TokenKind2["FunctionKeyword"] = 18] = "FunctionKeyword";
+  TokenKind2[TokenKind2["EndFunctionKeyword"] = 19] = "EndFunctionKeyword";
+  TokenKind2[TokenKind2["DimKeyword"] = 20] = "DimKeyword";
+  TokenKind2[TokenKind2["ReturnKeyword"] = 21] = "ReturnKeyword";
+  TokenKind2[TokenKind2["Dot"] = 22] = "Dot";
+  TokenKind2[TokenKind2["RightParen"] = 23] = "RightParen";
+  TokenKind2[TokenKind2["LeftParen"] = 24] = "LeftParen";
+  TokenKind2[TokenKind2["RightSquareBracket"] = 25] = "RightSquareBracket";
+  TokenKind2[TokenKind2["LeftSquareBracket"] = 26] = "LeftSquareBracket";
+  TokenKind2[TokenKind2["Comma"] = 27] = "Comma";
+  TokenKind2[TokenKind2["Equal"] = 28] = "Equal";
+  TokenKind2[TokenKind2["NotEqual"] = 29] = "NotEqual";
+  TokenKind2[TokenKind2["Plus"] = 30] = "Plus";
+  TokenKind2[TokenKind2["Minus"] = 31] = "Minus";
+  TokenKind2[TokenKind2["Multiply"] = 32] = "Multiply";
+  TokenKind2[TokenKind2["Divide"] = 33] = "Divide";
+  TokenKind2[TokenKind2["Backslash"] = 34] = "Backslash";
+  TokenKind2[TokenKind2["Colon"] = 35] = "Colon";
+  TokenKind2[TokenKind2["LessThan"] = 36] = "LessThan";
+  TokenKind2[TokenKind2["GreaterThan"] = 37] = "GreaterThan";
+  TokenKind2[TokenKind2["LessThanOrEqual"] = 38] = "LessThanOrEqual";
+  TokenKind2[TokenKind2["GreaterThanOrEqual"] = 39] = "GreaterThanOrEqual";
+  TokenKind2[TokenKind2["Or"] = 40] = "Or";
+  TokenKind2[TokenKind2["And"] = 41] = "And";
+  TokenKind2[TokenKind2["Mod"] = 42] = "Mod";
+  TokenKind2[TokenKind2["Identifier"] = 43] = "Identifier";
+  TokenKind2[TokenKind2["NumberLiteral"] = 44] = "NumberLiteral";
+  TokenKind2[TokenKind2["StringLiteral"] = 45] = "StringLiteral";
+  TokenKind2[TokenKind2["Comment"] = 46] = "Comment";
+  return TokenKind2;
+})(TokenKind || {});
+var Token4 = class {
+  constructor(text2, kind, range2) {
+    this.text = text2;
+    this.kind = kind;
+    this.range = range2;
+  }
+};
+
+// ../../vendor/SmallBasicOnline/src/strings/compiler.ts
+var CompilerResources;
+((CompilerResources2) => {
+  CompilerResources2.SyntaxNodes_Identifier = "identifier";
+  CompilerResources2.SyntaxNodes_StringLiteral = "string";
+  CompilerResources2.SyntaxNodes_NumberLiteral = "number";
+  CompilerResources2.SyntaxNodes_Comment = "comment";
+  CompilerResources2.SyntaxNodes_Label = "label";
+  CompilerResources2.SyntaxNodes_Expression = "expression";
+  CompilerResources2.ProgramKind_TextWindow = "Text Window";
+  CompilerResources2.ProgramKind_Turtle = "Turtle";
+  function get(key) {
+    return CompilerResources2[key];
+  }
+  CompilerResources2.get = get;
+})(CompilerResources || (CompilerResources = {}));
+
+// ../../vendor/SmallBasicOnline/src/compiler/utils/compiler-utils.ts
+var CompilerUtils;
+((CompilerUtils2) => {
+  function formatString(template, args) {
+    return template.replace(/{[0-9]+}/g, (match2) => args[parseInt(match2.replace(/^{/, "").replace(/}$/, ""))]);
+  }
+  CompilerUtils2.formatString = formatString;
+  function stringStartsWith(value, prefix) {
+    if (!prefix || !prefix.length) {
+      return true;
+    }
+    value = value.toLowerCase();
+    prefix = prefix.toLowerCase();
+    return value.length >= prefix.length && value.substr(0, prefix.length) === prefix;
+  }
+  CompilerUtils2.stringStartsWith = stringStartsWith;
+  function findKeyIgnoreCase(parent, name) {
+    if (Object.prototype.hasOwnProperty.call(parent, name)) {
+      return name;
+    }
+    const lower = name.toLowerCase();
+    for (const key of Object.keys(parent)) {
+      if (key.toLowerCase() === lower) {
+        return key;
+      }
+    }
+    return void 0;
+  }
+  CompilerUtils2.findKeyIgnoreCase = findKeyIgnoreCase;
+  function lookupIgnoreCase(parent, name) {
+    const key = findKeyIgnoreCase(parent, name);
+    return key === void 0 ? void 0 : parent[key];
+  }
+  CompilerUtils2.lookupIgnoreCase = lookupIgnoreCase;
+  function values(parent) {
+    return Object.keys(parent).map((key) => parent[key]);
+  }
+  CompilerUtils2.values = values;
+  function commandToDisplayString(kind) {
+    switch (kind) {
+      case 8 /* IfCommand */:
+        return tokenToDisplayString(1 /* IfKeyword */);
+      case 9 /* ElseCommand */:
+        return tokenToDisplayString(3 /* ElseKeyword */);
+      case 10 /* ElseIfCommand */:
+        return tokenToDisplayString(4 /* ElseIfKeyword */);
+      case 11 /* EndIfCommand */:
+        return tokenToDisplayString(5 /* EndIfKeyword */);
+      case 13 /* ForCommand */:
+        return tokenToDisplayString(6 /* ForKeyword */);
+      case 14 /* EndForCommand */:
+        return tokenToDisplayString(9 /* EndForKeyword */);
+      case 15 /* WhileCommand */:
+        return tokenToDisplayString(12 /* WhileKeyword */);
+      case 16 /* EndWhileCommand */:
+        return tokenToDisplayString(13 /* EndWhileKeyword */);
+      case 17 /* BreakCommand */:
+        return tokenToDisplayString(14 /* BreakKeyword */);
+      case 18 /* ContinueCommand */:
+        return tokenToDisplayString(15 /* ContinueKeyword */);
+      case 19 /* LabelCommand */:
+        return CompilerResources.SyntaxNodes_Label;
+      case 20 /* GoToCommand */:
+        return tokenToDisplayString(10 /* GoToKeyword */);
+      case 21 /* GoSubCommand */:
+        return tokenToDisplayString(11 /* GoSubKeyword */);
+      case 22 /* OnErrorCommand */:
+        return "On Error";
+      case 23 /* SubCommand */:
+        return tokenToDisplayString(16 /* SubKeyword */);
+      case 24 /* EndSubCommand */:
+        return tokenToDisplayString(17 /* EndSubKeyword */);
+      case 25 /* FunctionCommand */:
+        return tokenToDisplayString(18 /* FunctionKeyword */);
+      case 26 /* EndFunctionCommand */:
+        return tokenToDisplayString(19 /* EndFunctionKeyword */);
+      case 27 /* DimCommand */:
+        return tokenToDisplayString(20 /* DimKeyword */);
+      case 28 /* ReturnCommand */:
+        return tokenToDisplayString(21 /* ReturnKeyword */);
+      case 29 /* ExpressionCommand */:
+        return CompilerResources.SyntaxNodes_Expression;
+      default:
+        throw new Error(`Unexpected syntax kind: ${SyntaxKind2[kind]}`);
+    }
+  }
+  CompilerUtils2.commandToDisplayString = commandToDisplayString;
+  function tokenToDisplayString(kind) {
+    switch (kind) {
+      case 1 /* IfKeyword */:
+        return "If";
+      case 2 /* ThenKeyword */:
+        return "Then";
+      case 3 /* ElseKeyword */:
+        return "Else";
+      case 4 /* ElseIfKeyword */:
+        return "ElseIf";
+      case 5 /* EndIfKeyword */:
+        return "EndIf";
+      case 6 /* ForKeyword */:
+        return "For";
+      case 7 /* ToKeyword */:
+        return "To";
+      case 8 /* StepKeyword */:
+        return "Step";
+      case 9 /* EndForKeyword */:
+        return "EndFor";
+      case 10 /* GoToKeyword */:
+        return "GoTo";
+      case 11 /* GoSubKeyword */:
+        return "GoSub";
+      case 12 /* WhileKeyword */:
+        return "While";
+      case 13 /* EndWhileKeyword */:
+        return "EndWhile";
+      case 14 /* BreakKeyword */:
+        return "Break";
+      case 15 /* ContinueKeyword */:
+        return "Continue";
+      case 16 /* SubKeyword */:
+        return "Sub";
+      case 17 /* EndSubKeyword */:
+        return "EndSub";
+      case 18 /* FunctionKeyword */:
+        return "Function";
+      case 19 /* EndFunctionKeyword */:
+        return "EndFunction";
+      case 20 /* DimKeyword */:
+        return "Dim";
+      case 21 /* ReturnKeyword */:
+        return "Return";
+      case 22 /* Dot */:
+        return ".";
+      case 23 /* RightParen */:
+        return ")";
+      case 24 /* LeftParen */:
+        return "(";
+      case 25 /* RightSquareBracket */:
+        return "]";
+      case 26 /* LeftSquareBracket */:
+        return "[";
+      case 27 /* Comma */:
+        return ",";
+      case 28 /* Equal */:
+        return "=";
+      case 29 /* NotEqual */:
+        return "<>";
+      case 30 /* Plus */:
+        return "+";
+      case 31 /* Minus */:
+        return "-";
+      case 32 /* Multiply */:
+        return "*";
+      case 33 /* Divide */:
+        return "/";
+      case 34 /* Backslash */:
+        return "\\";
+      case 35 /* Colon */:
+        return ":";
+      case 36 /* LessThan */:
+        return "<";
+      case 37 /* GreaterThan */:
+        return ">";
+      case 38 /* LessThanOrEqual */:
+        return "<=";
+      case 39 /* GreaterThanOrEqual */:
+        return ">=";
+      case 40 /* Or */:
+        return "Or";
+      case 41 /* And */:
+        return "And";
+      case 42 /* Mod */:
+        return "Mod";
+      case 43 /* Identifier */:
+        return CompilerResources.SyntaxNodes_Identifier;
+      case 44 /* NumberLiteral */:
+        return CompilerResources.SyntaxNodes_NumberLiteral;
+      case 45 /* StringLiteral */:
+        return CompilerResources.SyntaxNodes_StringLiteral;
+      case 46 /* Comment */:
+        return CompilerResources.SyntaxNodes_Comment;
+      default:
+        throw new Error(`Unrecognized token kind: ${TokenKind[kind]}`);
+    }
+  }
+  CompilerUtils2.tokenToDisplayString = tokenToDisplayString;
+})(CompilerUtils || (CompilerUtils = {}));
+
+// ../../vendor/SmallBasicOnline/src/strings/diagnostics.ts
+var DiagnosticsResources;
+((DiagnosticsResources2) => {
+  DiagnosticsResources2.UnrecognizedCharacter = "I don't understand this character '{0}'.";
+  DiagnosticsResources2.UnterminatedStringLiteral = "This string is missing its right double quotes.";
+  DiagnosticsResources2.UnrecognizedCommand = "'{0}' is not a valid command.";
+  DiagnosticsResources2.UnexpectedToken_ExpectingExpression = "Unexpected '{0}' here. I was expecting an expression instead.";
+  DiagnosticsResources2.UnexpectedToken_ExpectingToken = "Unexpected '{0}' here. I was expecting a token of type '{1}' instead.";
+  DiagnosticsResources2.UnexpectedToken_ExpectingEOL = "Unexpected '{0}' here. I was expecting a new line after the previous command.";
+  DiagnosticsResources2.UnexpectedEOL_ExpectingExpression = "Unexpected end of line here. I was expecting an expression instead.";
+  DiagnosticsResources2.UnexpectedEOL_ExpectingToken = "Unexpected end of line here. I was expecting a token of type '{0}' instead.";
+  DiagnosticsResources2.UnexpectedCommand_ExpectingCommand = "Unexpected command of type '{0}'. I was expecting a command of type '{1}'.";
+  DiagnosticsResources2.UnexpectedEOF_ExpectingCommand = "Unexpected end of file. I was expecting a command of type '{0}'.";
+  DiagnosticsResources2.CannotDefineASubInsideAnotherSub = "You cannot define a sub-module inside another sub-module.";
+  DiagnosticsResources2.CannotDefineProcedureInsideProcedure = "You cannot define a Sub or Function inside another procedure.";
+  DiagnosticsResources2.CannotHaveCommandWithoutPreviousCommand = "You cannot write a command of type '{0}' without an earlier command of type '{1}'.";
+  DiagnosticsResources2.TwoSubModulesWithTheSameName = "Another sub-module with the same name '{0}' is already defined.";
+  DiagnosticsResources2.TwoProceduresWithTheSameName = "Another Sub or Function with the same name '{0}' is already defined.";
+  DiagnosticsResources2.ProcedureConflictsWithLibrary = "The procedure name '{0}' conflicts with a Small Basic library name.";
+  DiagnosticsResources2.DuplicateParameter = "The parameter '{0}' is already declared in this function.";
+  DiagnosticsResources2.DuplicateLocalVariable = "The local variable '{0}' is already declared in this procedure.";
+  DiagnosticsResources2.DimMustBeAtProcedureLevel = "Dim declarations must be direct children of the program, Sub, or Function body.";
+  DiagnosticsResources2.ReturnOutsideFunction = "Return can only be used inside a Function.";
+  DiagnosticsResources2.BreakOutsideLoop = "Break can only be used inside a While or For loop.";
+  DiagnosticsResources2.ContinueOutsideLoop = "Continue can only be used inside a While or For loop.";
+  DiagnosticsResources2.FunctionCannotBeEventHandler = "A Function cannot be assigned as an event handler. Use a parameterless Sub instead.";
+  DiagnosticsResources2.LabelDoesNotExist = "No label with the name '{0}' exists in the same module.";
+  DiagnosticsResources2.GoSubTargetMustBeSub = "No Sub with the name '{0}' was found. GoSub can only call a parameterless Sub.";
+  DiagnosticsResources2.GoSubTargetMustBeParameterlessSub = "The GoSub target '{0}' must be a Sub without parameters.";
+  DiagnosticsResources2.OnErrorHandlerMustBeSub = "No Sub with the name '{0}' was found. The On Error handler must be a Sub.";
+  DiagnosticsResources2.OnErrorHandlerMustAcceptCodeAndMessage = "The On Error handler '{0}' must be a Sub with exactly two parameters: the error code and the error message.";
+  DiagnosticsResources2.InvalidOnErrorClause = "Invalid On Error statement. Use 'On Error Resume Next', 'On Error GoTo -1', 'On Error GoTo 0' or 'On Error GoSub <SubName>'.";
+  DiagnosticsResources2.UnassignedExpressionStatement = "This value is not assigned to anything. Did you mean to assign it to a variable?";
+  DiagnosticsResources2.InvalidExpressionStatement = "This expression is not a valid statement.";
+  DiagnosticsResources2.UnexpectedVoid_ExpectingValue = "This expression must return a value to be used here.";
+  DiagnosticsResources2.UnsupportedArrayBaseExpression = "This expression is not a valid array.";
+  DiagnosticsResources2.UnsupportedCallBaseExpression = "This expression is not a valid submodule or method to be called.";
+  DiagnosticsResources2.UnexpectedArgumentsCount = "I was expecting {0} arguments, but found {1} instead.";
+  DiagnosticsResources2.PropertyHasNoSetter = "This property cannot be set. You can only get its value.";
+  DiagnosticsResources2.AssigningNonSubModuleToEvent = "You can only assign submodules to events.";
+  DiagnosticsResources2.UnsupportedDotBaseExpression = "You can only use dot access with a library. Did you mean to use an existing library instead?";
+  DiagnosticsResources2.LibraryMemberNotFound = "The library '{0}' has no member named '{1}'.";
+  DiagnosticsResources2.ValueIsNotANumber = "The value '{0}' is not a valid number.";
+  DiagnosticsResources2.ValueIsNotAssignable = "You cannot assign to this expression. Did you mean to use a variable instead?";
+  DiagnosticsResources2.CannotUseAnArrayAsAnIndexToAnotherArray = "You cannot use an array as an index to access another array. Did you mean to use a string or a number instead?";
+  DiagnosticsResources2.CannotUseOperatorWithAnArray = "You cannot use the operator '{0}' with an array value";
+  DiagnosticsResources2.CannotUseOperatorWithAString = "You cannot use the operator '{0}' with a string value";
+  DiagnosticsResources2.CannotDivideByZero = "You cannot divide by zero. Please consider checking the divisor before dividing.";
+  DiagnosticsResources2.PoppingAnEmptyStack = "This stack has no elements to be popped";
+  function get(key) {
+    return DiagnosticsResources2[key];
+  }
+  DiagnosticsResources2.get = get;
+})(DiagnosticsResources || (DiagnosticsResources = {}));
+
+// ../../vendor/SmallBasicOnline/src/compiler/utils/diagnostics.ts
+var ErrorCode2 = /* @__PURE__ */ ((ErrorCode3) => {
+  ErrorCode3[ErrorCode3["UnrecognizedCharacter"] = 0] = "UnrecognizedCharacter";
+  ErrorCode3[ErrorCode3["UnterminatedStringLiteral"] = 1] = "UnterminatedStringLiteral";
+  ErrorCode3[ErrorCode3["UnrecognizedCommand"] = 2] = "UnrecognizedCommand";
+  ErrorCode3[ErrorCode3["UnexpectedToken_ExpectingExpression"] = 3] = "UnexpectedToken_ExpectingExpression";
+  ErrorCode3[ErrorCode3["UnexpectedToken_ExpectingToken"] = 4] = "UnexpectedToken_ExpectingToken";
+  ErrorCode3[ErrorCode3["UnexpectedToken_ExpectingEOL"] = 5] = "UnexpectedToken_ExpectingEOL";
+  ErrorCode3[ErrorCode3["UnexpectedEOL_ExpectingExpression"] = 6] = "UnexpectedEOL_ExpectingExpression";
+  ErrorCode3[ErrorCode3["UnexpectedEOL_ExpectingToken"] = 7] = "UnexpectedEOL_ExpectingToken";
+  ErrorCode3[ErrorCode3["UnexpectedCommand_ExpectingCommand"] = 8] = "UnexpectedCommand_ExpectingCommand";
+  ErrorCode3[ErrorCode3["UnexpectedEOF_ExpectingCommand"] = 9] = "UnexpectedEOF_ExpectingCommand";
+  ErrorCode3[ErrorCode3["CannotDefineASubInsideAnotherSub"] = 10] = "CannotDefineASubInsideAnotherSub";
+  ErrorCode3[ErrorCode3["CannotDefineProcedureInsideProcedure"] = 11] = "CannotDefineProcedureInsideProcedure";
+  ErrorCode3[ErrorCode3["CannotHaveCommandWithoutPreviousCommand"] = 12] = "CannotHaveCommandWithoutPreviousCommand";
+  ErrorCode3[ErrorCode3["ValueIsNotANumber"] = 13] = "ValueIsNotANumber";
+  ErrorCode3[ErrorCode3["TwoSubModulesWithTheSameName"] = 14] = "TwoSubModulesWithTheSameName";
+  ErrorCode3[ErrorCode3["TwoProceduresWithTheSameName"] = 15] = "TwoProceduresWithTheSameName";
+  ErrorCode3[ErrorCode3["ProcedureConflictsWithLibrary"] = 16] = "ProcedureConflictsWithLibrary";
+  ErrorCode3[ErrorCode3["DuplicateParameter"] = 17] = "DuplicateParameter";
+  ErrorCode3[ErrorCode3["DuplicateLocalVariable"] = 18] = "DuplicateLocalVariable";
+  ErrorCode3[ErrorCode3["DimMustBeAtProcedureLevel"] = 19] = "DimMustBeAtProcedureLevel";
+  ErrorCode3[ErrorCode3["ReturnOutsideFunction"] = 20] = "ReturnOutsideFunction";
+  ErrorCode3[ErrorCode3["BreakOutsideLoop"] = 21] = "BreakOutsideLoop";
+  ErrorCode3[ErrorCode3["ContinueOutsideLoop"] = 22] = "ContinueOutsideLoop";
+  ErrorCode3[ErrorCode3["FunctionCannotBeEventHandler"] = 23] = "FunctionCannotBeEventHandler";
+  ErrorCode3[ErrorCode3["LabelDoesNotExist"] = 24] = "LabelDoesNotExist";
+  ErrorCode3[ErrorCode3["GoSubTargetMustBeSub"] = 25] = "GoSubTargetMustBeSub";
+  ErrorCode3[ErrorCode3["GoSubTargetMustBeParameterlessSub"] = 26] = "GoSubTargetMustBeParameterlessSub";
+  ErrorCode3[ErrorCode3["OnErrorHandlerMustBeSub"] = 27] = "OnErrorHandlerMustBeSub";
+  ErrorCode3[ErrorCode3["OnErrorHandlerMustAcceptCodeAndMessage"] = 28] = "OnErrorHandlerMustAcceptCodeAndMessage";
+  ErrorCode3[ErrorCode3["InvalidOnErrorClause"] = 29] = "InvalidOnErrorClause";
+  ErrorCode3[ErrorCode3["UnassignedExpressionStatement"] = 30] = "UnassignedExpressionStatement";
+  ErrorCode3[ErrorCode3["InvalidExpressionStatement"] = 31] = "InvalidExpressionStatement";
+  ErrorCode3[ErrorCode3["UnexpectedVoid_ExpectingValue"] = 32] = "UnexpectedVoid_ExpectingValue";
+  ErrorCode3[ErrorCode3["UnsupportedArrayBaseExpression"] = 33] = "UnsupportedArrayBaseExpression";
+  ErrorCode3[ErrorCode3["UnsupportedCallBaseExpression"] = 34] = "UnsupportedCallBaseExpression";
+  ErrorCode3[ErrorCode3["UnexpectedArgumentsCount"] = 35] = "UnexpectedArgumentsCount";
+  ErrorCode3[ErrorCode3["PropertyHasNoSetter"] = 36] = "PropertyHasNoSetter";
+  ErrorCode3[ErrorCode3["AssigningNonSubModuleToEvent"] = 37] = "AssigningNonSubModuleToEvent";
+  ErrorCode3[ErrorCode3["UnsupportedDotBaseExpression"] = 38] = "UnsupportedDotBaseExpression";
+  ErrorCode3[ErrorCode3["LibraryMemberNotFound"] = 39] = "LibraryMemberNotFound";
+  ErrorCode3[ErrorCode3["ValueIsNotAssignable"] = 40] = "ValueIsNotAssignable";
+  ErrorCode3[ErrorCode3["CannotUseAnArrayAsAnIndexToAnotherArray"] = 41] = "CannotUseAnArrayAsAnIndexToAnotherArray";
+  ErrorCode3[ErrorCode3["CannotUseOperatorWithAnArray"] = 42] = "CannotUseOperatorWithAnArray";
+  ErrorCode3[ErrorCode3["CannotUseOperatorWithAString"] = 43] = "CannotUseOperatorWithAString";
+  ErrorCode3[ErrorCode3["CannotDivideByZero"] = 44] = "CannotDivideByZero";
+  ErrorCode3[ErrorCode3["PoppingAnEmptyStack"] = 45] = "PoppingAnEmptyStack";
+  return ErrorCode3;
+})(ErrorCode2 || {});
+var Diagnostic2 = class {
+  constructor(code, range2, ...args) {
+    this.code = code;
+    this.range = range2;
+    this.args = args;
+  }
+  args;
+  toString() {
+    const template = DiagnosticsResources.get(ErrorCode2[this.code]);
+    if (!template) {
+      throw new Error(`Error code ${ErrorCode2[this.code]} has no string resource`);
+    }
+    return CompilerUtils.formatString(template, this.args);
+  }
+};
+
 // ../../vendor/SmallBasicOnline/src/compiler/emitting/instructions.ts
 var InstructionKind = /* @__PURE__ */ ((InstructionKind2) => {
   InstructionKind2[InstructionKind2["TempLabel"] = 0] = "TempLabel";
@@ -254310,31 +254379,32 @@ var InstructionKind = /* @__PURE__ */ ((InstructionKind2) => {
   InstructionKind2[InstructionKind2["Jump"] = 3] = "Jump";
   InstructionKind2[InstructionKind2["ConditionalJump"] = 4] = "ConditionalJump";
   InstructionKind2[InstructionKind2["InvokeSubModule"] = 5] = "InvokeSubModule";
-  InstructionKind2[InstructionKind2["ReturnValue"] = 6] = "ReturnValue";
-  InstructionKind2[InstructionKind2["SetEventHandler"] = 7] = "SetEventHandler";
-  InstructionKind2[InstructionKind2["StoreVariable"] = 8] = "StoreVariable";
-  InstructionKind2[InstructionKind2["StoreArrayElement"] = 9] = "StoreArrayElement";
-  InstructionKind2[InstructionKind2["StoreProperty"] = 10] = "StoreProperty";
-  InstructionKind2[InstructionKind2["LoadVariable"] = 11] = "LoadVariable";
-  InstructionKind2[InstructionKind2["LoadArrayElement"] = 12] = "LoadArrayElement";
-  InstructionKind2[InstructionKind2["LoadProperty"] = 13] = "LoadProperty";
-  InstructionKind2[InstructionKind2["MethodInvocation"] = 14] = "MethodInvocation";
-  InstructionKind2[InstructionKind2["Negate"] = 15] = "Negate";
-  InstructionKind2[InstructionKind2["Equal"] = 16] = "Equal";
-  InstructionKind2[InstructionKind2["LessThan"] = 17] = "LessThan";
-  InstructionKind2[InstructionKind2["GreaterThan"] = 18] = "GreaterThan";
-  InstructionKind2[InstructionKind2["LessThanOrEqual"] = 19] = "LessThanOrEqual";
-  InstructionKind2[InstructionKind2["GreaterThanOrEqual"] = 20] = "GreaterThanOrEqual";
-  InstructionKind2[InstructionKind2["Add"] = 21] = "Add";
-  InstructionKind2[InstructionKind2["Subtract"] = 22] = "Subtract";
-  InstructionKind2[InstructionKind2["Multiply"] = 23] = "Multiply";
-  InstructionKind2[InstructionKind2["Divide"] = 24] = "Divide";
-  InstructionKind2[InstructionKind2["IntegerDivide"] = 25] = "IntegerDivide";
-  InstructionKind2[InstructionKind2["Modulo"] = 26] = "Modulo";
-  InstructionKind2[InstructionKind2["PushNumber"] = 27] = "PushNumber";
-  InstructionKind2[InstructionKind2["PushString"] = 28] = "PushString";
-  InstructionKind2[InstructionKind2["Duplicate"] = 29] = "Duplicate";
-  InstructionKind2[InstructionKind2["DeleteVariable"] = 30] = "DeleteVariable";
+  InstructionKind2[InstructionKind2["OnError"] = 6] = "OnError";
+  InstructionKind2[InstructionKind2["ReturnValue"] = 7] = "ReturnValue";
+  InstructionKind2[InstructionKind2["SetEventHandler"] = 8] = "SetEventHandler";
+  InstructionKind2[InstructionKind2["StoreVariable"] = 9] = "StoreVariable";
+  InstructionKind2[InstructionKind2["StoreArrayElement"] = 10] = "StoreArrayElement";
+  InstructionKind2[InstructionKind2["StoreProperty"] = 11] = "StoreProperty";
+  InstructionKind2[InstructionKind2["LoadVariable"] = 12] = "LoadVariable";
+  InstructionKind2[InstructionKind2["LoadArrayElement"] = 13] = "LoadArrayElement";
+  InstructionKind2[InstructionKind2["LoadProperty"] = 14] = "LoadProperty";
+  InstructionKind2[InstructionKind2["MethodInvocation"] = 15] = "MethodInvocation";
+  InstructionKind2[InstructionKind2["Negate"] = 16] = "Negate";
+  InstructionKind2[InstructionKind2["Equal"] = 17] = "Equal";
+  InstructionKind2[InstructionKind2["LessThan"] = 18] = "LessThan";
+  InstructionKind2[InstructionKind2["GreaterThan"] = 19] = "GreaterThan";
+  InstructionKind2[InstructionKind2["LessThanOrEqual"] = 20] = "LessThanOrEqual";
+  InstructionKind2[InstructionKind2["GreaterThanOrEqual"] = 21] = "GreaterThanOrEqual";
+  InstructionKind2[InstructionKind2["Add"] = 22] = "Add";
+  InstructionKind2[InstructionKind2["Subtract"] = 23] = "Subtract";
+  InstructionKind2[InstructionKind2["Multiply"] = 24] = "Multiply";
+  InstructionKind2[InstructionKind2["Divide"] = 25] = "Divide";
+  InstructionKind2[InstructionKind2["IntegerDivide"] = 26] = "IntegerDivide";
+  InstructionKind2[InstructionKind2["Modulo"] = 27] = "Modulo";
+  InstructionKind2[InstructionKind2["PushNumber"] = 28] = "PushNumber";
+  InstructionKind2[InstructionKind2["PushString"] = 29] = "PushString";
+  InstructionKind2[InstructionKind2["Duplicate"] = 30] = "Duplicate";
+  InstructionKind2[InstructionKind2["DeleteVariable"] = 31] = "DeleteVariable";
   return InstructionKind2;
 })(InstructionKind || {});
 var BaseInstruction = class {
@@ -254461,7 +254531,7 @@ var CommandsParser = class _CommandsParser {
     let current = this.peek();
     if (current) {
       switch (current.kind) {
-        case 45 /* Comment */:
+        case 46 /* Comment */:
           this._result.push(this.parseCommentCommand());
           break;
         case 1 /* IfKeyword */:
@@ -254482,50 +254552,55 @@ var CommandsParser = class _CommandsParser {
         case 9 /* EndForKeyword */:
           this._result.push(this.parseEndForCommand());
           break;
-        case 11 /* WhileKeyword */:
+        case 12 /* WhileKeyword */:
           this._result.push(this.parseWhileCommand());
           break;
-        case 12 /* EndWhileKeyword */:
+        case 13 /* EndWhileKeyword */:
           this._result.push(this.parseEndWhileCommand());
           break;
-        case 13 /* BreakKeyword */:
+        case 14 /* BreakKeyword */:
           this._result.push(this.parseBreakCommand());
           break;
-        case 14 /* ContinueKeyword */:
+        case 15 /* ContinueKeyword */:
           this._result.push(this.parseContinueCommand());
           break;
         case 10 /* GoToKeyword */:
           this._result.push(this.parseGoToCommand());
           break;
-        case 42 /* Identifier */:
-          if (this.isNext(34 /* Colon */, 1)) {
+        case 11 /* GoSubKeyword */:
+          this._result.push(this.parseGoSubCommand());
+          break;
+        case 43 /* Identifier */:
+          if (this.isOnErrorStatement()) {
+            this._result.push(this.parseOnErrorCommand());
+          } else if (this.isNext(35 /* Colon */, 1)) {
             this._result.push(this.parseLabelCommand());
           } else {
             this._result.push(this.parseExpressionCommand());
           }
           break;
-        case 15 /* SubKeyword */:
+        case 16 /* SubKeyword */:
           this._result.push(this.parseSubCommand());
           break;
-        case 16 /* EndSubKeyword */:
+        case 17 /* EndSubKeyword */:
           this._result.push(this.parseEndSubCommand());
           break;
-        case 17 /* FunctionKeyword */:
+        case 18 /* FunctionKeyword */:
           this._result.push(this.parseFunctionCommand());
           break;
-        case 18 /* EndFunctionKeyword */:
+        case 19 /* EndFunctionKeyword */:
           this._result.push(this.parseEndFunctionCommand());
           break;
-        case 19 /* DimKeyword */:
+        case 20 /* DimKeyword */:
           this._result.push(this.parseDimCommand());
           break;
-        case 20 /* ReturnKeyword */:
+        case 21 /* ReturnKeyword */:
           this._result.push(this.parseReturnCommand());
           break;
-        case 30 /* Minus */:
-        case 43 /* NumberLiteral */:
-        case 44 /* StringLiteral */:
-        case 23 /* LeftParen */:
+        case 31 /* Minus */:
+        case 44 /* NumberLiteral */:
+        case 45 /* StringLiteral */:
+        case 24 /* LeftParen */:
           this._result.push(this.parseExpressionCommand());
           break;
         default:
@@ -254536,7 +254611,7 @@ var CommandsParser = class _CommandsParser {
     }
     current = this.peek();
     if (current) {
-      if (current.kind === 45 /* Comment */) {
+      if (current.kind === 46 /* Comment */) {
         this._result.push(this.parseCommentCommand());
       } else {
         this.reportError(new Diagnostic2(5 /* UnexpectedToken_ExpectingEOL */, current.range, current.text));
@@ -254544,7 +254619,7 @@ var CommandsParser = class _CommandsParser {
     }
   }
   parseCommentCommand() {
-    const comment = this.eat(45 /* Comment */);
+    const comment = this.eat(46 /* Comment */);
     return new CommentCommandSyntax(comment);
   }
   parseIfCommand() {
@@ -254569,8 +254644,8 @@ var CommandsParser = class _CommandsParser {
   }
   parseForCommand() {
     const forKeyword = this.eat(6 /* ForKeyword */);
-    const identifierToken = this.eat(42 /* Identifier */);
-    const equalToken = this.eat(27 /* Equal */);
+    const identifierToken = this.eat(43 /* Identifier */);
+    const equalToken = this.eat(28 /* Equal */);
     const fromExpression = this.parseBaseExpression();
     const toToken = this.eat(7 /* ToKeyword */);
     const toExpression = this.parseBaseExpression();
@@ -254587,35 +254662,93 @@ var CommandsParser = class _CommandsParser {
     return new EndForCommandSyntax(endForKeyword);
   }
   parseWhileCommand() {
-    const whileToken = this.eat(11 /* WhileKeyword */);
+    const whileToken = this.eat(12 /* WhileKeyword */);
     const expression = this.parseBaseExpression();
     return new WhileCommandSyntax(whileToken, expression);
   }
   parseEndWhileCommand() {
-    const endWhileKeyword = this.eat(12 /* EndWhileKeyword */);
+    const endWhileKeyword = this.eat(13 /* EndWhileKeyword */);
     return new EndWhileCommandSyntax(endWhileKeyword);
   }
   parseBreakCommand() {
-    const breakKeyword = this.eat(13 /* BreakKeyword */);
+    const breakKeyword = this.eat(14 /* BreakKeyword */);
     return new BreakCommandSyntax(breakKeyword);
   }
   parseContinueCommand() {
-    const continueKeyword = this.eat(14 /* ContinueKeyword */);
+    const continueKeyword = this.eat(15 /* ContinueKeyword */);
     return new ContinueCommandSyntax(continueKeyword);
   }
   parseLabelCommand() {
-    const labelToken = this.eat(42 /* Identifier */);
-    const colonToken = this.eat(34 /* Colon */);
+    const labelToken = this.eat(43 /* Identifier */);
+    const colonToken = this.eat(35 /* Colon */);
     return new LabelCommandSyntax(labelToken, colonToken);
   }
   parseGoToCommand() {
     const gotoToken = this.eat(10 /* GoToKeyword */);
-    const labelToken = this.eat(42 /* Identifier */);
+    const labelToken = this.eat(43 /* Identifier */);
     return new GoToCommandSyntax(gotoToken, labelToken);
   }
+  parseGoSubCommand() {
+    const goSubToken = this.eat(11 /* GoSubKeyword */);
+    const nameToken = this.eat(43 /* Identifier */);
+    return new GoSubCommandSyntax(goSubToken, nameToken);
+  }
+  // `On Error ...` is recognized purely contextually: `On` and `Error` are
+  // plain Identifier tokens, and this keeps variable names like `On` usable
+  // everywhere except in the exact `On Error` statement position.
+  isOnErrorStatement() {
+    const current = this.peek();
+    if (!current || current.text.toLowerCase() !== "on") {
+      return false;
+    }
+    const next = this.peek(1);
+    return !!next && next.kind === 43 /* Identifier */ && next.text.toLowerCase() === "error";
+  }
+  parseOnErrorCommand() {
+    const onToken = this.eat(43 /* Identifier */);
+    const errorToken = this.eat(43 /* Identifier */);
+    if (this.isIdentifierText(0, "resume") && this.isIdentifierText(1, "next")) {
+      const resumeToken = this.eat(43 /* Identifier */);
+      const nextToken = this.eat(43 /* Identifier */);
+      return new OnErrorCommandSyntax(onToken, errorToken, "resume-next", [resumeToken, nextToken], void 0);
+    }
+    if (this.isNext(10 /* GoToKeyword */)) {
+      const goToToken = this.eat(10 /* GoToKeyword */);
+      const minusToken = this.isNext(31 /* Minus */) ? this.eat(31 /* Minus */) : void 0;
+      if (!this.isNext(44 /* NumberLiteral */)) {
+        this.reportError(new Diagnostic2(29 /* InvalidOnErrorClause */, onToken.range));
+        const tokens = [goToToken, ...minusToken ? [minusToken] : []];
+        return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", tokens, void 0);
+      }
+      const numberToken = this.eat(44 /* NumberLiteral */);
+      if (!minusToken && numberToken.token.text === "0") {
+        return new OnErrorCommandSyntax(onToken, errorToken, "goto-clear", [goToToken, numberToken], void 0);
+      }
+      if (minusToken && numberToken.token.text === "1") {
+        return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", [goToToken, minusToken, numberToken], void 0);
+      }
+      this.reportError(new Diagnostic2(29 /* InvalidOnErrorClause */, onToken.range));
+      return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", [goToToken, minusToken, numberToken].filter((token) => !!token), void 0);
+    }
+    if (this.isNext(11 /* GoSubKeyword */)) {
+      const goSubToken = this.eat(11 /* GoSubKeyword */);
+      if (!this.isNext(43 /* Identifier */)) {
+        this.reportError(new Diagnostic2(29 /* InvalidOnErrorClause */, onToken.range));
+        return new OnErrorCommandSyntax(onToken, errorToken, "gosub", [goSubToken], void 0);
+      }
+      const targetToken = this.eat(43 /* Identifier */);
+      return new OnErrorCommandSyntax(onToken, errorToken, "gosub", [goSubToken], targetToken);
+    }
+    this.reportError(new Diagnostic2(29 /* InvalidOnErrorClause */, onToken.range));
+    return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", [], void 0);
+  }
+  isIdentifierText(offset, text2) {
+    const current = this.peek(offset);
+    return !!current && current.kind === 43 /* Identifier */ && current.text.toLowerCase() === text2;
+  }
   parseSubCommand() {
-    const subToken = this.eat(15 /* SubKeyword */);
-    const nameToken = this.eat(42 /* Identifier */);
+    const subToken = this.eat(16 /* SubKeyword */);
+    const nameToken = this.eat(43 /* Identifier */);
     const parameters = this.parseOptionalParameterList();
     return new SubCommandSyntax(
       subToken,
@@ -254627,12 +254760,12 @@ var CommandsParser = class _CommandsParser {
     );
   }
   parseEndSubCommand() {
-    const endSubToken = this.eat(16 /* EndSubKeyword */);
+    const endSubToken = this.eat(17 /* EndSubKeyword */);
     return new EndSubCommandSyntax(endSubToken);
   }
   parseFunctionCommand() {
-    const functionToken = this.eat(17 /* FunctionKeyword */);
-    const nameToken = this.eat(42 /* Identifier */);
+    const functionToken = this.eat(18 /* FunctionKeyword */);
+    const nameToken = this.eat(43 /* Identifier */);
     const parameters = this.parseOptionalParameterList();
     return new FunctionCommandSyntax(
       functionToken,
@@ -254651,35 +254784,35 @@ var CommandsParser = class _CommandsParser {
   parseOptionalParameterList() {
     const parameterTokens = [];
     const commaTokens = [];
-    if (!this.isNext(23 /* LeftParen */)) {
+    if (!this.isNext(24 /* LeftParen */)) {
       return { leftParenToken: void 0, parameterTokens, commaTokens, rightParenToken: void 0 };
     }
-    const leftParenToken = this.eat(23 /* LeftParen */);
-    if (!this.isNext(22 /* RightParen */)) {
-      parameterTokens.push(this.eat(42 /* Identifier */));
-      while (this.isNext(26 /* Comma */)) {
-        commaTokens.push(this.eat(26 /* Comma */));
-        parameterTokens.push(this.eat(42 /* Identifier */));
+    const leftParenToken = this.eat(24 /* LeftParen */);
+    if (!this.isNext(23 /* RightParen */)) {
+      parameterTokens.push(this.eat(43 /* Identifier */));
+      while (this.isNext(27 /* Comma */)) {
+        commaTokens.push(this.eat(27 /* Comma */));
+        parameterTokens.push(this.eat(43 /* Identifier */));
       }
     }
-    const rightParenToken = this.eat(22 /* RightParen */);
+    const rightParenToken = this.eat(23 /* RightParen */);
     return { leftParenToken, parameterTokens, commaTokens, rightParenToken };
   }
   parseEndFunctionCommand() {
-    return new EndFunctionCommandSyntax(this.eat(18 /* EndFunctionKeyword */));
+    return new EndFunctionCommandSyntax(this.eat(19 /* EndFunctionKeyword */));
   }
   parseDimCommand() {
-    const dimToken = this.eat(19 /* DimKeyword */);
-    const variableTokens = [this.eat(42 /* Identifier */)];
+    const dimToken = this.eat(20 /* DimKeyword */);
+    const variableTokens = [this.eat(43 /* Identifier */)];
     const commaTokens = [];
-    while (this.isNext(26 /* Comma */)) {
-      commaTokens.push(this.eat(26 /* Comma */));
-      variableTokens.push(this.eat(42 /* Identifier */));
+    while (this.isNext(27 /* Comma */)) {
+      commaTokens.push(this.eat(27 /* Comma */));
+      variableTokens.push(this.eat(43 /* Identifier */));
     }
     return new DimCommandSyntax(dimToken, variableTokens, commaTokens);
   }
   parseReturnCommand() {
-    const returnToken = this.eat(20 /* ReturnKeyword */);
+    const returnToken = this.eat(21 /* ReturnKeyword */);
     const expression = this.parseBaseExpression();
     return new ReturnCommandSyntax(returnToken, expression);
   }
@@ -254704,9 +254837,9 @@ var CommandsParser = class _CommandsParser {
     return expression;
   }
   parseUnaryOperator() {
-    if (this.isNext(30 /* Minus */)) {
-      const minusToken = this.eat(30 /* Minus */);
-      const expression = this.parseBaseExpression();
+    if (this.isNext(31 /* Minus */)) {
+      const minusToken = this.eat(31 /* Minus */);
+      const expression = this.parseUnaryOperator();
       return new UnaryOperatorExpressionSyntax(minusToken, expression);
     }
     return this.parseCoreExpression();
@@ -254719,13 +254852,13 @@ var CommandsParser = class _CommandsParser {
         return expression;
       }
       switch (currentToken.kind) {
-        case 21 /* Dot */:
+        case 22 /* Dot */:
           expression = this.parseObjectAccessExpression(expression);
           break;
-        case 25 /* LeftSquareBracket */:
+        case 26 /* LeftSquareBracket */:
           expression = this.parseArrayAccessExpressoin(expression);
           break;
-        case 23 /* LeftParen */:
+        case 24 /* LeftParen */:
           expression = this.parseCallExpression(expression);
           break;
         default:
@@ -254734,31 +254867,31 @@ var CommandsParser = class _CommandsParser {
     }
   }
   parseObjectAccessExpression(leftHandSide) {
-    const dotToken = this.eat(21 /* Dot */);
-    const identifierToken = this.isNext(41 /* Mod */) ? this.eat(41 /* Mod */) : this.eat(42 /* Identifier */);
+    const dotToken = this.eat(22 /* Dot */);
+    const identifierToken = this.isNext(42 /* Mod */) ? this.eat(42 /* Mod */) : this.eat(43 /* Identifier */);
     return new ObjectAccessExpressionSyntax(leftHandSide, dotToken, identifierToken);
   }
   parseArrayAccessExpressoin(leftHandSide) {
-    const leftSquareBracket = this.eat(25 /* LeftSquareBracket */);
+    const leftSquareBracket = this.eat(26 /* LeftSquareBracket */);
     const indexExpression = this.parseBaseExpression();
-    const rightSquareBracket = this.eat(24 /* RightSquareBracket */);
+    const rightSquareBracket = this.eat(25 /* RightSquareBracket */);
     return new ArrayAccessExpressionSyntax(leftHandSide, leftSquareBracket, indexExpression, rightSquareBracket);
   }
   parseCallExpression(leftHandSide) {
-    const leftParen = this.eat(23 /* LeftParen */);
+    const leftParen = this.eat(24 /* LeftParen */);
     const argumentsList = [];
     let currentToken = this.peek();
     let currentArgument;
     loop: while (currentToken) {
       if (currentArgument) {
         switch (currentToken.kind) {
-          case 26 /* Comma */: {
-            const comma = this.eat(26 /* Comma */);
+          case 27 /* Comma */: {
+            const comma = this.eat(27 /* Comma */);
             argumentsList.push(new ArgumentSyntax(currentArgument, comma));
             currentArgument = void 0;
             break;
           }
-          case 22 /* RightParen */: {
+          case 23 /* RightParen */: {
             argumentsList.push(new ArgumentSyntax(currentArgument, void 0));
             currentArgument = void 0;
             break loop;
@@ -254768,14 +254901,14 @@ var CommandsParser = class _CommandsParser {
               4 /* UnexpectedToken_ExpectingToken */,
               currentToken.range,
               currentToken.text,
-              CompilerUtils.tokenToDisplayString(26 /* Comma */)
+              CompilerUtils.tokenToDisplayString(27 /* Comma */)
             ));
             argumentsList.push(new ArgumentSyntax(currentArgument, void 0));
             currentArgument = void 0;
             break;
           }
         }
-      } else if (currentToken.kind === 22 /* RightParen */) {
+      } else if (currentToken.kind === 23 /* RightParen */) {
         break loop;
       } else {
         currentArgument = this.parseBaseExpression();
@@ -254785,7 +254918,7 @@ var CommandsParser = class _CommandsParser {
     if (currentArgument) {
       argumentsList.push(new ArgumentSyntax(currentArgument, void 0));
     }
-    const rightParen = this.eat(22 /* RightParen */);
+    const rightParen = this.eat(23 /* RightParen */);
     return new InvocationExpressionSyntax(leftHandSide, leftParen, argumentsList, rightParen);
   }
   parseTerminalExpression() {
@@ -254793,31 +254926,31 @@ var CommandsParser = class _CommandsParser {
     if (!current) {
       const range2 = this._tokens[this._index - 1].range;
       this.reportError(new Diagnostic2(6 /* UnexpectedEOL_ExpectingExpression */, range2));
-      return new IdentifierExpressionSyntax(this.createMissingToken(range2, 42 /* Identifier */));
+      return new IdentifierExpressionSyntax(this.createMissingToken(range2, 43 /* Identifier */));
     }
     switch (current.kind) {
-      case 42 /* Identifier */: {
-        const identifierToken = this.eat(42 /* Identifier */);
+      case 43 /* Identifier */: {
+        const identifierToken = this.eat(43 /* Identifier */);
         return new IdentifierExpressionSyntax(identifierToken);
       }
-      case 43 /* NumberLiteral */: {
-        const numberToken = this.eat(43 /* NumberLiteral */);
+      case 44 /* NumberLiteral */: {
+        const numberToken = this.eat(44 /* NumberLiteral */);
         return new NumberLiteralExpressionSyntax(numberToken);
       }
-      case 44 /* StringLiteral */: {
-        const stringToken = this.eat(44 /* StringLiteral */);
+      case 45 /* StringLiteral */: {
+        const stringToken = this.eat(45 /* StringLiteral */);
         return new StringLiteralExpressionSyntax(stringToken);
       }
-      case 23 /* LeftParen */: {
-        const leftParen = this.eat(23 /* LeftParen */);
+      case 24 /* LeftParen */: {
+        const leftParen = this.eat(24 /* LeftParen */);
         const expression = this.parseBaseExpression();
-        const rightParen = this.eat(22 /* RightParen */);
+        const rightParen = this.eat(23 /* RightParen */);
         return new ParenthesisExpressionSyntax(leftParen, expression, rightParen);
       }
       default: {
         this.eat(current.kind);
         this.reportError(new Diagnostic2(3 /* UnexpectedToken_ExpectingExpression */, current.range, current.text));
-        return new IdentifierExpressionSyntax(this.createMissingToken(current.range, 42 /* Identifier */));
+        return new IdentifierExpressionSyntax(this.createMissingToken(current.range, 43 /* Identifier */));
       }
     }
   }
@@ -254865,20 +254998,20 @@ var CommandsParser = class _CommandsParser {
   // (integer division) sits between them and Mod, and Mod binds looser
   // than both but tighter than + and -.
   static BinaryOperatorPrecedence = [
-    39 /* Or */,
-    40 /* And */,
-    27 /* Equal */,
-    28 /* NotEqual */,
-    35 /* LessThan */,
-    36 /* GreaterThan */,
-    37 /* LessThanOrEqual */,
-    38 /* GreaterThanOrEqual */,
-    29 /* Plus */,
-    30 /* Minus */,
-    41 /* Mod */,
-    33 /* Backslash */,
-    31 /* Multiply */,
-    32 /* Divide */
+    40 /* Or */,
+    41 /* And */,
+    28 /* Equal */,
+    29 /* NotEqual */,
+    36 /* LessThan */,
+    37 /* GreaterThan */,
+    38 /* LessThanOrEqual */,
+    39 /* GreaterThanOrEqual */,
+    30 /* Plus */,
+    31 /* Minus */,
+    42 /* Mod */,
+    34 /* Backslash */,
+    32 /* Multiply */,
+    33 /* Divide */
   ];
 };
 
@@ -254894,13 +255027,13 @@ var CompletionService;
     ResultKind2[ResultKind2["Event"] = 4] = "Event";
   })(ResultKind = CompletionService2.ResultKind || (CompletionService2.ResultKind = {}));
   function provideCompletion(compilation, position) {
-    const objectAccessExpression = compilation.getSyntaxNode(position, 31 /* ObjectAccessExpression */);
+    const objectAccessExpression = compilation.getSyntaxNode(position, 33 /* ObjectAccessExpression */);
     if (objectAccessExpression) {
       const visitor = new CompletionVisitor(compilation, position);
       visitor.visit(objectAccessExpression);
       return visitor.results;
     }
-    const identifierExpression = compilation.getSyntaxNode(position, 36 /* IdentifierExpression */);
+    const identifierExpression = compilation.getSyntaxNode(position, 38 /* IdentifierExpression */);
     if (identifierExpression) {
       const visitor = new CompletionVisitor(compilation, position);
       visitor.visit(identifierExpression);
@@ -254927,7 +255060,7 @@ var CompletionService;
       this._allResults.push(result);
     }
     visitObjectAccessExpression(node) {
-      if (node.baseExpression.kind !== 36 /* IdentifierExpression */) {
+      if (node.baseExpression.kind !== 38 /* IdentifierExpression */) {
         return;
       }
       const libraryName = node.baseExpression.identifierToken.token.text;
@@ -255050,16 +255183,16 @@ var CompletionService;
   }
   function visit(node, add) {
     switch (node.kind) {
-      case 12 /* VariableAssignmentStatement */:
+      case 13 /* VariableAssignmentStatement */:
         add(node.variableName);
         break;
-      case 14 /* ArrayAssignmentStatement */:
+      case 15 /* ArrayAssignmentStatement */:
         add(node.arrayName);
         break;
-      case 10 /* LibraryMethodInvocationStatement */:
+      case 11 /* LibraryMethodInvocationStatement */:
         collectArrayLibraryName(node, add);
         break;
-      case 36 /* LibraryMethodInvocationExpression */:
+      case 37 /* LibraryMethodInvocationExpression */:
         collectArrayLibraryName(node, add);
         break;
       default:
@@ -255080,7 +255213,7 @@ var CompletionService;
         return;
     }
     const [firstArgument] = node.argumentsList;
-    if (firstArgument?.kind === 40 /* StringLiteralExpression */) {
+    if (firstArgument?.kind === 41 /* StringLiteralExpression */) {
       add(firstArgument.value);
     }
   }
@@ -255090,6 +255223,14 @@ var CompletionService;
         return "Keywords_Step";
       case "GoTo":
         return "Keywords_Goto";
+      case "On Error Resume Next":
+        return "Keywords_OnErrorResumeNext";
+      case "On Error GoTo -1":
+        return "Keywords_OnErrorGoToMinus1";
+      case "On Error GoTo 0":
+        return "Keywords_OnErrorGoTo0";
+      case "On Error GoSub":
+        return "Keywords_OnErrorGoSub";
       default:
         return `Keywords_${title}`;
     }
@@ -255110,6 +255251,11 @@ var CompletionService;
       snippet("Else", "Else"),
       snippet("EndIf", "EndIf"),
       snippet("GoTo", "GoTo ${1:label}"),
+      snippet("GoSub", "GoSub ${1:name}"),
+      snippet("On Error Resume Next", "On Error Resume Next"),
+      snippet("On Error GoTo -1", "On Error GoTo -1"),
+      snippet("On Error GoTo 0", "On Error GoTo 0"),
+      snippet("On Error GoSub", "On Error GoSub ${1:Handler}"),
       snippet("While", "While ${1:condition}\nEndWhile"),
       snippet("EndWhile", "EndWhile"),
       snippet("For", "For ${1:name} = ${2:start} To ${3:end}\nEndFor"),
@@ -255176,7 +255322,7 @@ var HoverService3;
     if (userSymbol) {
       return userSymbol;
     }
-    const node = compilation.getSyntaxNode(position, 31 /* ObjectAccessExpression */);
+    const node = compilation.getSyntaxNode(position, 33 /* ObjectAccessExpression */);
     if (node) {
       const visitor = new HoverVisitor();
       visitor.visit(node);
@@ -255191,12 +255337,12 @@ var HoverService3;
         continue;
       }
       switch (token.kind) {
-        case 13 /* BreakKeyword */:
+        case 14 /* BreakKeyword */:
           return {
             range: token.range,
             text: ["Break", "Exits the innermost While or For loop."]
           };
-        case 14 /* ContinueKeyword */:
+        case 15 /* ContinueKeyword */:
           return {
             range: token.range,
             text: [
@@ -255204,7 +255350,32 @@ var HoverService3;
               "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs."
             ]
           };
-        case 41 /* Mod */:
+        case 11 /* GoSubKeyword */: {
+          const goSub = compilation.getSyntaxNode(position, 21 /* GoSubCommand */);
+          if (goSub?.nameToken.range.containsPosition(position)) {
+            const target = findProcedure(compilation, goSub.nameToken.token.text);
+            return procedureResult(target, goSub.nameToken);
+          }
+          return {
+            range: token.range,
+            text: [
+              "GoSub",
+              "Calls a parameterless Sub and returns to the next statement after the call."
+            ]
+          };
+        }
+        case 43 /* Identifier */: {
+          const onError = compilation.getSyntaxNode(position, 22 /* OnErrorCommand */);
+          if (!onError || !onError.range.containsPosition(position)) {
+            return void 0;
+          }
+          if (onError.targetToken?.range.containsPosition(position)) {
+            const handler = findProcedure(compilation, onError.targetToken.token.text);
+            return procedureResult(handler, onError.targetToken);
+          }
+          return onErrorKeywordHover(onError, token.range);
+        }
+        case 42 /* Mod */:
           if (!isBinaryOperatorToken(compilation, position, token.kind)) {
             return void 0;
           }
@@ -255212,10 +255383,10 @@ var HoverService3;
             range: token.range,
             text: [
               "Mod",
-              "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0."
+              "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero is a runtime error that On Error can catch."
             ]
           };
-        case 33 /* Backslash */:
+        case 34 /* Backslash */:
           if (!isBinaryOperatorToken(compilation, position, token.kind)) {
             return void 0;
           }
@@ -255223,7 +255394,7 @@ var HoverService3;
             range: token.range,
             text: [
               "\\",
-              "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0."
+              "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero is a runtime error that On Error can catch."
             ]
           };
         default:
@@ -255233,8 +255404,22 @@ var HoverService3;
     return void 0;
   }
   function isBinaryOperatorToken(compilation, position, kind) {
-    const expression = compilation.getSyntaxNode(position, 30 /* BinaryOperatorExpression */);
+    const expression = compilation.getSyntaxNode(position, 32 /* BinaryOperatorExpression */);
     return expression?.operatorToken.token.kind === kind && expression.operatorToken.range.containsPosition(position);
+  }
+  function onErrorKeywordHover(onError, range2) {
+    switch (onError.action) {
+      case "resume-next":
+        return { range: range2, text: ["On Error Resume Next", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."] };
+      case "goto-default":
+        return { range: range2, text: ["On Error GoTo -1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."] };
+      case "goto-clear":
+        return { range: range2, text: ["On Error GoTo 0", "Disables the current On Error handler; runtime errors terminate the program again."] };
+      case "gosub":
+        return { range: range2, text: ["On Error GoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."] };
+      default:
+        return { range: range2, text: ["On Error", "Configures the runtime error handling policy."] };
+    }
   }
   function provideUserSymbolHover(compilation, position) {
     for (const func of compilation.parseTree.functions) {
@@ -255253,12 +255438,12 @@ var HoverService3;
         return procedureResult(procedure2, sub.subCommand.nameToken);
       }
     }
-    const dim = compilation.getSyntaxNode(position, 25 /* DimCommand */);
+    const dim = compilation.getSyntaxNode(position, 27 /* DimCommand */);
     const dimVariable = dim?.variableTokens.find((token) => token.range.containsPosition(position));
     if (dimVariable) {
       return variableResult(dimVariable, "Local variable", "Procedure-scoped variable declared with Dim");
     }
-    const identifier3 = compilation.getSyntaxNode(position, 36 /* IdentifierExpression */);
+    const identifier3 = compilation.getSyntaxNode(position, 38 /* IdentifierExpression */);
     if (!identifier3) {
       return void 0;
     }
@@ -255312,7 +255497,7 @@ var HoverService3;
     return names;
   }
   function collectDimNamesFromNode(node, names) {
-    if (node.kind === 25 /* DimCommand */) {
+    if (node.kind === 27 /* DimCommand */) {
       node.variableTokens.forEach((variable) => names.push(variable.token.text));
       return;
     }
@@ -255332,7 +255517,7 @@ var HoverService3;
       }
     }
     visitObjectAccessExpression(node) {
-      if (node.baseExpression.kind !== 36 /* IdentifierExpression */) {
+      if (node.baseExpression.kind !== 38 /* IdentifierExpression */) {
         return;
       }
       const libraryNameText = node.baseExpression.identifierToken.token.text;
@@ -255410,18 +255595,19 @@ var keywordKinds = /* @__PURE__ */ new Set([
   8 /* StepKeyword */,
   9 /* EndForKeyword */,
   10 /* GoToKeyword */,
-  11 /* WhileKeyword */,
-  12 /* EndWhileKeyword */,
-  13 /* BreakKeyword */,
-  14 /* ContinueKeyword */,
-  15 /* SubKeyword */,
-  16 /* EndSubKeyword */,
-  17 /* FunctionKeyword */,
-  18 /* EndFunctionKeyword */,
-  19 /* DimKeyword */,
-  20 /* ReturnKeyword */,
-  40 /* And */,
-  39 /* Or */
+  11 /* GoSubKeyword */,
+  12 /* WhileKeyword */,
+  13 /* EndWhileKeyword */,
+  14 /* BreakKeyword */,
+  15 /* ContinueKeyword */,
+  16 /* SubKeyword */,
+  17 /* EndSubKeyword */,
+  18 /* FunctionKeyword */,
+  19 /* EndFunctionKeyword */,
+  20 /* DimKeyword */,
+  21 /* ReturnKeyword */,
+  41 /* And */,
+  40 /* Or */
 ]);
 
 // snippets/smallbasic.json
@@ -255474,6 +255660,38 @@ var smallbasic_default = {
     prefix: "return",
     body: "Return ${1:value}",
     description: "Return a value from a Function"
+  },
+  "GoSub call": {
+    prefix: "gosub",
+    body: "GoSub ${1:name}",
+    description: "Call a parameterless Sub"
+  },
+  "On Error Resume Next": {
+    prefix: "onerrorresume",
+    body: "On Error Resume Next",
+    description: "Skip statements that cause runtime errors and keep running"
+  },
+  "On Error GoTo -1": {
+    prefix: "onerrorabort",
+    body: "On Error GoTo -1",
+    description: "Restore the default terminate-on-error behavior"
+  },
+  "On Error GoTo 0": {
+    prefix: "onerrorclear",
+    body: "On Error GoTo 0",
+    description: "Clear the current On Error handler"
+  },
+  "On Error GoSub handler": {
+    prefix: "onerrorgosub",
+    body: [
+      "On Error GoSub ${1:Handler}",
+      "  ${0}",
+      "",
+      "Sub ${1:Handler}(Code, Message)",
+      "  ",
+      "EndSub"
+    ],
+    description: "Handle runtime errors in a Sub that receives the error code and message"
   },
   "Hello World": {
     prefix: "hello",

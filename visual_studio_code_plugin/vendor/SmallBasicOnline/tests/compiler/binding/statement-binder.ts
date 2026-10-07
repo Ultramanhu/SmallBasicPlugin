@@ -161,9 +161,9 @@ x or y = 5`,
         verifyCompilationErrors(`
 -x = 5`,
             // -x = 5
-            // ^^^^^^
-            // This value is not assigned to anything. Did you mean to assign it to a variable?
-            new Diagnostic(ErrorCode.UnassignedExpressionStatement, CompilerRange.fromValues(1, 0, 1, 6)));
+            // ^^
+            // You cannot assign to this expression. Did you mean to use a variable instead?
+            new Diagnostic(ErrorCode.ValueIsNotAssignable, CompilerRange.fromValues(1, 0, 1, 2)));
     });
 
     it("reports error on invalid LHS expressions - equal", () => {

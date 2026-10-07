@@ -100,7 +100,9 @@ export class SmallBasicTerminalSession extends BufferedTextWindowPlugin implemen
         this.schedule(this.pendingInputKind === undefined ? 10 : 50);
         break;
       case ExecutionState.Terminated:
-        if (this.engine.exception) {
+        if (this.engine.lastRuntimeError) {
+          this.writeEmitter.fire(this.colorize(`\r\n[Runtime Error] ${this.engine.lastRuntimeError.code}: ${this.engine.lastRuntimeError.message}\r\n`));
+        } else if (this.engine.exception) {
           this.writeEmitter.fire(this.colorize(`\r\n[Runtime Error] ${this.engine.exception.toString()}\r\n`));
         }
         this.pauseBeforeClose(0);

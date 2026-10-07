@@ -202,6 +202,7 @@ namespace SmallBasic.Compiler.Scanning
                 case "step": this.AddToken(word, TokenKind.Step); return;
                 case "endfor": this.AddToken(word, TokenKind.EndFor); return;
                 case "goto": this.AddToken(word, TokenKind.GoTo); return;
+                case "gosub": this.AddToken(word, TokenKind.GoSub); return;
                 case "while": this.AddToken(word, TokenKind.While); return;
                 case "endwhile": this.AddToken(word, TokenKind.EndWhile); return;
                 case "break": this.AddToken(word, TokenKind.Break); return;

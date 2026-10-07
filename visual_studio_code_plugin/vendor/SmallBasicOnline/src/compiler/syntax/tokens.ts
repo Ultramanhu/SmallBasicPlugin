@@ -13,6 +13,7 @@ export enum TokenKind {
     StepKeyword,
     EndForKeyword,
     GoToKeyword,
+    GoSubKeyword,
     WhileKeyword,
     EndWhileKeyword,
     BreakKeyword,

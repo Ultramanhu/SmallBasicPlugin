@@ -176,7 +176,10 @@ async function main(): Promise<void> {
           engine.state = ExecutionState.Running;
           break;
         case ExecutionState.Terminated:
-          if (engine.exception) {
+          if (engine.lastRuntimeError) {
+            process.stderr.write(`\n[Runtime Error] ${engine.lastRuntimeError.code}: ${engine.lastRuntimeError.message}\n`);
+            await pauseAndExit(EXIT_RUNTIME_ERROR, pauseOnExit);
+          } else if (engine.exception) {
             process.stderr.write(`\n[Runtime Error] ${engine.exception.toString()}\n`);
             await pauseAndExit(EXIT_RUNTIME_ERROR, pauseOnExit);
           }

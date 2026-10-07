@@ -1,0 +1,102 @@
+' test_runtime.sb - TextWindow properties, Clock, Stack and Program.End.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+'
+' The suite ends with Program.End(); the trailing line below it must never be
+' printed (run-tests.ps1 fails the suite when it shows up).
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- TextWindow colours ----------------------------------------------------
+TextWindow.ForegroundColor = "Yellow"
+Check("foreground round trip", TextWindow.ForegroundColor, "Yellow")
+TextWindow.ForegroundColor = "Green"
+Check("foreground is writable twice", TextWindow.ForegroundColor, "Green")
+TextWindow.ForegroundColor = 14
+Check("numeric colour code", TextWindow.ForegroundColor, "Yellow")
+TextWindow.BackgroundColor = "Blue"
+Check("background round trip", TextWindow.BackgroundColor, "Blue")
+TextWindow.ForegroundColor = "Gray"
+TextWindow.BackgroundColor = "White"
+Check("colours restored", TextWindow.ForegroundColor + "/" + TextWindow.BackgroundColor, "Gray/White")
+
+' ---- Clock -----------------------------------------------------------------
+Check("clock reports a time", Text.GetLength(Clock.Time) > 0, "True")
+
+' ---- Stack -----------------------------------------------------------------
+Stack.PushValue("jobs", "first")
+Stack.PushValue("jobs", "second")
+Stack.PushValue("jobs", 3)
+Check("stack count", Stack.GetCount("jobs"), 3)
+Check("stack pops the last value", Stack.PopValue("jobs"), 3)
+Check("stack pops text", Stack.PopValue("jobs"), "second")
+Check("stack count shrinks", Stack.GetCount("jobs"), 1)
+Check("stack keeps the first value", Stack.PopValue("jobs"), "first")
+Check("stack is empty again", Stack.GetCount("jobs"), 0)
+Check("unknown stack is empty", Stack.GetCount("untouched"), 0)
+Stack.PushValue("jobs", "again")
+Check("stack is reusable", Stack.GetCount("jobs"), 1)
+
+' ---- call frames -----------------------------------------------------------
+Function Depth(N)
+  If N = 0 Then
+    Return 0
+  EndIf
+  Return 1 + Depth(N - 1)
+EndFunction
+Check("deep recursion", Depth(200), 200)
+
+Function SumDepth(N)
+  If N = 0 Then
+    Return 0
+  EndIf
+  Return N + SumDepth(N - 1)
+EndFunction
+Check("deep recursion sums", SumDepth(100), 5050)
+
+Sub NestedSubs(Level)
+  Dim Next
+  Next = Level - 1
+  If Next > 0 Then
+    NestedSubs(Next)
+  Else
+    Deepest = Level
+  EndIf
+EndSub
+NestedSubs(25)
+Check("recursive subs", Deepest, 1)
+
+' ---- boolean values round trip ---------------------------------------------
+Check("comparison results are capitalized", 1 = 1, "True")
+Flag = (1 = 2)
+Check("booleans stored in variables keep their text", Flag, "False")
+If Flag Then
+  Branch = "taken"
+Else
+  Branch = "not taken"
+EndIf
+Check("stored booleans drive conditions", Branch, "not taken")
+
+Report("runtime")
+Program.End()
+TextWindow.WriteLine("UNREACHABLE - Program.End() did not stop the program")

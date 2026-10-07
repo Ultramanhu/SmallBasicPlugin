@@ -8,6 +8,7 @@ namespace SmallBasic.Compiler.Parsing
     using System.Collections.Generic;
     using System.Linq;
     using SmallBasic.Compiler.Diagnostics;
+    using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Scanning;
     using SmallBasic.Utilities;
 
@@ -198,7 +199,11 @@ namespace SmallBasic.Compiler.Parsing
                     return this.ParseReturnStatement();
 
                 case TokenKind.Identifier:
-                    if (this.index + 1 < this.tokens.Count && this.tokens[this.index + 1].Kind == TokenKind.Colon)
+                    if (this.IsOnErrorStatementStart())
+                    {
+                        return this.ParseOnErrorStatement();
+                    }
+                    else if (this.index + 1 < this.tokens.Count && this.tokens[this.index + 1].Kind == TokenKind.Colon)
                     {
                         var labelToken = this.Eat(TokenKind.Identifier);
                         var colonToken = this.Eat(TokenKind.Colon);
@@ -218,6 +223,9 @@ namespace SmallBasic.Compiler.Parsing
                     this.RunToEndOfLine();
                     return new GoToStatementSyntax(goToToken, identifier);
 
+                case TokenKind.GoSub:
+                    return this.ParseGoSubStatement();
+
                 case TokenKind.Comment:
                     var commentToken = this.Eat(TokenKind.Comment);
                     this.RunToEndOfLine();
@@ -234,6 +242,108 @@ namespace SmallBasic.Compiler.Parsing
 
                     return new UnrecognizedStatementSyntax(foundToken);
             }
+        }
+
+        private GoSubStatementSyntax ParseGoSubStatement()
+        {
+            Token goSubToken = this.Eat(TokenKind.GoSub);
+            Token nameToken = this.Eat(TokenKind.Identifier);
+            this.RunToEndOfLine();
+            return new GoSubStatementSyntax(goSubToken, nameToken);
+        }
+
+        // `On Error ...` is recognized contextually: `On` and `Error` are plain
+        // Identifier tokens, so names like `On` remain usable everywhere except
+        // in the exact `On Error` statement position.
+        private bool IsOnErrorStatementStart()
+        {
+            Token current = this.tokens[this.index];
+            Token next = this.index + 1 < this.tokens.Count ? this.tokens[this.index + 1] : null;
+
+            return current.Kind == TokenKind.Identifier &&
+                string.Equals(current.Text, "On", StringComparison.OrdinalIgnoreCase) &&
+                !next.IsDefault() &&
+                next.Kind == TokenKind.Identifier &&
+                string.Equals(next.Text, "Error", StringComparison.OrdinalIgnoreCase);
+        }
+
+        private bool IsIdentifierNext(string text, int offset = 0)
+        {
+            if (this.index + offset >= this.tokens.Count)
+            {
+                return false;
+            }
+
+            Token token = this.tokens[this.index + offset];
+            return token.Kind == TokenKind.Identifier && string.Equals(token.Text, text, StringComparison.OrdinalIgnoreCase);
+        }
+
+        private OnErrorStatementSyntax ParseOnErrorStatement()
+        {
+            Token onToken = this.Eat(TokenKind.Identifier);
+            Token errorToken = this.Eat(TokenKind.Identifier);
+
+            if (this.IsIdentifierNext("Resume") && this.IsIdentifierNext("Next", 1))
+            {
+                Token resumeToken = this.Eat(TokenKind.Identifier);
+                Token nextToken = this.Eat(TokenKind.Identifier);
+                this.RunToEndOfLine();
+                return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.ResumeNext, new[] { resumeToken, nextToken });
+            }
+
+            if (this.index < this.tokens.Count && this.Peek() == TokenKind.GoTo)
+            {
+                Token goToToken = this.Eat(TokenKind.GoTo);
+                Token minusTokenOpt = null;
+                if (this.index < this.tokens.Count && this.Peek() == TokenKind.Minus)
+                {
+                    minusTokenOpt = this.Eat(TokenKind.Minus);
+                }
+
+                if (this.index < this.tokens.Count && this.Peek() == TokenKind.NumberLiteral)
+                {
+                    Token numberToken = this.Eat(TokenKind.NumberLiteral);
+
+                    if (minusTokenOpt.IsDefault() && numberToken.Text == "0")
+                    {
+                        this.RunToEndOfLine();
+                        return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.GoToClear, new[] { goToToken, numberToken });
+                    }
+
+                    if (!minusTokenOpt.IsDefault() && numberToken.Text == "1")
+                    {
+                        this.RunToEndOfLine();
+                        return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.GoToDefault, new[] { goToToken, minusTokenOpt, numberToken });
+                    }
+                }
+
+                this.diagnostics.ReportInvalidOnErrorClause(onToken.Range);
+                this.RunToEndOfLine(reportErrors: false);
+                var invalidClauseTokens = minusTokenOpt.IsDefault()
+                    ? new Token[] { goToToken }
+                    : new Token[] { goToToken, minusTokenOpt };
+                return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.GoToDefault, invalidClauseTokens);
+            }
+
+            if (this.index < this.tokens.Count && this.Peek() == TokenKind.GoSub)
+            {
+                Token goSubToken = this.Eat(TokenKind.GoSub);
+
+                if (this.index < this.tokens.Count && this.Peek() == TokenKind.Identifier)
+                {
+                    Token targetToken = this.Eat(TokenKind.Identifier);
+                    this.RunToEndOfLine();
+                    return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.GoSub, new[] { goSubToken }, targetToken);
+                }
+
+                this.diagnostics.ReportInvalidOnErrorClause(onToken.Range);
+                this.RunToEndOfLine(reportErrors: false);
+                return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.GoSub, new[] { goSubToken });
+            }
+
+            this.diagnostics.ReportInvalidOnErrorClause(onToken.Range);
+            this.RunToEndOfLine(reportErrors: false);
+            return new OnErrorStatementSyntax(onToken, errorToken, OnErrorAction.GoToDefault, Array.Empty<Token>());
         }
 
         private DimStatementSyntax ParseDimStatement()

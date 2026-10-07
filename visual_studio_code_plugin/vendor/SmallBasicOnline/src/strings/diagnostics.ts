@@ -25,6 +25,11 @@ export module DiagnosticsResources {
     export const ContinueOutsideLoop = "Continue can only be used inside a While or For loop.";
     export const FunctionCannotBeEventHandler = "A Function cannot be assigned as an event handler. Use a parameterless Sub instead.";
     export const LabelDoesNotExist = "No label with the name '{0}' exists in the same module.";
+    export const GoSubTargetMustBeSub = "No Sub with the name '{0}' was found. GoSub can only call a parameterless Sub.";
+    export const GoSubTargetMustBeParameterlessSub = "The GoSub target '{0}' must be a Sub without parameters.";
+    export const OnErrorHandlerMustBeSub = "No Sub with the name '{0}' was found. The On Error handler must be a Sub.";
+    export const OnErrorHandlerMustAcceptCodeAndMessage = "The On Error handler '{0}' must be a Sub with exactly two parameters: the error code and the error message.";
+    export const InvalidOnErrorClause = "Invalid On Error statement. Use 'On Error Resume Next', 'On Error GoTo -1', 'On Error GoTo 0' or 'On Error GoSub <SubName>'.";
     export const UnassignedExpressionStatement = "This value is not assigned to anything. Did you mean to assign it to a variable?";
     export const InvalidExpressionStatement = "This expression is not a valid statement.";
     export const UnexpectedVoid_ExpectingValue = "This expression must return a value to be used here.";

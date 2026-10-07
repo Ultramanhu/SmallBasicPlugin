@@ -1,0 +1,269 @@
+' test_procedures.sb - Sub/EndSub, Function/EndFunction, parameters, Dim,
+' Return, recursion and variable scope.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- calls defined later in the file (forward references) ------------------
+Check("call before declaration", Double(21), 42)
+
+' ---- Subs ------------------------------------------------------------------
+Touched = 0
+Sub Touch
+  Touched = Touched + 1
+EndSub
+
+Touch
+Touch()
+Check("sub runs with and without parentheses", Touched, 2)
+
+Sub AddTo(Value, Times)
+  Dim Iteration
+  Iteration = 0
+  While Iteration < Times
+    Touched = Touched + Value
+    Iteration = Iteration + 1
+  EndWhile
+EndSub
+
+AddTo(5, 3)
+Check("sub with two parameters", Touched, 17)
+
+Sub Say(Text1, Text2)
+  Spoken = Text1 + "-" + Text2
+EndSub
+
+Say("a", "b")
+Check("sub parameters are per call", Spoken, "a-b")
+
+' ---- Functions -------------------------------------------------------------
+Function Double(Value)
+  Return Value * 2
+EndFunction
+Check("function returns a value", Double(21), 42)
+
+Function Empty()
+  Dim Local
+  Local = 1
+EndFunction
+Check("function without return yields empty text", "[" + Empty() + "]", "[]")
+
+Function Constant
+  Return 7
+EndFunction
+Check("no parameter function without parentheses", Constant, 7)
+Check("no parameter function with parentheses", Constant(), 7)
+
+Function Answer
+  Return 42
+EndFunction
+Check("assignment from a bare function name", Answer, 42)
+Check("nested calls", NumberTwice(NumberTwice(3)), 12)
+
+Function NumberTwice(Value)
+  Return Value * 2
+EndFunction
+
+Function Add(Left, Right, Extra)
+  Return Left + Right + Extra
+EndFunction
+Check("function with three parameters", Add(1, 2, 3), 6)
+
+Function Join3(A, B, C)
+  Return A + B + C
+EndFunction
+Check("function concatenates text parameters", Join3("a", "b", "c"), "abc")
+
+' ---- case insensitivity ----------------------------------------------------
+fUnCtIoN MixedCase(VaLuE)
+  rEtUrN VaLuE + 1
+eNdFuNcTiOn
+Check("keywords and calls ignore case", mIxEdCaSe(41), 42)
+
+' ---- recursion -------------------------------------------------------------
+Function Factorial(N)
+  If N <= 1 Then
+    Return 1
+  EndIf
+  Return N * Factorial(N - 1)
+EndFunction
+Check("factorial", Factorial(6), 720)
+Check("factorial of one", Factorial(1), 1)
+Check("factorial of zero", Factorial(0), 1)
+
+Function Fib(N)
+  If N < 2 Then
+    Return N
+  EndIf
+  Return Fib(N - 1) + Fib(N - 2)
+EndFunction
+Check("fibonacci", Fib(10), 55)
+
+Function GreatestCommonDivisor(A, B)
+  If B = 0 Then
+    Return A
+  EndIf
+  Return GreatestCommonDivisor(B, A Mod B)
+EndFunction
+Check("recursive gcd", GreatestCommonDivisor(48, 18), 6)
+
+Function IsEven(N)
+  If N = 0 Then
+    Return "True"
+  EndIf
+  Return IsOdd(N - 1)
+EndFunction
+
+Function IsOdd(N)
+  If N = 0 Then
+    Return "False"
+  EndIf
+  Return IsEven(N - 1)
+EndFunction
+Check("mutual recursion even", IsEven(8), "True")
+Check("mutual recursion odd", IsOdd(7), "True")
+Check("mutual recursion even false", IsOdd(8), "False")
+
+' ---- Return leaves nested control flow -------------------------------------
+Function FindThird()
+  Dim Index
+  Index = 0
+  While Index < 5
+    Index = Index + 1
+    If Index = 3 Then
+      Return Index
+    EndIf
+  EndWhile
+  Return 0
+EndFunction
+Check("return exits a loop", FindThird(), 3)
+
+Function SumOfRange(Stop)
+  Dim Total, I
+  Total = 0
+  For I = 1 To 10
+    If I > Stop Then
+      Return Total
+    EndIf
+    Total = Total + I
+  EndFor
+  Return Total
+EndFunction
+Check("return from inside for", SumOfRange(4), 10)
+
+' ---- local scope -----------------------------------------------------------
+Shared = 100
+
+Function ReadsGlobal()
+  Return Shared + 1
+EndFunction
+Check("procedure reads an undeclared global", ReadsGlobal(), 101)
+
+Sub WritesGlobal
+  Shared = Shared + 1
+EndSub
+WritesGlobal()
+Check("procedure writes an undeclared global", Shared, 101)
+
+Function ShadowGlobal(Shared)
+  Return Shared + 1
+EndFunction
+Check("parameter shadows a global", ShadowGlobal(4), 5)
+Check("global survives the shadowing call", Shared, 101)
+
+Function LocalOnly(Value)
+  Dim Shadowed
+  Shadowed = 900
+  Return Value
+EndFunction
+Shadowed = 1
+Check("local Dim does not leak", LocalOnly(1), 1)
+Check("global with the same name is untouched", Shadowed, 1)
+
+Function One()
+  Dim Temporary
+  Temporary = 1
+  Return Temporary
+EndFunction
+Function Two()
+  Dim Temporary
+  Temporary = 2
+  Return Temporary
+EndFunction
+Check("same local name in two functions", One(), 1)
+Check("second function keeps its own local", Two(), 2)
+
+Total = 0
+Sub Accumulate(Value)
+  Dim Doubled
+  Doubled = Value * 2
+  Total = Total + Doubled
+EndSub
+Accumulate(3)
+Accumulate(4)
+Check("sub locals stay in the call frame", Total, 14)
+
+' ---- array parameters ------------------------------------------------------
+Function Change(Item)
+  Item["changed"] = "yes"
+  Item = "replacement"
+  Return Item
+EndFunction
+Source["initial"] = "value"
+Returned = Change(Source)
+Check("parameter reassignment stays local", Returned, "replacement")
+Check("array mutation is visible to the caller", Source["changed"], "yes")
+
+' ---- procedures calling procedures ----------------------------------------
+Sub Outer
+  Inner(2)
+EndSub
+
+Sub Inner(Value)
+  Middle(Value + 1)
+EndSub
+
+Sub Middle(Value)
+  Depth = Value
+EndSub
+Outer()
+Check("sub calls sub calls sub", Depth, 3)
+
+Function UsesSub(Value)
+  Dim Result
+  Result = Value
+  CountUp(Value)
+  Return Result + Counted
+EndFunction
+
+Counted = 0
+Sub CountUp(Times)
+  Dim I
+  For I = 1 To Times
+    Counted = Counted + 1
+  EndFor
+EndSub
+Check("function calls a sub", UsesSub(3), 6)
+
+Report("procedures")

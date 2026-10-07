@@ -123,47 +123,40 @@ namespace SmallBasic.Tests.Runtime
         [Theory]
         // Dividing numbers:
         [InlineData(@"10", @"5", "2")] // Number
-        [InlineData(@"10", @"0", "10")] // Number (zero)
         [InlineData(@"10", @"""4""", "2.5")] // Numeric String
-        [InlineData(@"10", @"""0""", "10")] // Numeric String (zero)
-        [InlineData(@"10", @"""a""", "10")] // Char String
-        [InlineData(@"10", @"""False""", "10")] // Boolean
-        [InlineData(@"10", @"ar", "10")] // Array
         // Dividing numeric strings:
         [InlineData(@"""10""", @"5", "2")] // Number
-        [InlineData(@"""10""", @"0", "10")] // Number (zero)
         [InlineData(@"""10""", @"""4""", "2.5")] // Numeric String
-        [InlineData(@"""10""", @"""0""", "10")] // Numeric String (zero)
-        [InlineData(@"""10""", @"""a""", "10")] // Char String
-        [InlineData(@"""10""", @"""False""", "10")] // Boolean
-        [InlineData(@"""10""", @"ar", "10")] // Array
         // Dividing char strings:
         [InlineData(@"""a""", @"5", "0")] // Number
-        [InlineData(@"""a""", @"0", "0")] // Number (zero)
         [InlineData(@"""a""", @"""4""", "0")] // Numeric String
-        [InlineData(@"""a""", @"""0""", "0")] // Numeric String (zero)
-        [InlineData(@"""a""", @"""a""", "0")] // Char String
-        [InlineData(@"""a""", @"""False""", "0")] // Boolean
-        [InlineData(@"""a""", @"ar", "0")] // Array
         // Dividing booleans:
         [InlineData(@"""True""", @"5", "0")] // Number
-        [InlineData(@"""True""", @"0", "0")] // Number (zero)
         [InlineData(@"""True""", @"""4""", "0")] // Numeric String
-        [InlineData(@"""True""", @"""0""", "0")] // Numeric String (zero)
-        [InlineData(@"""True""", @"""a""", "0")] // Char String
-        [InlineData(@"""True""", @"""False""", "0")] // Boolean
-        [InlineData(@"""True""", @"ar", "0")] // Array
         // Dividing arrays:
         [InlineData(@"ar", @"5", "0")] // Number
-        [InlineData(@"ar", @"0", "0")] // Number (zero)
         [InlineData(@"ar", @"""4""", "0")] // Numeric String
-        [InlineData(@"ar", @"""0""", "0")] // Numeric String (zero)
-        [InlineData(@"ar", @"""a""", "0")] // Char String
-        [InlineData(@"ar", @"""False""", "0")] // Boolean
-        [InlineData(@"ar", @"ar", "0")] // Array
         public Task ItEvaluatesDivisionOperator(string left, string right, string result)
         {
             return EvaluateExpression($"{left} / {right}", result);
+        }
+
+        [Theory]
+        // Any divisor that folds to 0 (zero, non-numeric text, boolean, array)
+        // is a runtime error that On Error can catch.
+        [InlineData(@"10", @"0")]
+        [InlineData(@"10", @"""0""")]
+        [InlineData(@"10", @"""a""")]
+        [InlineData(@"10", @"""False""")]
+        [InlineData(@"10", @"ar")]
+        [InlineData(@"""10""", @"0")]
+        [InlineData(@"""a""", @"0")]
+        [InlineData(@"""True""", @"0")]
+        [InlineData(@"ar", @"0")]
+        [InlineData(@"ar", @"ar")]
+        public Task ItTerminatesForDivisionByAZeroFoldingOperand(string left, string right)
+        {
+            return EvaluateRuntimeErrorExpression($"{left} / {right}", 1001, "Divide by zero.");
         }
 
         [Theory]
@@ -579,6 +572,12 @@ namespace SmallBasic.Tests.Runtime
             await EvaluateExpression($"({right} or {left})", result).ConfigureAwait(false);
         }
 
+        private static Task EvaluateRuntimeErrorExpression(string expression, int code, string message)
+        {
+            return new SmallBasicCompilation($@"
+ar[1] = 2
+x = {expression}").VerifyUnhandledRuntimeError(code, message);
+        }
         private static Task EvaluateExpression(string expression, string result)
         {
             return new SmallBasicCompilation($@"

@@ -102,15 +102,15 @@ describe("SmallBasicLanguageService document state", () => {
 
     expect(service.provideHover(URI, source, 1, { line: 0, column: 7 })?.contents).toEqual([
       "Mod",
-      "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0."
+      "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero is a runtime error that On Error can catch."
     ]);
     expect(service.provideHover(URI, source, 1, { line: 1, column: 6 })?.contents).toEqual([
       "\\",
-      "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0."
+      "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero is a runtime error that On Error can catch."
     ]);
     expect(service.provideHover(URI, source, 1, { line: 2, column: 10 })?.contents).toEqual([
       "Math.Mod(dividend, divisor)",
-      "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero returns 0.",
+      "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero is a runtime error that On Error can catch.",
       "- **dividend**: The number to divide.",
       "- **divisor**: The number that divides."
     ]);

@@ -8,8 +8,10 @@ import {
   type DimCommandSyntax,
   type ForCommandSyntax,
   type FunctionDeclarationSyntax,
+  type GoSubCommandSyntax,
   type IdentifierExpressionSyntax,
   type InvocationExpressionSyntax,
+  type OnErrorCommandSyntax,
   type SubModuleDeclarationSyntax,
   type TokenSyntax
 } from "smallbasic-lang-core";
@@ -94,6 +96,18 @@ function collectIdentifierTokens(compilation: Compilation): IdentifierToken[] {
 
     if (node.kind === SyntaxKind.IdentifierExpression) {
       pushVariable((node as IdentifierExpressionSyntax).identifierToken, scope, localNames);
+    } else if (node.kind === SyntaxKind.GoSubCommand) {
+      // The target of a `GoSub Handler` is a procedure reference even though
+      // it is a bare token, not an invocation expression.
+      const nameToken = (node as GoSubCommandSyntax).nameToken;
+      if (CompilerUtils.lookupIgnoreCase(compilation.procedures, nameToken.token.text) !== undefined) {
+        tokens.push({ name: nameToken.token.text, range: nameToken.range, role: "procedureInvocation", scope: mainScope });
+      }
+    } else if (node.kind === SyntaxKind.OnErrorCommand) {
+      const target = (node as OnErrorCommandSyntax).targetToken;
+      if (target && CompilerUtils.lookupIgnoreCase(compilation.procedures, target.token.text) !== undefined) {
+        tokens.push({ name: target.token.text, range: target.range, role: "procedureInvocation", scope: mainScope });
+      }
     } else if (node.kind === SyntaxKind.ForCommand) {
       pushVariable((node as ForCommandSyntax).identifierToken, scope, localNames);
     } else if (node.kind === SyntaxKind.DimCommand) {

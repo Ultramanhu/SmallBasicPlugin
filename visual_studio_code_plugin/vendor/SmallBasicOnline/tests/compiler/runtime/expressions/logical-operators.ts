@@ -10,7 +10,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes false and true", () => {
@@ -21,7 +21,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes true and false", () => {
@@ -32,7 +32,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes true and true", () => {
@@ -43,7 +43,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
 
     it("computes false or false", () => {
@@ -54,7 +54,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes false or true", () => {
@@ -65,7 +65,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
 
     it("computes true or false", () => {
@@ -76,7 +76,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
 
     it("computes true or true", () => {
@@ -87,6 +87,6 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
 });

@@ -197,6 +197,12 @@ export class StatementsParser {
             case SyntaxKind.GoToCommand: {
                 return this.eat(SyntaxKind.GoToCommand);
             }
+            case SyntaxKind.GoSubCommand: {
+                return this.eat(SyntaxKind.GoSubCommand);
+            }
+            case SyntaxKind.OnErrorCommand: {
+                return this.eat(SyntaxKind.OnErrorCommand);
+            }
             case SyntaxKind.ExpressionCommand: {
                 return this.eat(SyntaxKind.ExpressionCommand);
             }

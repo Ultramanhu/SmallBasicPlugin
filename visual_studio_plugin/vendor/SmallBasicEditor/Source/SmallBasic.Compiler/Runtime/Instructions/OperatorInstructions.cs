@@ -134,7 +134,7 @@ namespace SmallBasic.Compiler.Runtime
             decimal divisor = second.ToNumber();
             if (divisor == 0)
             {
-                divisor = 1;
+                throw new SmallBasicRuntimeException((int)RuntimeErrorCode.DivideByZero);
             }
 
             return new NumberValue(first.ToNumber() / divisor);
@@ -142,7 +142,7 @@ namespace SmallBasic.Compiler.Runtime
     }
 
     // Integer division (A \ B) truncates the real quotient toward zero. A zero
-    // divisor yields 0, matching the shared Arithmetic Extension v1 contract.
+    // divisor is a runtime error that `On Error` can catch.
     internal sealed class IntegerDivideInstruction : BaseBinaryInstruction
     {
         public IntegerDivideInstruction(TextRange range)
@@ -155,7 +155,7 @@ namespace SmallBasic.Compiler.Runtime
             decimal divisor = second.ToNumber();
             if (divisor == 0)
             {
-                return new NumberValue(0);
+                throw new SmallBasicRuntimeException((int)RuntimeErrorCode.DivideByZero);
             }
 
             return new NumberValue(decimal.Truncate(first.ToNumber() / divisor));
@@ -163,7 +163,8 @@ namespace SmallBasic.Compiler.Runtime
     }
 
     // A Mod B keeps the sign of the dividend (truncated remainder), like the
-    // C# % operator on decimal. A zero divisor yields 0.
+    // C# % operator on decimal. A zero divisor is a runtime error that
+    // `On Error` can catch.
     internal sealed class ModuloInstruction : BaseBinaryInstruction
     {
         public ModuloInstruction(TextRange range)
@@ -176,7 +177,7 @@ namespace SmallBasic.Compiler.Runtime
             decimal divisor = second.ToNumber();
             if (divisor == 0)
             {
-                return new NumberValue(0);
+                throw new SmallBasicRuntimeException((int)RuntimeErrorCode.DivideByZero);
             }
 
             return new NumberValue(first.ToNumber() % divisor);

@@ -133,6 +133,10 @@ namespace SmallBasic.Compiler.Services
             {
                 case "For Step": key = "Keywords_Step"; break;
                 case "GoTo": key = "Keywords_Goto"; break;
+                case "On Error Resume Next": key = "Keywords_OnErrorResumeNext"; break;
+                case "On Error GoTo -1": key = "Keywords_OnErrorGoToMinus1"; break;
+                case "On Error GoTo 0": key = "Keywords_OnErrorGoTo0"; break;
+                case "On Error GoSub": key = "Keywords_OnErrorGoSub"; break;
                 default: key = "Keywords_" + name; break;
             }
 
@@ -214,6 +218,11 @@ namespace SmallBasic.Compiler.Services
             addSnippet("EndIf", "EndIf");
 
             addSnippet("GoTo", "GoTo ${1:label}");
+            addSnippet("GoSub", "GoSub ${1:name}");
+            addSnippet("On Error Resume Next", "On Error Resume Next");
+            addSnippet("On Error GoTo -1", "On Error GoTo -1");
+            addSnippet("On Error GoTo 0", "On Error GoTo 0");
+            addSnippet("On Error GoSub", "On Error GoSub ${1:Handler}");
 
             addSnippet("While", "While ${1:condition}", "EndWhile");
             addSnippet("EndWhile", "EndWhile");

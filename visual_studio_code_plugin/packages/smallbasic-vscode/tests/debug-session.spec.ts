@@ -520,4 +520,89 @@ describe("smallbasic debug session", () => {
     await client.request("continue", { threadId: 1 });
     await client.waitForEvent("terminated");
   });
+
+  it("pauses with reason exception on an unhandled runtime error, keeping the scene readable", async () => {
+    const program = writeProgram("error-stop.sb", [
+      'TextWindow.WriteLine("before")',
+      "X = 1 / 0",
+      'TextWindow.WriteLine("after")'
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    await client.request("configurationDone");
+
+    const stopped = await client.waitForEvent("stopped");
+    expect(stopped.body?.reason).toBe("exception");
+    expect(client.outputText()).toContain("before");
+    expect(client.outputText()).toContain("[Runtime Error] 1001: Divide by zero.");
+
+    const stack = await client.request("stackTrace", { threadId: 1 });
+    const frames = stack.body?.stackFrames as Array<{ name: string; line: number }>;  // still readable
+    expect(frames[0]).toMatchObject({ name: "<Main>", line: 2 });
+
+    await client.request("continue", { threadId: 1 });
+    const exited = await client.waitForEvent("exited");
+    expect(exited.body?.exitCode).toBe(1);
+    expect(client.outputText()).not.toContain("after");
+  });
+
+  it("keeps the session alive when On Error Resume Next handles the error", async () => {
+    const program = writeProgram("resume-next.sb", [
+      "On Error Resume Next",
+      "X = 1 / 0",
+      'TextWindow.WriteLine("after")'
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    await client.request("configurationDone");
+
+    await client.waitForEvent("terminated");
+    expect(client.eventCount("stopped")).toBe(0);
+    expect(client.outputText()).toContain("[Runtime Error] 1001: Divide by zero.");
+    expect(client.outputText()).toContain("after");
+  });
+
+  it("steps into an On Error GoSub handler with the code and message arguments", async () => {
+    const program = writeProgram("gosub-handler.sb", [
+      "On Error GoSub Handle",
+      "X = 1 / 0",
+      'TextWindow.WriteLine("end")',
+      "",
+      "Sub Handle(Code, Message)",
+      '  TextWindow.WriteLine("hit")',
+      "EndSub"
+    ].join("\n"));
+
+    await client.request("initialize", { adapterID: "smallbasic", pathFormat: "path" });
+    await client.request("launch", { program, stopOnEntry: false });
+    const breakpoints = await client.request("setBreakpoints", {
+      source: { path: program },
+      breakpoints: [{ line: 6 }]
+    });
+    expect((breakpoints.body?.breakpoints as Array<{ verified: boolean }>)[0].verified).toBe(true);
+    await client.request("configurationDone");
+
+    const stopped = await client.waitForEvent("stopped");
+    expect(stopped.body?.reason).toBe("breakpoint");
+
+    const stack = await client.request("stackTrace", { threadId: 1 });
+    const frames = stack.body?.stackFrames as Array<{ name: string; line: number }>;
+    expect(frames[0].name).toBe("Handle");
+
+    const scopes = await client.request("scopes", { frameId: 1 });
+    const variables = await client.request("variables", {
+      variablesReference: (scopes.body?.scopes as Array<{ name: string; variablesReference: number }>)[1].variablesReference
+    });
+    const entries = variables.body?.variables as Array<{ name: string; value: string }>;
+    expect((scopes.body?.scopes as Array<{ name: string }>)[1].name).toBe("Locals");
+    expect(entries.find((variable) => variable.name === "Code")?.value).toBe("1001");
+    expect(entries.find((variable) => variable.name === "Message")?.value).toBe('"Divide by zero."');
+
+    await client.request("continue", { threadId: 1 });
+    await client.waitForEvent("terminated");
+    expect(client.outputText()).toContain("hit");
+    expect(client.outputText()).toContain("end");
+  });
 });

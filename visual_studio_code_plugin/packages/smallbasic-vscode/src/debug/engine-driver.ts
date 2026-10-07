@@ -90,7 +90,7 @@ export type DebugVariableTree = WebDebugVariable;
 export interface DebugDriverCallbacks {
   /** TextWindow output (already carries its newline). */
   onOutput(text: string): void;
-  /** `reason` is `entry` | `breakpoint` | `step` | `pause`. */
+  /** `reason` is `entry` | `breakpoint` | `step` | `pause` | `exception`. */
   onStopped(reason: string, snapshot: DebugSnapshot): void;
   onInputRequested(kind: ValueKind, snapshot: DebugSnapshot): void;
   /** Fired exactly once, also for a forced termination. */
@@ -117,6 +117,7 @@ export class DebugEngineDriver {
   private pauseRequested = false;
   private initialLocationChecked = false;
   private ended = false;
+  private exceptionStopReported = false;
   private activeControl: RunControl = { kind: "continue" };
 
   public constructor(
@@ -436,8 +437,8 @@ export class DebugEngineDriver {
 
       if (this.engine.state === ExecutionState.Terminated) {
         this.running = false;
-        if (this.engine.exception) {
-          this.callbacks.onOutput(`\n[Runtime Error] ${this.engine.exception.toString()}\n`);
+        const terminatedWithError = this.reportRuntimeErrorOnce();
+        if (terminatedWithError || this.engine.exception) {
           this.finish(1);
         } else {
           this.finish(0);
@@ -452,6 +453,15 @@ export class DebugEngineDriver {
       }
 
       if (this.engine.state === ExecutionState.Paused) {
+        // An unhandled runtime error pauses on the failure scene; continuing
+        // afterwards terminates the session.
+        if (this.engine.pausedOnRuntimeError) {
+          this.running = false;
+          this.reportRuntimeErrorOnce();
+          this.callbacks.onStopped("exception", this.snapshot());
+          return;
+        }
+
         const stopReason = await this.getStopReason();
         if (stopReason) {
           this.running = false;
@@ -491,6 +501,29 @@ export class DebugEngineDriver {
       default:
         return undefined;
     }
+  }
+
+  /**
+   * Mirrors the engine's unified runtime error to the console exactly once
+   * per session (at the exception stop or at termination) and tells whether
+   * an unhandled runtime error ended the run.
+   */
+  private reportRuntimeErrorOnce(): boolean {
+    if (!this.engine) {
+      return false;
+    }
+
+    const error = this.engine.lastRuntimeError;
+    if (!error) {
+      return false;
+    }
+
+    if (!this.exceptionStopReported) {
+      this.exceptionStopReported = true;
+      this.callbacks.onOutput(`\n[Runtime Error] ${error.code}: ${error.message}\n`);
+    }
+
+    return true;
   }
 
   // A line stops execution when it has a verified unconditional breakpoint, or a

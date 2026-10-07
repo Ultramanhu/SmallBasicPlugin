@@ -1,32 +1,32 @@
-{
-  "version": "0.2.1",
-  "defaults": {
-    ".sb": "smallbasicFile"
-  },
-  "configurations": [
-    {
-      "type": "smallbasic",
-      "project": ".",
-      "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
-      "program": "${file}",
-      "backend": "javascript",
-      "stopOnEntry": false
-    },
-    {
-      "type": "smallbasic",
-      "project": ".",
-      "name": "SmallBasic [CLI]: Debug current file with C# backend",
-      "program": "${file}",
-      "backend": "csharp",
-      "stopOnEntry": false
-    },
-    {
-      "type": "smallbasic",
-      "project": ".",
-      "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
-      "program": "${file}",
-      "backend": "blazor",
-      "stopOnEntry": false
-    }
-  ]
+﻿{
+    "version":  "0.2.1",
+    "defaults":  {
+                     ".sb":  "smallbasicFile"
+                 },
+    "configurations":  [
+                           {
+                               "type":  "smallbasic",
+                               "project":  ".",
+                               "name":  "SmallBasic [CLI]: Debug current file with JavaScript backend",
+                               "program":  "${file}",
+                               "backend":  "javascript",
+                               "stopOnEntry":  false
+                           },
+                           {
+                               "type":  "smallbasic",
+                               "project":  ".",
+                               "name":  "SmallBasic [CLI]: Debug current file with C# backend",
+                               "program":  "${file}",
+                               "backend":  "csharp",
+                               "stopOnEntry":  false
+                           },
+                           {
+                               "type":  "smallbasic",
+                               "project":  ".",
+                               "name":  "SmallBasic [CLI]: Debug current file with Blazor backend",
+                               "program":  "${file}",
+                               "backend":  "blazor",
+                               "stopOnEntry":  false
+                           }
+                       ]
 }

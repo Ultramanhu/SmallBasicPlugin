@@ -48,6 +48,24 @@ namespace SmallBasic.Compiler.Runtime
         }
     }
 
+    internal sealed class OnErrorInstruction : BaseNonJumpInstruction
+    {
+        private readonly OnErrorAction action;
+        private readonly string handlerNameOpt;
+
+        public OnErrorInstruction(OnErrorAction action, string handlerNameOpt, TextRange range)
+            : base(range)
+        {
+            this.action = action;
+            this.handlerNameOpt = handlerNameOpt;
+        }
+
+        protected override void Execute(SmallBasicEngine engine)
+        {
+            engine.ConfigureErrorHandling(this.action, this.handlerNameOpt);
+        }
+    }
+
     internal sealed class MethodInvocationInstruction : BaseAsyncNonJumpInstruction
     {
         private readonly string library;

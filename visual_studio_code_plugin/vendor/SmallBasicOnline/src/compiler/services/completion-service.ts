@@ -273,6 +273,14 @@ export module CompletionService {
                 return "Keywords_Step";
             case "GoTo":
                 return "Keywords_Goto";
+            case "On Error Resume Next":
+                return "Keywords_OnErrorResumeNext";
+            case "On Error GoTo -1":
+                return "Keywords_OnErrorGoToMinus1";
+            case "On Error GoTo 0":
+                return "Keywords_OnErrorGoTo0";
+            case "On Error GoSub":
+                return "Keywords_OnErrorGoSub";
             default:
                 return `Keywords_${title}`;
         }
@@ -295,6 +303,11 @@ export module CompletionService {
             snippet("Else", "Else"),
             snippet("EndIf", "EndIf"),
             snippet("GoTo", "GoTo ${1:label}"),
+            snippet("GoSub", "GoSub ${1:name}"),
+            snippet("On Error Resume Next", "On Error Resume Next"),
+            snippet("On Error GoTo -1", "On Error GoTo -1"),
+            snippet("On Error GoTo 0", "On Error GoTo 0"),
+            snippet("On Error GoSub", "On Error GoSub ${1:Handler}"),
             snippet("While", "While ${1:condition}\nEndWhile"),
             snippet("EndWhile", "EndWhile"),
             snippet("For", "For ${1:name} = ${2:start} To ${3:end}\nEndFor"),

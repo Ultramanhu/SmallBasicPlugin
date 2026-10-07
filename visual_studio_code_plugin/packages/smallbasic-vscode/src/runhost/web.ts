@@ -161,7 +161,10 @@ export async function runJavaScript(source: string, bridge: IWebRunHostBridge): 
           engine.state = ExecutionState.Running;
           break;
         case ExecutionState.Terminated:
-          if (engine.exception) {
+          if (engine.lastRuntimeError) {
+            bridge.writeError(`[Runtime Error] ${engine.lastRuntimeError.code}: ${engine.lastRuntimeError.message}`);
+            return EXIT_RUNTIME_ERROR;
+          } else if (engine.exception) {
             bridge.writeError(`[Runtime Error] ${engine.exception.toString()}`);
             return EXIT_RUNTIME_ERROR;
           }

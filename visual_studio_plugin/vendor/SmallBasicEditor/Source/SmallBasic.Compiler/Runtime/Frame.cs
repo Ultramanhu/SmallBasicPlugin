@@ -18,12 +18,14 @@ namespace SmallBasic.Compiler.Runtime
             RuntimeModule module,
             IReadOnlyList<BaseValue> arguments,
             int evaluationStackBase,
-            Dictionary<string, BaseValue> inheritedLocals = null)
+            Dictionary<string, BaseValue> inheritedLocals = null,
+            bool isErrorHandler = false)
         {
             this.Module = module;
             this.FrameId = Interlocked.Increment(ref nextId);
             this.EvaluationStackBase = evaluationStackBase;
             this.LocalMemory = inheritedLocals ?? new Dictionary<string, BaseValue>(StringComparer.OrdinalIgnoreCase);
+            this.IsErrorHandler = isErrorHandler;
 
             foreach (string local in module.Locals)
             {
@@ -50,6 +52,9 @@ namespace SmallBasic.Compiler.Runtime
         internal Dictionary<string, BaseValue> LocalMemory { get; private set; }
 
         internal int EvaluationStackBase { get; private set; }
+
+        /// <summary>True while this frame runs an `On Error GoSub` handler, which must be non-reentrant.</summary>
+        internal bool IsErrorHandler { get; private set; }
 
         public int InstructionIndex
         {

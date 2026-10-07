@@ -144,9 +144,68 @@ describe.skipIf(targets.length === 0)("CLI debug adapter contract (setBreakpoint
     expect(exitCode).toBe(0);
     expect(JSON.parse(stdout)).toEqual({
       protocolVersion: 2,
-      capabilities: ["function-v1"]
+      capabilities: ["function-v1", "gosub-v1", "error-handling-v1"]
     });
   });
+
+  it.each(targets)(
+    "$name stops with reason exception on an unhandled runtime error",
+    async (target) => {
+      const crashingProgram = path.join(
+        fs.mkdtempSync(path.join(repositoryRoot, "sample", "hello", "dap-crash-")),
+        "crash.sb"
+      );
+      fs.writeFileSync(
+        crashingProgram,
+        ["Before = 1", "Boom = 1 / 0", 'TextWindow.WriteLine("unreachable")', ""].join("\n"),
+        "utf8"
+      );
+
+      const session = startDapAdapter(target);
+      try {
+        session.send("initialize", {
+          adapterID: "smallbasic-playground",
+          linesStartAt1: true,
+          columnsStartAt1: true,
+          pathFormat: "path"
+        });
+        await session.waitFor((message) => message.type === "event" && message.event === "initialized");
+
+        session.send("launch", { program: crashingProgram, name: "crash.sb", stopOnEntry: false });
+        await session.waitFor((message) => message.type === "response" && message.command === "launch");
+        session.send("configurationDone");
+
+        // The adapter mirrors the unified error to the debug console and then
+        // stops on the failure scene instead of terminating right away.
+        const output = await session.waitFor(
+          (message) =>
+            message.type === "event" &&
+            message.event === "output" &&
+            String(message.body?.output ?? "").includes("[Runtime Error] 1001"),
+          120_000
+        );
+        expect(String(output.body?.output)).toContain("Divide by zero.");
+
+        const stopped = await session.waitFor((message) => message.type === "event" && message.event === "stopped");
+        expect(stopped.body?.reason).toBe("exception");
+
+        // The failure scene stays readable: the stack still points at line 2.
+        session.send("stackTrace", { threadId: 1 });
+        const stack = await session.waitFor((message) => message.type === "response" && message.command === "stackTrace");
+        const frames = (stack.body?.stackFrames ?? []) as Array<{ line?: number }>;
+        expect(frames.length).toBeGreaterThan(0);
+        expect(frames[0].line).toBe(2);
+
+        // Continuing after the exception stop terminates the session.
+        session.send("continue", { threadId: 1 });
+        await session.waitFor((message) => message.type === "event" && message.event === "terminated", 120_000);
+      } finally {
+        session.child.kill();
+        fs.rmSync(path.dirname(crashingProgram), { recursive: true, force: true });
+      }
+    },
+    180_000
+  );
 
   it.each(targets)(
     "$name validates the breakpoint and stops on it",

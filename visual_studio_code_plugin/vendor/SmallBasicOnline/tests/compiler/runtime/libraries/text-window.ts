@@ -42,8 +42,9 @@ TextWindow.WriteLine(x)
 TextWindow.WriteLine(x["key"])`,
             [],
             [
-                `[0=1, 1="test", 2=[0=10, 1=11], key="value"]`,
-                `[0=1, 1="test", 2=-5, key="value"]`,
+                // Arrays are written as "index=value;" pairs, like the C# backends.
+                `0=1;1=test;2=0\\=10\\;1\\=11\\;;key=value;`,
+                `0=1;1=test;2=-5;key=value;`,
                 `value`
             ]);
     });

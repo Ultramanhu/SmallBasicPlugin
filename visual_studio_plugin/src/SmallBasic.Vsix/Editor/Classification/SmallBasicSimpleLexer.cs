@@ -8,7 +8,7 @@ namespace SmallBasic.Vsix.Editor.Classification
     {
         private static readonly HashSet<string> Keywords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            "If", "Then", "Else", "ElseIf", "EndIf", "For", "To", "Step", "EndFor", "GoTo", "While", "EndWhile", "Break", "Continue", "Sub", "EndSub", "Function", "EndFunction", "Dim", "Return", "And", "Or", "Mod",
+            "If", "Then", "Else", "ElseIf", "EndIf", "For", "To", "Step", "EndFor", "GoTo", "GoSub", "While", "EndWhile", "Break", "Continue", "Sub", "EndSub", "Function", "EndFunction", "Dim", "Return", "And", "Or", "Mod",
         };
 
         private static readonly HashSet<string> Libraries = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -75,6 +75,10 @@ namespace SmallBasic.Vsix.Editor.Classification
                         {
                             yield return new SmallBasicTokenSpan(line.Start.Position + index, end - index, SmallBasicClassificationNames.Keyword);
                         }
+                        else if (IsOnErrorContextKeyword(text, index, word))
+                        {
+                            yield return new SmallBasicTokenSpan(line.Start.Position + index, end - index, SmallBasicClassificationNames.Keyword);
+                        }
                         else if (Libraries.Contains(word))
                         {
                             yield return new SmallBasicTokenSpan(line.Start.Position + index, end - index, SmallBasicClassificationNames.Library);
@@ -110,6 +114,36 @@ namespace SmallBasic.Vsix.Editor.Classification
             }
 
             return index >= 0 && text[index] == '.';
+        }
+
+        /// <summary>
+        /// `On`/`Error`/`Resume`/`Next` are contextual keywords: they only
+        /// classify as keywords inside the exact `On Error ...` clause (mirrors
+        /// how the parser recognizes the statement), so names like `On` stay
+        /// usable as variables everywhere else.
+        /// </summary>
+        private static bool IsOnErrorContextKeyword(string text, int wordStart, string word)
+        {
+            // Trim both ends: the substring up to the word always carries the
+            // separating whitespace ("On Error " before Resume), and leading
+            // indentation must not stop `On` at the start of an indented line.
+            string before = text.Substring(0, wordStart).Trim();
+            string beforeLower = before.ToLowerInvariant();
+            string wordLower = word.ToLowerInvariant();
+
+            switch (wordLower)
+            {
+                case "on":
+                    return before.Length == 0;
+                case "error":
+                    return string.Equals(beforeLower, "on", StringComparison.OrdinalIgnoreCase);
+                case "resume":
+                    return string.Equals(beforeLower, "on error", StringComparison.OrdinalIgnoreCase);
+                case "next":
+                    return string.Equals(beforeLower, "on error resume", StringComparison.OrdinalIgnoreCase);
+                default:
+                    return false;
+            }
         }
     }
 

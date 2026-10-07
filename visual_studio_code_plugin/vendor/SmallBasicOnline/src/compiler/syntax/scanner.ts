@@ -168,6 +168,7 @@ export class Scanner {
             case "step": this.addToken(word, TokenKind.StepKeyword); return;
             case "endfor": this.addToken(word, TokenKind.EndForKeyword); return;
             case "goto": this.addToken(word, TokenKind.GoToKeyword); return;
+            case "gosub": this.addToken(word, TokenKind.GoSubKeyword); return;
             case "while": this.addToken(word, TokenKind.WhileKeyword); return;
             case "endwhile": this.addToken(word, TokenKind.EndWhileKeyword); return;
             case "break": this.addToken(word, TokenKind.BreakKeyword); return;

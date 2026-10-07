@@ -1,0 +1,281 @@
+' test_language_extension.sb - the Language Extension v1 contract:
+' Function/EndFunction with Return, Sub parameters, optional parentheses,
+' call-frame locals, recursion, \ / Mod and Break/Continue.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+'
+' The machine-readable twin of this suite is the shared corpus
+' visual_studio_plugin/tests/SmallBasic.Compiler.Tests/Conformance/cases.json,
+' consumed by both the TypeScript and the C# test runners.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- Functions with a return value ----------------------------------------
+Function Add(Left, Right)
+  Return Left + Right
+EndFunction
+Check("two parameter function", Add(20, 22), 42)
+
+Function Inc(Value)
+  Return Value + 1
+EndFunction
+Check("nested function calls", Inc(Inc(Inc(3))), 6)
+
+Function Nothing()
+  Dim Inside
+  Inside = 1
+EndFunction
+Check("function without Return yields empty text", "[" + Nothing() + "]", "[]")
+
+fUnCtIoN Twice(VaLuE)
+  rEtUrN VaLuE * 2
+eNdFuNcTiOn
+Check("keywords and calls ignore case", tWiCe(21), 42)
+
+' ---- Subs with parameters --------------------------------------------------
+Greeting = ""
+Sub Greet(Name)
+  Greeting = "hi " + Name
+EndSub
+Greet("Ada")
+Check("sub parameter", Greeting, "hi Ada")
+Greet("Lin")
+Check("sub parameter is evaluated per call", Greeting, "hi Lin")
+
+Hits = 0
+Sub Bump
+  Hits = Hits + 1
+EndSub
+Bump
+Bump()
+Check("no parameter sub with and without parentheses", Hits, 2)
+
+Function Seven
+  Return 7
+EndFunction
+Check("bare function name in an expression", Seven, 7)
+Check("parenthesised no parameter function", Seven(), 7)
+
+' ---- call-frame locals -----------------------------------------------------
+Total = 0
+Sub AddDoubled(Value)
+  Dim Doubled
+  Doubled = Value * 2
+  Total = Total + Doubled
+EndSub
+AddDoubled(4)
+AddDoubled(6)
+Check("Dim local inside a sub", Total, 20)
+
+Value = 100
+Function Shadow(Value)
+  Dim Local
+  Local = 500
+  Return Value + 1
+EndFunction
+Check("parameter shadows the global", Shadow(4), 5)
+Check("global survives the call", Value, 100)
+Check("Dim local does not leak", Local, "")
+
+Function FrameOne()
+  Dim Slot
+  Slot = 1
+  Return Slot
+EndFunction
+Function FrameTwo()
+  Dim Slot
+  Slot = 2
+  Return Slot
+EndFunction
+Check("same local name in two functions (1)", FrameOne(), 1)
+Check("same local name in two functions (2)", FrameTwo(), 2)
+
+Function SumTo(N)
+  Dim Accumulator
+  Accumulator = 0
+  For I = 1 To N
+    Accumulator = Accumulator + I
+  EndFor
+  Return Accumulator
+EndFunction
+Check("recursion safe accumulator", SumTo(4) + SumTo(4), 20)
+
+' ---- recursion and mutual calls -------------------------------------------
+Function Factorial(N)
+  If N <= 1 Then
+    Return 1
+  EndIf
+  Return N * Factorial(N - 1)
+EndFunction
+Check("recursive function", Factorial(5), 120)
+
+Function Even(N)
+  If N = 0 Then
+    Return "True"
+  EndIf
+  Return Odd(N - 1)
+EndFunction
+
+Function Odd(N)
+  If N = 0 Then
+    Return "False"
+  EndIf
+  Return Even(N - 1)
+EndFunction
+Check("forward mutual call", Even(10), "True")
+Check("mutual call the other way", Odd(10), "False")
+
+Function CountDown(N)
+  If N <= 0 Then
+    Return ""
+  EndIf
+  Return Text.Append(N, CountDown(N - 1))
+EndFunction
+Check("recursion concatenates", CountDown(3), "321")
+
+' ---- Return leaves nested control flow ------------------------------------
+Function FirstOver(Limit)
+  Dim Index
+  Index = 0
+  While Index < 10
+    Index = Index + 1
+    If Index * Index > Limit Then
+      Return Index
+    EndIf
+  EndWhile
+  Return 0
+EndFunction
+Check("return leaves a while loop", FirstOver(20), 5)
+
+' ---- integer division and modulo ------------------------------------------
+Check("backslash truncates", 17 \ 5, 3)
+Check("backslash rounds toward zero", -17 \ 5, -3)
+Check("Mod keeps the dividend sign", -17 Mod 5, -2)
+Check("operator equivalents", Math.Div(17, 5) * 100 + Math.Mod(17, 5), 302)
+Check("precedence of backslash and Mod", 6 Mod 4 * 2, 6)
+
+' ---- Break and Continue ---------------------------------------------------
+Sum = 0
+For I = 1 To 5
+  If I = 3 Then
+    Continue
+  EndIf
+  Sum = Sum + I
+EndFor
+Check("Continue skips one For iteration", Sum, 12)
+Check("Continue keeps the increment running", I, 6)
+
+Sum = 0
+For I = 1 To 10
+  If I = 5 Then
+    Break
+  EndIf
+  Sum = Sum + I
+EndFor
+Check("Break leaves the For loop", Sum, 10)
+Check("Break does not increment", I, 5)
+
+Sum = 0
+For I = 5 To 1 Step -1
+  If I = 3 Then
+    Continue
+  EndIf
+  Sum = Sum * 10 + I
+EndFor
+Check("Continue with a negative Step", Sum, 5421)
+
+Sum = 0
+For I = 1 To 7 Step 2
+  If I = 3 Then
+    Continue
+  EndIf
+  Sum = Sum * 10 + I
+EndFor
+Check("Continue with an explicit Step", Sum, 157)
+
+Rounds = 0
+While "True"
+  Rounds = Rounds + 1
+  If Rounds < 3 Then
+    Continue
+  EndIf
+  Break
+EndWhile
+Check("Continue inside While", Rounds, 3)
+
+Inner = 0
+Outer = 0
+For A = 1 To 2
+  For B = 1 To 4
+    If B = 2 Then
+      Continue
+    EndIf
+    If B = 3 Then
+      Break
+    EndIf
+    Inner = Inner + A * 10 + B
+  EndFor
+  Outer = Outer + 1
+EndFor
+Check("loop control stays innermost", Inner, 32)
+Check("outer loop keeps running", Outer, 2)
+
+Function CountOdds(Stop)
+  Dim Found, Index
+  Found = 0
+  For Index = 1 To Stop
+    If Index Mod 2 = 0 Then
+      Continue
+    EndIf
+    Found = Found + 1
+  EndFor
+  Return Found
+EndFunction
+Check("Continue inside a function loop", CountOdds(9), 5)
+
+' ---- global fallback -------------------------------------------------------
+Shared = 0
+Sub BumpShared
+  Shared = Shared + 5
+EndSub
+BumpShared
+BumpShared
+Check("undeclared variable inside a sub is global", Shared, 10)
+
+Function ReadShared()
+  Return Shared * 2
+EndFunction
+Check("function reads the same global", ReadShared(), 20)
+
+' ---- arrays as parameters --------------------------------------------------
+Function Change(Item)
+  Item["changed"] = "yes"
+  Item = "replacement"
+  Return Item
+EndFunction
+Source["initial"] = "value"
+Returned = Change(Source)
+Check("array parameter reassignment stays local", Returned, "replacement")
+Check("array parameter mutation is visible", Source["changed"], "yes")
+
+Report("language-extension")

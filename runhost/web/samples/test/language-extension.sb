@@ -1,0 +1,6 @@
+Function MyFun(Arg1, Arg2, Arg3)
+  Dim Local1, Local2
+  Return Arg1
+EndFunction
+
+TextWindow.WriteLine(MyFun("language-extension-v1", 2, 3))

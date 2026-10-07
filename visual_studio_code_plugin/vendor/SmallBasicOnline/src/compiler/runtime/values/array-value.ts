@@ -1,38 +1,48 @@
-import { ExecutionEngine } from "../../execution-engine";
-import { AddInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, MultiplyInstruction, SubtractInstruction } from "../../emitting/instructions";
-import { Diagnostic, ErrorCode } from "../../utils/diagnostics";
 import { BaseValue, ValueKind } from "./base-value";
-import { TokenKind } from "../../syntax/tokens";
-import { CompilerUtils } from "../../utils/compiler-utils";
 
 export class ArrayValue extends BaseValue {
-    private _values: { [key: string]: BaseValue };
+    // A Map keeps insertion order, exactly like the Dictionary the C# backends
+    // use. A plain object would list integer-like keys (array indices such as
+    // "2") before the others, so Array.GetAllIndices and the text form of an
+    // array would disagree between the two implementations.
+    private readonly _values = new Map<string, BaseValue>();
 
     public constructor(value: { readonly [key: string]: BaseValue } = {}) {
         super();
-        this._values = value;
+        Object.keys(value).forEach(key => this._values.set(key, value[key]));
+    }
+
+    /** Index names in insertion order. */
+    public get keys(): ReadonlyArray<string> {
+        return [...this._values.keys()];
+    }
+
+    public get count(): number {
+        return this._values.size;
     }
 
     public get values(): { readonly [key: string]: BaseValue } {
-        return this._values;
+        const result: { [key: string]: BaseValue } = {};
+        this._values.forEach((value, key) => result[key] = value);
+        return result;
     }
 
     public setIndex(index: string, value: BaseValue): void {
-        this._values[this.resolveKey(index)] = value;
+        this._values.set(this.resolveKey(index), value);
     }
 
     public getValue(index: string): BaseValue | undefined {
-        return this._values[this.resolveKey(index)];
+        return this._values.get(this.resolveKey(index));
     }
 
     public deleteIndex(index: string): void {
-        delete this._values[this.resolveKey(index)];
+        this._values.delete(this.resolveKey(index));
     }
 
     // Small Basic array indices (and thus variable names) are case insensitive.
     private resolveKey(index: string): string {
         const lower = index.toLowerCase();
-        for (const key of Object.keys(this._values)) {
+        for (const key of this._values.keys()) {
             if (key.toLowerCase() === lower) {
                 return key;
             }
@@ -46,68 +56,50 @@ export class ArrayValue extends BaseValue {
     }
 
     public toDebuggerString(): string {
-        return `[${Object.keys(this._values).map(key => `${key}=${this._values[key].toDebuggerString()}`).join(", ")}]`;
+        return `[${this.keys.map(key => `${key}=${this._values.get(key)!.toDebuggerString()}`).join(", ")}]`;
     }
 
+    // The C# backends render an array as "index=value;" pairs with ';', '=' and
+    // '\' escaped, which is what a program sees when an array is written or
+    // converted to text.
     public toValueString(): string {
-        return this.toDebuggerString();
+        let result = "";
+        this._values.forEach((value, key) => {
+            result += `${key}=${ArrayValue.escape(value.toValueString())};`;
+        });
+
+        return result;
     }
 
-    public get kind(): ValueKind {
-        return ValueKind.Array;
+    public toNumber(): number {
+        return 0;
     }
 
     public tryConvertToNumber(): BaseValue {
         return this;
     }
 
-    public isEqualTo(other: BaseValue): boolean {
-        switch (other.kind) {
-            case ValueKind.String:
-            case ValueKind.Number:
-                return false;
-            case ValueKind.Array:
-                return this.toDebuggerString() === other.toDebuggerString();
-            default:
-                throw new Error(`Unexpected value kind ${ValueKind[other.kind]}`);
+    public get kind(): ValueKind {
+        return ValueKind.Array;
+    }
+
+    private static escape(value: string): string {
+        let result = "";
+        for (let index = 0; index < value.length; index++) {
+            const character = value[index];
+            switch (character) {
+                case ";":
+                case "=":
+                case "\\":
+                    result += "\\";
+                    break;
+                default:
+                    break;
+            }
+
+            result += character;
         }
-    }
 
-    public isLessThan(_: BaseValue): boolean {
-        return false;
-    }
-
-    public isGreaterThan(_: BaseValue): boolean {
-        return false;
-    }
-
-    public add(_: BaseValue, engine: ExecutionEngine, instruction: AddInstruction): BaseValue {
-        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Plus)));
-        return this;
-    }
-
-    public subtract(_: BaseValue, engine: ExecutionEngine, instruction: SubtractInstruction): BaseValue {
-        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Minus)));
-        return this;
-    }
-
-    public multiply(_: BaseValue, engine: ExecutionEngine, instruction: MultiplyInstruction): BaseValue {
-        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Multiply)));
-        return this;
-    }
-
-    public divide(_: BaseValue, engine: ExecutionEngine, instruction: DivideInstruction): BaseValue {
-        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Divide)));
-        return this;
-    }
-
-    public integerDivide(_: BaseValue, engine: ExecutionEngine, instruction: IntegerDivideInstruction): BaseValue {
-        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Backslash)));
-        return this;
-    }
-
-    public modulo(_: BaseValue, engine: ExecutionEngine, instruction: ModuloInstruction): BaseValue {
-        engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, instruction.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Mod)));
-        return this;
+        return result;
     }
 }

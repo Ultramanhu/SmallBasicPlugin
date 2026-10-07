@@ -1,0 +1,1764 @@
+[
+  {
+    "name": "multi-parameter function",
+    "source": [
+      "Function Add(Left, Right)",
+      "  Return Left + Right",
+      "EndFunction",
+      "Answer = Add(20, 22)",
+      "TextWindow.WriteLine(Answer)"
+    ],
+    "stdout": [
+      "42"
+    ],
+    "globals": {
+      "Answer": "42"
+    }
+  },
+  {
+    "name": "no-parameter fallthrough returns empty",
+    "source": [
+      "Function Empty()",
+      "  Dim Local",
+      "  Local = 1",
+      "EndFunction",
+      "Answer = Empty()",
+      "TextWindow.WriteLine(\"[\" + Answer + \"]\")"
+    ],
+    "stdout": [
+      "[]"
+    ],
+    "globals": {
+      "Answer": ""
+    }
+  },
+  {
+    "name": "nested calls and library argument",
+    "source": [
+      "Function Increment(Value)",
+      "  Return Value + 1",
+      "EndFunction",
+      "TextWindow.WriteLine(Increment(Increment(3)))"
+    ],
+    "stdout": [
+      "5"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "recursive frames",
+    "source": [
+      "Function Factorial(N)",
+      "  If N <= 1 Then",
+      "    Return 1",
+      "  EndIf",
+      "  Return N * Factorial(N - 1)",
+      "EndFunction",
+      "Answer = Factorial(6)"
+    ],
+    "stdout": [],
+    "globals": {
+      "Answer": "720"
+    }
+  },
+  {
+    "name": "parameter and Dim shadow globals",
+    "source": [
+      "Value = 100",
+      "Local = 200",
+      "Function Calculate(Value)",
+      "  Dim Local",
+      "  Local = Value + 1",
+      "  Return Local",
+      "EndFunction",
+      "Answer = Calculate(4)"
+    ],
+    "stdout": [],
+    "globals": {
+      "Value": "100",
+      "Local": "200",
+      "Answer": "5"
+    }
+  },
+  {
+    "name": "same local name belongs to separate procedures",
+    "source": [
+      "Function One()",
+      "  Dim Temporary",
+      "  Temporary = 1",
+      "  Return Temporary",
+      "EndFunction",
+      "Function Two()",
+      "  Dim Temporary",
+      "  Temporary = 2",
+      "  Return Temporary",
+      "EndFunction",
+      "First = One()",
+      "Second = Two()"
+    ],
+    "stdout": [],
+    "globals": {
+      "First": "1",
+      "Second": "2"
+    }
+  },
+  {
+    "name": "return exits nested control flow",
+    "source": [
+      "Function FindThird()",
+      "  Dim Index",
+      "  Index = 0",
+      "  While Index < 5",
+      "    Index = Index + 1",
+      "    If Index = 3 Then",
+      "      Return Index",
+      "    EndIf",
+      "  EndWhile",
+      "  Return 0",
+      "EndFunction",
+      "Answer = FindThird()"
+    ],
+    "stdout": [],
+    "globals": {
+      "Answer": "3"
+    }
+  },
+  {
+    "name": "array parameter has ByVal reference semantics",
+    "source": [
+      "Function Change(Item)",
+      "  Item[\"changed\"] = \"yes\"",
+      "  Item = \"replacement\"",
+      "  Return Item",
+      "EndFunction",
+      "Source[\"initial\"] = \"value\"",
+      "Returned = Change(Source)",
+      "TextWindow.WriteLine(Returned)",
+      "TextWindow.WriteLine(Source[\"changed\"])"
+    ],
+    "stdout": [
+      "replacement",
+      "yes"
+    ],
+    "globals": {
+      "Returned": "replacement"
+    }
+  },
+  {
+    "name": "undeclared procedure variable remains global",
+    "source": [
+      "Counter = 0",
+      "Increment()",
+      "Sub Increment",
+      "  Counter = Counter + 1",
+      "EndSub"
+    ],
+    "stdout": [],
+    "globals": {
+      "Counter": "1"
+    }
+  },
+  {
+    "name": "top-level Dim creates an empty global",
+    "source": [
+      "Dim Declared",
+      "TextWindow.WriteLine(\"[\" + Declared + \"]\")"
+    ],
+    "stdout": [
+      "[]"
+    ],
+    "globals": {
+      "Declared": ""
+    }
+  },
+  {
+    "name": "keywords and calls are ASCII case insensitive",
+    "source": [
+      "fUnCtIoN Double(Value)",
+      "  rEtUrN Value * 2",
+      "eNdFuNcTiOn",
+      "Answer = dOuBlE(5)"
+    ],
+    "stdout": [],
+    "globals": {
+      "Answer": "10"
+    }
+  },
+  {
+    "name": "forward mutual function calls",
+    "source": [
+      "Function IsEven(N)",
+      "  If N = 0 Then",
+      "    Return \"True\"",
+      "  EndIf",
+      "  Return IsOdd(N - 1)",
+      "EndFunction",
+      "Function IsOdd(N)",
+      "  If N = 0 Then",
+      "    Return \"False\"",
+      "  EndIf",
+      "  Return IsEven(N - 1)",
+      "EndFunction",
+      "Answer = IsEven(8)"
+    ],
+    "stdout": [],
+    "globals": {
+      "Answer": "True"
+    }
+  },
+  {
+    "name": "argument count diagnostic",
+    "source": [
+      "Function Identity(Value)",
+      "  Return Value",
+      "EndFunction",
+      "Answer = Identity()"
+    ],
+    "diagnostics": [
+      "UnexpectedArgumentsCount"
+    ]
+  },
+  {
+    "name": "Return outside Function diagnostic",
+    "source": [
+      "Return 1"
+    ],
+    "diagnostics": [
+      "ReturnOutsideFunction"
+    ]
+  },
+  {
+    "name": "nested Dim diagnostic",
+    "source": [
+      "Sub Work",
+      "  If \"True\" Then",
+      "    Dim Nested",
+      "  EndIf",
+      "EndSub"
+    ],
+    "diagnostics": [
+      "DimMustBeAtProcedureLevel"
+    ]
+  },
+  {
+    "name": "function event handler diagnostic",
+    "source": [
+      "Function Handler()",
+      "  Return 1",
+      "EndFunction",
+      "GraphicsWindow.KeyDown = Handler"
+    ],
+    "diagnostics": [
+      "FunctionCannotBeEventHandler"
+    ]
+  },
+  {
+    "name": "subroutine with parameters",
+    "source": [
+      "Sub Greet(Name)",
+      "  TextWindow.WriteLine(\"Hi \" + Name)",
+      "EndSub",
+      "Greet(\"Ada\")",
+      "Greet(\"Lin\")"
+    ],
+    "stdout": [
+      "Hi Ada",
+      "Hi Lin"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "subroutine parameters and Dim locals stay in the call frame",
+    "source": [
+      "Total = 0",
+      "Sub Accumulate(Value)",
+      "  Dim Doubled",
+      "  Doubled = Value * 2",
+      "  Total = Total + Doubled",
+      "EndSub",
+      "Accumulate(3)",
+      "Accumulate(4)",
+      "TextWindow.WriteLine(Total)"
+    ],
+    "stdout": [
+      "14"
+    ],
+    "globals": {
+      "Total": "14"
+    }
+  },
+  {
+    "name": "no-argument procedures accept optional parentheses",
+    "source": [
+      "Counter = 0",
+      "Sub Increment",
+      "  Counter = Counter + 1",
+      "EndSub",
+      "Function Answer",
+      "  Return 42",
+      "EndFunction",
+      "Increment",
+      "Increment()",
+      "TextWindow.WriteLine(Counter)",
+      "TextWindow.WriteLine(Answer)"
+    ],
+    "stdout": [
+      "2",
+      "42"
+    ],
+    "globals": {
+      "Counter": "2"
+    }
+  },
+  {
+    "name": "subroutine argument count diagnostic",
+    "source": [
+      "Sub Show(Value)",
+      "  TextWindow.WriteLine(Value)",
+      "EndSub",
+      "Show(1, 2)"
+    ],
+    "diagnostics": [
+      "UnexpectedArgumentsCount"
+    ]
+  },
+  {
+    "name": "Break exits the innermost While loop",
+    "source": [
+      "While \"True\"",
+      "  TextWindow.WriteLine(\"before\")",
+      "  Break",
+      "  TextWindow.WriteLine(\"after\")",
+      "EndWhile",
+      "TextWindow.WriteLine(\"done\")"
+    ],
+    "stdout": [
+      "before",
+      "done"
+    ]
+  },
+  {
+    "name": "Continue skips the rest of the While body",
+    "source": [
+      "I = 0",
+      "Sum = 0",
+      "While I < 5",
+      "  I = I + 1",
+      "  If I = 3 Then",
+      "    Continue",
+      "  EndIf",
+      "  Sum = Sum + I",
+      "EndWhile",
+      "TextWindow.WriteLine(Sum)"
+    ],
+    "stdout": [
+      "12"
+    ],
+    "globals": {
+      "Sum": "12",
+      "I": "5"
+    }
+  },
+  {
+    "name": "Break in a For loop skips the increment",
+    "source": [
+      "For I = 1 To 10",
+      "  If I = 4 Then",
+      "    Break",
+      "  EndIf",
+      "EndFor",
+      "TextWindow.WriteLine(I)"
+    ],
+    "stdout": [
+      "4"
+    ],
+    "globals": {
+      "I": "4"
+    }
+  },
+  {
+    "name": "Continue in a For loop still runs the increment",
+    "source": [
+      "Sum = 0",
+      "For I = 1 To 5",
+      "  If I = 3 Then",
+      "    Continue",
+      "  EndIf",
+      "  Sum = Sum + I",
+      "EndFor",
+      "TextWindow.WriteLine(Sum)",
+      "TextWindow.WriteLine(I)"
+    ],
+    "stdout": [
+      "12",
+      "6"
+    ],
+    "globals": {
+      "Sum": "12",
+      "I": "6"
+    }
+  },
+  {
+    "name": "Continue in a For loop with a negative Step",
+    "source": [
+      "Out = 0",
+      "For I = 5 To 1 Step -1",
+      "  If I = 3 Then",
+      "    Continue",
+      "  EndIf",
+      "  Out = Out * 10 + I",
+      "EndFor",
+      "TextWindow.WriteLine(Out)"
+    ],
+    "stdout": [
+      "5421"
+    ],
+    "globals": {
+      "Out": "5421",
+      "I": "0"
+    }
+  },
+  {
+    "name": "Continue in a For loop with an explicit positive Step",
+    "source": [
+      "Out = 0",
+      "For I = 1 To 7 Step 2",
+      "  If I = 3 Then",
+      "    Continue",
+      "  EndIf",
+      "  Out = Out * 10 + I",
+      "EndFor",
+      "TextWindow.WriteLine(Out)"
+    ],
+    "stdout": [
+      "157"
+    ],
+    "globals": {
+      "Out": "157",
+      "I": "9"
+    }
+  },
+  {
+    "name": "Break and Continue only affect the innermost loop",
+    "source": [
+      "Out = 0",
+      "For I = 1 To 2",
+      "  For J = 1 To 3",
+      "    If J = 2 Then",
+      "      Continue",
+      "    EndIf",
+      "    If J = 3 Then",
+      "      Break",
+      "    EndIf",
+      "    Out = Out + I * 10 + J",
+      "  EndFor",
+      "  Out = Out + 1000",
+      "EndFor",
+      "TextWindow.WriteLine(Out)"
+    ],
+    "stdout": [
+      "2032"
+    ],
+    "globals": {
+      "Out": "2032",
+      "I": "3",
+      "J": "3"
+    }
+  },
+  {
+    "name": "Break inside a Function loop",
+    "source": [
+      "Function SumUntil(Stop)",
+      "  Dim Total",
+      "  Total = 0",
+      "  For I = 1 To 10",
+      "    If I = Stop Then",
+      "      Break",
+      "    EndIf",
+      "    Total = Total + I",
+      "  EndFor",
+      "  Return Total",
+      "EndFunction",
+      "TextWindow.WriteLine(SumUntil(4))"
+    ],
+    "stdout": [
+      "6"
+    ],
+    "globals": {
+      "I": "4"
+    }
+  },
+  {
+    "name": "Break inside a Sub while loop",
+    "source": [
+      "Sub Scan",
+      "  N = 0",
+      "  While N < 10",
+      "    N = N + 1",
+      "    If N = 3 Then",
+      "      Break",
+      "    EndIf",
+      "  EndWhile",
+      "  TextWindow.WriteLine(N)",
+      "EndSub",
+      "Scan()"
+    ],
+    "stdout": [
+      "3"
+    ],
+    "globals": {
+      "N": "3"
+    }
+  },
+  {
+    "name": "Break outside a loop diagnostic",
+    "source": [
+      "Break"
+    ],
+    "diagnostics": [
+      "BreakOutsideLoop"
+    ]
+  },
+  {
+    "name": "Continue outside a loop diagnostic",
+    "source": [
+      "Continue"
+    ],
+    "diagnostics": [
+      "ContinueOutsideLoop"
+    ]
+  },
+  {
+    "name": "Break in a Sub without a loop diagnostic",
+    "source": [
+      "Sub Work",
+      "  Break",
+      "EndSub",
+      "Work()"
+    ],
+    "diagnostics": [
+      "BreakOutsideLoop"
+    ]
+  },
+  {
+    "name": "integer division truncates toward zero",
+    "source": [
+      "A = 7 \\ 2",
+      "B = -7 \\ 2",
+      "C = 8 \\ 2",
+      "TextWindow.WriteLine(A)",
+      "TextWindow.WriteLine(B)",
+      "TextWindow.WriteLine(C)"
+    ],
+    "stdout": [
+      "3",
+      "-3",
+      "4"
+    ],
+    "globals": {
+      "A": "3",
+      "B": "-3",
+      "C": "4"
+    }
+  },
+  {
+    "name": "integer division on fractional operands truncates the real quotient",
+    "source": [
+      "A = 7.9 \\ 2.9",
+      "TextWindow.WriteLine(A)"
+    ],
+    "stdout": [
+      "2"
+    ],
+    "globals": {
+      "A": "2"
+    }
+  },
+  {
+    "name": "integer division by zero terminates by default",
+    "source": [
+      "A = 4 \\ 0",
+      "TextWindow.WriteLine(A)"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "modulo keeps the sign of the dividend",
+    "source": [
+      "A = 7 Mod 2",
+      "B = -7 Mod 2",
+      "C = 7.5 Mod 2",
+      "D = 8 Mod 2",
+      "TextWindow.WriteLine(A)",
+      "TextWindow.WriteLine(B)",
+      "TextWindow.WriteLine(C)",
+      "TextWindow.WriteLine(D)"
+    ],
+    "stdout": [
+      "1",
+      "-1",
+      "1.5",
+      "0"
+    ],
+    "globals": {
+      "A": "1",
+      "B": "-1",
+      "C": "1.5",
+      "D": "0"
+    }
+  },
+  {
+    "name": "modulo by zero terminates by default",
+    "source": [
+      "A = 4 Mod 0",
+      "TextWindow.WriteLine(A)"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "arithmetic operators follow the Visual Basic precedence ladder",
+    "source": [
+      "A = 6 Mod 4 * 2",
+      "B = 7 \\ 2 * 3",
+      "C = 12 \\ 4 Mod 3",
+      "D = 8 - 3 Mod 2",
+      "TextWindow.WriteLine(A)",
+      "TextWindow.WriteLine(B)",
+      "TextWindow.WriteLine(C)",
+      "TextWindow.WriteLine(D)"
+    ],
+    "stdout": [
+      "6",
+      "1",
+      "0",
+      "7"
+    ],
+    "globals": {
+      "A": "6",
+      "B": "1",
+      "C": "0",
+      "D": "7"
+    }
+  },
+  {
+    "name": "integer division is left associative",
+    "source": [
+      "A = 8 \\ 2 \\ 2",
+      "TextWindow.WriteLine(A)"
+    ],
+    "stdout": [
+      "2"
+    ],
+    "globals": {
+      "A": "2"
+    }
+  },
+  {
+    "name": "mod keyword is case insensitive",
+    "source": [
+      "A = 7 mOd 2",
+      "TextWindow.WriteLine(A)"
+    ],
+    "stdout": [
+      "1"
+    ],
+    "globals": {
+      "A": "1"
+    }
+  },
+  {
+    "name": "Math.Div and Math.Mod match the operators",
+    "source": [
+      "A = Math.Div(7, 2)",
+      "B = Math.Div(-7, 2)",
+      "C = Math.Mod(7, 2)",
+      "D = Math.Mod(-7, 2)",
+      "G = Math.Mod(Math.Div(17, 5), 2)",
+      "TextWindow.WriteLine(A)",
+      "TextWindow.WriteLine(B)",
+      "TextWindow.WriteLine(C)",
+      "TextWindow.WriteLine(D)",
+      "TextWindow.WriteLine(G)"
+    ],
+    "stdout": [
+      "3",
+      "-3",
+      "1",
+      "-1",
+      "1"
+    ],
+    "globals": {
+      "A": "3",
+      "B": "-3",
+      "C": "1",
+      "D": "-1",
+      "G": "1"
+    }
+  },
+  {
+    "name": "div and mod work inside functions with locals",
+    "source": [
+      "Function SplitEvenOdd(Value)",
+      "  Dim Whole, Rest",
+      "  Whole = Value \\ 2",
+      "  Rest = Value Mod 2",
+      "  Return Whole + Rest",
+      "EndFunction",
+      "Answer = SplitEvenOdd(9)",
+      "TextWindow.WriteLine(Answer)"
+    ],
+    "stdout": [
+      "5"
+    ],
+    "globals": {
+      "Answer": "5"
+    }
+  },
+  {
+    "name": "mod in a loop classifies even numbers",
+    "source": [
+      "Evens = 0",
+      "For I = 1 To 10",
+      "  If I Mod 2 = 0 Then",
+      "    Evens = Evens + 1",
+      "  EndIf",
+      "EndFor",
+      "TextWindow.WriteLine(Evens)"
+    ],
+    "stdout": [
+      "5"
+    ],
+    "globals": {
+      "Evens": "5"
+    }
+  },
+  {
+    "name": "integer division and modulo handle negative divisors",
+    "source": [
+      "A = 7 \\ -2",
+      "B = -7 \\ -2",
+      "C = 7 Mod -2",
+      "D = -7 Mod -2",
+      "TextWindow.WriteLine(A)",
+      "TextWindow.WriteLine(B)",
+      "TextWindow.WriteLine(C)",
+      "TextWindow.WriteLine(D)"
+    ],
+    "stdout": [
+      "-3",
+      "3",
+      "1",
+      "-1"
+    ],
+    "globals": {
+      "A": "-3",
+      "B": "3",
+      "C": "1",
+      "D": "-1"
+    }
+  },
+  {
+    "name": "unary minus binds tighter than binary operators",
+    "source": [
+      "X = -1",
+      "TextWindow.WriteLine(-1 + 5)",
+      "TextWindow.WriteLine(-1 - 1)",
+      "TextWindow.WriteLine(-2 * 3)",
+      "TextWindow.WriteLine(-2 * -3)",
+      "TextWindow.WriteLine(-1 < 0)",
+      "TextWindow.WriteLine(-(2 + 3))",
+      "TextWindow.WriteLine(X + 5)"
+    ],
+    "stdout": [
+      "4",
+      "-2",
+      "-6",
+      "6",
+      "True",
+      "-5",
+      "4"
+    ],
+    "globals": {
+      "X": "-1"
+    }
+  },
+  {
+    "name": "text that looks like a number is a number",
+    "source": [
+      "TextWindow.WriteLine(\"0012\")",
+      "TextWindow.WriteLine(\" 12 \")",
+      "TextWindow.WriteLine(\"0.\")",
+      "TextWindow.WriteLine(\"+5\")",
+      "TextWindow.WriteLine(\"5-\")",
+      "TextWindow.WriteLine(\"00.50\")"
+    ],
+    "stdout": [
+      "12",
+      "12",
+      "0",
+      "5",
+      "-5",
+      "0.5"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "text that is not a plain decimal number stays text",
+    "source": [
+      "TextWindow.WriteLine(\"1e5\")",
+      "TextWindow.WriteLine(\"1,000\")",
+      "TextWindow.WriteLine(\"12abc\")",
+      "TextWindow.WriteLine(\"1e5\" * 1)",
+      "TextWindow.WriteLine(\"1e5\" = 1)",
+      "TextWindow.WriteLine(\"1e5\" + 1)"
+    ],
+    "stdout": [
+      "1e5",
+      "1,000",
+      "12abc",
+      "0",
+      "False",
+      "1e51"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "integral values print without a fraction",
+    "source": [
+      "TextWindow.WriteLine(2.5 + 2.5)",
+      "TextWindow.WriteLine(2.5 - 2.5)",
+      "TextWindow.WriteLine(1.0)",
+      "TextWindow.WriteLine(2.50)",
+      "TextWindow.WriteLine(10 / 4)",
+      "TextWindow.WriteLine(4 / 2)"
+    ],
+    "stdout": [
+      "5",
+      "0",
+      "1",
+      "2.5",
+      "2.5",
+      "2"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "boolean text is normalized to True and False",
+    "source": [
+      "TextWindow.WriteLine(\"true\")",
+      "TextWindow.WriteLine(\"TRUE\")",
+      "TextWindow.WriteLine(\"False\")",
+      "TextWindow.WriteLine(\"true\" = \"True\")",
+      "Flag = (1 = 2)",
+      "TextWindow.WriteLine(Flag)",
+      "If Flag Then",
+      "  TextWindow.WriteLine(\"then\")",
+      "Else",
+      "  TextWindow.WriteLine(\"else\")",
+      "EndIf"
+    ],
+    "stdout": [
+      "True",
+      "True",
+      "False",
+      "True",
+      "False",
+      "else"
+    ],
+    "globals": {
+      "Flag": "False"
+    }
+  },
+  {
+    "name": "addition adds numbers and concatenates everything else",
+    "source": [
+      "x[0] = 1",
+      "TextWindow.WriteLine(1 + 2)",
+      "TextWindow.WriteLine(1 + \"2\")",
+      "TextWindow.WriteLine(\"1\" + \"2\")",
+      "TextWindow.WriteLine(\"a\" + 1)",
+      "TextWindow.WriteLine(1 + \"a\")",
+      "TextWindow.WriteLine(\"\" + 5)",
+      "TextWindow.WriteLine(1 + x)",
+      "TextWindow.WriteLine(x + 1)",
+      "TextWindow.WriteLine(\"a\" + x)"
+    ],
+    "stdout": [
+      "3",
+      "3",
+      "3",
+      "a1",
+      "1a",
+      "5",
+      "10=1;",
+      "0=1;1",
+      "a0=1;"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "subtraction and multiplication treat text and arrays as zero",
+    "source": [
+      "x[0] = 1",
+      "TextWindow.WriteLine(1 - \"t\")",
+      "TextWindow.WriteLine(\"r\" - 5)",
+      "TextWindow.WriteLine(\"r\" - \"4\")",
+      "TextWindow.WriteLine(2 * \"t\")",
+      "TextWindow.WriteLine(\"r\" * \"4\")",
+      "TextWindow.WriteLine(x - 1)",
+      "TextWindow.WriteLine(1 - x)",
+      "TextWindow.WriteLine(x * 3)"
+    ],
+    "stdout": [
+      "1",
+      "-5",
+      "-4",
+      "0",
+      "0",
+      "-1",
+      "1",
+      "0"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "real division uses the numeric value of both sides",
+    "source": [
+      "TextWindow.WriteLine(\"r\" / 5)",
+      "TextWindow.WriteLine(7 / 2)"
+    ],
+    "stdout": [
+      "0",
+      "3.5"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "relational operators compare the numeric value",
+    "source": [
+      "x[0] = 1",
+      "TextWindow.WriteLine(\"a\" < 2)",
+      "TextWindow.WriteLine(3 < \"z\")",
+      "TextWindow.WriteLine(x < 1)",
+      "TextWindow.WriteLine(1 < x)",
+      "TextWindow.WriteLine(\"2\" < \"10\")",
+      "TextWindow.WriteLine(\"a\" >= \"b\")",
+      "TextWindow.WriteLine(3 > x)",
+      "TextWindow.WriteLine(-1 < x)"
+    ],
+    "stdout": [
+      "True",
+      "False",
+      "True",
+      "False",
+      "True",
+      "True",
+      "True",
+      "True"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "equality compares the text form",
+    "source": [
+      "x[\"k\"] = 1",
+      "TextWindow.WriteLine(1 = \"1\")",
+      "TextWindow.WriteLine(1.10 = 1.1)",
+      "TextWindow.WriteLine(\"1e5\" = 1)",
+      "TextWindow.WriteLine(x = 1)",
+      "TextWindow.WriteLine(x = x)",
+      "TextWindow.WriteLine(\"abc\" = \"ABC\")",
+      "TextWindow.WriteLine(1 <> \"1\")"
+    ],
+    "stdout": [
+      "True",
+      "True",
+      "False",
+      "False",
+      "True",
+      "False",
+      "False"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "array index text is normalized like any other text",
+    "source": [
+      "Indexed[\"1\"] = \"one\"",
+      "TextWindow.WriteLine(Indexed[\"1\"])",
+      "TextWindow.WriteLine(Indexed[1])",
+      "TextWindow.WriteLine(Indexed[\" 1 \"])",
+      "TextWindow.WriteLine(Indexed[\"01\"])",
+      "TextWindow.WriteLine(Indexed[1.0])",
+      "TextWindow.WriteLine(Array.GetItemCount(Indexed))"
+    ],
+    "stdout": [
+      "one",
+      "one",
+      "one",
+      "one",
+      "one",
+      "1"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "reading an unwritten index does not create it",
+    "source": [
+      "Sparse[\"seed\"] = 0",
+      "TextWindow.WriteLine(\"[\" + Sparse[\"never\"] + \"]\")",
+      "TextWindow.WriteLine(Array.GetItemCount(Sparse))",
+      "TextWindow.WriteLine(Array.ContainsIndex(Sparse, \"never\"))",
+      "TextWindow.WriteLine(\"[\" + Sparse[\"never\"] + \"]\")",
+      "TextWindow.WriteLine(Array.GetItemCount(Sparse))"
+    ],
+    "stdout": [
+      "[]",
+      "1",
+      "False",
+      "[]",
+      "1"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "storing empty text removes the element",
+    "source": [
+      "Removable[\"a\"] = 1",
+      "Removable[\"b\"] = 2",
+      "TextWindow.WriteLine(Array.GetItemCount(Removable))",
+      "Removable[\"a\"] = \"\"",
+      "TextWindow.WriteLine(Array.GetItemCount(Removable))",
+      "TextWindow.WriteLine(\"[\" + Removable[\"a\"] + \"]\")",
+      "TextWindow.WriteLine(Removable[\"b\"])"
+    ],
+    "stdout": [
+      "2",
+      "1",
+      "[]",
+      "2"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "array text uses escaped index=value pairs",
+    "source": [
+      "Grid[\"k;1\"] = \"a=b\"",
+      "Grid[\"second\"] = 2",
+      "TextWindow.WriteLine(Grid)"
+    ],
+    "stdout": [
+      "k;1=a\\=b;second=2;"
+    ],
+    "globals": {
+      "Grid": "k;1=a\\=b;second=2;"
+    }
+  },
+  {
+    "name": "Array.GetAllIndices follows insertion order",
+    "source": [
+      "ar[\"first\"] = 5",
+      "ar[10] = 6",
+      "indices = Array.GetAllIndices(ar)",
+      "TextWindow.WriteLine(Array.GetItemCount(indices))",
+      "TextWindow.WriteLine(indices[1])",
+      "TextWindow.WriteLine(indices[2])",
+      "TextWindow.WriteLine(indices)"
+    ],
+    "stdout": [
+      "2",
+      "first",
+      "10",
+      "1=first;2=10;"
+    ],
+    "globals": {
+      "ar": "first=5;10=6;",
+      "indices": "1=first;2=10;"
+    }
+  },
+  {
+    "name": "Array helpers describe arrays, scalars and unset variables",
+    "source": [
+      "Values[\"Name\"] = \"Ada\"",
+      "Values[\"n\"] = 1",
+      "TextWindow.WriteLine(Array.IsArray(Values))",
+      "TextWindow.WriteLine(Array.IsArray(42))",
+      "TextWindow.WriteLine(Array.IsArray(Undefined))",
+      "TextWindow.WriteLine(Array.GetItemCount(Values))",
+      "TextWindow.WriteLine(Array.GetItemCount(42))",
+      "TextWindow.WriteLine(Array.ContainsIndex(Values, \"name\"))",
+      "TextWindow.WriteLine(Array.ContainsIndex(Values, \"missing\"))",
+      "TextWindow.WriteLine(Array.ContainsValue(Values, \"Ada\"))",
+      "TextWindow.WriteLine(Array.ContainsValue(Values, \"ada\"))",
+      "TextWindow.WriteLine(Array.ContainsValue(42, 42))"
+    ],
+    "stdout": [
+      "True",
+      "False",
+      "False",
+      "2",
+      "0",
+      "True",
+      "False",
+      "True",
+      "False",
+      "False"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "arrays are reference values shared with procedures",
+    "source": [
+      "Function Build()",
+      "  Dim Made",
+      "  Made[\"k\"] = 3",
+      "  Return Made",
+      "EndFunction",
+      "Source[\"x\"] = 1",
+      "Alias = Source",
+      "Alias[\"y\"] = 2",
+      "TextWindow.WriteLine(Source[\"y\"])",
+      "TextWindow.WriteLine(Array.GetItemCount(Source))",
+      "Built = Build()",
+      "TextWindow.WriteLine(Built[\"k\"])",
+      "TextWindow.WriteLine(Built)"
+    ],
+    "stdout": [
+      "2",
+      "2",
+      "3",
+      "k=3;"
+    ],
+    "globals": {
+      "Built": "k=3;",
+      "Alias": "x=1;y=2;"
+    }
+  },
+  {
+    "name": "If and ElseIf pick the first matching branch",
+    "source": [
+      "Score = 75",
+      "If Score >= 90 Then",
+      "  Band = \"A\"",
+      "ElseIf Score >= 70 Then",
+      "  Band = \"B\"",
+      "Else",
+      "  Band = \"C\"",
+      "EndIf",
+      "TextWindow.WriteLine(Band)",
+      "Score = 95",
+      "If Score >= 90 Then",
+      "  Band = \"A\"",
+      "ElseIf Score >= 70 Then",
+      "  Band = \"B\"",
+      "Else",
+      "  Band = \"C\"",
+      "EndIf",
+      "TextWindow.WriteLine(Band)",
+      "Score = 10",
+      "If Score >= 90 Then",
+      "  Band = \"A\"",
+      "ElseIf Score >= 70 Then",
+      "  Band = \"B\"",
+      "Else",
+      "  Band = \"C\"",
+      "EndIf",
+      "TextWindow.WriteLine(Band)"
+    ],
+    "stdout": [
+      "B",
+      "A",
+      "C"
+    ],
+    "globals": {
+      "Score": "10",
+      "Band": "C"
+    }
+  },
+  {
+    "name": "boolean text drives If, And and Or",
+    "source": [
+      "Hit = 0",
+      "If \"True\" Then",
+      "  Hit = Hit + 1",
+      "EndIf",
+      "If \"False\" Then",
+      "  Hit = Hit + 100",
+      "EndIf",
+      "If \"yes\" Then",
+      "  Hit = Hit + 1000",
+      "EndIf",
+      "TextWindow.WriteLine(Hit)",
+      "TextWindow.WriteLine(\"True\" And \"True\")",
+      "TextWindow.WriteLine(\"True\" And \"False\")",
+      "TextWindow.WriteLine(\"False\" Or \"True\")",
+      "TextWindow.WriteLine(\"False\" Or \"False\")",
+      "If 1 = 1 And 2 = 2 Then",
+      "  TextWindow.WriteLine(\"both\")",
+      "EndIf",
+      "TextWindow.WriteLine(1 = 1)"
+    ],
+    "stdout": [
+      "1",
+      "True",
+      "False",
+      "True",
+      "False",
+      "both",
+      "True"
+    ],
+    "globals": {
+      "Hit": "1"
+    }
+  },
+  {
+    "name": "unset variables read as empty text",
+    "source": [
+      "TextWindow.WriteLine(\"[\" + Missing + \"]\")",
+      "TextWindow.WriteLine(Missing + 1)",
+      "TextWindow.WriteLine(Text.GetLength(Missing))",
+      "Dim Declared",
+      "TextWindow.WriteLine(\"[\" + Declared + \"]\")"
+    ],
+    "stdout": [
+      "[]",
+      "1",
+      "0",
+      "[]"
+    ],
+    "globals": {
+      "Declared": ""
+    }
+  },
+  {
+    "name": "Math.Round rounds half to even",
+    "source": [
+      "TextWindow.WriteLine(Math.Round(2.5))",
+      "TextWindow.WriteLine(Math.Round(3.5))",
+      "TextWindow.WriteLine(Math.Round(-2.5))",
+      "TextWindow.WriteLine(Math.Round(2.4))",
+      "TextWindow.WriteLine(Math.Round(2.6))",
+      "TextWindow.WriteLine(Math.Round(4))"
+    ],
+    "stdout": [
+      "2",
+      "4",
+      "-2",
+      "2",
+      "3",
+      "4"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "Math uses double precision results",
+    "source": [
+      "TextWindow.WriteLine(Math.Pi)",
+      "TextWindow.WriteLine(Math.SquareRoot(2))",
+      "TextWindow.WriteLine(Math.Log(1000))",
+      "TextWindow.WriteLine(Math.GetRadians(90))",
+      "TextWindow.WriteLine(Math.GetDegrees(Math.Pi))",
+      "TextWindow.WriteLine(Math.Power(2, 0.5))"
+    ],
+    "stdout": [
+      "3.141592653589793",
+      "1.4142135623730951",
+      "3",
+      "1.5707963267948966",
+      "180",
+      "1.4142135623730951"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "Math.Div, Math.Mod and Math.Remainder agree",
+    "source": [
+      "TextWindow.WriteLine(Math.Div(17, 5))",
+      "TextWindow.WriteLine(Math.Mod(17, 5))",
+      "TextWindow.WriteLine(Math.Remainder(17, 5))",
+      "TextWindow.WriteLine(Math.Div(-17, 5))",
+      "TextWindow.WriteLine(Math.Mod(-17, 5))"
+    ],
+    "stdout": [
+      "3",
+      "2",
+      "2",
+      "-3",
+      "-2"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "Math.GetRandomNumber stays within its bounds",
+    "source": [
+      "InRange = \"True\"",
+      "SawMaximum = 0",
+      "For I = 1 To 200",
+      "  N = Math.GetRandomNumber(3)",
+      "  If N = 3 Then",
+      "    SawMaximum = 1",
+      "  EndIf",
+      "  If N < 1 Or N > 3 Then",
+      "    InRange = \"False\"",
+      "  EndIf",
+      "EndFor",
+      "TextWindow.WriteLine(InRange)",
+      "TextWindow.WriteLine(SawMaximum)",
+      "TextWindow.WriteLine(I)"
+    ],
+    "stdout": [
+      "True",
+      "1",
+      "201"
+    ],
+    "globals": {
+      "InRange": "True",
+      "SawMaximum": "1",
+      "I": "201"
+    }
+  },
+  {
+    "name": "Text functions handle normalized text and out of range arguments",
+    "source": [
+      "TextWindow.WriteLine(Text.GetLength(\"0012\"))",
+      "TextWindow.WriteLine(Text.GetLength(\" 12 \"))",
+      "TextWindow.WriteLine(Text.GetLength(\"1e5\"))",
+      "TextWindow.WriteLine(Text.GetSubText(\"2.50\", 1, 4))",
+      "TextWindow.WriteLine(\"[\" + Text.GetSubText(\"abc\", 5, 1) + \"]\")",
+      "TextWindow.WriteLine(Text.Append(\"3\", \"4\"))",
+      "TextWindow.WriteLine(Text.Append(1, 2))",
+      "TextWindow.WriteLine(Text.GetCharacter(65))",
+      "TextWindow.WriteLine(Text.GetCharacterCode(\"A\"))",
+      "TextWindow.WriteLine(Text.GetCharacterCode(\"\"))"
+    ],
+    "stdout": [
+      "2",
+      "2",
+      "3",
+      "2.5",
+      "[]",
+      "34",
+      "12",
+      "A",
+      "65",
+      "0"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "Text search and case conversion",
+    "source": [
+      "TextWindow.WriteLine(Text.ConvertToUpperCase(\"a1b\"))",
+      "TextWindow.WriteLine(Text.ConvertToLowerCase(\"HeLLo 123\"))",
+      "TextWindow.WriteLine(Text.GetIndexOf(\"hello world\", \"world\"))",
+      "TextWindow.WriteLine(Text.GetIndexOf(\"hello\", \"zz\"))",
+      "TextWindow.WriteLine(Text.IsSubText(\"hello world\", \"lo wo\"))",
+      "TextWindow.WriteLine(Text.StartsWith(\"hello\", \"he\"))",
+      "TextWindow.WriteLine(Text.EndsWith(\"hello\", \"lo\"))",
+      "TextWindow.WriteLine(Text.EndsWith(\"ab\", \"abc\"))"
+    ],
+    "stdout": [
+      "A1B",
+      "hello 123",
+      "7",
+      "0",
+      "True",
+      "True",
+      "True",
+      "False"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "Stack push, pop and count",
+    "source": [
+      "Stack.PushValue(\"jobs\", \"first\")",
+      "Stack.PushValue(\"jobs\", 2)",
+      "TextWindow.WriteLine(Stack.GetCount(\"jobs\"))",
+      "TextWindow.WriteLine(Stack.PopValue(\"jobs\"))",
+      "TextWindow.WriteLine(Stack.PopValue(\"jobs\"))",
+      "TextWindow.WriteLine(Stack.GetCount(\"jobs\"))",
+      "TextWindow.WriteLine(Stack.GetCount(\"other\"))"
+    ],
+    "stdout": [
+      "2",
+      "2",
+      "first",
+      "0",
+      "0"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "TextWindow colors round trip",
+    "source": [
+      "TextWindow.ForegroundColor = \"Yellow\"",
+      "TextWindow.WriteLine(TextWindow.ForegroundColor)",
+      "TextWindow.BackgroundColor = \"Blue\"",
+      "TextWindow.WriteLine(TextWindow.BackgroundColor)",
+      "TextWindow.ForegroundColor = 14",
+      "TextWindow.WriteLine(TextWindow.ForegroundColor)"
+    ],
+    "stdout": [
+      "Yellow",
+      "Blue",
+      "Yellow"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "Program.End stops the program immediately",
+    "source": [
+      "TextWindow.WriteLine(\"before\")",
+      "Program.End()",
+      "TextWindow.WriteLine(\"after\")"
+    ],
+    "stdout": [
+      "before"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "nested and composite array indices",
+    "source": [
+      "Grid[\"1,2\"] = \"cell\"",
+      "Grid[\"a\"][\"b\"] = \"deep\"",
+      "TextWindow.WriteLine(Grid[\"1,2\"])",
+      "TextWindow.WriteLine(Grid[\"a\"][\"b\"])",
+      "TextWindow.WriteLine(Array.GetItemCount(Grid[\"a\"]))",
+      "TextWindow.WriteLine(Array.GetItemCount(Grid))",
+      "TextWindow.WriteLine(Grid)"
+    ],
+    "stdout": [
+      "cell",
+      "deep",
+      "1",
+      "2",
+      "1,2=cell;a=b\\=deep\\;;"
+    ],
+    "globals": {
+      "Grid": "1,2=cell;a=b\\=deep\\;;"
+    }
+  },
+  {
+    "name": "GoTo jumps to a label",
+    "source": [
+      "Count = 0",
+      "Again:",
+      "Count = Count + 1",
+      "If Count < 4 Then",
+      "  GoTo Again",
+      "EndIf",
+      "TextWindow.WriteLine(Count)"
+    ],
+    "stdout": [
+      "4"
+    ],
+    "globals": {
+      "Count": "4"
+    }
+  },
+  {
+    "name": "Math basics agree on integers",
+    "source": [
+      "TextWindow.WriteLine(Math.Abs(-5))",
+      "TextWindow.WriteLine(Math.Floor(2.7))",
+      "TextWindow.WriteLine(Math.Ceiling(2.1))",
+      "TextWindow.WriteLine(Math.Max(3, 7))",
+      "TextWindow.WriteLine(Math.Min(3, 7))",
+      "TextWindow.WriteLine(Math.Power(2, 10))",
+      "TextWindow.WriteLine(Math.SquareRoot(16))",
+      "TextWindow.WriteLine(Math.Log(100))",
+      "TextWindow.WriteLine(Math.NaturalLog(1))"
+    ],
+    "stdout": [
+      "5",
+      "2",
+      "3",
+      "7",
+      "3",
+      "1024",
+      "4",
+      "2",
+      "0"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "real division by zero terminates by default",
+    "source": [
+      "TextWindow.WriteLine(4 / 0)"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "division by a non-numeric text divisor terminates by default",
+    "source": [
+      "TextWindow.WriteLine(8 / \"t\")"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "Math.Div with a zero divisor terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.Div(9, 0))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "Math.Remainder with a zero divisor terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.Remainder(9, 0))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "Math.SquareRoot of a negative number terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.SquareRoot(-4))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1002,
+      "message": "Invalid math operation."
+    }
+  },
+  {
+    "name": "Math.Log of zero terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.Log(0))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1002,
+      "message": "Invalid math operation."
+    }
+  },
+  {
+    "name": "Math.NaturalLog of zero terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.NaturalLog(0))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1002,
+      "message": "Invalid math operation."
+    }
+  },
+  {
+    "name": "Math.ArcCos out of domain terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.ArcCos(2))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1002,
+      "message": "Invalid math operation."
+    }
+  },
+  {
+    "name": "Math.ArcSin out of domain terminates by default",
+    "source": [
+      "TextWindow.WriteLine(Math.ArcSin(2))"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1002,
+      "message": "Invalid math operation."
+    }
+  },
+  {
+    "name": "popping an empty stack terminates by default",
+    "source": [
+      "Stack.PopValue(\"empty\")"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1101,
+      "message": "This stack has no elements to be popped."
+    }
+  },
+  {
+    "name": "On Error Resume Next skips failing statements and mirrors them to the console",
+    "source": [
+      "On Error Resume Next",
+      "TextWindow.WriteLine(\"before\")",
+      "A = 4 / 0",
+      "B = 4 Mod 0",
+      "TextWindow.WriteLine(Math.SquareRoot(-4))",
+      "TextWindow.WriteLine(\"A=\" + A)",
+      "TextWindow.WriteLine(\"after\")"
+    ],
+    "stdout": [
+      "before",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1002: Invalid math operation.",
+      "A=",
+      "after"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "On Error GoSub Handler receives the code and message and resumes",
+    "source": [
+      "On Error GoSub Handler",
+      "TextWindow.WriteLine(\"before\")",
+      "X = 1 / 0",
+      "TextWindow.WriteLine(\"after\")",
+      "",
+      "Sub Handler(Code, Message)",
+      "  TextWindow.WriteLine(\"ERR=\" + Code)",
+      "  TextWindow.WriteLine(Message)",
+      "EndSub"
+    ],
+    "stdout": [
+      "before",
+      "[Runtime Error] 1001: Divide by zero.",
+      "ERR=1001",
+      "Divide by zero.",
+      "after"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "On Error GoTo 0 clears the handler and restores termination",
+    "source": [
+      "On Error GoSub Handler",
+      "On Error GoTo 0",
+      "TextWindow.WriteLine(1 / 0)",
+      "",
+      "Sub Handler(Code, Message)",
+      "  TextWindow.WriteLine(\"ERR=\" + Code)",
+      "EndSub"
+    ],
+    "stdout": [],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "On Error GoTo -1 restores the default termination",
+    "source": [
+      "On Error Resume Next",
+      "A = 1 / 0",
+      "On Error GoTo -1",
+      "TextWindow.WriteLine(1 / 0)"
+    ],
+    "stdout": [
+      "[Runtime Error] 1001: Divide by zero."
+    ],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "On Error GoSub fires again for each error after the handler returns",
+    "source": [
+      "On Error GoSub Handler",
+      "X = 1 / 0",
+      "Y = 2 Mod 0",
+      "TextWindow.WriteLine(\"done\")",
+      "",
+      "Sub Handler(Code, Message)",
+      "  Count = Count + 1",
+      "  TextWindow.WriteLine(\"hit\" + Count)",
+      "EndSub"
+    ],
+    "stdout": [
+      "[Runtime Error] 1001: Divide by zero.",
+      "hit1",
+      "[Runtime Error] 1001: Divide by zero.",
+      "hit2",
+      "done"
+    ],
+    "globals": {
+      "Count": "2"
+    }
+  },
+  {
+    "name": "an error inside the handler terminates (non-reentrant handler)",
+    "source": [
+      "On Error GoSub Handler",
+      "X = 1 / 0",
+      "TextWindow.WriteLine(\"unreachable\")",
+      "",
+      "Sub Handler(Code, Message)",
+      "  Y = 1 / 0",
+      "EndSub"
+    ],
+    "stdout": [
+      "[Runtime Error] 1001: Divide by zero."
+    ],
+    "runtimeError": {
+      "code": 1001,
+      "message": "Divide by zero."
+    }
+  },
+  {
+    "name": "On Error applies engine-wide inside Subs and Functions",
+    "source": [
+      "On Error Resume Next",
+      "Broken()",
+      "TextWindow.WriteLine(\"survived\")",
+      "",
+      "Sub Broken",
+      "  Z = Math.SquareRoot(-1)",
+      "  TextWindow.WriteLine(\"resumed inside sub\")",
+      "EndSub"
+    ],
+    "stdout": [
+      "[Runtime Error] 1002: Invalid math operation.",
+      "resumed inside sub",
+      "survived"
+    ],
+    "globals": {}
+  },
+  {
+    "name": "a handled error inside a loop keeps the loop running",
+    "source": [
+      "On Error Resume Next",
+      "For I = 1 To 3",
+      "  TextWindow.WriteLine(6 / (I - 2))",
+      "  TextWindow.WriteLine(\"iter\" + I)",
+      "EndFor",
+      "TextWindow.WriteLine(\"end\")"
+    ],
+    "stdout": [
+      "-6",
+      "iter1",
+      "[Runtime Error] 1001: Divide by zero.",
+      "iter2",
+      "6",
+      "iter3",
+      "end"
+    ],
+    "globals": {}
+  }
+]

@@ -1,6 +1,3 @@
-import { ExecutionEngine } from "../../execution-engine";
-import { SubtractInstruction, AddInstruction, MultiplyInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction } from "../../emitting/instructions";
-
 export module Constants {
     export const True = "True";
     export const False = "False";
@@ -12,25 +9,30 @@ export enum ValueKind {
     Array
 }
 
-// TODO: review all throws into a helper?
-
+/*
+ * Mirrors SmallBasic.Compiler.Runtime.BaseValue: a value knows how to render
+ * itself, how it behaves in a condition and what it counts as in arithmetic.
+ * The operators themselves live with the instructions (see AddInstruction & co),
+ * exactly like they do in the C# implementation.
+ */
 export abstract class BaseValue {
     public abstract toBoolean(): boolean;
-    public abstract toDebuggerString(): string;
-    public abstract toValueString(): string;
-    public abstract get kind(): ValueKind;
 
-    // TODO: add another helper that just returns a number and review callers?
+    public abstract toDebuggerString(): string;
+
+    public abstract toValueString(): string;
+
+    /**
+     * The numeric value of this value, 0 for anything that is not a number
+     * (used by arithmetic and relational operators, mirroring C# ToNumber).
+     */
+    public abstract toNumber(): number;
+
+    /**
+     * This value as a NumberValue when it holds numeric text, otherwise itself.
+     * Library methods use it to distinguish numbers from other values.
+     */
     public abstract tryConvertToNumber(): BaseValue;
 
-    public abstract isEqualTo(other: BaseValue): boolean;
-    public abstract isLessThan(other: BaseValue): boolean;
-    public abstract isGreaterThan(other: BaseValue): boolean;
-
-    public abstract add(other: BaseValue, engine: ExecutionEngine, instruction: AddInstruction): BaseValue;
-    public abstract subtract(other: BaseValue, engine: ExecutionEngine, instruction: SubtractInstruction): BaseValue;
-    public abstract multiply(other: BaseValue, engine: ExecutionEngine, instruction: MultiplyInstruction): BaseValue;
-    public abstract divide(other: BaseValue, engine: ExecutionEngine, instruction: DivideInstruction): BaseValue;
-    public abstract integerDivide(other: BaseValue, engine: ExecutionEngine, instruction: IntegerDivideInstruction): BaseValue;
-    public abstract modulo(other: BaseValue, engine: ExecutionEngine, instruction: ModuloInstruction): BaseValue;
+    public abstract get kind(): ValueKind;
 }

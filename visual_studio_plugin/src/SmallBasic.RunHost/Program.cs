@@ -9,7 +9,7 @@ CultureInfo.DefaultThreadCurrentCulture = CultureInfo.InvariantCulture;
 
 if (args.Length == 1 && string.Equals(args[0], "--capabilities", StringComparison.OrdinalIgnoreCase))
 {
-    Console.WriteLine("{\"protocolVersion\":2,\"capabilities\":[\"function-v1\"]}");
+    Console.WriteLine("{\"protocolVersion\":2,\"capabilities\":[\"function-v1\",\"gosub-v1\",\"error-handling-v1\"]}");
     return;
 }
 
@@ -71,6 +71,15 @@ try
         number => ReadConsoleLineAsync(number),
         line => libraries.TextWindow.SetPendingInput(line),
         runningDelayMs: 1).ConfigureAwait(false);
+
+    // Runtime errors terminate the engine gracefully instead of throwing; the
+    // unified `[Runtime Error] code: message` line is mirrored to stderr here.
+    if (engine.LastError is { } lastError)
+    {
+        Console.Error.WriteLine(lastError.ToDisplayString());
+        PauseAndExit(4, pauseOnExit);
+    }
+
     PauseAndExit(0, pauseOnExit);
 }
 catch (NotSupportedException ex)

@@ -219,6 +219,8 @@ namespace SmallBasic.Compiler.Binding
 
                 case LabelStatementSyntax labelStatement: return new BoundLabelStatement(labelStatement, labelStatement.LabelToken.Text);
                 case GoToStatementSyntax goToStatement: return new BoundGoToStatement(goToStatement, goToStatement.LabelToken.Text);
+                case GoSubStatementSyntax goSubStatement: return this.BindGoSubStatement(goSubStatement);
+                case OnErrorStatementSyntax onErrorStatement: return this.BindOnErrorStatement(onErrorStatement);
 
                 case UnrecognizedStatementSyntax unrecognizedStatement: return null;
                 case CommentStatementSyntax commentStatement: return null;
@@ -227,8 +229,45 @@ namespace SmallBasic.Compiler.Binding
             }
         }
 
-        private BoundStatementBlock BindStatementBlock(StatementBlockSyntax syntax, bool allowDim = false)
+        // `GoSub Handler` is a keyword-form call of a parameterless Sub. The
+        // emitter lowers the bound statement to the regular sub-invocation
+        // instruction, so the runtime and the debugger see an ordinary call frame.
+        private BoundGoSubStatement BindGoSubStatement(GoSubStatementSyntax syntax)
         {
+            string name = syntax.NameToken.Text;
+
+            if (!this.definedProcedures.TryGetValue(name, out ProcedureSymbol procedure))
+            {
+                this.diagnostics.ReportGoSubTargetMustBeSub(syntax.NameToken.Range, name);
+            }
+            else if (procedure.ReturnsValue || procedure.Parameters.Count > 0)
+            {
+                this.diagnostics.ReportGoSubTargetMustBeParameterlessSub(syntax.NameToken.Range, name);
+            }
+
+            return new BoundGoSubStatement(syntax, name);
+        }
+
+        private BoundOnErrorStatement BindOnErrorStatement(OnErrorStatementSyntax syntax)
+        {
+            if (syntax.Action == OnErrorAction.GoSub && !syntax.TargetToken.IsDefault())
+            {
+                string name = syntax.TargetToken.Text;
+
+                if (!this.definedProcedures.TryGetValue(name, out ProcedureSymbol procedure) || procedure.ReturnsValue)
+                {
+                    this.diagnostics.ReportOnErrorHandlerMustBeSub(syntax.TargetToken.Range, name);
+                }
+                else if (procedure.Parameters.Count != 2)
+                {
+                    this.diagnostics.ReportOnErrorHandlerMustAcceptCodeAndMessage(syntax.TargetToken.Range, name);
+                }
+            }
+
+            return new BoundOnErrorStatement(syntax, syntax.Action, syntax.TargetToken.IsDefault() ? null : syntax.TargetToken.Text);
+        }
+
+        private BoundStatementBlock BindStatementBlock(StatementBlockSyntax syntax, bool allowDim = false)        {
             var statements = new List<BaseBoundStatement>();
 
             foreach (var child in syntax.Body)

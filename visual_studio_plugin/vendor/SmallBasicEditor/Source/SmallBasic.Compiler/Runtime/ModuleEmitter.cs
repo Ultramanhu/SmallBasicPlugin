@@ -39,6 +39,8 @@ namespace SmallBasic.Compiler.Runtime
                 case BoundLoopControlStatement loopControlStatement: this.EmitLoopControlStatement(loopControlStatement); break;
                 case BoundLabelStatement labelStatement: this.EmitLabelStatement(labelStatement); break;
                 case BoundGoToStatement goToStatement: this.EmitGoToStatement(goToStatement); break;
+                case BoundGoSubStatement goSubStatement: this.EmitGoSubStatement(goSubStatement); break;
+                case BoundOnErrorStatement onErrorStatement: this.EmitOnErrorStatement(onErrorStatement); break;
                 case BoundReturnStatement returnStatement: this.EmitReturnStatement(returnStatement); break;
                 case BoundSubModuleInvocationStatement subModuleInvocationStatement: this.EmitSubModuleInvocationStatement(subModuleInvocationStatement); break;
                 case BoundLibraryMethodInvocationStatement libraryMethodInvocaationStatement: this.EmitLibraryMethodInvocationStatement(libraryMethodInvocaationStatement); break;
@@ -179,6 +181,22 @@ namespace SmallBasic.Compiler.Runtime
         private void EmitGoToStatement(BoundGoToStatement statement)
         {
             this.instructions.Add(new TransientUnconditionalGoToInstruction(statement.Label, statement.Syntax.GoToToken.Range));
+        }
+
+        private void EmitGoSubStatement(BoundGoSubStatement statement)
+        {
+            // `GoSub Handler` lowers to the regular sub-invocation instruction,
+            // so the runtime and the debugger see an ordinary call frame.
+            this.instructions.Add(new InvokeSubModuleInstruction(
+                statement.Name,
+                argumentCount: 0,
+                returnsValue: false,
+                range: statement.Syntax.Range));
+        }
+
+        private void EmitOnErrorStatement(BoundOnErrorStatement statement)
+        {
+            this.instructions.Add(new OnErrorInstruction(statement.Action, statement.HandlerNameOpt, statement.Syntax.Range));
         }
 
         private void EmitLoopBody(BoundStatementBlock body, string breakLabel, string continueLabel)

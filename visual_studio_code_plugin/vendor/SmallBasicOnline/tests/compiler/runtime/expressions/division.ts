@@ -1,16 +1,16 @@
 import "jasmine";
-import { verifyRuntimeResult, verifyRuntimeError } from "../../helpers";
-import { Diagnostic, ErrorCode } from "../../../../src/compiler/utils/diagnostics";
-import { CompilerRange } from "../../../../src/compiler/syntax/ranges";
+import { verifyRuntimeResult, verifyUnhandledRuntimeError } from "../../helpers";
 
+// '/' divides the numeric value of both sides, exactly like the C# backends:
+// text that is not a plain number and arrays count as 0. A zero divisor (also
+// after folding "t" or an array to 0) is a runtime error that On Error can
+// catch; without a handler the program terminates with code 1001.
 describe("Compiler.Runtime.Expressions.Division", () => {
-    it("errors on division by zero", () => {
-        verifyRuntimeError(`
+    it("computes division - division by zero terminates with a runtime error", () => {
+        verifyUnhandledRuntimeError(`
 TextWindow.WriteLine(4 / 0)`,
-            // TextWindow.WriteLine(4 / 0)
-            //                      ^^^^^
-            // You cannot divide by zero. Please consider checking the divisor before dividing.
-            new Diagnostic(ErrorCode.CannotDivideByZero, CompilerRange.fromValues(1, 21, 1, 26)));
+            1001,
+            "Divide by zero.");
     });
 
     it("computes division - number divided by number", () => {
@@ -27,23 +27,19 @@ TextWindow.WriteLine(4 / "2")`,
             ["2"]);
     });
 
-    it("computes division - number divided by non-numeric string", () => {
-        verifyRuntimeError(`
+    it("computes division - number divided by a non-numeric string divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 TextWindow.WriteLine(1 / "t")`,
-            // TextWindow.WriteLine(1 / "t")
-            //                      ^^^^^^^
-            // You cannot use the operator '/' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 28), "/"));
+            1001,
+            "Divide by zero.");
     });
 
-    it("computes division - number divided by array / error", () => {
-        verifyRuntimeError(`
+    it("computes division - number divided by an array divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 x[0] = 1
 TextWindow.WriteLine(1 / x)`,
-            // TextWindow.WriteLine(1 / x)
-            //                      ^^^^^
-            // You cannot use the operator '/' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "/"));
+            1001,
+            "Divide by zero.");
     });
 
     it("computes division - numeric string divided by number", () => {
@@ -60,100 +56,80 @@ TextWindow.WriteLine("14" / "7")`,
             ["2"]);
     });
 
-    it("computes division - numeric string divided by non-numeric string", () => {
-        verifyRuntimeError(`
+    it("computes division - numeric string divided by a non-numeric string divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 TextWindow.WriteLine("1" / "t")`,
-            // TextWindow.WriteLine("1" / "t")
-            //                      ^^^^^^^^^
-            // You cannot use the operator '/' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "/"));
+            1001,
+            "Divide by zero.");
     });
 
-    it("computes division - numeric string divided by array / error", () => {
-        verifyRuntimeError(`
+    it("computes division - numeric string divided by an array divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 x[0] = 1
 TextWindow.WriteLine("1" / x)`,
-            // TextWindow.WriteLine("1" / x)
-            //                      ^^^^^^^
-            // You cannot use the operator '/' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "/"));
+            1001,
+            "Divide by zero.");
     });
 
     it("computes division - non-numeric string divided by number", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" / 5)`,
-            // TextWindow.WriteLine("r" / 5)
-            //                      ^^^^^^^
-            // You cannot use the operator '/' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 28), "/"));
+            [],
+            ["0"]);
     });
 
     it("computes division - non-numeric string divided by numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" / "4")`,
-            // TextWindow.WriteLine("r" / "4")
-            //                      ^^^^^^^^^
-            // You cannot use the operator '/' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "/"));
+            [],
+            ["0"]);
     });
 
-    it("computes division - non-numeric string divided by non-numeric string", () => {
-        verifyRuntimeError(`
+    it("computes division - non-numeric string divided by a non-numeric string divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 TextWindow.WriteLine("r" / "t")`,
-            // TextWindow.WriteLine("r" / "t")
-            //                      ^^^^^^^^^
-            // You cannot use the operator '/' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "/"));
+            1001,
+            "Divide by zero.");
     });
 
-    it("computes division - non-numeric string divided by array / error", () => {
-        verifyRuntimeError(`
+    it("computes division - non-numeric string divided by an array divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 x[0] = 1
 TextWindow.WriteLine("r" / x)`,
-            // TextWindow.WriteLine("r" / x)
-            //                      ^^^^^^^
-            // You cannot use the operator '/' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(2, 21, 2, 28), "/"));
+            1001,
+            "Divide by zero.");
     });
 
     it("computes division - array divided by number", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x / 5)`,
-            // TextWindow.WriteLine(x / 5)
-            //                      ^^^^^
-            // You cannot use the operator '/' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "/"));
+            [],
+            ["0"]);
     });
 
     it("computes division - array divided by numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x / "4")`,
-            // TextWindow.WriteLine(x / "4")
-            //                      ^^^^^^^
-            // You cannot use the operator '/' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "/"));
+            [],
+            ["0"]);
     });
 
-    it("computes division - array divided by non-numeric string", () => {
-        verifyRuntimeError(`
+    it("computes division - array divided by a non-numeric string divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 x[0] = 1
 TextWindow.WriteLine(x / "t")`,
-            // TextWindow.WriteLine(x / "t")
-            //                      ^^^^^^^
-            // You cannot use the operator '/' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "/"));
+            1001,
+            "Divide by zero.");
     });
 
-    it("computes division - array divided by array / error", () => {
-        verifyRuntimeError(`
+    it("computes division - array divided by an array divisor terminates", () => {
+        verifyUnhandledRuntimeError(`
 x[0] = 1
 y[0] = 1
 TextWindow.WriteLine(x / y)`,
-            // TextWindow.WriteLine(x / y)
-            //                      ^^^^^
-            // You cannot use the operator '/' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(3, 21, 3, 26), "/"));
+            1001,
+            "Divide by zero.");
     });
 });

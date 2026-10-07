@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Compilation, ErrorCode } from "../src/index";
-import { verifyRuntimeResult } from "../../../vendor/SmallBasicOnline/tests/compiler/helpers";
+import { verifyRuntimeResult, verifyUnhandledRuntimeError } from "../../../vendor/SmallBasicOnline/tests/compiler/helpers";
 
 describe("SmallBasic language extension v1", () => {
   it("executes functions with parameters and return values", () => {
@@ -63,7 +63,7 @@ describe("SmallBasic language extension v1", () => {
       "TextWindow.WriteLine(Update(Data))",
       "TextWindow.WriteLine(Data[\"x\"])",
       "TextWindow.WriteLine(Data)"
-    ].join("\n"), [], ["5", "3", "[x=3]"]);
+    ].join("\n"), [], ["5", "3", "x=3;"]);
   });
 
   it("reports invalid scope and declaration usage", () => {
@@ -268,14 +268,198 @@ describe("SmallBasic language extension v1.3 (integer division and modulo)", () 
       "TextWindow.WriteLine(-7 \\ 2)",
       "TextWindow.WriteLine(7 Mod -2)",
       "TextWindow.WriteLine(Math.Div(7.9, 2.9))",
-      "TextWindow.WriteLine(Math.Mod(-7, -2))",
-      "TextWindow.WriteLine(Math.Div(1, 0))",
-      "TextWindow.WriteLine(Math.Mod(1, 0))"
-    ].join("\n"), [], ["-3", "1", "2", "-1", "0", "0"]);
+      "TextWindow.WriteLine(Math.Mod(-7, -2))"
+    ].join("\n"), [], ["-3", "1", "2", "-1"]);
   });
 
   it("reserves Mod while still accepting Math.Mod member access", () => {
     expect(new Compilation("Mod = 1").diagnostics.length).toBeGreaterThan(0);
     expect(new Compilation("Result = Math.Mod(7, 2)").diagnostics).toEqual([]);
+  });
+});
+
+describe("SmallBasic language extension v1.4 (GoSub and On Error)", () => {
+  it("parses GoSub and On Error clauses without diagnostics", () => {
+    const compilation = new Compilation([
+      "GoSub Ping",
+      "On Error Resume Next",
+      "On Error GoTo -1",
+      "On Error GoTo 0",
+      "On Error GoSub Handle",
+      "",
+      "Sub Ping",
+      "EndSub",
+      "",
+      "Sub Handle(Code, Message)",
+      "EndSub"
+    ].join("\n"));
+
+    expect(compilation.diagnostics).toEqual([]);
+  });
+
+  it("keeps On, Error, Resume and Next usable as variable names", () => {
+    const compilation = new Compilation([
+      "On = 5",
+      "Error = On + 1",
+      "Resume = \"word\"",
+      "Next = Error",
+      "TextWindow.WriteLine(Next)"
+    ].join("\n"));
+
+    expect(compilation.diagnostics).toEqual([]);
+  });
+
+  it("reports invalid On Error clauses", () => {
+    const compilation = new Compilation([
+      "On Error Resume Foo",
+      "On Error GoTo 5",
+      "On Error GoTo -2",
+      "On Error GoSub 0",
+      "On Error"
+    ].join("\n"));
+
+    expect(compilation.diagnostics.map((diagnostic) => diagnostic.code))
+      .toEqual(new Array(5).fill(ErrorCode.InvalidOnErrorClause));
+  });
+
+  it("reports GoSub targets that are missing, Functions or parameterized Subs", () => {
+    const missing = new Compilation("GoSub Nowhere");
+    const isFunction = new Compilation([
+      "GoSub Compute",
+      "Function Compute()",
+      "  Return 1",
+      "EndFunction"
+    ].join("\n"));
+    const hasParameters = new Compilation([
+      "GoSub Show",
+      "Sub Show(Value)",
+      "EndSub"
+    ].join("\n"));
+
+    expect(missing.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.GoSubTargetMustBeSub);
+    expect(isFunction.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.GoSubTargetMustBeParameterlessSub);
+    expect(hasParameters.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.GoSubTargetMustBeParameterlessSub);
+  });
+
+  it("reports On Error GoSub handlers that are not two-parameter Subs", () => {
+    const missing = new Compilation("On Error GoSub Nowhere");
+    const isFunction = new Compilation([
+      "On Error GoSub Compute",
+      "Function Compute(A, B)",
+      "  Return A",
+      "EndFunction"
+    ].join("\n"));
+    const wrongArity = new Compilation([
+      "On Error GoSub Handle",
+      "Sub Handle(Code)",
+      "EndSub"
+    ].join("\n"));
+
+    expect(missing.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.OnErrorHandlerMustBeSub);
+    expect(isFunction.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.OnErrorHandlerMustBeSub);
+    expect(wrongArity.diagnostics.map((diagnostic) => diagnostic.code))
+      .toContain(ErrorCode.OnErrorHandlerMustAcceptCodeAndMessage);
+  });
+
+  it("executes GoSub as a regular parameterless Sub call", () => {
+    verifyRuntimeResult([
+      "Count = 0",
+      "GoSub Increment",
+      "GoSub Increment",
+      "TextWindow.WriteLine(Count)",
+      "",
+      "Sub Increment",
+      "  Count = Count + 1",
+      "EndSub"
+    ].join("\n"), [], ["2"]);
+  });
+
+  it("resumes after errors with On Error Resume Next", () => {
+    verifyRuntimeResult([
+      "On Error Resume Next",
+      "TextWindow.WriteLine(\"before\")",
+      "A = 4 / 0",
+      "B = 4 Mod 0",
+      "C = 4 \\ 0",
+      "TextWindow.WriteLine(Math.Div(9, 0))",
+      "TextWindow.WriteLine(Math.Remainder(9, 0))",
+      "TextWindow.WriteLine(Math.SquareRoot(-4))",
+      "TextWindow.WriteLine(Math.Log(0))",
+      "TextWindow.WriteLine(Math.ArcCos(2))",
+      "TextWindow.WriteLine(\"A=\" + A)",
+      "TextWindow.WriteLine(\"after\")"
+    ].join("\n"), [], [
+      "before",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1001: Divide by zero.",
+      "[Runtime Error] 1002: Invalid math operation.",
+      "[Runtime Error] 1002: Invalid math operation.",
+      "[Runtime Error] 1002: Invalid math operation.",
+      "A=",
+      "after"
+    ]);
+  });
+
+  it("passes the error code and message to an On Error GoSub handler and resumes", () => {
+    verifyRuntimeResult([
+      "On Error GoSub HandleError",
+      "TextWindow.WriteLine(\"start\")",
+      "X = 1 / 0",
+      "TextWindow.WriteLine(\"end\")",
+      "",
+      "Sub HandleError(Code, Message)",
+      "  TextWindow.WriteLine(\"ERR=\" + Code)",
+      "  TextWindow.WriteLine(Message)",
+      "EndSub"
+    ].join("\n"), [], [
+      "start",
+      "[Runtime Error] 1001: Divide by zero.",
+      "ERR=1001",
+      "Divide by zero.",
+      "end"
+    ]);
+  });
+
+  it("stack overflow of nested handled errors stays bounded via the handler frame", () => {
+    // A handled error inside the handler itself must terminate (non-reentrant).
+    verifyUnhandledRuntimeError([
+      "On Error GoSub Handle",
+      "X = 1 / 0",
+      "TextWindow.WriteLine(\"unreachable\")",
+      "",
+      "Sub Handle(Code, Message)",
+      "  Y = 1 / 0",
+      "EndSub"
+    ].join("\n"), 1001, "Divide by zero.");
+  });
+
+  it("clears the handler with On Error GoTo 0 and restores termination with GoTo -1", () => {
+    verifyUnhandledRuntimeError([
+      "On Error GoSub Handle",
+      "On Error GoTo 0",
+      "TextWindow.WriteLine(1 / 0)",
+      "",
+      "Sub Handle(Code, Message)",
+      "EndSub"
+    ].join("\n"), 1001, "Divide by zero.");
+
+    verifyUnhandledRuntimeError([
+      "On Error Resume Next",
+      "A = 1 / 0",
+      "On Error GoTo -1",
+      "TextWindow.WriteLine(1 / 0)"
+    ].join("\n"), 1001, "Divide by zero.");
+  });
+
+  it("terminates by default on an empty stack pop without a handler", () => {
+    verifyUnhandledRuntimeError("Stack.PopValue(\"x\")", 1101, "This stack has no elements to be popped.");
   });
 });

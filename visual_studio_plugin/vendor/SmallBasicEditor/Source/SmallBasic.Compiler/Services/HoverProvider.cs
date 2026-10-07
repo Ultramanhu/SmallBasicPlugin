@@ -46,6 +46,30 @@ namespace SmallBasic.Compiler.Services
                     : new[] { "Continue", "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs." };
             }
 
+            // Same for the GoSub keyword and its target: the target is a bare
+            // identifier token, not an invocation expression, so it needs its
+            // own procedure hover.
+            if (node is GoSubStatementSyntax goSubStatement)
+            {
+                if (goSubStatement.NameToken.Range.Contains(position))
+                {
+                    return ProcedureTargetHover(binder, goSubStatement.NameToken.Text);
+                }
+
+                return new[] { "GoSub", "Calls a parameterless Sub and returns to the statement after the call." };
+            }
+
+            if (node is OnErrorStatementSyntax onErrorStatement)
+            {
+                if (!onErrorStatement.TargetToken.IsDefault() &&
+                    onErrorStatement.TargetToken.Range.Contains(position))
+                {
+                    return ProcedureTargetHover(binder, onErrorStatement.TargetToken.Text);
+                }
+
+                return OnErrorHover(onErrorStatement.Action);
+            }
+
             // Same for the Mod keyword and the \ operator: keyword-driven
             // binary operators carry no symbol of their own.
             if (node is BinaryOperatorExpressionSyntax binaryOperator &&
@@ -53,12 +77,12 @@ namespace SmallBasic.Compiler.Services
             {
                 if (binaryOperator.OperatorToken.Kind == TokenKind.Mod)
                 {
-                    return new[] { "Mod", "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0." };
+                    return new[] { "Mod", "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero is a runtime error that On Error can catch." };
                 }
 
                 if (binaryOperator.OperatorToken.Kind == TokenKind.Backslash)
                 {
-                    return new[] { "\\", "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0." };
+                    return new[] { "\\", "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero is a runtime error that On Error can catch." };
                 }
             }
 
@@ -241,6 +265,50 @@ namespace SmallBasic.Compiler.Services
         {
             $"Local variable {name}",
             "Procedure-scoped variable declared with Dim",
+        };
+
+        private static string[] ProcedureTargetHover(Binder binder, string name)
+        {
+            BoundFunction function = binder.Functions.Values
+                .FirstOrDefault(candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (!function.IsDefault())
+            {
+                return FunctionHover(function);
+            }
+
+            BoundSubModule subModule = binder.SubModules.Values
+                .FirstOrDefault(candidate => string.Equals(candidate.Name, name, StringComparison.OrdinalIgnoreCase));
+            if (!subModule.IsDefault())
+            {
+                return SubModuleHover(subModule);
+            }
+
+            return Array.Empty<string>();
+        }
+
+        private static string[] OnErrorHover(OnErrorAction action) => action switch
+        {
+            OnErrorAction.ResumeNext => new[]
+            {
+                "On Error Resume Next",
+                "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running.",
+            },
+            OnErrorAction.GoToDefault => new[]
+            {
+                "On Error GoTo -1",
+                "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+            },
+            OnErrorAction.GoToClear => new[]
+            {
+                "On Error GoTo 0",
+                "Disables the current On Error handler; runtime errors terminate the program again.",
+            },
+            OnErrorAction.GoSub => new[]
+            {
+                "On Error GoSub",
+                "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
+            },
+            _ => new[] { "On Error", "Configures the runtime error handling policy." },
         };
     }
 }

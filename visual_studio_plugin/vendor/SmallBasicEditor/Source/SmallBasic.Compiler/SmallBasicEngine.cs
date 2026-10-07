@@ -30,11 +30,39 @@ namespace SmallBasic.Compiler
         Terminated,
     }
 
+    /// <summary>
+    /// Engine-level `On Error` policy. <see cref="Abort"/> is the default
+    /// terminate-on-error behavior; <see cref="ResumeNext"/> skips the failing
+    /// statement; <see cref="GoSub"/> additionally invokes the registered
+    /// handler Sub before skipping it.
+    /// </summary>
+    public enum ErrorHandlingMode
+    {
+        Abort,
+        ResumeNext,
+        GoSub,
+    }
+
     public sealed class SmallBasicEngine
     {
         private readonly SmallBasicCompilation compilation;
         private readonly ConcurrentDictionary<string, string> eventCallbacks;
         private readonly ConcurrentQueue<string> pendingEventCallbacks;
+
+        // `On Error` state. The policy is engine-level: it applies to every
+        // statement (main program, Subs, Functions and event callbacks) until
+        // a new `On Error` statement changes it.
+        private string errorHandlerSubName;
+        private bool isHandlingRuntimeError;
+
+        // Statement-level rollback point: the source line being executed and
+        // the evaluation stack depth where that line started. `Resume Next`
+        // and `GoSub` handlers resume at the NEXT statement, so a failed
+        // statement must not leave partial values behind.
+        private Frame statementFrame;
+        private int statementLine = -1;
+        private int statementStackBase;
+
 
         public SmallBasicEngine(SmallBasicCompilation compilation, IEngineLibraries libraries)
         {
@@ -99,6 +127,18 @@ namespace SmallBasic.Compiler
 
         public int CurrentSourceLine { get; private set; }
 
+        /// <summary>
+        /// The last unhandled runtime error (`On Error` not active), set when
+        /// the engine terminates or pauses on the failure scene. Hosts mirror
+        /// it to their console as `[Runtime Error] <code>: <message>`.
+        /// </summary>
+        public RuntimeError LastError { get; private set; }
+
+        /// <summary>True while the engine is paused on an unhandled runtime error in Debug mode.</summary>
+        public bool PausedOnRuntimeError { get; private set; }
+
+        public ErrorHandlingMode ErrorMode { get; private set; }
+
         internal LinkedList<Frame> ExecutionStack { get; private set; }
 
         internal Stack<BaseValue> EvaluationStack { get; private set; }
@@ -117,6 +157,13 @@ namespace SmallBasic.Compiler
         public async Task Execute()
         {
             Debug.Assert(this.State == ExecutionState.Running || this.State == ExecutionState.Paused, "Engine is not in a executable state.");
+
+            if (this.PausedOnRuntimeError)
+            {
+                // Continuing after an unhandled runtime error stops the program.
+                this.Terminate();
+                return;
+            }
 
             while (this.State == ExecutionState.Running)
             {
@@ -150,11 +197,146 @@ namespace SmallBasic.Compiler
                     this.Pause();
                     return;
                 }
-                else
+
+                // Record the statement-level rollback point: the first
+                // instruction of every source line (per frame) snapshots the
+                // evaluation stack.
+                if (!ReferenceEquals(frame, this.statementFrame) || instructionLine != this.statementLine)
+                {
+                    this.statementFrame = frame;
+                    this.statementLine = instructionLine;
+                    this.statementStackBase = this.EvaluationStack.Count;
+                }
+
+                try
                 {
                     await instruction.Execute(this, frame).ConfigureAwait(false);
                 }
+                catch (SmallBasicRuntimeException exception)
+                {
+                    this.HandleRuntimeError(exception.Error);
+                    if (this.State != ExecutionState.Running)
+                    {
+                        return;
+                    }
+                }
+                catch (DivideByZeroException)
+                {
+                    this.HandleRuntimeError(new RuntimeError((int)RuntimeErrorCode.DivideByZero, RuntimeErrorMessages.GetDefaultMessage((int)RuntimeErrorCode.DivideByZero)));
+                    if (this.State != ExecutionState.Running)
+                    {
+                        return;
+                    }
+                }
+                catch (OverflowException)
+                {
+                    this.HandleRuntimeError(new RuntimeError((int)RuntimeErrorCode.InvalidNumericResult, RuntimeErrorMessages.GetDefaultMessage((int)RuntimeErrorCode.InvalidNumericResult)));
+                    if (this.State != ExecutionState.Running)
+                    {
+                        return;
+                    }
+                }
+                catch (NotSupportedException exception)
+                {
+                    this.HandleRuntimeError(new RuntimeError((int)RuntimeErrorCode.UnsupportedLibraryOperation, exception.Message));
+                    if (this.State != ExecutionState.Running)
+                    {
+                        return;
+                    }
+                }
             }
+        }
+
+        /// <summary>
+        /// Configures the engine-level error policy from an `On Error ...`
+        /// statement. `GoTo -1` and `GoTo 0` both restore the default
+        /// terminate-on-error behavior and drop any registered handler.
+        /// </summary>
+        public void ConfigureErrorHandling(OnErrorAction action, string handlerNameOpt)
+        {
+            switch (action)
+            {
+                case OnErrorAction.ResumeNext:
+                    this.ErrorMode = ErrorHandlingMode.ResumeNext;
+                    this.errorHandlerSubName = null;
+                    break;
+                case OnErrorAction.GoSub:
+                    this.ErrorMode = ErrorHandlingMode.GoSub;
+                    this.errorHandlerSubName = handlerNameOpt;
+                    break;
+                case OnErrorAction.GoToDefault:
+                case OnErrorAction.GoToClear:
+                    this.ErrorMode = ErrorHandlingMode.Abort;
+                    this.errorHandlerSubName = null;
+                    break;
+                default:
+                    throw ExceptionUtilities.UnexpectedValue(action);
+            }
+        }
+
+        private void HandleRuntimeError(RuntimeError error)
+        {
+            if (this.isHandlingRuntimeError || this.ErrorMode == ErrorHandlingMode.Abort)
+            {
+                // Unhandled: mirror to the console and either pause on the
+                // failure scene (debug sessions) or terminate (run mode).
+                this.LastError = error;
+                if (this.Mode != ExecutionMode.RunToEnd)
+                {
+                    this.PausedOnRuntimeError = true;
+                    this.State = ExecutionState.Paused;
+                }
+                else
+                {
+                    this.Terminate();
+                }
+
+                return;
+            }
+
+            // Handled: the error is mirrored to the program console, the
+            // failing statement is skipped, and the handler (if any) is
+            // invoked with the (code, message) arguments.
+            this.WriteRuntimeErrorToConsole(error);
+            this.SkipFailedStatement();
+
+            if (this.ErrorMode == ErrorHandlingMode.GoSub && !this.errorHandlerSubName.IsDefault())
+            {
+                this.isHandlingRuntimeError = true;
+                this.PushProcedure(this.errorHandlerSubName, new BaseValue[] { new NumberValue(error.Code), StringValue.Create(error.Message) }, returnsValue: false, isErrorHandler: true);
+            }
+        }
+
+        private void WriteRuntimeErrorToConsole(RuntimeError error)
+        {
+            this.Libraries.TextWindow.WriteLine(error.ToDisplayString()).Wait();
+        }
+
+        /// <summary>
+        /// Rolls the evaluation stack back to the failing statement's start and
+        /// advances the failing frame past the failed source line, so execution
+        /// resumes at the next statement.
+        /// </summary>
+        private void SkipFailedStatement()
+        {
+            if (this.ExecutionStack.Count == 0)
+            {
+                return;
+            }
+
+            Frame frame = this.ExecutionStack.Last();
+            while (this.EvaluationStack.Count > this.statementStackBase)
+            {
+                this.EvaluationStack.Pop();
+            }
+
+            int index = frame.InstructionIndex;
+            while (index < frame.Module.Instructions.Count && frame.Module.Instructions[index].Range.Start.Line == this.statementLine)
+            {
+                index++;
+            }
+
+            frame.InstructionIndex = index;
         }
 
         // Evaluates a compiled expression (for example a conditional breakpoint
@@ -281,6 +463,7 @@ namespace SmallBasic.Compiler
         {
             this.State = ExecutionState.Terminated;
             this.ExecutionStack.Clear();
+            this.PausedOnRuntimeError = false;
         }
 
         internal void SetEventCallback(string library, string eventName, string subModule)
@@ -344,7 +527,7 @@ namespace SmallBasic.Compiler
             return this.Memory;
         }
 
-        internal void PushProcedure(string name, IReadOnlyList<BaseValue> arguments, bool returnsValue)
+        internal void PushProcedure(string name, IReadOnlyList<BaseValue> arguments, bool returnsValue, bool isErrorHandler = false)
         {
             RuntimeModule module = this.Modules[name];
             bool moduleReturnsValue = module.Kind == RuntimeModuleKind.Function;
@@ -353,7 +536,7 @@ namespace SmallBasic.Compiler
                 throw new InvalidOperationException($"Procedure '{name}' return contract does not match its declaration.");
             }
 
-            this.ExecutionStack.AddLast(new Frame(module, arguments, this.EvaluationStack.Count));
+            this.ExecutionStack.AddLast(new Frame(module, arguments, this.EvaluationStack.Count, isErrorHandler: isErrorHandler));
         }
 
         internal void ReturnFromFunction(BaseValue value)
@@ -373,6 +556,12 @@ namespace SmallBasic.Compiler
         {
             Frame frame = this.ExecutionStack.Last();
             this.ExecutionStack.RemoveLast();
+
+            if (frame.IsErrorHandler)
+            {
+                this.isHandlingRuntimeError = false;
+            }
+
             this.RestoreEvaluationStack(frame.EvaluationStackBase);
             if (frame.Module.Kind == RuntimeModuleKind.Function)
             {

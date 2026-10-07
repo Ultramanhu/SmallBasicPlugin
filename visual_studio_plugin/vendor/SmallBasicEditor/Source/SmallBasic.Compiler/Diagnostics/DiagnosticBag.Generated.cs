@@ -112,6 +112,31 @@ namespace SmallBasic.Compiler.Diagnostics
             this.builder.Add(new Diagnostic(DiagnosticCode.GoToUndefinedLabel, range, label.ToDisplayString()));
         }
 
+        public void ReportGoSubTargetMustBeSub(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.GoSubTargetMustBeSub, range, name.ToDisplayString()));
+        }
+
+        public void ReportGoSubTargetMustBeParameterlessSub(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.GoSubTargetMustBeParameterlessSub, range, name.ToDisplayString()));
+        }
+
+        public void ReportOnErrorHandlerMustBeSub(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.OnErrorHandlerMustBeSub, range, name.ToDisplayString()));
+        }
+
+        public void ReportOnErrorHandlerMustAcceptCodeAndMessage(TextRange range, string name)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.OnErrorHandlerMustAcceptCodeAndMessage, range, name.ToDisplayString()));
+        }
+
+        public void ReportInvalidOnErrorClause(TextRange range)
+        {
+            this.builder.Add(new Diagnostic(DiagnosticCode.InvalidOnErrorClause, range));
+        }
+
         public void ReportPropertyHasNoSetter(TextRange range, string library, string property)
         {
             this.builder.Add(new Diagnostic(DiagnosticCode.PropertyHasNoSetter, range, library.ToDisplayString(), property.ToDisplayString()));

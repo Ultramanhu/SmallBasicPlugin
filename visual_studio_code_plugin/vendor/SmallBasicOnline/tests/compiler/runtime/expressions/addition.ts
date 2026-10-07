@@ -1,8 +1,8 @@
 import "jasmine";
-import { verifyRuntimeResult, verifyRuntimeError } from "../../helpers";
-import { Diagnostic, ErrorCode } from "../../../../src/compiler/utils/diagnostics";
-import { CompilerRange } from "../../../../src/compiler/syntax/ranges";
+import { verifyRuntimeResult } from "../../helpers";
 
+// '+' adds two numbers and concatenates the text form of anything else, exactly
+// like the C# backends, so an array operand becomes its "index=value;" text.
 describe("Compiler.Runtime.Expressions.Addition", () => {
     it("computes addition - number plus number", () => {
         verifyRuntimeResult(`
@@ -25,16 +25,14 @@ TextWindow.WriteLine(1 + "t")`,
             ["1t"]);
     });
 
-    it("computes addition - number plus array - error", () => {
-        verifyRuntimeError(`
+    it("computes addition - number plus array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(1 + x)`,
-            // TextWindow.WriteLine(1 + x)
-            //                      ^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "+"));
+            [],
+            ["10=1;"]);
     });
-    
+
     it("computes addition - numeric string plus number", () => {
         verifyRuntimeResult(`
 TextWindow.WriteLine("1" + 4)`,
@@ -56,16 +54,14 @@ TextWindow.WriteLine("1" + "t")`,
             ["1t"]);
     });
 
-    it("computes addition - numeric string plus array - error", () => {
-        verifyRuntimeError(`
+    it("computes addition - numeric string plus array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine("1" + x)`,
-            // TextWindow.WriteLine("1" + x)
-            //                      ^^^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "+"));
+            [],
+            ["10=1;"]);
     });
-    
+
     it("computes addition - non-numeric string plus number", () => {
         verifyRuntimeResult(`
 TextWindow.WriteLine("r" + 5)`,
@@ -87,54 +83,44 @@ TextWindow.WriteLine("r" + "t")`,
             ["rt"]);
     });
 
-    it("computes addition - non-numeric string plus array - error", () => {
-        verifyRuntimeError(`
+    it("computes addition - non-numeric string plus array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine("r" + x)`,
-            // TextWindow.WriteLine("r" + x)
-            //                      ^^^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "+"));
+            [],
+            ["r0=1;"]);
     });
-    
+
     it("computes addition - array plus number", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x + 5)`,
-            // TextWindow.WriteLine(x + 5)
-            //                      ^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "+"));
+            [],
+            ["0=1;5"]);
     });
 
     it("computes addition - array plus numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x + "4")`,
-            // TextWindow.WriteLine(x + "4")
-            //                      ^^^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "+"));
+            [],
+            ["0=1;4"]);
     });
 
     it("computes addition - array plus non-numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x + "t")`,
-            // TextWindow.WriteLine(x + "t")
-            //                      ^^^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "+"));
+            [],
+            ["0=1;t"]);
     });
 
-    it("computes addition - array plus array - error", () => {
-        verifyRuntimeError(`
+    it("computes addition - array plus array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 y[0] = 1
 TextWindow.WriteLine(x + y)`,
-            // TextWindow.WriteLine(x + y)
-            //                      ^^^^^
-            // You cannot use the operator '+' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(3, 21, 3, 26), "+"));
+            [],
+            ["0=1;0=1;"]);
     });
 });

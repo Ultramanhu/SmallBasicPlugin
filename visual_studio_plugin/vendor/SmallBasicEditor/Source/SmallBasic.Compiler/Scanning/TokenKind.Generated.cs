@@ -32,6 +32,7 @@ namespace SmallBasic.Compiler.Scanning
         Dim,
         Return,
         GoTo,
+        GoSub,
         Or,
         And,
         Mod,
@@ -86,6 +87,7 @@ namespace SmallBasic.Compiler.Scanning
                 case TokenKind.Dim: return "Dim";
                 case TokenKind.Return: return "Return";
                 case TokenKind.GoTo: return "GoTo";
+                case TokenKind.GoSub: return "GoSub";
                 case TokenKind.Or: return "Or";
                 case TokenKind.And: return "And";
                 case TokenKind.Mod: return "Mod";

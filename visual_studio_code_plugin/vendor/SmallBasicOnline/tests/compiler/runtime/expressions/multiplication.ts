@@ -1,8 +1,8 @@
 import "jasmine";
-import { verifyRuntimeResult, verifyRuntimeError } from "../../helpers";
-import { Diagnostic, ErrorCode } from "../../../../src/compiler/utils/diagnostics";
-import { CompilerRange } from "../../../../src/compiler/syntax/ranges";
+import { verifyRuntimeResult } from "../../helpers";
 
+// '*' multiplies the numeric value of both sides, exactly like the C# backends:
+// text that is not a plain number and arrays count as 0, so 1 * "t" is 0.
 describe("Compiler.Runtime.Expressions.Multiplication", () => {
     it("computes multiplication - number multiplied by number", () => {
         verifyRuntimeResult(`
@@ -19,24 +19,20 @@ TextWindow.WriteLine(4 * "2")`,
     });
 
     it("computes multiplication - number multiplied by non-numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine(1 * "t")`,
-            // TextWindow.WriteLine(1 * "t")
-            //                      ^^^^^^^
-            // You cannot use the operator '*' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 28), "*"));
+            [],
+            ["0"]);
     });
 
-    it("computes multiplication - number multiplied by array * error", () => {
-        verifyRuntimeError(`
+    it("computes multiplication - number multiplied by array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(1 * x)`,
-            // TextWindow.WriteLine(1 * x)
-            //                      ^^^^^
-            // You cannot use the operator '*' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "*"));
+            [],
+            ["0"]);
     });
-    
+
     it("computes multiplication - numeric string multiplied by number", () => {
         verifyRuntimeResult(`
 TextWindow.WriteLine("6" * 4)`,
@@ -52,99 +48,79 @@ TextWindow.WriteLine("1" * "7")`,
     });
 
     it("computes multiplication - numeric string multiplied by non-numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine("1" * "t")`,
-            // TextWindow.WriteLine("1" * "t")
-            //                      ^^^^^^^^^
-            // You cannot use the operator '*' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "*"));
+            [],
+            ["0"]);
     });
 
-    it("computes multiplication - numeric string multiplied by array * error", () => {
-        verifyRuntimeError(`
+    it("computes multiplication - numeric string multiplied by array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine("1" * x)`,
-            // TextWindow.WriteLine("1" * x)
-            //                      ^^^^^^^
-            // You cannot use the operator '*' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "*"));
+            [],
+            ["0"]);
     });
-    
+
     it("computes multiplication - non-numeric string multiplied by number", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" * 5)`,
-            // TextWindow.WriteLine("r" * 5)
-            //                      ^^^^^^^
-            // You cannot use the operator '*' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 28), "*"));
+            [],
+            ["0"]);
     });
 
     it("computes multiplication - non-numeric string multiplied by numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" * "4")`,
-            // TextWindow.WriteLine("r" * "4")
-            //                      ^^^^^^^^^
-            // You cannot use the operator '*' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "*"));
+            [],
+            ["0"]);
     });
 
     it("computes multiplication - non-numeric string multiplied by non-numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" * "t")`,
-            // TextWindow.WriteLine("r" * "t")
-            //                      ^^^^^^^^^
-            // You cannot use the operator '*' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "*"));
+            [],
+            ["0"]);
     });
 
-    it("computes multiplication - non-numeric string multiplied by array * error", () => {
-        verifyRuntimeError(`
+    it("computes multiplication - non-numeric string multiplied by array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine("r" * x)`,
-            // TextWindow.WriteLine("r" * x)
-            //                      ^^^^^^^
-            // You cannot use the operator '*' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(2, 21, 2, 28), "*"));
+            [],
+            ["0"]);
     });
-    
+
     it("computes multiplication - array multiplied by number", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x * 5)`,
-            // TextWindow.WriteLine(x * 5)
-            //                      ^^^^^
-            // You cannot use the operator '*' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "*"));
+            [],
+            ["0"]);
     });
 
     it("computes multiplication - array multiplied by numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x * "4")`,
-            // TextWindow.WriteLine(x * "4")
-            //                      ^^^^^^^
-            // You cannot use the operator '*' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "*"));
+            [],
+            ["0"]);
     });
 
     it("computes multiplication - array multiplied by non-numeric string", () => {
-        verifyRuntimeError(`
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x * "t")`,
-            // TextWindow.WriteLine(x * "t")
-            //                      ^^^^^^^
-            // You cannot use the operator '*' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "*"));
+            [],
+            ["0"]);
     });
 
-    it("computes multiplication - array multiplied by array * error", () => {
-        verifyRuntimeError(`
+    it("computes multiplication - array multiplied by array", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 y[0] = 1
 TextWindow.WriteLine(x * y)`,
-            // TextWindow.WriteLine(x * y)
-            //                      ^^^^^
-            // You cannot use the operator '*' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(3, 21, 3, 26), "*"));
+            [],
+            ["0"]);
     });
 });

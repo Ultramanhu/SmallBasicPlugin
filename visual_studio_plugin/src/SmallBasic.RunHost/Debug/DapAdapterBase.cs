@@ -160,6 +160,23 @@ public abstract class DapAdapterBase
             {
                 case ExecutionState.Paused:
                 {
+                    // An unhandled runtime error pauses on the failure scene;
+                    // the error is mirrored to the console and the adapter
+                    // stops with reason "exception". Continuing terminates.
+                    if (engine.PausedOnRuntimeError && engine.LastError is { } pausedError)
+                    {
+                        this.SendOutput($"\n[Runtime Error] {pausedError.Code}: {pausedError.Message}\n");
+                        this.OnStopping("exception", null);
+                        this.SendStopped("exception", pausedError.ToDisplayString());
+                        await this.WaitForResumeAsync().ConfigureAwait(false);
+                        if (engine.State == ExecutionState.Paused)
+                        {
+                            engine.Continue();
+                        }
+
+                        break;
+                    }
+
                     string? reason = await this.ComputeStopReasonAsync().ConfigureAwait(false);
                     if (reason is null)
                     {
@@ -194,7 +211,7 @@ public abstract class DapAdapterBase
                 }
 
                 case ExecutionState.Terminated:
-                    this.EndSession(0);
+                    this.EndSession(engine.LastError is { } ? 1 : 0);
                     return;
 
                 case ExecutionState.Running:

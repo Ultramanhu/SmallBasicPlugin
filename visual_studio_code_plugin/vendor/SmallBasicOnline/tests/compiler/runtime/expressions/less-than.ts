@@ -1,6 +1,9 @@
 import "jasmine";
 import { verifyRuntimeResult } from "../../helpers";
 
+// Relational operators compare the numeric value of both sides, exactly like the
+// C# backends: text that is not a plain number and arrays count as 0, so
+// "a" < 2 and x < 2 are True while 3 < "z" is False.
 describe("Compiler.Runtime.Expressions.LessThan", () => {
     it("computes less than - less than - numbers", () => {
         verifyRuntimeResult(`
@@ -10,9 +13,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
-    
+
     it("computes less than - equal - numbers", () => {
         verifyRuntimeResult(`
 If 2 < 2 Then
@@ -21,9 +24,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - greater than - numbers", () => {
         verifyRuntimeResult(`
 If 3 < 2 Then
@@ -32,9 +35,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - less than - numbers to numeric strings", () => {
         verifyRuntimeResult(`
 If 1 < "2" Then
@@ -43,9 +46,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
-    
+
     it("computes less than - equal - numbers to numeric strings", () => {
         verifyRuntimeResult(`
 If 2 < "2" Then
@@ -54,9 +57,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - greater than - numbers to numeric strings", () => {
         verifyRuntimeResult(`
 If 3 < "2" Then
@@ -65,9 +68,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - numbers to non-numeric strings", () => {
         verifyRuntimeResult(`
 If 3 < "z" Then
@@ -76,9 +79,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - numbers to arrays", () => {
         verifyRuntimeResult(`
 x[0] = 1
@@ -88,7 +91,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes less than - less than - numeric strings", () => {
@@ -99,9 +102,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
-    
+
     it("computes less than - equal - numeric strings", () => {
         verifyRuntimeResult(`
 If "2" < 2 Then
@@ -110,9 +113,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - greater than - numeric strings", () => {
         verifyRuntimeResult(`
 If "3" < 2 Then
@@ -121,9 +124,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - less than - numeric strings to numeric strings", () => {
         verifyRuntimeResult(`
 If "1" < "2" Then
@@ -132,9 +135,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
-    
+
     it("computes less than - equal - numeric strings to numeric strings", () => {
         verifyRuntimeResult(`
 If "2" < "2" Then
@@ -143,9 +146,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - greater than - numeric strings to numeric strings", () => {
         verifyRuntimeResult(`
 If "3" < "2" Then
@@ -154,9 +157,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - numeric strings to non-numeric strings", () => {
         verifyRuntimeResult(`
 If "3" < "z" Then
@@ -165,9 +168,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
-    
+
     it("computes less than - numeric strings to arrays", () => {
         verifyRuntimeResult(`
 x[0] = 1
@@ -177,7 +180,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes less than - non-numeric strings to numbers", () => {
@@ -188,9 +191,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["True"]);
     });
-    
+
     it("computes less than - non-numeric strings to numeric strings", () => {
         verifyRuntimeResult(`
 If "a" < "2" Then
@@ -199,9 +202,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["True"]);
     });
-    
+
     it("computes less than - non-numeric strings to non-numeric strings", () => {
         verifyRuntimeResult(`
 If "a" < "b" Then
@@ -210,7 +213,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes less than - non-numeric strings to arrays", () => {
@@ -222,7 +225,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes less than - arrays to numbers", () => {
@@ -234,9 +237,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["True"]);
     });
-    
+
     it("computes less than - arrays to numeric strings", () => {
         verifyRuntimeResult(`
 x[0] = 1
@@ -246,9 +249,9 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["True"]);
     });
-    
+
     it("computes less than - arrays to non-numeric strings", () => {
         verifyRuntimeResult(`
 x[0] = 1
@@ -258,7 +261,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("computes less than - arrays to arrays", () => {
@@ -271,6 +274,6 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 });

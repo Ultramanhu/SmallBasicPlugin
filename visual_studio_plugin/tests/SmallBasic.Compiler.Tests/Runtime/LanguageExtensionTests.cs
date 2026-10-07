@@ -1,5 +1,7 @@
 namespace SmallBasic.Tests.Runtime
 {
+    using System.Globalization;
+    using System.IO;
     using System.Linq;
     using System.Threading.Tasks;
     using FluentAssertions;
@@ -7,6 +9,7 @@ namespace SmallBasic.Tests.Runtime
     using SmallBasic.Compiler.Diagnostics;
     using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Services;
+    using SmallBasic.RunHost.Libraries;
     using Xunit;
 
     public sealed class LanguageExtensionTests : IClassFixture<CultureFixture>
@@ -348,6 +351,222 @@ EndFor").VerifyRealRuntime().ConfigureAwait(false);
             compilation.ProvideHover((4, 5)).Should().Equal(
                 "Continue",
                 "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs.");
+        }
+
+        [Fact]
+        public async Task GoSubCallsAParameterlessSub()
+        {
+            SmallBasicEngine engine = await new SmallBasicCompilation(@"
+Count = 0
+GoSub Increment
+GoSub Increment
+
+Sub Increment
+  Count = Count + 1
+EndSub").VerifyRealRuntime().ConfigureAwait(false);
+
+            engine.GetSnapshot().Memory["Count"].ToDisplayString().Should().Be("2");
+        }
+
+        [Theory]
+        [InlineData("GoSub Nowhere", DiagnosticCode.GoSubTargetMustBeSub)]
+        [InlineData("GoSub Compute\nFunction Compute()\nReturn 1\nEndFunction", DiagnosticCode.GoSubTargetMustBeParameterlessSub)]
+        [InlineData("GoSub Show\nSub Show(Value)\nEndSub", DiagnosticCode.GoSubTargetMustBeParameterlessSub)]
+        [InlineData("On Error GoSub Nowhere", DiagnosticCode.OnErrorHandlerMustBeSub)]
+        [InlineData("On Error GoSub Handle\nSub Handle(Code)\nEndSub", DiagnosticCode.OnErrorHandlerMustAcceptCodeAndMessage)]
+        [InlineData("On Error Resume Foo", DiagnosticCode.InvalidOnErrorClause)]
+        [InlineData("On Error GoTo 5", DiagnosticCode.InvalidOnErrorClause)]
+        [InlineData("On Error GoTo -2", DiagnosticCode.InvalidOnErrorClause)]
+        [InlineData("On Error GoSub 0", DiagnosticCode.InvalidOnErrorClause)]
+        [InlineData("On Error", DiagnosticCode.InvalidOnErrorClause)]
+        public void ItReportsInvalidGoSubAndOnErrorTargets(string source, DiagnosticCode expected)
+        {
+            var compilation = new SmallBasicCompilation(source);
+
+            compilation.Diagnostics.Select(diagnostic => diagnostic.Code).Should().Contain(expected);
+        }
+
+        [Fact]
+        public void ItAcceptsAllOnErrorClausesAndKeepsOnAndErrorUsableAsNames()
+        {
+            var compilation = new SmallBasicCompilation(
+                "GoSub Ping\n" +
+                "On Error Resume Next\n" +
+                "On Error GoTo -1\n" +
+                "On Error GoTo 0\n" +
+                "On Error GoSub Handle\n" +
+                "\n" +
+                "Sub Ping\n" +
+                "EndSub\n" +
+                "\n" +
+                "Sub Handle(Code, Message)\n" +
+                "EndSub");
+
+            compilation.Diagnostics.Should().BeEmpty();
+
+            var names = new SmallBasicCompilation(
+                "On = 5\n" +
+                "Error = On + 1\n" +
+                "Resume = \"word\"\n" +
+                "Next = Error");
+
+            names.Diagnostics.Should().BeEmpty();
+        }
+
+        [Fact]
+        public async Task OnErrorResumeNextSkipsFailingStatementsAndMirrorsThemToTheConsole()
+        {
+            (SmallBasicEngine engine, string output) = await RunWithConsoleAsync(@"
+On Error Resume Next
+TextWindow.WriteLine(""before"")
+A = 4 / 0
+B = 4 Mod 0
+C = 4 \ 0
+TextWindow.WriteLine(Math.SquareRoot(-4))
+TextWindow.WriteLine(""A="" + A)
+TextWindow.WriteLine(""after"")").ConfigureAwait(false);
+
+            output.Should().Be(string.Join("\n",
+                "before",
+                "[Runtime Error] 1001: Divide by zero.",
+                "[Runtime Error] 1001: Divide by zero.",
+                "[Runtime Error] 1001: Divide by zero.",
+                "[Runtime Error] 1002: Invalid math operation.",
+                "A=",
+                "after"));
+            engine.LastError.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task OnErrorGoSubPassesCodeAndMessageToTheHandlerAndResumes()
+        {
+            (SmallBasicEngine _, string output) = await RunWithConsoleAsync(@"
+On Error GoSub HandleError
+TextWindow.WriteLine(""start"")
+X = 1 / 0
+TextWindow.WriteLine(""end"")
+
+Sub HandleError(Code, Message)
+  TextWindow.WriteLine(""ERR="" + Code)
+  TextWindow.WriteLine(Message)
+EndSub").ConfigureAwait(false);
+
+            output.Should().Be(string.Join("\n",
+                "start",
+                "[Runtime Error] 1001: Divide by zero.",
+                "ERR=1001",
+                "Divide by zero.",
+                "end"));
+        }
+
+        [Fact]
+        public async Task OnErrorGoToZeroAndGoToMinusOneRestoreTermination()
+        {
+            await new SmallBasicCompilation(@"
+On Error GoSub Handle
+On Error GoTo 0
+TextWindow.WriteLine(1 / 0)
+
+Sub Handle(Code, Message)
+EndSub").VerifyUnhandledRuntimeError(1001, "Divide by zero.").ConfigureAwait(false);
+
+            await new SmallBasicCompilation(@"
+On Error Resume Next
+A = 1 / 0
+On Error GoTo -1
+TextWindow.WriteLine(1 / 0)").VerifyUnhandledRuntimeError(1001, "Divide by zero.").ConfigureAwait(false);
+        }
+
+        [Fact]
+        public async Task ErrorsInsideTheHandlerTerminateTheProgram()
+        {
+            (SmallBasicEngine engine, string output) = await RunWithConsoleAsync(@"
+On Error GoSub Handle
+X = 1 / 0
+TextWindow.WriteLine(""unreachable"")
+
+Sub Handle(Code, Message)
+  Y = 1 / 0
+EndSub").ConfigureAwait(false);
+
+            engine.LastError.Should().NotBeNull();
+            engine.LastError.Code.Should().Be(1001);
+            output.Should().Be("[Runtime Error] 1001: Divide by zero.");
+        }
+
+        [Fact]
+        public void ItProvidesGoSubAndOnErrorCompletionsAndHovers()
+        {
+            var goSubCompletion = new SmallBasicCompilation("GoSu");
+            goSubCompletion.ProvideCompletionItems((0, 4))
+                .Single(item => item.label == "GoSub")
+                .insertText.value.Should().Be("GoSub ${1:name}");
+
+            var onErrorCompletion = new SmallBasicCompilation("On");
+            string[] labels = onErrorCompletion.ProvideCompletionItems((0, 2))
+                .Select(item => item.label)
+                .Where(label => label.StartsWith("On Error", StringComparison.Ordinal))
+                .ToArray();
+            labels.Should().Contain(new[]
+            {
+                "On Error Resume Next",
+                "On Error GoTo -1",
+                "On Error GoTo 0",
+                "On Error GoSub",
+            });
+
+            var compilation = new SmallBasicCompilation(
+                "On Error GoSub Handle\n" +
+                "GoSub Ping\n" +
+                "\n" +
+                "Sub Ping\n" +
+                "EndSub\n" +
+                "\n" +
+                "Sub Handle(Code, Message)\n" +
+                "EndSub");
+
+            compilation.ProvideHover((0, 1)).Should().Equal(
+                "On Error GoSub",
+                "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.");
+            compilation.ProvideHover((0, 16)).Should().Equal(
+                "Sub Handle(Code, Message)",
+                "User-defined subroutine");
+            compilation.ProvideHover((1, 1)).Should().Equal(
+                "GoSub",
+                "Calls a parameterless Sub and returns to the statement after the call.");
+            compilation.ProvideHover((1, 7)).Should().Equal(
+                "Sub Ping",
+                "User-defined subroutine");
+        }
+
+        [Fact]
+        public void GoSubAndOnErrorLinesAreExecutableForTheDebugger()
+        {
+            var compilation = new SmallBasicCompilation(
+                "On Error GoSub Handle\n" +
+                "GoSub Ping\n" +
+                "\n" +
+                "Sub Ping\n" +
+                "EndSub\n" +
+                "\n" +
+                "Sub Handle(Code, Message)\n" +
+                "EndSub");
+
+            compilation.Diagnostics.Should().BeEmpty();
+            compilation.GetExecutableLines().Should().Contain(0).And.Contain(1);
+        }
+
+        private static async Task<(SmallBasicEngine Engine, string Output)> RunWithConsoleAsync(string source)
+        {
+            using var output = new StringWriter(CultureInfo.InvariantCulture);
+            using var libraries = new RuntimeLibrariesCollection(TextReader.Null, output);
+            var engine = new SmallBasicEngine(new SmallBasicCompilation(source), libraries);
+            while (engine.State != ExecutionState.Terminated)
+            {
+                await engine.Execute().ConfigureAwait(false);
+            }
+
+            return (engine, output.ToString().Replace("\r\n", "\n").TrimEnd('\n'));
         }
     }
 }

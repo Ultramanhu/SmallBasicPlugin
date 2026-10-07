@@ -10,7 +10,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare equality - numbers to numbers - not equal", () => {
@@ -21,7 +21,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - numbers to strings - equal", () => {
@@ -32,7 +32,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare equality - numbers to strings - not equal", () => {
@@ -43,7 +43,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - numbers to arrays", () => {
@@ -55,7 +55,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
 
     it("can compare equality - strings to numbers - equal", () => {
@@ -66,7 +66,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare equality - strings to numbers - not equal", () => {
@@ -77,7 +77,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - strings to strings - equal", () => {
@@ -88,7 +88,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare equality - strings to strings - not equal", () => {
@@ -99,7 +99,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - strings to arrays", () => {
@@ -111,7 +111,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - arrays to numbers", () => {
@@ -123,7 +123,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - arrays to strings", () => {
@@ -135,7 +135,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare equality - arrays to arrays - equal", () => {
@@ -148,7 +148,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare equality - arrays to arrays - not equal", () => {
@@ -161,7 +161,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare non-equality - numbers to numbers - equal", () => {
@@ -172,7 +172,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare non-equality - numbers to numbers - not equal", () => {
@@ -183,7 +183,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - numbers to strings - equal", () => {
@@ -194,7 +194,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare non-equality - numbers to strings - not equal", () => {
@@ -205,7 +205,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - numbers to arrays", () => {
@@ -217,7 +217,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
 
     it("can compare non-equality - strings to numbers - equal", () => {
@@ -228,7 +228,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare non-equality - strings to numbers - not equal", () => {
@@ -239,7 +239,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - strings to strings - equal", () => {
@@ -250,7 +250,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare non-equality - strings to strings - not equal", () => {
@@ -261,7 +261,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - strings to arrays", () => {
@@ -273,7 +273,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - arrays to numbers", () => {
@@ -285,7 +285,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - arrays to strings", () => {
@@ -297,7 +297,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
     
     it("can compare non-equality - arrays to arrays - equal", () => {
@@ -310,7 +310,7 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["false"]);
+            ["False"]);
     });
     
     it("can compare non-equality - arrays to arrays - not equal", () => {
@@ -323,6 +323,6 @@ Else
     TextWindow.WriteLine("false")
 EndIf`,
             [],
-            ["true"]);
+            ["True"]);
     });
 });

@@ -31,6 +31,11 @@ namespace SmallBasic.Compiler.Diagnostics
         FunctionCannotBeEventHandler,
         TwoLabelsWithTheSameName,
         GoToUndefinedLabel,
+        GoSubTargetMustBeSub,
+        GoSubTargetMustBeParameterlessSub,
+        OnErrorHandlerMustBeSub,
+        OnErrorHandlerMustAcceptCodeAndMessage,
+        InvalidOnErrorClause,
         PropertyHasNoSetter,
         AssigningNonSubModuleToEvent,
         UnassignedExpressionStatement,
@@ -71,6 +76,11 @@ namespace SmallBasic.Compiler.Diagnostics
                 case DiagnosticCode.FunctionCannotBeEventHandler: return DiagnosticsResources.FunctionCannotBeEventHandler;
                 case DiagnosticCode.TwoLabelsWithTheSameName: return DiagnosticsResources.TwoLabelsWithTheSameName;
                 case DiagnosticCode.GoToUndefinedLabel: return DiagnosticsResources.GoToUndefinedLabel;
+                case DiagnosticCode.GoSubTargetMustBeSub: return DiagnosticsResources.GoSubTargetMustBeSub;
+                case DiagnosticCode.GoSubTargetMustBeParameterlessSub: return DiagnosticsResources.GoSubTargetMustBeParameterlessSub;
+                case DiagnosticCode.OnErrorHandlerMustBeSub: return DiagnosticsResources.OnErrorHandlerMustBeSub;
+                case DiagnosticCode.OnErrorHandlerMustAcceptCodeAndMessage: return DiagnosticsResources.OnErrorHandlerMustAcceptCodeAndMessage;
+                case DiagnosticCode.InvalidOnErrorClause: return DiagnosticsResources.InvalidOnErrorClause;
                 case DiagnosticCode.PropertyHasNoSetter: return DiagnosticsResources.PropertyHasNoSetter;
                 case DiagnosticCode.AssigningNonSubModuleToEvent: return DiagnosticsResources.AssigningNonSubModuleToEvent;
                 case DiagnosticCode.UnassignedExpressionStatement: return DiagnosticsResources.UnassignedExpressionStatement;

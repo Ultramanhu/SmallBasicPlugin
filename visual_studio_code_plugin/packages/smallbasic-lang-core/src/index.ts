@@ -11,6 +11,7 @@ export { ArrayValue } from "../../../vendor/SmallBasicOnline/src/compiler/runtim
 export { NumberValue } from "../../../vendor/SmallBasicOnline/src/compiler/runtime/values/number-value";
 export { StringValue } from "../../../vendor/SmallBasicOnline/src/compiler/runtime/values/string-value";
 export { Diagnostic, ErrorCode } from "../../../vendor/SmallBasicOnline/src/compiler/utils/diagnostics";
+export { RuntimeErrorCode, RuntimeErrorSignal, formatRuntimeError } from "../../../vendor/SmallBasicOnline/src/compiler/runtime/runtime-error";
 export { CompilerPosition, CompilerRange } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/ranges";
 export { TokenKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/tokens";
 export { SyntaxKind } from "../../../vendor/SmallBasicOnline/src/compiler/syntax/syntax-nodes";
@@ -20,9 +21,12 @@ export type {
     DimCommandSyntax,
     ForCommandSyntax,
     FunctionDeclarationSyntax,
+    GoSubCommandSyntax,
     IdentifierExpressionSyntax,
     InvocationExpressionSyntax,
     ObjectAccessExpressionSyntax,
+    OnErrorAction,
+    OnErrorCommandSyntax,
     StatementBlockSyntax,
     SubModuleDeclarationSyntax,
     TokenSyntax

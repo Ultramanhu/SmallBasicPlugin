@@ -47,6 +47,8 @@ export enum SyntaxKind {
     ContinueCommand,
     LabelCommand,
     GoToCommand,
+    GoSubCommand,
+    OnErrorCommand,
     SubCommand,
     EndSubCommand,
     FunctionCommand,
@@ -378,6 +380,46 @@ export class GoToCommandSyntax extends BaseCommandSyntax {
     }
 }
 
+/**
+ * A `GoSub Handler` statement: an explicit keyword-form call of a
+ * parameterless Sub. The target is a bare identifier token, not an
+ * invocation expression, so editors must resolve it separately.
+ */
+export class GoSubCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly goSubToken: TokenSyntax,
+        public readonly nameToken: TokenSyntax) {
+        super(SyntaxKind.GoSubCommand, CompilerRange.combine(goSubToken.range, nameToken.range));
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.goSubToken, this.nameToken];
+    }
+}
+
+export type OnErrorAction = "resume-next" | "goto-default" | "goto-clear" | "gosub";
+
+/**
+ * An `On Error ...` statement. `On`/`Error`/`Resume`/`Next` are contextual
+ * keywords (plain Identifier tokens); only the tokens actually consumed by
+ * the clause are kept for coloring and hover.
+ */
+export class OnErrorCommandSyntax extends BaseCommandSyntax {
+    public constructor(
+        public readonly onToken: TokenSyntax,
+        public readonly errorToken: TokenSyntax,
+        public readonly action: OnErrorAction,
+        public readonly clauseTokens: ReadonlyArray<TokenSyntax>,
+        public readonly targetToken: TokenSyntax | undefined) {
+        const lastToken = targetToken ?? clauseTokens[clauseTokens.length - 1] ?? errorToken;
+        super(SyntaxKind.OnErrorCommand, CompilerRange.combine(onToken.range, lastToken.range));
+    }
+
+    public children(): ReadonlyArray<BaseSyntaxNode> {
+        return [this.onToken, this.errorToken, ...this.clauseTokens, ...(this.targetToken ? [this.targetToken] : [])];
+    }
+}
+
 export class SubCommandSyntax extends BaseCommandSyntax {
     public constructor(
         public readonly subToken: TokenSyntax,
@@ -697,6 +739,8 @@ export class SyntaxNodeVisitor {
             case SyntaxKind.ContinueCommand: this.visitContinueCommand(node as ContinueCommandSyntax); break;
             case SyntaxKind.LabelCommand: this.visitLabelCommand(node as LabelCommandSyntax); break;
             case SyntaxKind.GoToCommand: this.visitGoToCommand(node as GoToCommandSyntax); break;
+            case SyntaxKind.GoSubCommand: this.visitGoSubCommand(node as GoSubCommandSyntax); break;
+            case SyntaxKind.OnErrorCommand: this.visitOnErrorCommand(node as OnErrorCommandSyntax); break;
             case SyntaxKind.SubCommand: this.visitSubCommand(node as SubCommandSyntax); break;
             case SyntaxKind.EndSubCommand: this.visitEndSubCommand(node as EndSubCommandSyntax); break;
             case SyntaxKind.FunctionCommand: this.visitFunctionCommand(node as FunctionCommandSyntax); break;
@@ -801,6 +845,14 @@ export class SyntaxNodeVisitor {
     }
 
     public visitGoToCommand(node: GoToCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitGoSubCommand(node: GoSubCommandSyntax): void {
+        this.defaultVisit(node);
+    }
+
+    public visitOnErrorCommand(node: OnErrorCommandSyntax): void {
         this.defaultVisit(node);
     }
 

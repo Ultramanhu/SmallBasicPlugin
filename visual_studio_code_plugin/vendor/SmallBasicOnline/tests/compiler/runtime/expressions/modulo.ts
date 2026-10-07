@@ -1,8 +1,8 @@
 import "jasmine";
-import { verifyRuntimeResult, verifyRuntimeError } from "../../helpers";
-import { Diagnostic, ErrorCode } from "../../../../src/compiler/utils/diagnostics";
-import { CompilerRange } from "../../../../src/compiler/syntax/ranges";
+import { verifyRuntimeResult, verifyUnhandledRuntimeError } from "../../helpers";
 
+// Mod returns the remainder of the numeric value of both sides, exactly like the
+// C# backends: text that is not a plain number and arrays count as 0.
 describe("Compiler.Runtime.Expressions.Modulo", () => {
     it("computes modulo - positive numbers", () => {
         verifyRuntimeResult(`
@@ -36,15 +36,11 @@ TextWindow.WriteLine(7.5 Mod 2)`,
             ["1.5"]);
     });
 
-    it("computes modulo - zero divisor yields zero without terminating", () => {
-        verifyRuntimeResult(`
-TextWindow.WriteLine(4 Mod 0)
-TextWindow.WriteLine("after")`,
-            [],
-            [
-                "0",
-                "after"
-            ]);
+    it("computes modulo - zero divisor terminates with a runtime error", () => {
+        verifyUnhandledRuntimeError(`
+TextWindow.WriteLine(4 Mod 0)`,
+            1001,
+            "Divide by zero.");
     });
 
     it("computes modulo - number with numeric string", () => {
@@ -54,23 +50,19 @@ TextWindow.WriteLine(7 Mod "2")`,
             ["1"]);
     });
 
-    it("computes modulo - non-numeric string operand errors", () => {
-        verifyRuntimeError(`
+    it("computes modulo - non-numeric string operand counts as zero", () => {
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" Mod 5)`,
-            // TextWindow.WriteLine("r" Mod 5)
-            //                      ^^^^^^^^^
-            // You cannot use the operator 'Mod' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 30), "Mod"));
+            [],
+            ["0"]);
     });
 
-    it("computes modulo - array operand errors", () => {
-        verifyRuntimeError(`
+    it("computes modulo - array operand counts as zero", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x Mod 5)`,
-            // TextWindow.WriteLine(x Mod 5)
-            //                      ^^^^^^^
-            // You cannot use the operator 'Mod' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 28), "Mod"));
+            [],
+            ["0"]);
     });
 
     it("computes modulo - binds tighter than minus but looser than Multiply", () => {

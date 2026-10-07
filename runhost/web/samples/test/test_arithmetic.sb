@@ -1,0 +1,138 @@
+' test_arithmetic.sb - arithmetic operators and numeric coercion.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+'
+' Run with any backend, e.g.
+'   node runhost/javascript/smallbasic-runhost.js run --file sample/test/test_arithmetic.sb
+'   dotnet runhost/net8.0/SmallBasic.RunHost.dll run --file sample/test/test_arithmetic.sb
+'   dotnet runhost/blazor/SmallBasic.Blazor.RunHost.dll run --file sample/test/test_arithmetic.sb
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- additive operators ----------------------------------------------------
+Check("integer addition", 2 + 3, 5)
+Check("integer subtraction", 10 - 4, 6)
+Check("subtraction to negative", 4 - 10, -6)
+Check("decimal addition", 2.5 + 2.5, 5)
+Check("decimal subtraction", 2.5 - 1.5, 1)
+Check("subtraction reaching zero", (2.5 - 2.5) + 4, 4)
+
+' ---- multiplicative operators ---------------------------------------------
+Check("integer multiplication", 6 * 7, 42)
+Check("multiplication by zero", 6 * 0, 0)
+Check("real division", 7 / 2, 3.5)
+Check("real division exact", 10 / 4, 2.5)
+Check("real division by one", 5 / 1, 5)
+Check("negative real division", -7 / 2, -3.5)
+
+' ---- integer division (\ ) and modulo (Mod) --------------------------------
+Check("integer division truncates", 7 \ 2, 3)
+Check("integer division negative dividend", -7 \ 2, -3)
+Check("integer division negative divisor", 7 \ -2, -3)
+Check("integer division both negative", -7 \ -2, 3)
+Check("integer division on fractions", 7.9 \ 2.9, 2)
+Check("integer division by zero", 4 \ 0, 0)
+Check("integer division left assoc", 8 \ 2 \ 2, 2)
+Check("modulo", 17 Mod 5, 2)
+Check("modulo exact", 8 Mod 2, 0)
+Check("modulo negative dividend", -7 Mod 2, -1)
+Check("modulo negative divisor", 7 Mod -2, 1)
+Check("modulo both negative", -7 Mod -2, -1)
+Check("modulo on fractions", 7.5 Mod 2, 1.5)
+Check("modulo by zero", 4 Mod 0, 0)
+Check("mod keyword is case insensitive", 7 mOd 2, 1)
+
+' ---- precedence and associativity -----------------------------------------
+Check("multiplication before addition", 2 + 3 * 4, 14)
+Check("parentheses win", (2 + 3) * 4, 20)
+Check("division before subtraction", 10 - 6 / 2, 7)
+Check("intdiv before modulo", 6 Mod 4 \ 2, 0)
+Check("modulo after multiplication", 6 Mod 4 * 2, 6)
+Check("intdiv after multiplication", 7 \ 2 * 3, 1)
+Check("modulo after subtraction", 8 - 3 Mod 2, 7)
+Check("left assoc subtraction", 10 - 3 - 2, 5)
+Check("left assoc division", 100 / 5 / 2, 10)
+Check("nested parentheses", 120 \ (2 * (2 + 4)), 10)
+Check("unary minus", 0 - 5, -5)
+Check("unary minus in front of parentheses", -(2 + 3), -5)
+Check("unary minus on both operands", -(2 + 3) * -1, 5)
+
+' ---- numeric coercion of strings ------------------------------------------
+Check("numeric string times number", "5" * 2, 10)
+Check("numeric string plus number is numeric", "5" + 2, 7)
+Check("number plus numeric string is numeric", 5 + "2", 7)
+Check("numeric string divided", "9" / 2, 4.5)
+Check("text plus number stays text", "a" + 1, "a1")
+Check("text append keeps digits", Text.Append("3", "4"), "34")
+Check("unset variable acts as zero", UnsetValue + 1, 1)
+
+' ---- text that looks like a number is a number -----------------------------
+' Both implementations materialize plain decimal text as a number, so digits
+' can disappear from the text form: "0012" becomes 12. Text that is not a plain
+' decimal number ("1e5", "1,000", "12abc") stays text and counts as 0 in
+' arithmetic.
+Check("leading zeros are folded away", "0012" * 1, 12)
+Check("a trailing dot parses as a number", "0." + 1, 1)
+Check("surrounding spaces are ignored", " 12 " + 1, 13)
+Check("a trailing sign is accepted", "5-" * 1, -5)
+Check("a leading plus sign is accepted", "+5" * 1, 5)
+Check("exponent text stays text", "1e5" * 1, 0)
+Check("thousands separators stay text", "1,000" * 1, 0)
+Check("mixed text stays text", "12abc" * 1, 0)
+Check("non-numeric text counts as zero", "abc" * 1, 0)
+Check("non-numeric text is 0 when added", 1 + "t", "1t")
+Check("non-numeric text is 0 when subtracted", 1 - "t", 1)
+Check("non-numeric text is 0 when divided by", 1 / "t", 1)
+Check("dividing by zero keeps the dividend", 4 / 0, 4)
+
+' ---- unary minus binds tighter than every binary operator -------------------
+Check("unary minus then addition", -1 + 5, 4)
+Check("unary minus then subtraction", -1 - 1, -2)
+Check("unary minus then multiplication", -2 * 3, -6)
+Check("unary minus then comparison", -1 < 0, "True")
+Check("unary minus on both operands", -2 * -3, 6)
+Check("unary minus in front of parentheses", -(2 + 3), -5)
+
+' ---- integral values lose their decimal point ------------------------------
+Check("integral literal", 1.0, 1)
+Check("integral sum", 2.5 + 2.5, 5)
+Check("difference reaching zero", 2.5 - 2.5, 0)
+Check("integral division result", 10 / 5, 2)
+Check("integral product", 1.5 * 2, 3)
+
+' ---- library equivalents of \ and Mod --------------------------------------
+Check("Math.Div", Math.Div(17, 5), 3)
+Check("Math.Div negative", Math.Div(-7, 2), -3)
+Check("Math.Mod", Math.Mod(17, 5), 2)
+Check("Math.Mod negative", Math.Mod(-7, 2), -1)
+Check("Math.Div by zero", Math.Div(9, 0), 0)
+Check("Math.Mod by zero", Math.Mod(9, 0), 0)
+Check("Math.Div and Mod compose", Math.Mod(Math.Div(17, 5), 2), 1)
+
+' ---- mixed large and negative values --------------------------------------
+Check("large product", 100000 * 100000, 10000000000)
+Check("large sum", 9999999999 + 1, 10000000000)
+Check("sign of a product", -3 * -4, 12)
+Check("mixed sign division", 10 / -4, -2.5)
+
+Report("arithmetic")

@@ -88,6 +88,51 @@ namespace SmallBasic.Utilities.Resources {
         }
         
         /// <summary>
+        ///   Looks up a localized string similar to No Sub with the name &apos;{0}&apos; was found. GoSub can only call a parameterless Sub..
+        /// </summary>
+        public static string GoSubTargetMustBeSub {
+            get {
+                return ResourceManager.GetString("GoSubTargetMustBeSub", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The GoSub target &apos;{0}&apos; must be a Sub without parameters..
+        /// </summary>
+        public static string GoSubTargetMustBeParameterlessSub {
+            get {
+                return ResourceManager.GetString("GoSubTargetMustBeParameterlessSub", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to Invalid On Error statement. Use &apos;On Error Resume Next&apos;, &apos;On Error GoTo -1&apos;, &apos;On Error GoTo 0&apos; or &apos;On Error GoSub &lt;SubName&gt;&apos;..
+        /// </summary>
+        public static string InvalidOnErrorClause {
+            get {
+                return ResourceManager.GetString("InvalidOnErrorClause", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to No Sub with the name &apos;{0}&apos; was found. The On Error handler must be a Sub..
+        /// </summary>
+        public static string OnErrorHandlerMustBeSub {
+            get {
+                return ResourceManager.GetString("OnErrorHandlerMustBeSub", resourceCulture);
+            }
+        }
+        
+        /// <summary>
+        ///   Looks up a localized string similar to The On Error handler &apos;{0}&apos; must be a Sub with exactly two parameters: the error code and the error message..
+        /// </summary>
+        public static string OnErrorHandlerMustAcceptCodeAndMessage {
+            get {
+                return ResourceManager.GetString("OnErrorHandlerMustAcceptCodeAndMessage", resourceCulture);
+            }
+        }
+        
+        /// <summary>
         ///   Looks up a localized string similar to This expression is not a valid statement..
         /// </summary>
         public static string InvalidExpressionStatement {

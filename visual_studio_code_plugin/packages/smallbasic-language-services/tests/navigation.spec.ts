@@ -116,4 +116,41 @@ describe("Small Basic navigation", () => {
       { start: { line: 6, column: 14 }, end: { line: 6, column: 19 } }
     ]);
   });
+
+  it("resolves a GoSub target to the Sub declaration", () => {
+    const source = [
+      "Sub Helper",
+      "EndSub",
+      "GoSub Helper"
+    ].join("\n");
+    const goSub = new Compilation(source);
+
+    expect(provideDefinition(goSub, { line: 2, column: 7 })).toEqual({
+      start: { line: 0, column: 4 },
+      end: { line: 0, column: 10 }
+    });
+    expect(provideReferences(goSub, { line: 0, column: 5 })).toEqual([
+      { start: { line: 0, column: 4 }, end: { line: 0, column: 10 } },
+      { start: { line: 2, column: 6 }, end: { line: 2, column: 12 } }
+    ]);
+  });
+
+  it("resolves an On Error GoSub handler to the Sub declaration", () => {
+    const source = [
+      "Sub Handler(Code, Message)",
+      "EndSub",
+      "On Error GoSub Handler",
+      "value = 1 / 0"
+    ].join("\n");
+    const onError = new Compilation(source);
+
+    expect(provideDefinition(onError, { line: 2, column: 15 })).toEqual({
+      start: { line: 0, column: 4 },
+      end: { line: 0, column: 11 }
+    });
+    expect(provideReferences(onError, { line: 2, column: 15 })).toEqual([
+      { start: { line: 0, column: 4 }, end: { line: 0, column: 11 } },
+      { start: { line: 2, column: 15 }, end: { line: 2, column: 22 } }
+    ]);
+  });
 });

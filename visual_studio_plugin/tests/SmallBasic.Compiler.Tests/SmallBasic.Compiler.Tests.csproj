@@ -34,8 +34,10 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\..\..\tests\conformance\language-extension\cases.json"
-             Link="Conformance\language-extension\cases.json"
+    <!-- The shared conformance corpus (language extension + unified runtime
+         semantics) lives inside this test project; the TypeScript runner
+         (smallbasic-lang-core) reads the very same file. -->
+    <Content Include="Conformance\cases.json"
              CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

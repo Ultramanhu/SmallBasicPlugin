@@ -20,7 +20,7 @@ export class ArrayLibrary implements LibraryTypeInstance {
     private executeGetItemCount(engine: ExecutionEngine): void {
         const array = engine.popEvaluationStack();
         const itemCount = array.kind === ValueKind.Array
-            ? Object.keys((array as ArrayValue).values).length
+            ? (array as ArrayValue).count
             : 0;
 
         engine.pushEvaluationStack(new NumberValue(itemCount));
@@ -31,7 +31,7 @@ export class ArrayLibrary implements LibraryTypeInstance {
         const newArray: { [key: string]: BaseValue } = {};
 
         if (array.kind === ValueKind.Array) {
-            Object.keys((array as ArrayValue).values).forEach((key, i) => {
+            (array as ArrayValue).keys.forEach((key, i) => {
                 newArray[i + 1] = new StringValue(key);
             });
         }
@@ -45,9 +45,10 @@ export class ArrayLibrary implements LibraryTypeInstance {
         let result = Constants.False;
 
         if (array.kind === ValueKind.Array) {
-            const arrayValue = (array as ArrayValue).values;
-            for (let key in arrayValue) {
-                if (arrayValue[key].isEqualTo(value)) {
+            const arrayValue = array as ArrayValue;
+            // Mirrors the C# ContainsValue: the text forms are compared.
+            for (const key of arrayValue.keys) {
+                if (arrayValue.getValue(key)!.toValueString() === value.toValueString()) {
                     result = Constants.True;
                     break;
                 }

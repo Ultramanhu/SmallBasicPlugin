@@ -88,10 +88,10 @@ export module DocumentationResources {
     export const Math_Remainder = "Divides the first number by the second and returns the remainder.";
     export const Math_Remainder_Dividend = "The number to divide.";
     export const Math_Remainder_Divisor = "The number that divides.";
-    export const Math_Div = "Divides the first number by the second and returns the integer part of the quotient (truncated toward zero). For example, Math.Div(7, 2) returns 3 and Math.Div(-7, 2) returns -3. Dividing by zero returns 0.";
+    export const Math_Div = "Divides the first number by the second and returns the integer part of the quotient (truncated toward zero). For example, Math.Div(7, 2) returns 3 and Math.Div(-7, 2) returns -3. Dividing by zero is a runtime error that On Error can catch.";
     export const Math_Div_Dividend = "The number to divide.";
     export const Math_Div_Divisor = "The number that divides.";
-    export const Math_Mod = "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero returns 0.";
+    export const Math_Mod = "Divides the first number by the second and returns the remainder, with the same sign as the dividend. For example, Math.Mod(7, 2) returns 1 and Math.Mod(-7, 2) returns -1. Dividing by zero is a runtime error that On Error can catch.";
     export const Math_Mod_Dividend = "The number to divide.";
     export const Math_Mod_Divisor = "The number that divides.";
     export const Math_Cos = "Gets the cosine of the given angle in radians.";

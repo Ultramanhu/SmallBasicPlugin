@@ -105,6 +105,16 @@ static async Task<int> RunInConsoleAsync(SmallBasicCompilation compilation, bool
             engine,
             _ => Console.In.ReadLineAsync(),
             line => libraries.TextWindow.SetPendingInput(line));
+
+        // Runtime errors terminate the engine gracefully instead of throwing;
+        // mirror the unified `[Runtime Error] code: message` line to stderr.
+        int exitCode = 0;
+        if (engine.LastError is { } lastError)
+        {
+            Console.Error.WriteLine(lastError.ToDisplayString());
+            exitCode = 4;
+        }
+
         if (pauseOnExit)
         {
             Console.WriteLine();
@@ -115,7 +125,7 @@ static async Task<int> RunInConsoleAsync(SmallBasicCompilation compilation, bool
             }
         }
 
-        return 0;
+        return exitCode;
     }
     catch (Exception ex)
     {

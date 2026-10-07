@@ -1,5 +1,5 @@
-import { BaseInstruction, TempLabelInstruction, TempJumpInstruction, TempConditionalJumpInstruction, StoreVariableInstruction, PushNumberInstruction, LessThanInstruction, LoadVariableInstruction, AddInstruction, MethodInvocationInstruction, InvokeSubModuleInstruction, ReturnValueInstruction, SetEventHandlerInstruction, StoreArrayElementInstruction, StorePropertyInstruction, NegateInstruction, GreaterThanInstruction, LessThanOrEqualInstruction, GreaterThanOrEqualInstruction, PushStringInstruction, EqualInstruction, SubtractInstruction, MultiplyInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, LoadPropertyInstruction, LoadArrayElementInstruction } from "./instructions";
-import { BaseBoundStatement, BoundIfStatement, BoundWhileStatement, BoundForStatement, BoundLoopControlStatement, BoundLabelStatement, BoundVariableAssignmentStatement, BoundPropertyAssignmentStatement, BoundArrayAssignmentStatement, BoundGoToStatement, BoundReturnStatement, BaseBoundExpression, BoundKind, BoundOrExpression, BoundAndExpression, BoundNotEqualExpression, BoundEqualExpression, BoundLessThanExpression, BoundParenthesisExpression, BoundNumberLiteralExpression, BoundStringLiteralExpression, BoundVariableExpression, BoundLibraryMethodInvocationExpression, BoundSubModuleInvocationExpression, BoundLibraryPropertyExpression, BoundArrayAccessExpression, BoundDivisionExpression, BoundIntegerDivisionExpression, BoundModuloExpression, BoundMultiplicationExpression, BoundSubtractionExpression, BoundAdditionExpression, BoundNegationExpression, BoundSubModuleInvocationStatement, BoundLibraryMethodInvocationStatement, BoundEventAssignmentStatement, BoundStatementBlock } from "../binding/bound-nodes";
+import { BaseInstruction, TempLabelInstruction, TempJumpInstruction, TempConditionalJumpInstruction, StoreVariableInstruction, PushNumberInstruction, LessThanInstruction, LoadVariableInstruction, AddInstruction, MethodInvocationInstruction, InvokeSubModuleInstruction, OnErrorInstruction, ReturnValueInstruction, SetEventHandlerInstruction, StoreArrayElementInstruction, StorePropertyInstruction, NegateInstruction, GreaterThanInstruction, LessThanOrEqualInstruction, GreaterThanOrEqualInstruction, PushStringInstruction, EqualInstruction, SubtractInstruction, MultiplyInstruction, DivideInstruction, IntegerDivideInstruction, ModuloInstruction, LoadPropertyInstruction, LoadArrayElementInstruction } from "./instructions";
+import { BaseBoundStatement, BoundIfStatement, BoundWhileStatement, BoundForStatement, BoundLoopControlStatement, BoundLabelStatement, BoundVariableAssignmentStatement, BoundPropertyAssignmentStatement, BoundArrayAssignmentStatement, BoundGoToStatement, BoundOnErrorStatement, BoundReturnStatement, BaseBoundExpression, BoundKind, BoundOrExpression, BoundAndExpression, BoundNotEqualExpression, BoundEqualExpression, BoundLessThanExpression, BoundParenthesisExpression, BoundNumberLiteralExpression, BoundStringLiteralExpression, BoundVariableExpression, BoundLibraryMethodInvocationExpression, BoundSubModuleInvocationExpression, BoundLibraryPropertyExpression, BoundArrayAccessExpression, BoundDivisionExpression, BoundIntegerDivisionExpression, BoundModuloExpression, BoundMultiplicationExpression, BoundSubtractionExpression, BoundAdditionExpression, BoundNegationExpression, BoundSubModuleInvocationStatement, BoundLibraryMethodInvocationStatement, BoundEventAssignmentStatement, BoundStatementBlock } from "../binding/bound-nodes";
 import { Constants } from "../runtime/values/base-value";
 import { TempLabelsRemover } from "./temp-labels-remover";
 
@@ -34,6 +34,7 @@ export class ModuleEmitter {
             case BoundKind.LoopControlStatement: this.emitLoopControlStatement(statement as BoundLoopControlStatement); break;
             case BoundKind.LabelStatement: this.emitLabelStatement(statement as BoundLabelStatement); break;
             case BoundKind.GoToStatement: this.emitGoToStatement(statement as BoundGoToStatement); break;
+            case BoundKind.OnErrorStatement: this.emitOnErrorStatement(statement as BoundOnErrorStatement); break;
             case BoundKind.ReturnStatement: this.emitReturnStatement(statement as BoundReturnStatement); break;
             case BoundKind.SubModuleInvocationStatement: this.emitSubModuleInvocation(statement as BoundSubModuleInvocationStatement); break;
             case BoundKind.LibraryMethodInvocationStatement: this.emitLibraryMethodInvocation(statement as BoundLibraryMethodInvocationStatement); break;
@@ -177,6 +178,10 @@ export class ModuleEmitter {
 
     private emitGoToStatement(statement: BoundGoToStatement): void {
         this._instructions.push(new TempJumpInstruction(statement.labelName, statement.syntax.range));
+    }
+
+    private emitOnErrorStatement(statement: BoundOnErrorStatement): void {
+        this._instructions.push(new OnErrorInstruction(statement.action, statement.handlerName, statement.syntax.range));
     }
 
     private emitReturnStatement(statement: BoundReturnStatement): void {

@@ -48,6 +48,38 @@
     "body": "Return ${1:value}",
     "description": "Return a value from a Function"
   },
+  "GoSub call": {
+    "prefix": "gosub",
+    "body": "GoSub ${1:name}",
+    "description": "Call a parameterless Sub"
+  },
+  "On Error Resume Next": {
+    "prefix": "onerrorresume",
+    "body": "On Error Resume Next",
+    "description": "Skip statements that cause runtime errors and keep running"
+  },
+  "On Error GoTo -1": {
+    "prefix": "onerrorabort",
+    "body": "On Error GoTo -1",
+    "description": "Restore the default terminate-on-error behavior"
+  },
+  "On Error GoTo 0": {
+    "prefix": "onerrorclear",
+    "body": "On Error GoTo 0",
+    "description": "Clear the current On Error handler"
+  },
+  "On Error GoSub handler": {
+    "prefix": "onerrorgosub",
+    "body": [
+      "On Error GoSub ${1:Handler}",
+      "  ${0}",
+      "",
+      "Sub ${1:Handler}(Code, Message)",
+      "  ",
+      "EndSub"
+    ],
+    "description": "Handle runtime errors in a Sub that receives the error code and message"
+  },
   "Hello World": {
     "prefix": "hello",
     "body": [

@@ -3,9 +3,7 @@ import { Compilation } from "../../../../src/compiler/compilation";
 import { ExecutionEngine, ExecutionMode, ExecutionState } from "../../../../src/compiler/execution-engine";
 import { NumberValue } from "../../../../src/compiler/runtime/values/number-value";
 import { ValueKind } from "../../../../src/compiler/runtime/values/base-value";
-import { verifyRuntimeResult, verifyRuntimeError } from "../../helpers";
-import { Diagnostic, ErrorCode } from "../../../../src/compiler/utils/diagnostics";
-import { CompilerRange } from "../../../../src/compiler/syntax/ranges";
+import { verifyRuntimeResult, verifyUnhandledRuntimeError } from "../../helpers";
 
 describe("Compiler.Runtime.Libraries.Math", () => {
     it("can retreive Pi", () => {
@@ -47,13 +45,11 @@ TextWindow.WriteLine(Math.Remainder(9, 9))`,
             ]);
     });
 
-    it("terminates on getting remainder with zero division", () => {
-        verifyRuntimeError(`
+    it("terminates with a runtime error from Math.Remainder with zero divisor", () => {
+        verifyUnhandledRuntimeError(`
 TextWindow.WriteLine(Math.Remainder(9, 0))`,
-            // TextWindow.WriteLine(Math.Remainder(9, 0))
-            //                      ^^^^^^^^^^^^^^^^^^^^
-            // You cannot divide by zero. Please consider checking the divisor before dividing.
-            new Diagnostic(ErrorCode.CannotDivideByZero, CompilerRange.fromValues(1, 21, 1, 41)));
+            1001,
+            "Divide by zero.");
     });
 
     it("can calculate integer division with Math.Div", () => {
@@ -69,15 +65,11 @@ TextWindow.WriteLine(Math.Div(7.9, 2.9))`,
             ]);
     });
 
-    it("returns zero from Math.Div with zero divisor", () => {
-        verifyRuntimeResult(`
-TextWindow.WriteLine(Math.Div(9, 0))
-TextWindow.WriteLine("after")`,
-            [],
-            [
-                "0",
-                "after"
-            ]);
+    it("terminates with a runtime error from Math.Div with zero divisor", () => {
+        verifyUnhandledRuntimeError(`
+TextWindow.WriteLine(Math.Div(9, 0))`,
+            1001,
+            "Divide by zero.");
     });
 
     it("can calculate modulo with Math.Mod", () => {
@@ -93,15 +85,11 @@ TextWindow.WriteLine(Math.Mod(7.5, 2))`,
             ]);
     });
 
-    it("returns zero from Math.Mod with zero divisor", () => {
-        verifyRuntimeResult(`
-TextWindow.WriteLine(Math.Mod(9, 0))
-TextWindow.WriteLine("after")`,
-            [],
-            [
-                "0",
-                "after"
-            ]);
+    it("terminates with a runtime error from Math.Mod with zero divisor", () => {
+        verifyUnhandledRuntimeError(`
+TextWindow.WriteLine(Math.Mod(9, 0))`,
+            1001,
+            "Divide by zero.");
     });
 
     it("can calculate cosine", () => {
@@ -224,7 +212,7 @@ TextWindow.WriteLine(1.5707 <= x And x <= 1.5709)`,
 success = "yes"
 For i = 1 To 100
     random = Math.GetRandomNumber(5)
-    If x < 1 Or x > 5 Then
+    If random < 1 Or random > 5 Then
         success = "no"
     EndIf
 EndFor
@@ -296,14 +284,19 @@ TextWindow.WriteLine(Math.Power(2, 5))`,
 
     it("can get square-root", () => {
         verifyRuntimeResult(`
-TextWindow.WriteLine(Math.SquareRoot(-5))
 TextWindow.WriteLine(Math.SquareRoot(0))
 TextWindow.WriteLine(Math.SquareRoot(16))`,
             [],
             [
                 "0",
-                "0",
                 "4"
             ]);
+    });
+
+    it("terminates with a runtime error for the square-root of a negative number", () => {
+        verifyUnhandledRuntimeError(`
+TextWindow.WriteLine(Math.SquareRoot(-5))`,
+            1002,
+            "Invalid math operation.");
     });
 });

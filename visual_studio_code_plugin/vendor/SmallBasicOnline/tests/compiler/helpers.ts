@@ -47,6 +47,43 @@ export function verifyRuntimeError(text: string, exception: Diagnostic): void {
     }
 }
 
+/**
+ * Verifies that the program terminates with the given unified runtime error
+ * (`[Runtime Error] <code>: <message>`), as reported by `engine.lastRuntimeError`.
+ */
+export function verifyUnhandledRuntimeError(text: string, code: number, message: string): void {
+    const compilation = new Compilation(text);
+    const engine = new ExecutionEngine(compilation);
+
+    while (engine.state !== ExecutionState.Terminated) {
+        engine.execute(ExecutionMode.RunToEnd);
+    }
+
+    expect(engine.state).toBe(ExecutionState.Terminated);
+    expect(engine.lastRuntimeError).toEqual({ code, message });
+    expect(engine.exception).toBeUndefined();
+}
+
+/**
+ * Runs the program to completion and asserts the exact TextWindow output,
+ * including any `[Runtime Error] ...` console lines produced by handled
+ * (`On Error Resume Next` / `On Error GoSub`) errors.
+ */
+export function verifyRuntimeResultWithConsoleErrors(text: string, output: string[], input: (string | number)[] = []): void {
+    const compilation = new Compilation(text);
+    verifyErrors(text, compilation.diagnostics, []);
+
+    const buffer = new TextWindowTestBuffer(input, output);
+    const engine = new ExecutionEngine(compilation);
+    engine.libraries.TextWindow.plugin = buffer;
+
+    while (engine.state !== ExecutionState.Terminated) {
+        engine.execute(ExecutionMode.RunToEnd);
+    }
+
+    buffer.assertBufferIsEmpty();
+}
+
 export function verifyRuntimeResult(text: string, input?: (string | number)[], output?: string[]): void {
     const compilation = new Compilation(text);
     verifyErrors(text, compilation.diagnostics, []);

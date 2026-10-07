@@ -3,7 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import * as vscode from "vscode";
 import { csharpHostMissing, csharpHostMissingFunctions, programFileNotFound, SAVE_BEFORE_RUN_WARNING, OPEN_SB_FILE_WARNING } from "../common/messages";
-import { supportsFunctionCapability } from "./capabilities";
+import { supportsRequiredCapabilities } from "./capabilities";
 import { repositoryBinCandidates, resolveHostCommand, type HostCommand } from "./host-resolve";
 
 export type CSharpHostCommand = HostCommand;
@@ -97,7 +97,7 @@ export class CSharpRunner {
                         return;
                     }
 
-                    resolve(supportsFunctionCapability(stdout));
+                    resolve(supportsRequiredCapabilities(stdout));
                 }
             );
         });

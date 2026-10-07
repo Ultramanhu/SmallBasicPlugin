@@ -1,0 +1,108 @@
+' test_text.sb - string handling and the Text library.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- concatenation ---------------------------------------------------------
+Check("text plus text", "foo" + "bar", "foobar")
+Check("text plus number", "answer=" + 42, "answer=42")
+Check("empty plus text", "" + "x", "x")
+Check("text plus empty", "x" + "", "x")
+Check("number plus text stays numeric text", 7 + "", 7)
+Check("numeric texts add as numbers", "3" + "4", 7)
+Check("append keeps digits", Text.Append("3", "4"), "34")
+Check("append with numbers", Text.Append(1, 2), "12")
+Check("append empty", Text.Append("", ""), "")
+Check("spaces are preserved", "a" + " " + "b", "a b")
+Check("leading spaces survive append", Text.Append("  x  ", "|"), "  x  |")
+
+' ---- Text.GetLength --------------------------------------------------------
+Check("length of text", Text.GetLength("hello"), 5)
+Check("length of empty text", Text.GetLength(""), 0)
+Check("length counts spaces", Text.GetLength("a b c"), 5)
+Check("length coerces numbers", Text.GetLength(1234), 4)
+
+' ---- Text.GetSubText / GetSubTextToEnd -------------------------------------
+Check("sub text", Text.GetSubText("hello world", 7, 5), "world")
+Check("sub text clamps to the end", Text.GetSubText("hello", 3, 100), "llo")
+Check("sub text from the first character", Text.GetSubText("hello", 1, 1), "h")
+Check("sub text past the end is empty", Text.GetSubText("abc", 5, 1), "")
+Check("sub text before the start is empty", Text.GetSubText("abc", 0, 1), "")
+Check("sub text of empty text", Text.GetSubText("", 1, 1), "")
+Check("sub text to end", Text.GetSubTextToEnd("hello world", 7), "world")
+Check("sub text to end from the first character", Text.GetSubTextToEnd("hello", 1), "hello")
+Check("sub text to end past the end", Text.GetSubTextToEnd("ab", 5), "")
+
+' ---- Text.ConvertToUpperCase / ConvertToLowerCase --------------------------
+Check("upper case", Text.ConvertToUpperCase("abc"), "ABC")
+Check("upper case keeps digits", Text.ConvertToUpperCase("a1b"), "A1B")
+Check("upper case of numbers", Text.ConvertToUpperCase(123), "123")
+Check("lower case", Text.ConvertToLowerCase("HeLLo 123"), "hello 123")
+Check("lower case of numbers", Text.ConvertToLowerCase(456), "456")
+
+' ---- Text.GetIndexOf / IsSubText / StartsWith / EndsWith -------------------
+Check("index of a word", Text.GetIndexOf("hello world", "world"), 7)
+Check("index of the first character", Text.GetIndexOf("abc", "a"), 1)
+Check("index of a repeated needle", Text.GetIndexOf("abab", "b"), 2)
+Check("index of a missing needle", Text.GetIndexOf("hello", "zz"), 0)
+Check("is sub text", Text.IsSubText("hello world", "lo wo"), "True")
+Check("is sub text false", Text.IsSubText("hello", "z"), "False")
+Check("is sub text with numbers", Text.IsSubText(12345, "23"), "True")
+Check("starts with", Text.StartsWith("hello", "he"), "True")
+Check("starts with false", Text.StartsWith("hello", "el"), "False")
+Check("starts with empty needle", Text.StartsWith("abc", ""), "True")
+Check("ends with", Text.EndsWith("hello", "lo"), "True")
+Check("ends with false", Text.EndsWith("ab", "abc"), "False")
+Check("ends with empty needle", Text.EndsWith("abc", ""), "True")
+
+' ---- Text.GetCharacter / GetCharacterCode ----------------------------------
+Check("character from code", Text.GetCharacter(65), "A")
+Check("character from lowercase code", Text.GetCharacter(122), "z")
+Check("code of a character", Text.GetCharacterCode("A"), 65)
+Check("code of a lowercase character", Text.GetCharacterCode("z"), 122)
+Check("code of empty text", Text.GetCharacterCode(""), 0)
+Check("character round trip", Text.GetCharacter(Text.GetCharacterCode("Z")), "Z")
+
+' ---- text assembled in a loop ---------------------------------------------
+Dim Buffer, I
+Buffer = ""
+For I = 1 To 5
+  Buffer = Text.Append(Buffer, I)
+EndFor
+Check("loop built text", Buffer, "12345")
+Check("loop built text length", Text.GetLength(Buffer), 5)
+
+' ---- text that looks like a number is normalized ---------------------------
+' Plain decimal text becomes a number, so its text form loses the padding:
+' "0012" is 12 and " 12 " is 12. Text that is not a plain decimal number
+' ("1e5") keeps its digits.
+Check("leading zeros are folded away", Text.GetLength("0012"), 2)
+Check("surrounding spaces are ignored", Text.GetLength(" 12 "), 2)
+Check("exponent text keeps its length", Text.GetLength("1e5"), 3)
+Check("numeric text is folded for library arguments", Text.GetSubText("2.50", 1, 4), "2.5")
+Check("numeric text from a library is folded", Text.Append("0012", "") + 1, 13)
+Check("boolean text is normalized", "true", "True")
+Check("boolean text keeps its length", Text.GetLength("true"), 4)
+
+Report("text")

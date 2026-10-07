@@ -8,6 +8,9 @@ import { PubSubPayloadChannel } from "./utils/notifications";
 import { ModulesBinder } from "./binding/modules-binder";
 import { ModuleMetadata } from "./binding/modules-binder";
 import { StringValue } from "./runtime/values/string-value";
+import { NumberValue } from "./runtime/values/number-value";
+import { OnErrorAction } from "./syntax/syntax-nodes";
+import { RuntimeErrorMessage, RuntimeError, RuntimeErrorSignal, formatRuntimeError } from "./runtime/runtime-error";
 
 export interface StackFrame {
     moduleName: string;
@@ -15,6 +18,7 @@ export interface StackFrame {
     localMemory: ArrayValue;
     evaluationStackBase: number;
     returnsValue: boolean;
+    isErrorHandler?: boolean;
 }
 
 export enum ExecutionMode {
@@ -30,6 +34,13 @@ export enum ExecutionState {
     Terminated
 }
 
+/**
+ * Engine-level `On Error` policy. `abort` is the default terminate-on-error
+ * behavior; `resume-next` skips the failing statement; `gosub` additionally
+ * invokes the registered handler Sub before skipping it.
+ */
+export type ErrorHandlingMode = "abort" | "resume-next" | "gosub";
+
 export class ExecutionEngine {
     private _libraries: RuntimeLibraries = new RuntimeLibraries();
     private _executionStack: StackFrame[] = [];
@@ -41,6 +52,27 @@ export class ExecutionEngine {
     private _exception?: Diagnostic;
     private _currentLine: number = 0;
     private _state: ExecutionState = ExecutionState.Running;
+
+    // `On Error` state. The policy is engine-level: it applies to every
+    // statement (main program, Subs, Functions and event callbacks) until a
+    // new `On Error` statement changes it.
+    private _errorMode: ErrorHandlingMode = "abort";
+    private _errorHandlerName?: string;
+    private _isHandlingRuntimeError: boolean = false;
+    private _lastRuntimeError?: RuntimeError;
+
+    // Statement-level rollback point: the source line being executed and the
+    // evaluation stack depth where that line started. `Resume Next` and
+    // `GoSub` handlers resume at the NEXT statement, so a failed statement
+    // must not leave partial values behind.
+    private _statementFrame?: StackFrame;
+    private _statementLine: number = -1;
+    private _statementStackBase: number = 0;
+
+    // Debug-mode unhandled errors pause on the failure scene instead of
+    // terminating right away; the next `execute` call terminates.
+    private _mode: ExecutionMode = ExecutionMode.RunToEnd;
+    private _pausedOnRuntimeError: boolean = false;
 
     public readonly programTerminated: PubSubPayloadChannel<Diagnostic | undefined> = new PubSubPayloadChannel<Diagnostic | undefined>("programTerminated");
 
@@ -68,6 +100,19 @@ export class ExecutionEngine {
         return this._exception;
     }
 
+    public get lastRuntimeError(): RuntimeError | undefined {
+        return this._lastRuntimeError;
+    }
+
+    /** True while the engine is paused on an unhandled runtime error in debug mode. */
+    public get pausedOnRuntimeError(): boolean {
+        return this._pausedOnRuntimeError;
+    }
+
+    public get errorHandlingMode(): ErrorHandlingMode {
+        return this._errorMode;
+    }
+
     public get state(): ExecutionState {
         return this._state;
     }
@@ -91,6 +136,14 @@ export class ExecutionEngine {
     }
 
     public execute(mode: ExecutionMode): void {
+        this._mode = mode;
+
+        if (this._pausedOnRuntimeError) {
+            // Continuing after an unhandled runtime error stops the program.
+            this.terminate();
+            return;
+        }
+
         if (this._state === ExecutionState.Paused) {
             this._state = ExecutionState.Running;
         }
@@ -118,7 +171,28 @@ export class ExecutionEngine {
                 return;
             }
 
-            instruction.execute(this, mode, frame);
+            // Record the statement-level rollback point: the first instruction
+            // of every source line (per frame) snapshots the evaluation stack.
+            const instructionLine = instruction.sourceRange.start.line;
+            if (frame !== this._statementFrame || instructionLine !== this._statementLine) {
+                this._statementFrame = frame;
+                this._statementLine = instructionLine;
+                this._statementStackBase = this._evaluationStack.length;
+            }
+
+            try {
+                instruction.execute(this, mode, frame);
+            } catch (error) {
+                if (error instanceof RuntimeErrorSignal) {
+                    this.handleRuntimeError(error.runtimeError);
+                    if (this._state !== ExecutionState.Running) {
+                        return;
+                    }
+                    continue;
+                }
+
+                throw error;
+            }
 
             switch (this.state) {
                 case ExecutionState.Running:
@@ -136,7 +210,97 @@ export class ExecutionEngine {
     public terminate(exception?: Diagnostic): void {
         this._state = ExecutionState.Terminated;
         this._exception = exception;
+        this._pausedOnRuntimeError = false;
         this.programTerminated.publish(exception);
+    }
+
+    /**
+     * Configures the engine-level error policy from an `On Error ...`
+     * statement. `GoTo -1` and `GoTo 0` both restore the default
+     * terminate-on-error behavior and drop any registered handler.
+     */
+    public configureErrorHandling(action: OnErrorAction, handlerName: string | undefined): void {
+        switch (action) {
+            case "resume-next":
+                this._errorMode = "resume-next";
+                this._errorHandlerName = undefined;
+                break;
+            case "gosub":
+                this._errorMode = "gosub";
+                this._errorHandlerName = handlerName;
+                break;
+            case "goto-default":
+            case "goto-clear":
+                this._errorMode = "abort";
+                this._errorHandlerName = undefined;
+                break;
+            default:
+                throw new Error(`Unexpected On Error action: '${action}'`);
+        }
+    }
+
+    /**
+     * Reports a runtime error from an instruction or a library. Throws a
+     * signal the execution loop turns into abort / resume / handler dispatch,
+     * so callers must treat this call as never returning.
+     */
+    public reportRuntimeError(code: number, message?: string): never {
+        throw new RuntimeErrorSignal({ code, message: message ?? RuntimeErrorMessage[code] ?? "Runtime error." });
+    }
+
+    private handleRuntimeError(error: RuntimeError): void {
+        if (this._isHandlingRuntimeError || this._errorMode === "abort") {
+            // Unhandled: mirror to the console and either pause on the failure
+            // scene (debug sessions) or terminate (plain run mode).
+            this._lastRuntimeError = error;
+            if (this._mode !== ExecutionMode.RunToEnd) {
+                this._pausedOnRuntimeError = true;
+                this._state = ExecutionState.Paused;
+            } else {
+                this.terminate();
+            }
+            return;
+        }
+
+        // Handled: the error is mirrored to the program console, the failing
+        // statement is skipped, and the handler (if any) is invoked with the
+        // (code, message) arguments.
+        this.writeRuntimeErrorToConsole(error);
+        this.skipFailedStatement();
+
+        if (this._errorMode === "gosub" && this._errorHandlerName) {
+            this._isHandlingRuntimeError = true;
+            this.pushEvaluationStack(new NumberValue(error.code));
+            this.pushEvaluationStack(new StringValue(error.message));
+            this.pushProcedure(this._errorHandlerName, 2, false, /* isErrorHandler */ true);
+        }
+    }
+
+    private writeRuntimeErrorToConsole(error: RuntimeError): void {
+        const plugin = this._libraries.TextWindow.pluginOpt;
+        plugin?.writeText(formatRuntimeError(error), true);
+    }
+
+    /**
+     * Rolls the evaluation stack back to the failing statement's start and
+     * advances the failing frame past the failed source line, so execution
+     * resumes at the next statement.
+     */
+    private skipFailedStatement(): void {
+        const frame = this._executionStack[this._executionStack.length - 1];
+        if (!frame) {
+            return;
+        }
+
+        this.restoreEvaluationStack(this._statementStackBase);
+
+        const instructions = this._modules[frame.moduleName];
+        let index = frame.instructionIndex;
+        while (index < instructions.length && instructions[index].sourceRange.start.line === this._statementLine) {
+            index++;
+        }
+
+        frame.instructionIndex = index;
     }
 
     public popEvaluationStack(): BaseValue {
@@ -149,7 +313,11 @@ export class ExecutionEngine {
     }
 
     public pushEvaluationStack(value: BaseValue): void {
-        this._evaluationStack.push(value);
+        // Values are normalized on the way in, exactly like the C# runtime
+        // normalizes literals and library results (StringValue.Create). Doing it
+        // in this single place keeps both implementations in sync for text such
+        // as "0012", " true " or numeric text produced by a library.
+        this._evaluationStack.push(StringValue.Fold(value));
     }
 
     public getVariableMemory(name: string, frame: StackFrame): ArrayValue {
@@ -158,7 +326,7 @@ export class ExecutionEngine {
             : this._memory;
     }
 
-    public pushProcedure(name: string, argumentCount: number, returnsValue: boolean): void {
+    public pushProcedure(name: string, argumentCount: number, returnsValue: boolean, isErrorHandler: boolean = false): void {
         const metadata = this._moduleMetadata[name];
         if (!this._modules[name] || !metadata) {
             throw new Error(`SubModule ${name} not found`);
@@ -182,7 +350,8 @@ export class ExecutionEngine {
             instructionIndex: 0,
             localMemory,
             evaluationStackBase: this._evaluationStack.length,
-            returnsValue
+            returnsValue,
+            isErrorHandler
         });
     }
 
@@ -217,6 +386,10 @@ export class ExecutionEngine {
         const frame = this._executionStack.pop();
         if (!frame) {
             return;
+        }
+
+        if (frame.isErrorHandler) {
+            this._isHandlingRuntimeError = false;
         }
 
         this.restoreEvaluationStack(frame.evaluationStackBase);

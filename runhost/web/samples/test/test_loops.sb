@@ -1,0 +1,214 @@
+' test_loops.sb - For/EndFor, While/EndWhile, Break, Continue and GoTo.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- For loops -------------------------------------------------------------
+Sum = 0
+For I = 1 To 5
+  Sum = Sum + I
+EndFor
+Check("for accumulates", Sum, 15)
+Check("loop variable after for", I, 6)
+
+Sum = 0
+For I = 1 To 10 Step 3
+  Sum = Sum + I
+EndFor
+Check("for step 3", Sum, 22)
+
+Out = 0
+For I = 5 To 1 Step -1
+  Out = Out * 10 + I
+EndFor
+Check("for step -1", Out, 54321)
+Check("loop variable after counted down", I, 0)
+
+Hits = 0
+For I = 3 To 1
+  Hits = Hits + 1
+EndFor
+Check("for never runs when start > end", Hits, 0)
+Check("loop variable untouched by empty for", I, 3)
+
+Hits = 0
+For I = 1 To 3 Step 0.5
+  Hits = Hits + 1
+EndFor
+Check("for with fractional step", Hits, 5)
+
+Sum = 0
+For I = 1 To 100
+  Sum = Sum + I
+EndFor
+Check("gauss sum", Sum, 5050)
+
+' ---- While loops -----------------------------------------------------------
+Count = 0
+While Count < 3
+  Count = Count + 1
+EndWhile
+Check("while increments", Count, 3)
+
+Value = 27
+Steps = 0
+While Value > 1 And Steps < 10
+  Value = Value \ 2
+  Steps = Steps + 1
+EndWhile
+Check("while with compound condition", Steps, 4)
+Check("while folds the value", Value, 1)
+
+Hits = 0
+While "False"
+  Hits = Hits + 100
+EndWhile
+Check("while never runs on false", Hits, 0)
+
+' ---- Break and Continue ----------------------------------------------------
+Out = 0
+For I = 1 To 10
+  If I = 4 Then
+    Break
+  EndIf
+  Out = Out + I
+EndFor
+Check("break leaves the loop", Out, 6)
+Check("break skips the increment", I, 4)
+
+Sum = 0
+For I = 1 To 5
+  If I = 3 Then
+    Continue
+  EndIf
+  Sum = Sum + I
+EndFor
+Check("continue skips one iteration", Sum, 12)
+Check("continue still increments", I, 6)
+
+Out = 0
+For I = 5 To 1 Step -1
+  If I = 3 Then
+    Continue
+  EndIf
+  Out = Out * 10 + I
+EndFor
+Check("continue with negative step", Out, 5421)
+
+Out = 0
+For I = 1 To 7 Step 2
+  If I = 3 Then
+    Continue
+  EndIf
+  Out = Out * 10 + I
+EndFor
+Check("continue with explicit step", Out, 157)
+
+Guard = 0
+While "True"
+  Guard = Guard + 1
+  If Guard >= 5 Then
+    Break
+  EndIf
+EndWhile
+Check("break out of while true", Guard, 5)
+
+I = 0
+Out = 0
+While I < 5
+  I = I + 1
+  If I = 3 Then
+    Continue
+  EndIf
+  Out = Out + I
+EndWhile
+Check("continue inside while", Out, 12)
+Check("while variable after continue", I, 5)
+
+Out = 0
+For I = 1 To 2
+  For J = 1 To 3
+    If J = 2 Then
+      Continue
+    EndIf
+    If J = 3 Then
+      Break
+    EndIf
+    Out = Out + I * 10 + J
+  EndFor
+  Out = Out + 1000
+EndFor
+Check("break and continue stay innermost", Out, 2032)
+
+' ---- loops inside procedures ----------------------------------------------
+Function SumUntilStop(Stop)
+  Dim Total
+  Total = 0
+  For I = 1 To 10
+    If I = Stop Then
+      Break
+    EndIf
+    Total = Total + I
+  EndFor
+  Return Total
+EndFunction
+Check("break inside a function", SumUntilStop(4), 6)
+
+Function CountHalves(Value)
+  Dim Steps
+  Steps = 0
+  While Value > 1
+    Value = Value \ 2
+    Steps = Steps + 1
+    If Steps >= 3 Then
+      Break
+    EndIf
+  EndWhile
+  Return Steps
+EndFunction
+Check("while and break inside a function", CountHalves(1000), 3)
+
+Sub WriteDigits(Number)
+  Dim Digit
+  Digit = Number
+  While Digit > 0
+    Count = Count + 1
+    Digit = Digit \ 10
+  EndWhile
+EndSub
+
+Count = 0
+WriteDigits(12345)
+Check("while inside a sub touches a global", Count, 5)
+
+' ---- GoTo and labels -------------------------------------------------------
+Count = 0
+Again:
+Count = Count + 1
+If Count < 4 Then
+  GoTo Again
+EndIf
+Check("goto repeats until the guard fails", Count, 4)
+
+Report("loops")

@@ -2,11 +2,10 @@ import { ExecutionEngine, ExecutionMode, StackFrame, ExecutionState } from "../e
 import { StringValue } from "../runtime/values/string-value";
 import { ValueKind, BaseValue, Constants } from "../runtime/values/base-value";
 import { NumberValue } from "../runtime/values/number-value";
-import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { TokenKind } from "../syntax/tokens";
 import { ArrayValue } from "../runtime/values/array-value";
 import { CompilerRange } from "../syntax/ranges";
-import { CompilerUtils } from "../utils/compiler-utils";
+import { OnErrorAction } from "../syntax/syntax-nodes";
+import { RuntimeErrorCode } from "../runtime/runtime-error";
 
 export enum InstructionKind {
     TempLabel,
@@ -15,6 +14,7 @@ export enum InstructionKind {
     Jump,
     ConditionalJump,
     InvokeSubModule,
+    OnError,
     ReturnValue,
     SetEventHandler,
     StoreVariable,
@@ -151,6 +151,20 @@ export class ReturnValueInstruction extends BaseInstruction {
     }
 }
 
+export class OnErrorInstruction extends BaseInstruction {
+    public constructor(
+        public readonly action: OnErrorAction,
+        public readonly handlerName: string | undefined,
+        range: CompilerRange) {
+        super(InstructionKind.OnError, range);
+    }
+
+    public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
+        engine.configureErrorHandling(this.action, this.handlerName);
+        frame.instructionIndex++;
+    }
+}
+
 export class SetEventHandlerInstruction extends BaseInstruction {
     public constructor(
         public readonly library: string,
@@ -203,21 +217,19 @@ export class StoreArrayElementInstruction extends BaseInstruction {
 
             current = current.getValue(index) as ArrayValue;
 
-            const indexValue = engine.popEvaluationStack();
-            switch (indexValue.kind) {
-                case ValueKind.Number:
-                case ValueKind.String:
-                    index = indexValue.toValueString();
-                    break;
-                case ValueKind.Array:
-                    engine.terminate(new Diagnostic(ErrorCode.CannotUseAnArrayAsAnIndexToAnotherArray, this.sourceRange));
-                    return;
-                default:
-                    throw new Error(`Unexpected value kind ${ValueKind[indexValue.kind]}`);
-            }
+            // Mirrors the C# instruction: any value works as an index, using its
+            // text form.
+            index = engine.popEvaluationStack().toValueString();
         }
 
-        current.setIndex(index, value);
+        // Storing an empty value removes the element, like the C# implementation:
+        // A["x"] = "" drops "x" instead of leaving an empty entry behind.
+        if (value.toValueString() === "") {
+            current.deleteIndex(index);
+        } else {
+            current.setIndex(index, value);
+        }
+
         frame.instructionIndex++;
     }
 }
@@ -275,33 +287,28 @@ export class LoadArrayElementInstruction extends BaseInstruction {
         let remainingIndices = this.indices;
         let current = engine.getVariableMemory(this.name, frame);
 
+        // Reading never creates entries, matching the C# implementation: a
+        // missing or non-array level yields an empty value, and every index is
+        // still consumed from the evaluation stack.
+        let found = true;
+
         while (remainingIndices-- > 0) {
-            const existing = current.getValue(index);
-            if (!existing || existing.kind !== ValueKind.Array) {
-                current.setIndex(index, new ArrayValue());
+            if (found) {
+                const existing = current.getValue(index);
+                if (existing && existing.kind === ValueKind.Array) {
+                    current = existing as ArrayValue;
+                } else {
+                    found = false;
+                }
             }
 
-            current = current.getValue(index) as ArrayValue;
-
-            const indexValue = engine.popEvaluationStack();
-            switch (indexValue.kind) {
-                case ValueKind.Number:
-                case ValueKind.String:
-                    index = indexValue.toValueString();
-                    break;
-                case ValueKind.Array:
-                    engine.terminate(new Diagnostic(ErrorCode.CannotUseAnArrayAsAnIndexToAnotherArray, this.sourceRange));
-                    return;
-                default:
-                    throw new Error(`Unexpected value kind ${ValueKind[indexValue.kind]}`);
-            }
+            // Mirrors the C# instruction: any value works as an index, using its
+            // text form.
+            index = engine.popEvaluationStack().toValueString();
         }
 
-        if (!current.getValue(index)) {
-            current.setIndex(index, new StringValue(""));
-        }
-
-        engine.pushEvaluationStack(current.getValue(index)!);
+        const value = found ? current.getValue(index) : undefined;
+        engine.pushEvaluationStack(value ?? new StringValue(""));
         frame.instructionIndex++;
     }
 }
@@ -358,21 +365,10 @@ export class NegateInstruction extends BaseInstruction {
     }
 
     public execute(engine: ExecutionEngine, _2: ExecutionMode, frame: StackFrame): void {
-        const value = engine.popEvaluationStack().tryConvertToNumber();
-        switch (value.kind) {
-            case ValueKind.Number:
-                engine.pushEvaluationStack(new NumberValue(-(value as NumberValue).value));
-                frame.instructionIndex++;
-                break;
-            case ValueKind.String:
-                engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAString, this.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Minus)));
-                break;
-            case ValueKind.Array:
-                engine.terminate(new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, this.sourceRange, CompilerUtils.tokenToDisplayString(TokenKind.Minus)));
-                break;
-            default:
-                throw new Error(`Unexpected value kind ${ValueKind[value.kind]}`);
-        }
+        // Mirrors the C# UnaryMinusInstruction: a value that is not a number
+        // counts as 0.
+        engine.pushEvaluationStack(new NumberValue(-engine.popEvaluationStack().toNumber()));
+        frame.instructionIndex++;
     }
 }
 
@@ -402,11 +398,9 @@ export class EqualInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        if (leftHandSide.isEqualTo(rightHandSide)) {
-            return new StringValue(Constants.True);
-        } else {
-            return new StringValue(Constants.False);
-        }
+        // Mirrors the C# EqualInstruction: the text forms are compared, so both
+        // 1 = "1" and 1.10 = 1.1 are True.
+        return new StringValue(leftHandSide.toValueString() === rightHandSide.toValueString() ? Constants.True : Constants.False);
     }
 }
 
@@ -417,11 +411,7 @@ export class LessThanInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        if (leftHandSide.isLessThan(rightHandSide)) {
-            return new StringValue(Constants.True);
-        } else {
-            return new StringValue(Constants.False);
-        }
+        return new StringValue(leftHandSide.toNumber() < rightHandSide.toNumber() ? Constants.True : Constants.False);
     }
 }
 
@@ -432,11 +422,7 @@ export class GreaterThanInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        if (leftHandSide.isGreaterThan(rightHandSide)) {
-            return new StringValue(Constants.True);
-        } else {
-            return new StringValue(Constants.False);
-        }
+        return new StringValue(leftHandSide.toNumber() > rightHandSide.toNumber() ? Constants.True : Constants.False);
     }
 }
 
@@ -447,11 +433,7 @@ export class LessThanOrEqualInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        if (leftHandSide.isLessThan(rightHandSide) || leftHandSide.isEqualTo(rightHandSide)) {
-            return new StringValue(Constants.True);
-        } else {
-            return new StringValue(Constants.False);
-        }
+        return new StringValue(leftHandSide.toNumber() <= rightHandSide.toNumber() ? Constants.True : Constants.False);
     }
 }
 
@@ -462,11 +444,7 @@ export class GreaterThanOrEqualInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        if (leftHandSide.isGreaterThan(rightHandSide) || leftHandSide.isEqualTo(rightHandSide)) {
-            return new StringValue(Constants.True);
-        } else {
-            return new StringValue(Constants.False);
-        }
+        return new StringValue(leftHandSide.toNumber() >= rightHandSide.toNumber() ? Constants.True : Constants.False);
     }
 }
 
@@ -476,8 +454,14 @@ export class AddInstruction extends BaseBinaryInstruction {
         super(InstructionKind.Add, range);
     }
 
-    protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        return leftHandSide.add(rightHandSide, engine, this);
+    protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
+        // Mirrors the C# AddInstruction: two numbers add, anything else
+        // concatenates its text form.
+        if (leftHandSide.kind === ValueKind.Number && rightHandSide.kind === ValueKind.Number) {
+            return new NumberValue(leftHandSide.toNumber() + rightHandSide.toNumber());
+        }
+
+        return StringValue.Create(leftHandSide.toValueString() + rightHandSide.toValueString());
     }
 }
 
@@ -487,8 +471,8 @@ export class SubtractInstruction extends BaseBinaryInstruction {
         super(InstructionKind.Subtract, range);
     }
 
-    protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        return leftHandSide.subtract(rightHandSide, engine, this);
+    protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
+        return new NumberValue(leftHandSide.toNumber() - rightHandSide.toNumber());
     }
 }
 
@@ -498,8 +482,8 @@ export class MultiplyInstruction extends BaseBinaryInstruction {
         super(InstructionKind.Multiply, range);
     }
 
-    protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        return leftHandSide.multiply(rightHandSide, engine, this);
+    protected calculateResult(_: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
+        return new NumberValue(leftHandSide.toNumber() * rightHandSide.toNumber());
     }
 }
 
@@ -510,7 +494,13 @@ export class DivideInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        return leftHandSide.divide(rightHandSide, engine, this);
+        // A zero divisor is a runtime error that `On Error` can catch.
+        const divisor = rightHandSide.toNumber();
+        if (divisor === 0) {
+            engine.reportRuntimeError(RuntimeErrorCode.DivideByZero);
+        }
+
+        return new NumberValue(leftHandSide.toNumber() / divisor);
     }
 }
 
@@ -521,7 +511,14 @@ export class IntegerDivideInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        return leftHandSide.integerDivide(rightHandSide, engine, this);
+        // The quotient is truncated toward zero; a zero divisor is a runtime
+        // error that `On Error` can catch.
+        const divisor = rightHandSide.toNumber();
+        if (divisor === 0) {
+            engine.reportRuntimeError(RuntimeErrorCode.DivideByZero);
+        }
+
+        return new NumberValue(Math.trunc(leftHandSide.toNumber() / divisor));
     }
 }
 
@@ -532,7 +529,14 @@ export class ModuloInstruction extends BaseBinaryInstruction {
     }
 
     protected calculateResult(engine: ExecutionEngine, rightHandSide: BaseValue, leftHandSide: BaseValue): BaseValue {
-        return leftHandSide.modulo(rightHandSide, engine, this);
+        // The remainder keeps the sign of the dividend; a zero divisor is a
+        // runtime error that `On Error` can catch.
+        const divisor = rightHandSide.toNumber();
+        if (divisor === 0) {
+            engine.reportRuntimeError(RuntimeErrorCode.DivideByZero);
+        }
+
+        return new NumberValue(leftHandSide.toNumber() % divisor);
     }
 }
 

@@ -46,6 +46,11 @@ export class TextWindowLibrary implements LibraryTypeInstance {
         return this._pluginInstance;
     }
 
+    /** Optional access for engine internals (runtime error output) that must not throw when no host is attached. */
+    public get pluginOpt(): ITextWindowLibraryPlugin | undefined {
+        return this._pluginInstance;
+    }
+
     public set plugin(plugin: ITextWindowLibraryPlugin) {
         this._pluginInstance = plugin;
     }

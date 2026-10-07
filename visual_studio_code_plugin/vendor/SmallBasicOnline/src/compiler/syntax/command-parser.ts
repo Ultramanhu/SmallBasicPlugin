@@ -1,5 +1,5 @@
 import { ErrorCode, Diagnostic } from "../utils/diagnostics";
-import { IfCommandSyntax, BaseSyntaxNode, BinaryOperatorExpressionSyntax, UnaryOperatorExpressionSyntax, ObjectAccessExpressionSyntax, ArrayAccessExpressionSyntax, InvocationExpressionSyntax, IdentifierExpressionSyntax, ParenthesisExpressionSyntax, ElseIfCommandSyntax, ElseCommandSyntax, EndIfCommandSyntax, ForCommandSyntax, ForStepClauseSyntax, EndForCommandSyntax, WhileCommandSyntax, EndWhileCommandSyntax, BreakCommandSyntax, ContinueCommandSyntax, LabelCommandSyntax, GoToCommandSyntax, SubCommandSyntax, EndSubCommandSyntax, FunctionCommandSyntax, EndFunctionCommandSyntax, DimCommandSyntax, ReturnCommandSyntax, ExpressionCommandSyntax, ArgumentSyntax, NumberLiteralExpressionSyntax, StringLiteralExpressionSyntax } from "./syntax-nodes";
+import { IfCommandSyntax, BaseSyntaxNode, BinaryOperatorExpressionSyntax, UnaryOperatorExpressionSyntax, ObjectAccessExpressionSyntax, ArrayAccessExpressionSyntax, InvocationExpressionSyntax, IdentifierExpressionSyntax, ParenthesisExpressionSyntax, ElseIfCommandSyntax, ElseCommandSyntax, EndIfCommandSyntax, ForCommandSyntax, ForStepClauseSyntax, EndForCommandSyntax, WhileCommandSyntax, EndWhileCommandSyntax, BreakCommandSyntax, ContinueCommandSyntax, LabelCommandSyntax, GoToCommandSyntax, GoSubCommandSyntax, OnErrorCommandSyntax, SubCommandSyntax, EndSubCommandSyntax, FunctionCommandSyntax, EndFunctionCommandSyntax, DimCommandSyntax, ReturnCommandSyntax, ExpressionCommandSyntax, ArgumentSyntax, NumberLiteralExpressionSyntax, StringLiteralExpressionSyntax } from "./syntax-nodes";
 import { TokenKind, Token } from "./tokens";
 import { CompilerRange } from "./ranges";
 import { CommentCommandSyntax, TokenSyntax } from "./syntax-nodes";
@@ -63,8 +63,11 @@ export class CommandsParser {
                 case TokenKind.ContinueKeyword: this._result.push(this.parseContinueCommand()); break;
 
                 case TokenKind.GoToKeyword: this._result.push(this.parseGoToCommand()); break;
+                case TokenKind.GoSubKeyword: this._result.push(this.parseGoSubCommand()); break;
                 case TokenKind.Identifier:
-                    if (this.isNext(TokenKind.Colon, 1)) {
+                    if (this.isOnErrorStatement()) {
+                        this._result.push(this.parseOnErrorCommand());
+                    } else if (this.isNext(TokenKind.Colon, 1)) {
                         this._result.push(this.parseLabelCommand());
                     } else {
                         this._result.push(this.parseExpressionCommand());
@@ -200,6 +203,79 @@ export class CommandsParser {
         return new GoToCommandSyntax(gotoToken, labelToken);
     }
 
+    private parseGoSubCommand(): GoSubCommandSyntax {
+        const goSubToken = this.eat(TokenKind.GoSubKeyword);
+        const nameToken = this.eat(TokenKind.Identifier);
+
+        return new GoSubCommandSyntax(goSubToken, nameToken);
+    }
+
+    // `On Error ...` is recognized purely contextually: `On` and `Error` are
+    // plain Identifier tokens, and this keeps variable names like `On` usable
+    // everywhere except in the exact `On Error` statement position.
+    private isOnErrorStatement(): boolean {
+        const current = this.peek();
+        if (!current || current.text.toLowerCase() !== "on") {
+            return false;
+        }
+
+        const next = this.peek(1);
+        return !!next && next.kind === TokenKind.Identifier && next.text.toLowerCase() === "error";
+    }
+
+    private parseOnErrorCommand(): OnErrorCommandSyntax {
+        const onToken = this.eat(TokenKind.Identifier);
+        const errorToken = this.eat(TokenKind.Identifier);
+
+        if (this.isIdentifierText(0, "resume") && this.isIdentifierText(1, "next")) {
+            const resumeToken = this.eat(TokenKind.Identifier);
+            const nextToken = this.eat(TokenKind.Identifier);
+            return new OnErrorCommandSyntax(onToken, errorToken, "resume-next", [resumeToken, nextToken], undefined);
+        }
+
+        if (this.isNext(TokenKind.GoToKeyword)) {
+            const goToToken = this.eat(TokenKind.GoToKeyword);
+            const minusToken = this.isNext(TokenKind.Minus) ? this.eat(TokenKind.Minus) : undefined;
+
+            if (!this.isNext(TokenKind.NumberLiteral)) {
+                this.reportError(new Diagnostic(ErrorCode.InvalidOnErrorClause, onToken.range));
+                const tokens = [goToToken, ...(minusToken ? [minusToken] : [])];
+                return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", tokens, undefined);
+            }
+
+            const numberToken = this.eat(TokenKind.NumberLiteral);
+            if (!minusToken && numberToken.token.text === "0") {
+                return new OnErrorCommandSyntax(onToken, errorToken, "goto-clear", [goToToken, numberToken], undefined);
+            }
+
+            if (minusToken && numberToken.token.text === "1") {
+                return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", [goToToken, minusToken, numberToken], undefined);
+            }
+
+            this.reportError(new Diagnostic(ErrorCode.InvalidOnErrorClause, onToken.range));
+            return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", [goToToken, minusToken, numberToken].filter(token => !!token), undefined);
+        }
+
+        if (this.isNext(TokenKind.GoSubKeyword)) {
+            const goSubToken = this.eat(TokenKind.GoSubKeyword);
+            if (!this.isNext(TokenKind.Identifier)) {
+                this.reportError(new Diagnostic(ErrorCode.InvalidOnErrorClause, onToken.range));
+                return new OnErrorCommandSyntax(onToken, errorToken, "gosub", [goSubToken], undefined);
+            }
+
+            const targetToken = this.eat(TokenKind.Identifier);
+            return new OnErrorCommandSyntax(onToken, errorToken, "gosub", [goSubToken], targetToken);
+        }
+
+        this.reportError(new Diagnostic(ErrorCode.InvalidOnErrorClause, onToken.range));
+        return new OnErrorCommandSyntax(onToken, errorToken, "goto-default", [], undefined);
+    }
+
+    private isIdentifierText(offset: number, text: string): boolean {
+        const current = this.peek(offset);
+        return !!current && current.kind === TokenKind.Identifier && current.text.toLowerCase() === text;
+    }
+
     private parseSubCommand(): SubCommandSyntax {
         const subToken = this.eat(TokenKind.SubKeyword);
         const nameToken = this.eat(TokenKind.Identifier);
@@ -319,7 +395,12 @@ export class CommandsParser {
     private parseUnaryOperator(): BaseSyntaxNode {
         if (this.isNext(TokenKind.Minus)) {
             const minusToken = this.eat(TokenKind.Minus);
-            const expression = this.parseBaseExpression();
+
+            // Unary minus binds tighter than every binary operator, as in VB and
+            // in the C# implementation, so its operand is the next unary
+            // expression rather than the rest of the line: -1 + 5 is (-1) + 5,
+            // not -(1 + 5), and -1 < 0 is (-1) < 0, not -(1 < 0).
+            const expression = this.parseUnaryOperator();
 
             return new UnaryOperatorExpressionSyntax(minusToken, expression);
         }

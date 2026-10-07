@@ -1,8 +1,8 @@
 import "jasmine";
-import { verifyRuntimeResult, verifyRuntimeError } from "../../helpers";
-import { Diagnostic, ErrorCode } from "../../../../src/compiler/utils/diagnostics";
-import { CompilerRange } from "../../../../src/compiler/syntax/ranges";
+import { verifyRuntimeResult, verifyUnhandledRuntimeError } from "../../helpers";
 
+// '\' divides the numeric value of both sides, exactly like the C# backends:
+// text that is not a plain number and arrays count as 0.
 describe("Compiler.Runtime.Expressions.IntegerDivision", () => {
     it("computes integer division - positive numbers", () => {
         verifyRuntimeResult(`
@@ -32,15 +32,11 @@ TextWindow.WriteLine(7.9 \\ 2.9)`,
             ["2"]);
     });
 
-    it("computes integer division - zero divisor yields zero without terminating", () => {
-        verifyRuntimeResult(`
-TextWindow.WriteLine(4 \\ 0)
-TextWindow.WriteLine("after")`,
-            [],
-            [
-                "0",
-                "after"
-            ]);
+    it("computes integer division - zero divisor terminates with a runtime error", () => {
+        verifyUnhandledRuntimeError(`
+TextWindow.WriteLine(4 \\ 0)`,
+            1001,
+            "Divide by zero.");
     });
 
     it("computes integer division - number divided by numeric string", () => {
@@ -57,23 +53,19 @@ TextWindow.WriteLine("6" \\ 4)`,
             ["1"]);
     });
 
-    it("computes integer division - non-numeric string operand errors", () => {
-        verifyRuntimeError(`
+    it("computes integer division - non-numeric string operand counts as zero", () => {
+        verifyRuntimeResult(`
 TextWindow.WriteLine("r" \\ 5)`,
-            // TextWindow.WriteLine("r" \ 5)
-            //                      ^^^^^^^
-            // You cannot use the operator '\' with a string value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAString, CompilerRange.fromValues(1, 21, 1, 28), "\\"));
+            [],
+            ["0"]);
     });
 
-    it("computes integer division - array operand errors", () => {
-        verifyRuntimeError(`
+    it("computes integer division - array operand counts as zero", () => {
+        verifyRuntimeResult(`
 x[0] = 1
 TextWindow.WriteLine(x \\ 5)`,
-            // TextWindow.WriteLine(x \ 5)
-            //                      ^^^^^
-            // You cannot use the operator '\' with an array value
-            new Diagnostic(ErrorCode.CannotUseOperatorWithAnArray, CompilerRange.fromValues(2, 21, 2, 26), "\\"));
+            [],
+            ["0"]);
     });
 
     it("computes integer division - binds tighter than Mod but looser than Multiply", () => {

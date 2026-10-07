@@ -1,0 +1,196 @@
+' test_comparison.sb - relational, boolean operators and If/ElseIf/Else.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- numbers ---------------------------------------------------------------
+Check("equal numbers", 2 = 2, "True")
+Check("unequal numbers", 2 = 3, "False")
+Check("not equal operator", 2 <> 3, "True")
+Check("not equal operator equal operands", 2 <> 2, "False")
+Check("less than", 2 < 3, "True")
+Check("less than equal operands", 3 < 3, "False")
+Check("greater than", 3 > 2, "True")
+Check("less than or equal", 3 <= 3, "True")
+Check("greater than or equal", 2 >= 3, "False")
+Check("negative less than zero", (0 - 1) < 0, "True")
+Check("decimal less than integer", 2.5 < 3, "True")
+Check("sum compared with literal", 1 + 1 = 2, "True")
+
+' ---- strings ---------------------------------------------------------------
+Check("identical strings", "abc" = "abc", "True")
+Check("string comparison is case sensitive", "abc" = "ABC", "False")
+Check("different strings", "abc" = "abd", "False")
+Check("string not equal", "abc" <> "abd", "True")
+Check("empty string equality", "" = "", "True")
+Check("empty vs text", "" = " ", "False")
+Check("boolean text equality", "True" = "True", "True")
+Check("numeric strings compare as numbers", "2" < "10", "True")
+Check("numeric string vs number", "2" = 2, "True")
+Check("number vs numeric string", 2 = "2", "True")
+Check("numeric string with spaces", " 2 " = 2, "True")
+
+' ---- boolean operators -----------------------------------------------------
+Check("and both true", "True" And "True", "True")
+Check("and one false", "True" And "False", "False")
+Check("or one true", "False" Or "True", "True")
+Check("or both false", "False" Or "False", "False")
+Check("and of comparisons", (2 < 3) And (3 < 4), "True")
+Check("or of comparisons", (2 > 3) Or (3 < 4), "True")
+Check("and of mixed comparisons", (2 > 3) And (3 < 4), "False")
+
+' ---- If / ElseIf / Else ----------------------------------------------------
+Grade = 75
+If Grade >= 90 Then
+  Band = "A"
+ElseIf Grade >= 70 Then
+  Band = "B"
+Else
+  Band = "C"
+EndIf
+Check("elseif picks the middle branch", Band, "B")
+
+Grade = 95
+If Grade >= 90 Then
+  Band = "A"
+ElseIf Grade >= 70 Then
+  Band = "B"
+Else
+  Band = "C"
+EndIf
+Check("first branch wins", Band, "A")
+
+Grade = 10
+If Grade >= 90 Then
+  Band = "A"
+ElseIf Grade >= 70 Then
+  Band = "B"
+Else
+  Band = "C"
+EndIf
+Check("else branch wins", Band, "C")
+
+' ---- nested If -------------------------------------------------------------
+Score = 85
+If Score >= 80 Then
+  If Score >= 90 Then
+    Level = "high"
+  Else
+    Level = "medium"
+  EndIf
+Else
+  Level = "low"
+EndIf
+Check("nested if picks inner else", Level, "medium")
+
+Score = 95
+If Score >= 80 Then
+  If Score >= 90 Then
+    Level = "high"
+  Else
+    Level = "medium"
+  EndIf
+Else
+  Level = "low"
+EndIf
+Check("nested if picks inner then", Level, "high")
+
+' ---- conditions consume boolean text ---------------------------------------
+Hit = 0
+If "True" Then
+  Hit = Hit + 1
+EndIf
+If "False" Then
+  Hit = Hit + 100
+EndIf
+Check("if honours boolean text", Hit, 1)
+
+Hit = 0
+If "yes" Then
+  Hit = Hit + 100
+EndIf
+Check("non boolean text is false", Hit, 0)
+
+Hit = 0
+If 1 = 1 Then
+  Hit = Hit + 1
+Else
+  Hit = Hit + 100
+EndIf
+Check("if uses comparison result", Hit, 1)
+
+' ---- branch bodies skip the untaken side -----------------------------------
+Value = 1
+If Value = 1 Then
+  Trace = "taken"
+Else
+  Trace = "missed"
+EndIf
+Check("then body runs", Trace, "taken")
+
+Value = 2
+If Value = 1 Then
+  Trace = "taken"
+Else
+  Trace = "missed"
+EndIf
+Check("else body runs", Trace, "missed")
+
+' ---- a realistic classification function -----------------------------------
+' Procedure parameters are call-frame locals, so an "out" parameter would stay
+' local to the callee; results travel back through Return.
+Function Describe(Age)
+  If Age < 13 Then
+    Return "child"
+  ElseIf Age < 20 Then
+    Return "teen"
+  ElseIf Age < 65 Then
+    Return "adult"
+  EndIf
+  Return "senior"
+EndFunction
+
+Check("describe child", Describe(5), "child")
+Check("describe teen", Describe(15), "teen")
+Check("describe adult", Describe(40), "adult")
+Check("describe senior", Describe(80), "senior")
+
+' ---- text that looks like a number compares as a number --------------------
+Check("numeric text is normalized", "0012" = 12, "True")
+Check("trailing space is ignored", "2 " = 2, "True")
+Check("exponent text is not a number", "1e5" = 1, "False")
+Check("decimal scale does not matter", 1.10 = 1.1, "True")
+Check("boolean text round trip", "true" = "True", "True")
+Check("boolean text is written capitalized", "true", "True")
+Check("non-numeric text counts as zero", "a" < 2, "True")
+Check("non-numeric text on the right", 3 < "z", "False")
+
+' ---- an array counts as zero in relational comparisons ---------------------
+List["k"] = 1
+Check("an array is zero when it is smaller", List < 1, "True")
+Check("an array is zero when it is greater", 1 > List, "True")
+Check("an array is never equal to a number", List = 1, "False")
+Check("an array equals itself", List = List, "True")
+
+Report("comparison")

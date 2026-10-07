@@ -7,8 +7,10 @@ import {
     BinaryOperatorExpressionSyntax,
     DimCommandSyntax,
     FunctionDeclarationSyntax,
+    GoSubCommandSyntax,
     IdentifierExpressionSyntax,
     ObjectAccessExpressionSyntax,
+    OnErrorCommandSyntax,
     SubModuleDeclarationSyntax,
     SyntaxKind,
     SyntaxNodeVisitor,
@@ -80,6 +82,37 @@ export module HoverService {
                             "Skips to the next iteration of the innermost While or For loop. In a For loop the increment or Step still runs."
                         ]
                     };
+                case TokenKind.GoSubKeyword: {
+                    const goSub = compilation.getSyntaxNode(position, SyntaxKind.GoSubCommand) as GoSubCommandSyntax | undefined;
+                    if (goSub?.nameToken.range.containsPosition(position)) {
+                        const target = findProcedure(compilation, goSub.nameToken.token.text);
+                        return procedureResult(target, goSub.nameToken);
+                    }
+
+                    return {
+                        range: token.range,
+                        text: [
+                            "GoSub",
+                            "Calls a parameterless Sub and returns to the next statement after the call."
+                        ]
+                    };
+                }
+                case TokenKind.Identifier: {
+                    // `On Error ...` is built from contextual keywords: hover any
+                    // token of the clause for its meaning, and the handler target
+                    // for its procedure signature.
+                    const onError = compilation.getSyntaxNode(position, SyntaxKind.OnErrorCommand) as OnErrorCommandSyntax | undefined;
+                    if (!onError || !onError.range.containsPosition(position)) {
+                        return undefined;
+                    }
+
+                    if (onError.targetToken?.range.containsPosition(position)) {
+                        const handler = findProcedure(compilation, onError.targetToken.token.text);
+                        return procedureResult(handler, onError.targetToken);
+                    }
+
+                    return onErrorKeywordHover(onError, token.range);
+                }
                 case TokenKind.Mod:
                     if (!isBinaryOperatorToken(compilation, position, token.kind)) {
                         return undefined;
@@ -88,7 +121,7 @@ export module HoverService {
                         range: token.range,
                         text: [
                             "Mod",
-                            "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero returns 0."
+                            "Returns the remainder of dividing the left number by the right one, with the same sign as the dividend. Dividing by zero is a runtime error that On Error can catch."
                         ]
                     };
                 case TokenKind.Backslash:
@@ -99,7 +132,7 @@ export module HoverService {
                         range: token.range,
                         text: [
                             "\\",
-                            "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero returns 0."
+                            "Integer division: divides the left number by the right one and truncates the quotient toward zero. Dividing by zero is a runtime error that On Error can catch."
                         ]
                     };
                 default:
@@ -114,6 +147,21 @@ export module HoverService {
         const expression = compilation.getSyntaxNode(position, SyntaxKind.BinaryOperatorExpression) as BinaryOperatorExpressionSyntax | undefined;
         return expression?.operatorToken.token.kind === kind
             && expression.operatorToken.range.containsPosition(position);
+    }
+
+    function onErrorKeywordHover(onError: OnErrorCommandSyntax, range: CompilerRange): Result {
+        switch (onError.action) {
+            case "resume-next":
+                return { range, text: ["On Error Resume Next", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."] };
+            case "goto-default":
+                return { range, text: ["On Error GoTo -1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."] };
+            case "goto-clear":
+                return { range, text: ["On Error GoTo 0", "Disables the current On Error handler; runtime errors terminate the program again."] };
+            case "gosub":
+                return { range, text: ["On Error GoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."] };
+            default:
+                return { range, text: ["On Error", "Configures the runtime error handling policy."] };
+        }
     }
 
     function provideUserSymbolHover(compilation: Compilation, position: CompilerPosition): Result | undefined {

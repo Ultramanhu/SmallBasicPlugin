@@ -7,7 +7,9 @@ import {
   TokenKind,
   type BinaryOperatorExpressionSyntax,
   type FunctionDeclarationSyntax,
+  type GoSubCommandSyntax,
   type ObjectAccessExpressionSyntax,
+  type OnErrorCommandSyntax,
   type SubModuleDeclarationSyntax
 } from "smallbasic-lang-core";
 import type { LanguageSemanticToken, LanguageSemanticTokenType } from "./protocol";
@@ -36,6 +38,7 @@ const keywordKinds = new Set<TokenKind>([
   TokenKind.StepKeyword,
   TokenKind.EndForKeyword,
   TokenKind.GoToKeyword,
+  TokenKind.GoSubKeyword,
   TokenKind.WhileKeyword,
   TokenKind.EndWhileKeyword,
   TokenKind.BreakKeyword,
@@ -86,6 +89,25 @@ function mapTokenType(compilation: Compilation, kind: TokenKind, text: string, p
     const memberAccess = compilation.getSyntaxNode(position, SyntaxKind.ObjectAccessExpression) as ObjectAccessExpressionSyntax | undefined;
     if (memberAccess?.identifierToken.token.kind === TokenKind.Mod
       && memberAccess.identifierToken.range.containsPosition(position)) {
+      return "function";
+    }
+  }
+
+  if (kind === TokenKind.Identifier) {
+    // `On`/`Error`/`Resume`/`Next` are contextual keywords: they only color
+    // as keywords inside an `On Error ...` statement, whose handler target
+    // colors as a function. The same applies to a `GoSub` target.
+    const onError = compilation.getSyntaxNode(position, SyntaxKind.OnErrorCommand) as OnErrorCommandSyntax | undefined;
+    if (onError && onError.range.containsPosition(position)) {
+      if (onError.targetToken?.range.containsPosition(position)) {
+        return "function";
+      }
+
+      return "keyword";
+    }
+
+    const goSub = compilation.getSyntaxNode(position, SyntaxKind.GoSubCommand) as GoSubCommandSyntax | undefined;
+    if (goSub?.nameToken.range.containsPosition(position)) {
       return "function";
     }
   }

@@ -29,7 +29,7 @@ namespace SmallBasic.Editor.Libraries
                 return stack.Pop();
             }
 
-            return string.Empty;
+            throw new SmallBasicRuntimeException((int)RuntimeErrorCode.EmptyStack);
         }
 
         public void PushValue(string stackName, string value)

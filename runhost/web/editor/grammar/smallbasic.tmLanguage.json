@@ -7,6 +7,7 @@
     { "include": "#strings" },
     { "include": "#numbers" },
     { "include": "#procedure-declarations" },
+    { "include": "#on-error" },
     { "include": "#keywords" },
     { "include": "#library-types" }
   ],
@@ -41,7 +42,25 @@
       "patterns": [
         {
           "name": "keyword.control.smallbasic",
-          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Break|Continue|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|And|Or|Mod)\\b"
+          "match": "(?i)\\b(If|Then|Else|ElseIf|EndIf|For|To|Step|EndFor|While|EndWhile|Break|Continue|Sub|EndSub|Function|EndFunction|Dim|Return|GoTo|GoSub|And|Or|Mod)\\b"
+        }
+      ]
+    },
+    "on-error": {
+      "patterns": [
+        {
+          "comment": "The `On Error ...` statement: On/Error/Resume/Next are contextual keywords, so they are only highlighted inside this clause.",
+          "match": "(?i)^\\s*(On)(\\s+)(Error)(\\s+)(?:(GoTo)(\\s+)(-?\\d+)|(GoSub)(\\s+)([A-Za-z_][A-Za-z0-9_]*)|(Resume)(\\s+)(Next))?",
+          "captures": {
+            "1": { "name": "keyword.control.smallbasic" },
+            "3": { "name": "keyword.control.smallbasic" },
+            "5": { "name": "keyword.control.smallbasic" },
+            "7": { "name": "constant.numeric.smallbasic" },
+            "8": { "name": "keyword.control.smallbasic" },
+            "10": { "name": "entity.name.function.smallbasic" },
+            "11": { "name": "keyword.control.smallbasic" },
+            "13": { "name": "keyword.control.smallbasic" }
+          }
         }
       ]
     },

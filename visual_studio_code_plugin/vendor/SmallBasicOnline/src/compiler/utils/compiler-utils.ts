@@ -56,6 +56,8 @@ export module CompilerUtils {
             case SyntaxKind.ContinueCommand: return tokenToDisplayString(TokenKind.ContinueKeyword);
             case SyntaxKind.LabelCommand: return CompilerResources.SyntaxNodes_Label;
             case SyntaxKind.GoToCommand: return tokenToDisplayString(TokenKind.GoToKeyword);
+            case SyntaxKind.GoSubCommand: return tokenToDisplayString(TokenKind.GoSubKeyword);
+            case SyntaxKind.OnErrorCommand: return "On Error";
             case SyntaxKind.SubCommand: return tokenToDisplayString(TokenKind.SubKeyword);
             case SyntaxKind.EndSubCommand: return tokenToDisplayString(TokenKind.EndSubKeyword);
             case SyntaxKind.FunctionCommand: return tokenToDisplayString(TokenKind.FunctionKeyword);
@@ -79,6 +81,7 @@ export module CompilerUtils {
             case TokenKind.StepKeyword: return "Step";
             case TokenKind.EndForKeyword: return "EndFor";
             case TokenKind.GoToKeyword: return "GoTo";
+            case TokenKind.GoSubKeyword: return "GoSub";
             case TokenKind.WhileKeyword: return "While";
             case TokenKind.EndWhileKeyword: return "EndWhile";
             case TokenKind.BreakKeyword: return "Break";

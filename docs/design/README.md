@@ -42,7 +42,8 @@
 | [08-实施路线图.md](./08-实施路线图.md) | 里程碑划分、验收标准与当前完成度 |
 | [09-Blazor与Web运行宿主.md](./09-Blazor与Web运行宿主.md) | Blazor / CLI RunHost、静态 Web RunHost，以及 VS Code Web 模式的运行与调试链路 |
 | [10-Playground与Tauri本地应用.md](./10-Playground与Tauri本地应用.md) | Monaco Playground 的入口、共享语言 Worker、构建分发、页内调试、实测状态，以及 Tauri 本地应用、C# CLI 后端（2026-10-03 收敛）和 `runhost/playground/` 统一产物布局 |
-| [11-SmallBasic语言扩展.md](./11-SmallBasic语言扩展.md) | Function/EndFunction、参数、Dim、Return、Break/Continue，以及 `\` / `Mod` 与 `Math.Div` / `Math.Mod` 在双编译器、三后端、调试与编辑器上的实现方案与验证记录 |
+| [11-SmallBasic语言扩展.md](./11-SmallBasic语言扩展.md) | Small Basic 语言扩展总览、通用要求、统一结构、共同门禁与分册组织方式 |
+| [extends/README.md](./extends/README.md) | 按功能点拆分的语言扩展分册索引：过程与作用域、循环控制、整除与取余、GoSub 与 On Error |
 
 ## 方案摘要（TL;DR）
 

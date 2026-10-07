@@ -111,17 +111,27 @@ namespace SmallBasic.Compiler.Runtime
         protected override void Execute(SmallBasicEngine engine)
         {
             IReadOnlyDictionary<string, BaseValue> memory = engine.GetVariableMemory(this.array);
-            int remainingIndices = this.indicesCount;
             string index = this.array;
+            bool found = true;
 
-            while (remainingIndices > 0 && memory.TryGetValue(index, out BaseValue elementValue) && elementValue is ArrayValue elementArrayValue)
+            // Every index is popped, even when the array (or an intermediate level)
+            // is missing or is not an array: leaving an index on the stack used to
+            // leak it into the surrounding expression.
+            for (int remainingIndices = this.indicesCount; remainingIndices > 0; remainingIndices--)
             {
+                if (found && memory.TryGetValue(index, out BaseValue elementValue) && elementValue is ArrayValue elementArrayValue)
+                {
+                    memory = elementArrayValue;
+                }
+                else
+                {
+                    found = false;
+                }
+
                 index = engine.EvaluationStack.Pop().ToString();
-                memory = elementArrayValue;
-                remainingIndices--;
             }
 
-            if (remainingIndices > 0 || !memory.TryGetValue(index, out BaseValue value))
+            if (!found || !memory.TryGetValue(index, out BaseValue value))
             {
                 engine.EvaluationStack.Push(StringValue.Empty);
             }

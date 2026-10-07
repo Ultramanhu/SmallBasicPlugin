@@ -1,0 +1,140 @@
+' test_math.sb - the Math library.
+'
+' Self-checking unit test: one "FAIL" line per mismatch, then a final
+' "RESULT <suite> passed=<n> failed=<n>" summary line.
+'
+' Every expectation is exact on both implementations: the JavaScript backend
+' computes with double and the C# backends with decimal, so results that are
+' not exactly representable in both (Math.Pi, Math.SquareRoot(2),
+' Math.GetRadians(...), ...) are deliberately not asserted here.
+
+Passed = 0
+Failed = 0
+
+Sub Check(Label, Actual, Expected)
+  ' Every backend renders values the same way (numbers without trailing zeros,
+  ' arrays as "index=value;"), so the text form is compared directly.
+  Dim Got, Want
+  Got = "" + Actual
+  Want = "" + Expected
+  If Got = Want Then
+    Passed = Passed + 1
+  Else
+    Failed = Failed + 1
+    TextWindow.WriteLine("FAIL " + Label + ": expected [" + Want + "] but got [" + Got + "]")
+  EndIf
+EndSub
+
+Sub Report(Suite)
+  TextWindow.WriteLine("RESULT " + Suite + " passed=" + Passed + " failed=" + Failed)
+EndSub
+
+' ---- Math.Abs --------------------------------------------------------------
+Check("abs of a positive number", Math.Abs(5), 5)
+Check("abs of a negative number", Math.Abs(-5), 5)
+Check("abs of zero", Math.Abs(0), 0)
+Check("abs of a decimal", Math.Abs(-2.5), 2.5)
+
+' ---- Math.Floor / Math.Ceiling / Math.Round --------------------------------
+Check("floor rounds down", Math.Floor(3.9), 3)
+Check("floor keeps integers", Math.Floor(4), 4)
+Check("floor of a negative number", Math.Floor(-2.5), -3)
+Check("ceiling rounds up", Math.Ceiling(3.1), 4)
+Check("ceiling keeps integers", Math.Ceiling(4), 4)
+Check("ceiling of a negative number", Math.Ceiling(-2.5), -2)
+Check("round down", Math.Round(2.4), 2)
+Check("round up", Math.Round(2.6), 3)
+Check("round to zero", Math.Round(0.4), 0)
+
+' ---- Math.SquareRoot / Math.Power ------------------------------------------
+Check("square root of zero", Math.SquareRoot(0), 0)
+Check("square root of one", Math.SquareRoot(1), 1)
+Check("square root of nine", Math.SquareRoot(9), 3)
+Check("square root of sixteen", Math.SquareRoot(16), 4)
+Check("square root of a hundred", Math.SquareRoot(100), 10)
+Check("power of ten", Math.Power(2, 10), 1024)
+Check("power of zero", Math.Power(3, 0), 1)
+Check("power of one", Math.Power(7, 1), 7)
+Check("negative exponent", Math.Power(2, -1), 0.5)
+Check("power of a decimal base", Math.Power(1.5, 2), 2.25)
+
+' ---- Math.Max / Math.Min ---------------------------------------------------
+Check("max of two integers", Math.Max(3, 7), 7)
+Check("max picks the larger decimal", Math.Max(2.5, 2.25), 2.5)
+Check("max of equal values", Math.Max(4, 4), 4)
+Check("min of two integers", Math.Min(3, 7), 3)
+Check("min picks the smaller decimal", Math.Min(2.5, 2.25), 2.25)
+Check("min of negative values", Math.Min(-3, -7), -7)
+
+' ---- Math.Div / Math.Mod ---------------------------------------------------
+Check("div truncates", Math.Div(17, 5), 3)
+Check("div of a decimal operand", Math.Div(7.5, 2), 3)
+Check("div of a negative dividend", Math.Div(-9, 2), -4)
+Check("div by zero", Math.Div(9, 0), 0)
+Check("mod of integers", Math.Mod(17, 5), 2)
+Check("mod of a decimal operand", Math.Mod(7.5, 2), 1.5)
+Check("mod of a negative dividend", Math.Mod(-7, 2), -1)
+Check("mod by zero", Math.Mod(9, 0), 0)
+Check("div and mod rebuild the dividend", Math.Div(17, 5) * 5 + Math.Mod(17, 5), 17)
+
+' ---- Math.Log / Math.NaturalLog -------------------------------------------
+Check("log base ten", Math.Log(100), 2)
+Check("log base ten of one", Math.Log(1), 0)
+Check("natural log of one", Math.NaturalLog(1), 0)
+
+' ---- Math.GetRandomNumber --------------------------------------------------
+InRange = "True"
+For I = 1 To 50
+  Random = Math.GetRandomNumber(6)
+  If Random < 1 Or Random > 6 Then
+    InRange = "False"
+  EndIf
+EndFor
+Check("random numbers stay in range", InRange, "True")
+
+' ---- library calls inside functions ---------------------------------------
+Function Average(A, B)
+  Return (A + B) / 2
+EndFunction
+Check("average", Average(4, 10), 7)
+
+Function Distribute(Total, Parts)
+  Dim Each, Rest
+  Each = Math.Div(Total, Parts)
+  Rest = Math.Mod(Total, Parts)
+  Return Each * 100 + Rest
+EndFunction
+Check("div and mod compose in a function", Distribute(17, 5), 302)
+
+' ---- rounding, precision and out of range results --------------------------
+' decimal.Round (the C# library) rounds half to even, so 2.5 rounds to 2 and
+' 3.5 to 4. Results that have no decimal representation - NaN, infinity, a
+' value outside the decimal range - are 0 instead of an error.
+Check("round half to even", Math.Round(2.5), 2)
+Check("round half up to even", Math.Round(3.5), 4)
+Check("round negative half to even", Math.Round(-2.5), -2)
+Check("pi", Math.Pi, 3.141592653589793)
+Check("square root of two", Math.SquareRoot(2), 1.4142135623730951)
+Check("square root of a negative number", Math.SquareRoot(-4), 0)
+Check("log base ten of a thousand", Math.Log(1000), 3)
+Check("radians of ninety degrees", Math.GetRadians(90), 1.5707963267948966)
+Check("degrees of pi", Math.GetDegrees(Math.Pi), 180)
+Check("square root of a half power", Math.Power(2, 0.5), 1.4142135623730951)
+Check("arc cosine out of range", Math.ArcCos(2), 0)
+Check("arc sine out of range", Math.ArcSin(2), 0)
+Check("natural log of zero", Math.NaturalLog(0), 0)
+Check("log of zero", Math.Log(0), 0)
+Check("remainder with a zero divisor", Math.Remainder(9, 0), 0)
+Check("remainder", Math.Remainder(7, 2), 1)
+Check("power of a huge exponent", Math.Power(10, 1000), 0)
+
+' ---- both random bounds are reachable --------------------------------------
+SawMaximum = "False"
+For Attempt = 1 To 200
+  If Math.GetRandomNumber(2) = 2 Then
+    SawMaximum = "True"
+  EndIf
+EndFor
+Check("random numbers reach the upper bound", SawMaximum, "True")
+
+Report("math")

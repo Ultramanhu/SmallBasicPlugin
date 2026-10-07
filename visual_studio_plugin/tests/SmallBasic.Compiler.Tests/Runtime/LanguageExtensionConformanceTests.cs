@@ -15,14 +15,19 @@ namespace SmallBasic.Tests.Runtime
 
     public sealed class LanguageExtensionConformanceTests : IClassFixture<CultureFixture>
     {
+        /*
+         * The corpus is shared with the TypeScript runner (smallbasic-lang-core) and covers the
+         * Language Extension v1 contract as well as the unified core runtime semantics
+         * (text folding, operators, comparisons, arrays, Math, Text, branches, Program.End).
+         */
         [Fact]
-        public async Task CSharpRuntimeMatchesTheSharedLanguageExtensionCorpus()
+        public async Task CSharpRuntimeMatchesTheSharedConformanceCorpus()
         {
-            string path = Path.Combine(AppContext.BaseDirectory, "Conformance", "language-extension", "cases.json");
+            string path = Path.Combine(AppContext.BaseDirectory, "Conformance", "cases.json");
             ConformanceCase[] cases = JsonSerializer.Deserialize<ConformanceCase[]>(
                 File.ReadAllText(path),
                 new JsonSerializerOptions { PropertyNameCaseInsensitive = true })
-                ?? throw new InvalidDataException("The shared language-extension corpus is empty.");
+                ?? throw new InvalidDataException("The shared conformance corpus is empty.");
 
             foreach (ConformanceCase testCase in cases)
             {
@@ -53,6 +58,20 @@ namespace SmallBasic.Tests.Runtime
                     : normalizedOutput.Split('\n');
                 actualLines.Should().Equal(testCase.Stdout, testCase.Name);
 
+                if (testCase.RuntimeError is { } runtimeError)
+                {
+                    // An unhandled runtime error terminates the program; nothing
+                    // else is printed (the host mirrors LastError to stderr).
+                    engine.State.Should().Be(ExecutionState.Terminated, testCase.Name);
+                    engine.LastError.Should().NotBeNull(testCase.Name);
+                    engine.LastError.Code.Should().Be(runtimeError.Code, testCase.Name);
+                    engine.LastError.Message.Should().Be(runtimeError.Message, testCase.Name);
+                }
+                else
+                {
+                    engine.LastError.Should().BeNull(testCase.Name);
+                }
+
                 DebuggerSnapshot snapshot = engine.GetSnapshot();
                 foreach (KeyValuePair<string, string> expected in testCase.Globals ?? new Dictionary<string, string>())
                 {
@@ -73,6 +92,15 @@ namespace SmallBasic.Tests.Runtime
             public Dictionary<string, string>? Globals { get; set; }
 
             public List<string>? Diagnostics { get; set; }
+
+            public RuntimeErrorCase? RuntimeError { get; set; }
+        }
+
+        private sealed class RuntimeErrorCase
+        {
+            public int Code { get; set; }
+
+            public string Message { get; set; } = string.Empty;
         }
     }
 }

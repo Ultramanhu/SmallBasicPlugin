@@ -124,6 +124,15 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         // The web shell's Stop button terminates through the same path,
         // so it must not read as a normal completion.
         this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
+        if (this.engine.LastError is { } lastError)
+        {
+            // Unhandled runtime error: mirror the unified message and fail.
+            this.view.AppendText($"{Environment.NewLine}{lastError.ToDisplayString()}{Environment.NewLine}");
+            await this.SendAsync(new BrowserMessage { Type = "output", Text = lastError.ToDisplayString() + Environment.NewLine });
+            await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 4 });
+            return;
+        }
+
         await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
     }
 
@@ -160,6 +169,13 @@ public sealed class BrowserEngineSession : IAsyncDisposable
         }
 
         this.view.SetStatus(this.terminationRequested ? "Stopped" : "Completed");
+        if (this.engine.LastError is { } lastError)
+        {
+            await this.SendAsync(new BrowserMessage { Type = "output", Text = lastError.ToDisplayString() + Environment.NewLine });
+            await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 1 });
+            return;
+        }
+
         await this.SendAsync(new BrowserMessage { Type = "terminated", ExitCode = 0 });
     }
 
@@ -225,6 +241,16 @@ public sealed class BrowserEngineSession : IAsyncDisposable
 
                     break;
                 case ExecutionState.Paused:
+                    // An unhandled runtime error pauses on the failure scene;
+                    // report it and stop with reason "exception". Continuing
+                    // terminates the session.
+                    if (this.engine.PausedOnRuntimeError && this.engine.LastError is { } runtimeError)
+                    {
+                        await this.SendAsync(new BrowserMessage { Type = "output", Text = runtimeError.ToDisplayString() + Environment.NewLine });
+                        await this.SendStoppedAsync("exception");
+                        return;
+                    }
+
                     int line = this.engine.CurrentSourceLine;
                     int depth = this.engine.GetSnapshot().ExecutionStack.Count;
                     bool shouldStop = this.breakpoints.Contains(line)

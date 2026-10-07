@@ -47,7 +47,7 @@ VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本�
 - **运算符优先级**：沿用 VB 风格的 `* /` > `\` > `Mod` > `+ -`，同级从左向右结合；`Mod` 不区分大小写并成为保留字。
 - **编辑器与调试**：关键字着色、补全、签名帮助与悬停均覆盖新增语法；`Math.Mod` 会按方法而非运算符着色和提示。`\` / `Mod` 所在语句可断点、单步，并可在条件断点、Watch 与 Debug Console 中求值。
 
-样例(`sample/hello/accumulate.sb`，三后端输出一致)：
+样例(`sample/test/accumulate.sb`，三后端输出一致)：
 
 ```smallbasic
 Total = 0                          ' undeclared names stay global
@@ -92,7 +92,7 @@ TextWindow.WriteLine(Math.Div(-7, 2)) ' -3 (truncate toward zero)
 TextWindow.WriteLine(Math.Mod(-7, 2)) ' -1 (sign follows dividend)
 ```
 
-语义契约、诊断规则与双实现一致性用例详见 [docs/design/11-SmallBasic语言扩展.md](docs/design/11-SmallBasic语言扩展.md)。
+语义契约、通用要求与功能分册索引见 [docs/design/11-SmallBasic语言扩展.md](docs/design/11-SmallBasic语言扩展.md)；按功能点拆分的实现/设计文档见 [docs/design/extends/README.md](docs/design/extends/README.md)。尚未实现的 `GoSub` / `On Error` 提案见 [docs/design/extends/04-GoSub与OnError错误处理.md](docs/design/extends/04-GoSub与OnError错误处理.md)。
 
 ## VS Code 扩展
 
@@ -260,10 +260,19 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 
 `sample/` 目录提供样例：
 
-- `sample/hello/` — 最小文本程序与语言扩展示例(`accumulate.sb`：Sub 参数、全局回退与 Function 递归)
-- `sample/base/arithmetic.sb` — `\` / `Mod`、`Math.Div` / `Math.Mod`、零除数及函数内组合示例
+- `sample/hello/hello.sb` — 最小文本程序
+- `sample/test/` — 按语言结构划分的自检式单元测试套件(`test_*.sb`：表达式、比较与分支、循环、过程与作用域、数组、Text/Math/Stack、语言扩展)，以及语言扩展样例 `accumulate.sb`(Sub 参数、全局回退与 Function 递归)、`arithmetic.sb`(`\` / `Mod`、`Math.Div` / `Math.Mod`、零除数及函数内组合)、宿主冒烟程序 `language-extension.sb`、图形按键探针 `keyboard_probe.sb`
 - `sample/tutorial/` — 官方样例教程(Windows C# 图形后端或跨平台 Blazor 后端)
 - `sample/tetris/` — 图形程序(Windows C# 图形后端或跨平台 Blazor 后端)
+
+`sample\test\run-tests.ps1` 在可用的 RunHost 后端(JavaScript、net8.0、Blazor、net8.0-windows、net48)上逐个运行 `test_*.sb`，校验每个套件末尾的 `RESULT <suite> passed=<n> failed=<n>` 汇总行、进程退出码与 `Program.End()` 之后的不可达行；缺少工具链或载荷的后端记为 SKIP：
+
+```powershell
+.\sample\test\run-tests.ps1                        # 全部已检测到的后端
+.\sample\test\run-tests.ps1 -Backend javascript    # 只跑 JavaScript 后端
+.\sample\test\run-tests.ps1 -Filter test_loops.sb  # 单个套件
+.\sample\test\run-tests.ps1 -List                  # 只列出测试文件与后端
+```
 
 ## 从源码构建
 
@@ -356,11 +365,12 @@ SmallBasicPlugin/
 │   ├── src/SmallBasic.Vsix/        # 唯一的 VS 包：菜单/命令/工具窗 + LSP 语言能力 + 包内兼容层(MEF/调试)
 │   ├── src/SmallBasic.RunHost/    # 运行宿主(net48/net8.0/net8.0-windows，含 DAP 调试)
 │   ├── src/SmallBasic.Blazor.*/   # WASM 客户端、共享协议与 Blazor RunHost
+│   ├── tests/SmallBasic.Compiler.Tests/  # 编译器/运行时测试；Conformance/ 下是 TS 与 C# 共用的语言扩展一致性语料
 │   ├── tests/SmallBasic.LanguageServices.Tests/  # LSP 语义映射、LSP 协议端到端与文档大纲测试(net8.0)
 │   └── vendor/SmallBasicEditor/   # 拷贝升级的 Small Basic 编译器(C#)
-├── sample/                        # 示例程序
+├── sample/                        # 示例程序(sample/test 为自检式单元测试套件)
 ├── official_repo/                 # 官方源码子模块(editor / homesite / online)
-└── docs/design/                   # 设计文档(01-10)
+└── docs/design/                   # 设计文档(01-11 + extends/)
 ```
 
 `runhost\web` 由 `runhost\Build-RunHost.ps1` 组装：纯运行页(`runhost.html`/`app.css`/`shell-core.js`/`runhost-page.js`/`serve.mjs`)来自 `visual_studio_plugin\src\SmallBasic.Blazor.Client\wwwroot`，JavaScript 后端 `smallbasic-js.js` 来自 `visual_studio_code_plugin` 的 tsup 打包(`src\runhost\web.ts`)，Playground 资源(`index.html`/`playground.html`/`playground.js`/`editor/**`)来自 `visual_studio_code_plugin` 的 `npm run build:playground` 产物 `playground-dist/`，其余为 Blazor 客户端的发布产物。Playground 专属资源只进入 `runhost\web`，不会出现在 CLI 与 VSIX 共用的 `runhost\blazor` 载荷里。重建该目录前请先停止正在服务的 `serve.mjs`，否则 Windows 会让复制落入已被删除的旧目录。
@@ -368,5 +378,6 @@ SmallBasicPlugin/
 ## 已知限制
 
 - CLI 的 JS 后端暂不支持 `GraphicsWindow`/`Shapes`/`Turtle` 等图形库；桌面 Web 模式可用 Blazor Webview 运行图形程序。
+- 各后端的值语义已统一（文本折叠、运算符、比较、数值显示、数组、`Math` 详见 [docs/design/06](docs/design/06-运行时库与宿主集成.md) §1.1）；仅 `double` 与 `decimal` 的固有精度差（如 `0.1 + 0.2`）无法对齐。
 - VS 扩展的 C# 路径不依赖 Node.js；仅 JS 运行/调试路径依赖外部 Node.js 20+。
 - Web RunHost 的 JavaScript 后端与 Node 版 RunHost 同源，同样只支持 `TextWindow`；`Program.Delay` 沿用了共享 TS 运行时的缺陷(Node 宿主会以 `Evaluation stack empty` 终止程序)，Web 端通过放行一次无害的 promise 拒绝实现容错，含 `Program.Delay` 的程序建议改用 Blazor 后端。
