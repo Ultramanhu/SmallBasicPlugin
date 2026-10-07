@@ -30,7 +30,7 @@ namespace SmallBasic.Vsix.Commands
                 return;
             }
 
-            string extensionDirectory = Path.GetDirectoryName(typeof(SmallBasicDebugLauncher).Assembly.Location) ?? string.Empty;
+            string extensionDirectory = ExtensionPayloadDirectory.Resolve();
             ResolveAdapter(extensionDirectory, backend, out string adapterPath, out string adapterArguments);
             string launchPath = WriteLaunchConfiguration(programPath, backend, adapterPath, adapterArguments, stopOnEntry);
             launchInProgress = true;

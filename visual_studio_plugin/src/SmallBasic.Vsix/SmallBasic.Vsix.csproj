@@ -15,7 +15,18 @@
     <GeneratePkgDefFile>true</GeneratePkgDefFile>
     <UseCodebase>true</UseCodebase>
     <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
-    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <!-- The experimental instance loads the extension from the deployment folder
+         (the generated pkgdef registers $PackageFolder$\SmallBasic.Vsix.dll) and
+         the VSSDK deploy unzips the VSIX container itself, while
+         IncludeDebugSymbolsInLocalVSIXDeployment only feeds the copy-based
+         deployment. The symbols therefore have to live in the container for an
+         F5 build of either configuration, otherwise the deployed assembly has no
+         .pdb next to it and every breakpoint in the extension stays unbound.
+         Packaging (a command line build) keeps the shipped package symbol-free;
+         see ExcludeDebugSymbolsFromVsix below. -->
+    <IncludeDebugSymbolsInVSIXContainer Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer Condition="'$(BuildingInsideVisualStudio)' != 'true'">false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>true</IncludeDebugSymbolsInLocalVSIXDeployment>
     <CreateVsixContainer>true</CreateVsixContainer>
     <TargetVsixContainerName>SmallBasic.Vsix.vsix</TargetVsixContainerName>
     <DeployExtension>false</DeployExtension>
@@ -26,8 +37,18 @@
     <JavaScriptRunHostSource>$(MSBuildThisFileDirectory)..\..\..\visual_studio_code_plugin\packages\smallbasic-vscode\dist\runhost.js</JavaScriptRunHostSource>
   </PropertyGroup>
 
-  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+  <!-- Debug and Release are both startable from Visual Studio: the VSIX debugger
+       builds the container, deploys it to the experimental instance and attaches
+       the managed debugger to that instance's devenv.exe. A generic Program
+       launch would only start /RootSuffix Exp and could therefore load a
+       previously installed VSIX instead of the one just built, so it stays as a
+       fallback behind the VSIX debugger flavor. Deployment only happens inside
+       Visual Studio; the packaging scripts (dotnet build) never deploy. -->
+  <PropertyGroup>
     <DeployExtension Condition="'$(BuildingInsideVisualStudio)' == 'true'">true</DeployExtension>
+    <DebuggerFlavor>VsixDebugger</DebuggerFlavor>
+    <VsixDeployOnDebug>true</VsixDeployOnDebug>
+    <VSSDKTargetPlatformRegRootSuffix>Exp</VSSDKTargetPlatformRegRootSuffix>
     <StartAction>Program</StartAction>
     <StartProgram Condition="'$(DevEnvDir)' != ''">$(DevEnvDir)devenv.exe</StartProgram>
     <StartArguments>/RootSuffix Exp</StartArguments>
@@ -157,9 +178,15 @@
     </ItemGroup>
   </Target>
 
-  <Target Name="ExcludeDebugSymbolsFromVsix" BeforeTargets="GenerateFileManifest" Condition="'$(Configuration)' == 'Release'">
+  <!-- Only the packaged (command line) Release build drops the symbols: a Release
+       build started from Visual Studio keeps them so the extension stays
+       debuggable in the experimental instance, while build\Package-Vsix.ps1
+       asserts that the shipped package contains no .pdb. -->
+  <Target Name="ExcludeDebugSymbolsFromVsix" BeforeTargets="GenerateFileManifest"
+          Condition="'$(Configuration)' == 'Release' and '$(BuildingInsideVisualStudio)' != 'true'">
     <ItemGroup>
       <VSIXSourceItem Remove="@(VSIXSourceItem)" Condition="'%(VSIXSourceItem.Extension)' == '.pdb'" />
     </ItemGroup>
   </Target>
+
 </Project>

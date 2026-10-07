@@ -174,16 +174,16 @@ Web 配置(JavaScript、Blazor)：
 
 在「打开文件夹」模式中，Visual Studio 的「显示或隐藏调试目标」会按所选菜单项使用 C#、JavaScript 或 Blazor 的 Debug Adapter Host 启动描述。Blazor 目标指向 `dotnet SmallBasic.Blazor.RunHost.dll debug`；文本程序在宿主内调试，图形程序则通过 WebSocket 连接浏览器内的 WASM 解释器。
 
-可以手动添加 `launch.vs.json` 文件来配置调试选项。
+可以手动添加 `launch.vs.json` 文件来配置调试选项。`project` 必须指向工作区内实际存在的 `.sb` 文件；同一文件的多个后端还必须使用不同的 `projectTarget`，否则 Visual Studio 会把它们视为同一个启动目标。`program` 仍可用 `${file}` 调试当前文件。
 
 ```jsonc
-{ "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
+{ "type": "smallbasic", "project": "sample/hello/hello.sb", "projectTarget": "javascript", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
   "program": "${file}", "backend": "javascript", "mode": "cli", "stopOnEntry": false }
 
-{ "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with C# backend",
+{ "type": "smallbasic", "project": "sample/hello/hello.sb", "projectTarget": "csharp", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with C# backend",
   "program": "${file}", "backend": "csharp", "mode": "cli", "stopOnEntry": false }
 
-{ "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+{ "type": "smallbasic", "project": "sample/hello/hello.sb", "projectTarget": "blazor", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
   "program": "${file}", "backend": "blazor", "mode": "cli", "stopOnEntry": false }
 ```
 

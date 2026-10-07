@@ -102,6 +102,33 @@ try {
         throw "extension.vsixmanifest does not declare SmallBasic.Vsix.dll as a MefComponent."
     }
 
+    # Visual Studio evaluates command activation constraints with its own regex
+    # parser. Keep the generated manifest free of inline option groups such as
+    # (?i), which can leave every Small Basic run/debug command disabled.
+    $extensionManifestEntry = $archive.GetEntry(".vsextension/extension.json")
+    if ($null -eq $extensionManifestEntry) {
+        throw "Generated VSIX is missing .vsextension/extension.json."
+    }
+
+    $extensionManifestReader = [System.IO.StreamReader]::new($extensionManifestEntry.Open())
+    try {
+        $extensionManifest = $extensionManifestReader.ReadToEnd()
+    }
+    finally {
+        $extensionManifestReader.Dispose()
+    }
+
+    if ($extensionManifest.Contains("(?i)")) {
+        throw "Generated extension.json contains an unsupported inline regex option."
+    }
+
+    $smallBasicFileConstraints = [regex]::Matches(
+        $extensionManifest,
+        [regex]::Escape('ClientContext:Shell.ActiveEditorFileName=\\.[sS][bB]$'))
+    if ($smallBasicFileConstraints.Count -ne 6) {
+        throw "Expected six Small Basic run/debug activation constraints, found $($smallBasicFileConstraints.Count)."
+    }
+
     $manifestEntry = $archive.GetEntry("manifest.json")
     $reader = [System.IO.StreamReader]::new($manifestEntry.Open())
     try {

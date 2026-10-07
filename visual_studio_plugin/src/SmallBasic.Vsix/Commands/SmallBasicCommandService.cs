@@ -227,7 +227,7 @@ namespace SmallBasic.Vsix.Commands
         }
 
         private static string GetExtensionDirectory()
-            => Path.GetDirectoryName(typeof(SmallBasicCommandService).Assembly.Location) ?? string.Empty;
+            => ExtensionPayloadDirectory.Resolve();
 
         private static string QuoteArgument(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
 

@@ -90,6 +90,9 @@ namespace SmallBasic.Vsix.Workspace
         {
             bool supported = HasSmallBasicProgramExtension(targetFilePath)
                 || IsSmallBasicLaunchConfiguration(projectConfiguration);
+            string type = projectConfiguration?.LaunchSettings?.GetValue("type", string.Empty) ?? string.Empty;
+            string configurationName = projectConfiguration?.LaunchSettings?.GetValue("name", string.Empty) ?? string.Empty;
+            Services.SmallBasicDiagnostics.Write($"[launch provider] SupportsContext path='{targetFilePath}' type='{type}' name='{configurationName}' supported={supported}");
             return supported;
         }
 
@@ -213,7 +216,7 @@ namespace SmallBasic.Vsix.Workspace
             if (!string.IsNullOrWhiteSpace(backend))
             {
                 resolvedBackend = default;
-                error = $"Small Basic 调试配置中的 backend 值“{backend}”无效。仅支持 csharp、javascript 或 blazor；已取消启动，不会自动切换到其他后端。";
+                error = $"Small Basic 调试配置中的 backend 值 {backend} 无效。仅支持 csharp、javascript 或 blazor；已取消启动，不会自动切换到其他后端。";
                 return false;
             }
 
@@ -243,7 +246,7 @@ namespace SmallBasic.Vsix.Workspace
             if (IsSmallBasicProfileName(configurationName))
             {
                 resolvedBackend = default;
-                error = $"Small Basic 调试配置“{configurationName}”没有指定有效的 backend。请设置为 csharp、javascript 或 blazor；已取消启动，不会自动选择其他后端。";
+                error = $"Small Basic 调试配置 {configurationName} 没有指定有效的 backend。请设置为 csharp、javascript 或 blazor；已取消启动，不会自动选择其他后端。";
                 return false;
             }
 
@@ -262,10 +265,12 @@ namespace SmallBasic.Vsix.Workspace
         {
             ThreadHelper.ThrowIfNotOnUIThread();
 
-            // Visual Studio requires "project" to resolve to an existing file or
-            // directory before it exposes a launch.vs.json profile. Our checked-in
-            // profiles use "." as a portable workspace anchor; it must never replace
-            // the active Small Basic document selected by program="${file}".
+            // Visual Studio requires "project" to resolve to an existing target
+            // before it exposes a launch.vs.json profile. It also identifies a
+            // profile by project + projectTarget (not by name), so the checked-in
+            // backend profiles use a real .sb anchor and distinct projectTargets.
+            // That anchor must never replace the active Small Basic document
+            // selected by program="${file}".
             // VS can omit custom fields such as program/backend when launching a
             // profile, so the profile name is also used to preserve this behavior.
             if (usesCurrentDocument)

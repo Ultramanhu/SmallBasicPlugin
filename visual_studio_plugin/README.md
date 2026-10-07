@@ -91,16 +91,16 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
 - **Choose a backend**: use `Tools > Small Basic` to run or debug explicitly with C#, JavaScript, or Blazor. The chosen backend remains active for subsequent standard run/debug commands in the current Visual Studio session; C# is the initial default.
 - **Run**: press `Ctrl+F5` to run the current `.sb` with the active backend.
 - **Debug**: set breakpoints in a `.sb` file and press `F5`. `F10`/`F11` at design time start with stop-on-entry; during a debug session `F5`/`F10`/`F11`/`Shift+F5` are forwarded to the debugger.
-`launch.vs.json` (Visual Studio launch configuration file):
+`launch.vs.json` (Visual Studio launch configuration file). `project` must name an existing `.sb` file in the workspace, and profiles for that file must use distinct `projectTarget` values because Visual Studio uses `project + projectTarget` as the target identity. `program` can still use `${file}` to debug the active document:
 
 ```jsonc
-{  "type": "smallbasic",  "project": ".",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
+{  "type": "smallbasic",  "project": "hello/hello.sb",  "projectTarget": "javascript",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
   "program": "${file}",  "backend": "javascript",  "mode": "cli",  "stopOnEntry": false }
 
-{  "type": "smallbasic",  "project": ".",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with C# backend",
+{  "type": "smallbasic",  "project": "hello/hello.sb",  "projectTarget": "csharp",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with C# backend",
   "program": "${file}",  "backend": "csharp",  "mode": "cli",  "stopOnEntry": false }
 
-{  "type": "smallbasic",  "project": ".",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
+{  "type": "smallbasic",  "project": "hello/hello.sb",  "projectTarget": "blazor",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
   "program": "${file}",  "backend": "blazor",  "mode": "cli",  "stopOnEntry": false }
 ```
 

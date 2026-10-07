@@ -1,3 +1,4 @@
+On Error Resume Next
 TextWindow.WriteLine("Hello, World!")
 
 a1 = 1
@@ -8,6 +9,7 @@ s1 = "3"
 s2 = s1 * 1
 TextWindow.WriteLine(s2)
 
+p = 1 / 0
 i = 10
 
 Sub MySub(i)

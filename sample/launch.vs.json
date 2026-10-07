@@ -1,32 +1,34 @@
 ﻿{
     "version":  "0.2.1",
-    "defaults":  {
-                     ".sb":  "smallbasicFile"
-                 },
+    "defaults":  {},
     "configurations":  [
-                           {
-                               "type":  "smallbasic",
-                               "project":  ".",
-                               "name":  "SmallBasic [CLI]: Debug current file with JavaScript backend",
-                               "program":  "${file}",
-                               "backend":  "javascript",
-                               "stopOnEntry":  false
-                           },
-                           {
-                               "type":  "smallbasic",
-                               "project":  ".",
-                               "name":  "SmallBasic [CLI]: Debug current file with C# backend",
-                               "program":  "${file}",
-                               "backend":  "csharp",
-                               "stopOnEntry":  false
-                           },
-                           {
-                               "type":  "smallbasic",
-                               "project":  ".",
-                               "name":  "SmallBasic [CLI]: Debug current file with Blazor backend",
-                               "program":  "${file}",
-                               "backend":  "blazor",
-                               "stopOnEntry":  false
-                           }
-                       ]
+        {
+            "type":  "smallbasic",
+            "project":  "hello/hello.sb",
+            "projectTarget":  "javascript",
+            "name":  "SmallBasic [CLI]: Debug current file with JavaScript backend",
+            "program":  "${file}",
+            "backend":  "javascript",
+            "stopOnEntry":  false
+        },
+        {
+            "type":  "smallbasic",
+            "project": "hello/hello.sb",
+            "projectTarget":  "csharp",
+            "name":  "SmallBasic [CLI]: Debug current file with C# backend",
+            "program":  "${file}",
+            "backend":  "csharp",
+            "isDefaultConfiguration":  true,
+            "stopOnEntry":  false
+        },
+        {
+            "type":  "smallbasic",
+            "project":  "hello/hello.sb",
+            "projectTarget":  "blazor",
+            "name":  "SmallBasic [CLI]: Debug current file with Blazor backend",
+            "program":  "${file}",
+            "backend":  "blazor",
+            "stopOnEntry":  false
+        }
+    ]
 }

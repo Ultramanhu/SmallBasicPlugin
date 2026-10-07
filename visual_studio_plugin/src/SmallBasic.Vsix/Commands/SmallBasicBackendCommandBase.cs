@@ -29,11 +29,14 @@ namespace SmallBasic.Vsix.Commands
         protected static ActivationConstraint SmallBasicDocumentEnabledWhen =>
             ActivationConstraint.ClientContext(
                 ClientContextKey.Shell.ActiveEditorFileName,
-                @"(?i)\.sb$");
+                @"\.[sS][bB]$");
 
         public override async Task ExecuteCommandAsync(IClientContext context, CancellationToken cancellationToken)
         {
             await ThreadHelper.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
+
+            Services.SmallBasicDiagnostics.Write(
+                $"[backend command] mode='{(this.debug ? "debug" : "run")}' backend='{this.backend}'");
 
             if (this.debug)
             {

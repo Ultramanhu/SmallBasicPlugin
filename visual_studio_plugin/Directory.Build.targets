@@ -1,0 +1,62 @@
+<Project>
+
+  <!--
+    Debug deployment of SmallBasic.Vsix to the experimental instance.
+
+    Why this file exists: Directory.Build.targets is imported after the NuGet
+    package targets, which is the only place where a target defined by
+    Microsoft.VSSDK.BuildTools can be replaced (target definitions in the project
+    file itself are overridden by the package import).
+
+    The stock DeployVsixExtensionFiles target ends with
+    EnableExtension ... FailIfNotInstalled="true", which aborts the build with
+    "VSSDK1031: Extension 'smallbasic-tools-vs' could not be found. Please make
+    sure the extension has been installed." on Visual Studio 2026: the task asks
+    the extension manager for an extension installed under
+    "%LocalAppData%\Microsoft\VisualStudio\<version><RootSuffix>", while the very
+    same target has just deployed it to the instance scoped
+    "%LocalAppData%\Microsoft\VisualStudio\<version>_<instanceId><RootSuffix>"
+    folder that this Visual Studio loads extensions from. The deployment itself
+    completes there and EnableLoadingAllExtensions already flags the extensions
+    folder as changed, so Visual Studio picks the extension up when it starts.
+
+    The override below therefore keeps every step of the stock target - the
+    uninstall of a conflicting installation, the unzip of the freshly built VSIX
+    container (which is what carries SmallBasic.Vsix.pdb for debugging) and the
+    LocalAppData re-scan - and only turns the failing enable check into a
+    best effort step.
+
+    Only the VSIX project references the VSSDK build tools, so the override is
+    inert for every other project in this folder.
+  -->
+  <Target Name="DeployVsixExtensionFiles"
+          Condition="'$(MSBuildProjectName)' == 'SmallBasic.Vsix' and '$(DeployExtension)'=='true' and '$(CreateVsixContainer)'=='true'"
+          DependsOnTargets="$(DeployVsixExtensionFilesDependsOn)">
+
+    <Error Text="VSIX deployment is not supported with 'dotnet build'"
+           Condition="'$(MSBuildRuntimeType)' == 'Core'" />
+
+    <UninstallExtension Condition="'$(ExistingDeploymentPath)' != '$(VsixDeploymentPath)' AND '$(ExistingDeploymentPath)' != '' AND '$(AllUsersExtension)' != 'true'"
+                        VsixIdentifier="$(VsixID)"
+                        DevenvInstallationDirectory="$(DeployTargetInstallationDirectory)"
+                        RootSuffix="$(VSSDKTargetPlatformRegRootSuffix)"
+                        FailIfNotInstalled="false" />
+
+    <Message Text="VsixID = $(VsixID)" />
+    <Message Text="VsixVersion = $(VsixVersion)" />
+    <Message Text="VsixDeploymentPath = $(VsixDeploymentPath)" />
+
+    <Unzip ZipFile="@(_CreatedVsixContainer->'%(FullPath)')"
+           TargetDirectory="$(VsixDeploymentPath)" />
+
+    <EnableLoadingAllExtensions DevenvInstallationDirectory="$(DeployTargetInstallationDirectory)"
+                               RootSuffix="$(VSSDKTargetPlatformRegRootSuffix)" />
+
+    <EnableExtension VsixIdentifier="$(VsixID)"
+                     VsixVersion="$(VsixVersion)"
+                     DevenvInstallationDirectory="$(DeployTargetInstallationDirectory)"
+                     RootSuffix="$(VSSDKTargetPlatformRegRootSuffix)"
+                     FailIfNotInstalled="false" />
+  </Target>
+
+</Project>
