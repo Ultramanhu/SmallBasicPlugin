@@ -6,7 +6,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
 
 ## Features
 
-- `.sb` file association with syntax highlighting
+- `.sb` file association with the Small Basic logo file icon and syntax highlighting
 - IntelliSense completions, hover quick info, live diagnostics and document outline powered by a built-in language server (LSP)
 - Code outlining (collapsible regions)
 - Native Visual Studio navigation bar for procedures and variables

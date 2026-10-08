@@ -6,7 +6,7 @@ namespace SmallBasic.Vsix.Commands
     internal static class SmallBasicMenuConfiguration
     {
         [VisualStudioContribution]
-        public static MenuConfiguration SmallBasicToolsMenu => new("Small Basic")
+        public static MenuConfiguration SmallBasicToolsMenu => new("SmallBasic")
         {
             Children = new[]
             {
@@ -18,7 +18,8 @@ namespace SmallBasic.Vsix.Commands
                     GroupChild.Command<DebugJavaScriptCommand>()),
                 MenuChild.Group(
                     GroupChild.Command<RunBlazorCommand>(),
-                    GroupChild.Command<DebugBlazorCommand>(),
+                    GroupChild.Command<DebugBlazorCommand>()),
+                MenuChild.Group(
                     GroupChild.Command<ShowDocumentOutlineCommand>()),
             },
         };

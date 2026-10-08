@@ -95,13 +95,21 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Solution Explorer icon for .sb files: the Resource items pack the logo
-         variants (16x16 and 32x32, derived from the repository logo.png) into
-         the WPF resource bundle referenced by the image manifest, and the
-         manifest plus the pkgdef that maps .sb to the moniker ship as VSIX
-         assets. -->
+    <!-- Solution Explorer icon for .sb files: the Resource items keep the
+         theme-tuned logo variants plus the XAML wrapper available through the
+         assembly resource bundle used by the image manifest, while the Content
+         items still ship the PNGs as loose VSIX files for diagnostics. -->
     <Resource Include="Icons\SmallBasicFileIcon.16.16.png" />
     <Resource Include="Icons\SmallBasicFileIcon.32.32.png" />
+    <Resource Include="Icons\SmallBasicFileIcon.xaml" />
+    <Content Include="Icons\SmallBasicFileIcon.16.16.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Icons\SmallBasicFileIcon.32.32.png">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
     <Content Include="SmallBasicIcons.imagemanifest">
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>

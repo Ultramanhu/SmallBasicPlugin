@@ -30,22 +30,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
             try
             {
                 SmallBasicDiagnostics.Write("[language service] AddAdornments called");
-
-                var manager = this.codeWindow as IVsDropdownBarManager;
-                var componentModel = Package.GetGlobalService(typeof(SComponentModel)) as IComponentModel;
-                SmallBasicCompilationService compilationService = componentModel?.GetService<SmallBasicCompilationService>();
-                IVsEditorAdaptersFactoryService adapters = componentModel?.GetService<IVsEditorAdaptersFactoryService>();
-
-                IWpfTextView view = null;
-                if (adapters != null
-                    && this.codeWindow != null
-                    && this.codeWindow.GetLastActiveView(out IVsTextView vsView) == VSConstants.S_OK
-                    && vsView != null)
-                {
-                    view = adapters.GetWpfTextView(vsView);
-                }
-
-                SmallBasicNavigationBarAttachment.TryAttach(manager, view, compilationService, "language service");
+                this.TryAttachNavigationBar(null, "language service");
             }
             catch (Exception ex)
             {
@@ -57,12 +42,55 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
 
         public int RemoveAdornments()
         {
+            try
+            {
+                SmallBasicNavigationBarAttachment.TryDetach(this.codeWindow as IVsDropdownBarManager, "language service");
+            }
+            catch (Exception ex)
+            {
+                SmallBasicDiagnostics.Write("[language service] RemoveAdornments failed: " + ex.Message);
+            }
+
             return VSConstants.S_OK;
         }
 
         public int OnNewView(IVsTextView pView)
         {
+            try
+            {
+                SmallBasicDiagnostics.Write("[language service] OnNewView called");
+                this.TryAttachNavigationBar(pView, "language service new view");
+            }
+            catch (Exception ex)
+            {
+                SmallBasicDiagnostics.Write("[language service] OnNewView failed: " + ex.Message);
+            }
+
             return VSConstants.S_OK;
+        }
+
+        private void TryAttachNavigationBar(IVsTextView? candidateView, string source)
+        {
+            IVsDropdownBarManager? manager = this.codeWindow as IVsDropdownBarManager;
+            IComponentModel? componentModel = Package.GetGlobalService(typeof(SComponentModel)) as IComponentModel;
+            SmallBasicCompilationService? compilationService = componentModel?.GetService<SmallBasicCompilationService>();
+            IVsEditorAdaptersFactoryService? adapters = componentModel?.GetService<IVsEditorAdaptersFactoryService>();
+
+            IWpfTextView? view = null;
+            IVsTextView? vsView = candidateView;
+            if (vsView == null
+                && this.codeWindow != null
+                && this.codeWindow.GetLastActiveView(out IVsTextView lastActiveView) == VSConstants.S_OK)
+            {
+                vsView = lastActiveView;
+            }
+
+            if (adapters != null && vsView != null)
+            {
+                view = adapters.GetWpfTextView(vsView);
+            }
+
+            SmallBasicNavigationBarAttachment.TryAttach(manager, view, compilationService, source);
         }
     }
 }

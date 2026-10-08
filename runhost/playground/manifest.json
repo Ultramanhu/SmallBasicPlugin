@@ -1,6 +1,6 @@
 {
   "targetTriple": "x86_64-pc-windows-msvc",
-  "generatedAt": "2026-10-08T13:15:37.862Z",
+  "generatedAt": "2026-10-08T18:00:15.440Z",
   "files": [
     {
       "path": "app/app.css",
@@ -39,8 +39,8 @@
     },
     {
       "path": "app/editor/language-configuration.json",
-      "bytes": 835,
-      "sha256": "30c9f789c2b1e56913a1a6bcd8fe050a0d74c1ed7374f0ebc0496f42d0a3c69b"
+      "bytes": 833,
+      "sha256": "4fd82ecc5107e9c4e917e622c8d0801f7124ef606715e40979bddf92ee2f0d89"
     },
     {
       "path": "app/editor/language.worker.js",
@@ -49,8 +49,8 @@
     },
     {
       "path": "app/editor/language.worker.js.map",
-      "bytes": 2264298,
-      "sha256": "ad92f775e9527419bd361484464df2cb6b3b6bd4b474444e3b7ef0f55b1add16"
+      "bytes": 2262654,
+      "sha256": "c176ba9ce7549ba0d2007c65a912f0ddf824fce716773d742c63f45ed128da27"
     },
     {
       "path": "app/editor/onig.wasm",
@@ -89,18 +89,18 @@
     },
     {
       "path": "app/playground.js.map",
-      "bytes": 18938152,
-      "sha256": "79610b217e02842921bc8e029a0a28d4435497059bc59fee6b1de7422fa6f4c8"
+      "bytes": 18936554,
+      "sha256": "4ec993b0fcf02147edcfc22d960ee04f3213f5779095c706dcb50874ad4e1f0b"
     },
     {
       "path": "app/run.bat",
-      "bytes": 726,
-      "sha256": "5328b3f21539f255234a6f35fe96ccdfbded208bdfcae51fd6cfe7385b2d4c01"
+      "bytes": 754,
+      "sha256": "2d8bb993ccc880d2e790cc9929bd8766c1a6ce4a574ed5cd4f3d660c9240af53"
     },
     {
       "path": "app/run.ps1",
-      "bytes": 1973,
-      "sha256": "3763fdc59a9bd07f040a42f734b68d10a01cd4ae80fb11ac05021730715aacbd"
+      "bytes": 2035,
+      "sha256": "46c4e6abdfc2aa28dc451874b96bdde5ecc3c4d1c267aa0baf0b39c3485097a4"
     },
     {
       "path": "app/runhost-page.js",
@@ -119,8 +119,8 @@
     },
     {
       "path": "app/samples/hello/arithmetic.sb",
-      "bytes": 763,
-      "sha256": "7dfc0430d65217a249aeeec747f52be6250b57fec6bf7429181f5e1fe6a10d67"
+      "bytes": 735,
+      "sha256": "0b8848b820ed8f34893973c73108440d830afc18eeb57de35575af88a67f2695"
     },
     {
       "path": "app/samples/hello/hello.sb",
@@ -144,48 +144,48 @@
     },
     {
       "path": "app/samples/test/test_arithmetic.sb",
-      "bytes": 6231,
-      "sha256": "66e7a4f1c8beb2c1dfd1c8f908c4c126c0efabc30da2de9cd4ab63f7774d2648"
+      "bytes": 6093,
+      "sha256": "3fefee306a5b51c4e0c4baec333b33aadc2ce3e11f223c44900ac982e29deadd"
     },
     {
       "path": "app/samples/test/test_arrays.sb",
-      "bytes": 7460,
-      "sha256": "f2403aa6feeb05d3503d14bf633daeb88fa5e3505b375d5dac12347caacacb11"
+      "bytes": 7274,
+      "sha256": "305f66c998d7de38f8cdd977e094dc91f2137f7e78e70d45da3ba2938be2213f"
     },
     {
       "path": "app/samples/test/test_comparison.sb",
-      "bytes": 5909,
-      "sha256": "3227d3ab4e92073a206d5f3ed2956cbb7652bf0b9d064c9ad5a47d69cb8abd41"
+      "bytes": 5713,
+      "sha256": "0a8c3f1eb55a447caa8fde47f50103d9f7fda7a19b7f90ccd61c99841bede726"
     },
     {
       "path": "app/samples/test/test_language_extension.sb",
-      "bytes": 6935,
-      "sha256": "bb8a2998b6b520a04a858b735b6e6cd05f16eebbd45f923cbbe03eb8a87d14ac"
+      "bytes": 6654,
+      "sha256": "b741650f375a615d96d1e469efcf722a372b7b7e65cfab0b29c9814fb377b0ad"
     },
     {
       "path": "app/samples/test/test_loops.sb",
-      "bytes": 4465,
-      "sha256": "b94658022874be956f9bbef2f93e7b67bca351a518cf65e3cd00ca187604b743"
+      "bytes": 4251,
+      "sha256": "c0d4fc14364213064899351df489614670570c570a55ef2ddda38fd76dc2d1e1"
     },
     {
       "path": "app/samples/test/test_math.sb",
-      "bytes": 5910,
-      "sha256": "9af657338745e052222baffa5b96aac826f589c68abf1e5bd70a45145563865f"
+      "bytes": 5770,
+      "sha256": "c19a79f52f19388a7069492e0aba8c7341861126974c6ff1a389f8eeca6baceb"
     },
     {
       "path": "app/samples/test/test_procedures.sb",
-      "bytes": 6487,
-      "sha256": "6bd625980c483bd365a58353cbb539582d5216b16de45f4d2ce9986d594a5ced"
+      "bytes": 6218,
+      "sha256": "322c48112439616c1779b09dead047ee14c4a1289827c9694dc8d357565c6b6a"
     },
     {
       "path": "app/samples/test/test_runtime.sb",
-      "bytes": 3522,
-      "sha256": "3f45fab237b24b80080b0a24ea9442c5d71f863ec675fd03fab013e01b82ca56"
+      "bytes": 3420,
+      "sha256": "19ce21a6f57db94f14d68e74e2ce8df4c007898df268d3b87c524e5314bdf931"
     },
     {
       "path": "app/samples/test/test_text.sb",
-      "bytes": 5439,
-      "sha256": "873f8b9d927a489416184ae08571f571f8611eb0578ff1827764f6e5d6bc20ce"
+      "bytes": 5331,
+      "sha256": "7ad5485b3d5fa7e8894c4b2bccdba6c03666a482c063f424a0895988694a593c"
     },
     {
       "path": "app/samples/tetris/tetris.sb",
@@ -194,8 +194,8 @@
     },
     {
       "path": "app/samples/tetris/tetris_opt.sb",
-      "bytes": 18747,
-      "sha256": "849850d0a2850db60deb2e71602d829f17b5662b2ab39ad60f00050597dbf35a"
+      "bytes": 18214,
+      "sha256": "8d392d6bea036ab17afce767d3c4bc2df3ce20827b0942aa9a96a36e3f1491fe"
     },
     {
       "path": "app/samples/tutorial/level1.sb",
@@ -214,8 +214,8 @@
     },
     {
       "path": "app/serve.mjs",
-      "bytes": 5488,
-      "sha256": "fb203edf516ed5ccb784fb291f39c92b62d8c78b03d13b2d77fb6030752b2399"
+      "bytes": 5665,
+      "sha256": "f642be025a3a27ac06c4fcb9b935ffcc7d8c67e75e82d6ee54c492f35326cf2a"
     },
     {
       "path": "app/shell-core.js",
@@ -245,12 +245,12 @@
     {
       "path": "app/_framework/blazor.boot.json",
       "bytes": 5257,
-      "sha256": "9871fff8da4d04c7ecc0c9fd74593971a8c933d9fda5c63645d9489558aa12c1"
+      "sha256": "3f6b222927452c7ec4b8daf3f19b40899138467d9ed7bdfb120bf8a435875e1c"
     },
     {
       "path": "app/_framework/blazor.boot.json.br",
-      "bytes": 2315,
-      "sha256": "6630b1367028c7ff7e03f2776ba57cec4c5772acd2c7e9dcd8db77e0ea927178"
+      "bytes": 2307,
+      "sha256": "11f3a5b20479d2cb5df1879a45ec0575a45eea0843514682509b572d0e68703c"
     },
     {
       "path": "app/_framework/blazor.webassembly.js",
@@ -284,33 +284,23 @@
     },
     {
       "path": "app/_framework/dotnet.native.js",
-      "bytes": 160089,
-      "sha256": "f4da17795528e1636b12aae3029ff2dd873c3660dcca6424ccc18e21b2291a2a"
+      "bytes": 135251,
+      "sha256": "79decd5f6595d45f15346eaeb863196fe731eebdaa03d2acd42aa49662af5d6e"
     },
     {
       "path": "app/_framework/dotnet.native.js.br",
-      "bytes": 31474,
-      "sha256": "e24723068331db5aa8237e728d50cc0a0fadbbc069a6ff7f610544c14164f91c"
-    },
-    {
-      "path": "app/_framework/dotnet.native.js.gz",
-      "bytes": 36547,
-      "sha256": "3c1a57495619ffe7da85aff3b24c3c1691e66f5db8ef81443c9c6b8d99e3bac1"
+      "bytes": 26178,
+      "sha256": "7089d2c4989e9c04d68fdd3d6b42de8f0d2517e5d32a630b07bf37e5c0469282"
     },
     {
       "path": "app/_framework/dotnet.native.wasm",
-      "bytes": 2921027,
-      "sha256": "7fa6fc38cccfc5989c7c1b89402ee96345ebaa77dfbc75fbeaba8b786a4bee82"
+      "bytes": 2730985,
+      "sha256": "96f3d547f51192de70bcea0e771a71093014f75b57d4fab0c963942b6532bd73"
     },
     {
       "path": "app/_framework/dotnet.native.wasm.br",
-      "bytes": 951403,
-      "sha256": "c52a73bb63aac3d15c6d6946cf50913c56dc1308be45c1ea76c0a98646bc6019"
-    },
-    {
-      "path": "app/_framework/dotnet.native.wasm.gz",
-      "bytes": 1174493,
-      "sha256": "c7aa5ec034b0635445cb656478972544eb21b040d06694e94cec4a45b70c4542"
+      "bytes": 890665,
+      "sha256": "c118103dda3a593316c50bd789b1fd494fad88c111d54c5b2cecd8c7af597483"
     },
     {
       "path": "app/_framework/dotnet.runtime.js",
@@ -530,42 +520,42 @@
     {
       "path": "app/_framework/SmallBasic.Blazor.Client.wasm",
       "bytes": 107797,
-      "sha256": "3959d78aece78bb875b3bdca7be01642d777874b5dd692a2b7e0d38c6a67cf67"
+      "sha256": "d62614f5b37c5c0c940d881bafd07018247cb2f829bc8963a5e4a7dbf6cca087"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Client.wasm.br",
-      "bytes": 36820,
-      "sha256": "3d381826d8f41715ab9c12621f728f13db7abc4742179df59d29c1debe70406f"
+      "bytes": 36780,
+      "sha256": "b7798967dc1879624bcd3bad6998683a044dcb488ecd3ab91d56927543eb1d31"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Shared.wasm",
       "bytes": 10005,
-      "sha256": "9100fffb4482bc524e51f5e93b05b7d35f835eb34050ad92fecf1a671baa935d"
+      "sha256": "43f1a230ed37904f2b7111a54cdfe763cfa1a83b1517a6ee4694f6af267dfbd5"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Shared.wasm.br",
-      "bytes": 3305,
-      "sha256": "112b7614beb800d53c6d55fb5831da736c6b2535b5183ac3786833a411293f39"
+      "bytes": 3282,
+      "sha256": "2088a10c48a01933c04c8fae5c520133d3cafeba707d09e1da923d8dcca762b1"
     },
     {
       "path": "app/_framework/SmallBasic.Compiler.wasm",
       "bytes": 294165,
-      "sha256": "2d0b3e2572712f2ac69c0bf840004658e75ab1e4b52ee1c662e590a48950eee4"
+      "sha256": "d3262c398dd60b55b5e2d3f2b6142a27e963270d8191d029d3ce19c2c2e11cb3"
     },
     {
       "path": "app/_framework/SmallBasic.Compiler.wasm.br",
-      "bytes": 76298,
-      "sha256": "b0c81138854b659ae95b421d1766a809a7f2d186054fe2d535dabe29372ce448"
+      "bytes": 76162,
+      "sha256": "3ce84dd0707b9ec9303425715a05c9f2e9093773c67123466cc858e4a62b2c5d"
     },
     {
       "path": "app/_framework/SmallBasic.Utilities.wasm",
       "bytes": 1446677,
-      "sha256": "d7c24ca5df2497aa757e85267c0342d0df4d8a10cb004fee133a7a91e8a7002d"
+      "sha256": "87eb5ccb569dfe77cb1344c11624da7643a014a9a6da306bc369a8a1aa8603b6"
     },
     {
       "path": "app/_framework/SmallBasic.Utilities.wasm.br",
-      "bytes": 211382,
-      "sha256": "546594faeb17faf0cd080af0e1ca11750d7a1c13dfbd3531e301c0d7e12a10b3"
+      "bytes": 211296,
+      "sha256": "a362468ec7a0c850adae88f660182f562802f719ee11e32fb3fdf08a031dc499"
     },
     {
       "path": "app/_framework/System.Collections.Concurrent.wasm",
@@ -835,12 +825,12 @@
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.Compiler.dll",
       "bytes": 294400,
-      "sha256": "dc3cb091bffe1599da3edf43d2f4aee2962005efb47f46089bc4231bee23c736"
+      "sha256": "837d9cc0927e6c8f123cd506c7a96184c2a8fd4657c1421e5e421ab8fa1aa38a"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.RunHost.exe",
       "bytes": 76800,
-      "sha256": "49447384afc774ce62e2b298e4fb235c136e2a0dd910a50e3a9a8027ab64b5e4"
+      "sha256": "dce4a50dd72fdd4c9e7769ff7dbe52f8aca719426a976252c623cfd74f261f43"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.RunHost.exe.config",
@@ -850,7 +840,7 @@
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.Utilities.dll",
       "bytes": 1446912,
-      "sha256": "031e5a935184eb28b52087c530dac0828747dca0860077b84405ef992172ba06"
+      "sha256": "26a6a57e4202720633bf8af32156019091c139a2aff55d3c59d458a09318edc7"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasicLibrary.dll",
@@ -899,8 +889,8 @@
     },
     {
       "path": "bin/smallbasic-csharp-net8-x86_64-pc-windows-msvc.exe",
-      "bytes": 72263411,
-      "sha256": "3caa160305684cf65529dccf9165d458a679936dce3960750846117af25075da"
+      "bytes": 72263406,
+      "sha256": "52511ffcdde2f0c880a66587200c91b2b4a4552fdb0eace37018f5d53275598a"
     }
   ]
 }

@@ -117,7 +117,7 @@ internal static FileExtensionToContentTypeDefinition SBFileExtension;
 
 ### 3.5 大纲、导航栏与折叠
 
-- **原生导航栏**：注册一个不含着色器与编辑器工厂的极简遗留语言服务 `SmallBasicLanguageService`（`IVsLanguageInfo`）以取得 `IVsCodeWindow`，再由 `SmallBasicCodeWindowManager` 挂上 `IVsDropdownBar`；`SmallBasicNavigationBarClient` 提供两个下拉——左侧 `<主程序>` + 所有过程，右侧当前作用域首次使用的变量，光标移动时自动同步。条目图标与 C# 导航栏一致：客户端实现 `IVsDropdownBarClient4.GetEntryImage`，用 `ImageMoniker`（`KnownMonikers.Module` / `Procedure` / `Method` / `LocalVariable`）提供字形，`GetComboAttributes` 因此返回 `ENTRY_TEXT | ENTRY_ATTR | ENTRY_IMAGE` 且 `phImageList` 为 `null`；只声明 `ENTRY_IMAGE` 而不实现 `IVsDropdownBarClient4` 会让编辑器丢弃全部条目，导航栏表现为空白下拉。
+- **原生导航栏**：注册一个不含着色器与编辑器工厂的极简遗留语言服务 `SmallBasicLanguageService`（`IVsLanguageInfo`）以取得 `IVsCodeWindow`，再由 `SmallBasicCodeWindowManager` 挂上 `IVsDropdownBar`；`SmallBasicNavigationBarClient` 提供两个下拉——左侧 `<主程序>` + 所有过程，右侧当前作用域首次使用的变量，光标移动时自动同步。导航栏条目只声明 `ENTRY_TEXT | ENTRY_ATTR`：Visual Studio 17.14/2026 在 owner-draw 图像模式下会偶发把已成功取回文本的条目渲染成空白下拉，因此不再为条目附加 `ImageMoniker`。另外，代码窗口管理器会在新视图接管同一编辑器槽位时移除旧下拉并重新挂载，避免“只有第一个打开的文档有导航栏”。
 - **文档大纲工具窗**：`SmallBasicOutlineToolWindow`（Tools → Small Basic → Show Document Outline）列出当前文件的 Sub 与变量，双击跳转。
 - **代码折叠 + 结构**：`SmallBasicOutliningTagger` 折叠 `If/While/For` 控制流块；`SmallBasicStructureTagger` 用编译器 `GetOutlineItems()` 产生过程/变量结构。
 - **调试内联值**：`SmallBasicInlineValuesAdornment` 在断点暂停时于编辑器内联显示当前行相关变量。
@@ -126,7 +126,7 @@ internal static FileExtensionToContentTypeDefinition SBFileExtension;
 
 两者都是随 VSIX 分发的独立 `Microsoft.VisualStudio.VsPackage` / `Microsoft.VisualStudio.ImageManifest` 资产，注册内容手写在 pkgdef 中（没有对应的托管特性）：
 
-- **`.sb` 文件图标**（`SmallBasicIcons.pkgdef` + `SmallBasicIcons.imagemanifest`）：`[$RootKey$\ShellFileAssociations\.sb] "DefaultIconMoniker"="{小图标库 GUID}:1"` 指向清单里的 `ImageMoniker`；清单的图像来自程序集 WPF 资源（`<Resource>` 项，源文件由仓库根 `logo.png` 生成 16×16 / 32×32 两个变体）。位图 `<Source>` 必须声明 `<Size>`（“Manifest from Resources”工具对 png 源即如此生成）：只按图片像素尺寸推断会让图像服务在请求 16px 时找不到匹配变体，`.sb` 只能显示通用文档图标。
+- **`.sb` 文件图标**（`SmallBasicIcons.pkgdef` + `SmallBasicIcons.imagemanifest`）：`[$RootKey$\ShellFileAssociations\.sb] "DefaultIconMoniker"="{小图标库 GUID}:1"` 指向清单里的 `ImageMoniker`；清单指向程序集资源中的 `SmallBasicFileIcon.xaml`，该 XAML 再包一层 logo 派生的 32×32 PNG。这样沿用 FileIcons 的 XAML-backed moniker 模式，并配合 `ProvideBindingPath` 让自定义 moniker 能解析扩展目录里的程序集资源。底层 PNG 仍然由仓库根 `logo.png` 生成：先裁掉透明边距，再做深色主题下的对比度调优，同时保留松散 `Icons/` 内容用于诊断。需要注意的是，VS2026/Exp 的文件夹视图当前仍可能不渲染这条第三方自定义 file moniker 链路。
 - **“文本编辑器”选项节点**（`SmallBasicEditorOptions.pkgdef`）：在 `[$RootKey$\AutomationProperties\TextEditor\SmallBasic]` 注册 `Package` = 编辑器选项页宿主（msenv）、`Name` = 语言服务名、`ResourcePackage` = 本扩展包 GUID、`Description` = 说明文本，Shell 便为该语言生成“常规”页（含“行号”）；同时给 `Languages\Language Services\SmallBasic` 补上 `EnableLineNumbersOption` / `ShowSmartIndent` / `DefaultToInsertSpaces`。字段取值以机器上已装且可用的第三方扩展 Bicep（`Bicep.pkgdef`，只用 AutomationProperties 节点、没有遗留语言服务）为参照：缺少 `ResourcePackage`/`Description` 时该节点不会出现在语言列表里，行号只能跟随“所有语言”全局设置。
 
 ## 4. 新建文件（未实现）

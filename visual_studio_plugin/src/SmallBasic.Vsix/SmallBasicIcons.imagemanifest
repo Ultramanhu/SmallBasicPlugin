@@ -1,15 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Declares the image moniker that carries the Small Basic logo. The images are
-     packed into the extension assembly's WPF resource bundle
-     (SmallBasic.Vsix.g.resources) by the <Resource> items in
-     SmallBasic.Vsix.csproj. SmallBasicIcons.pkgdef then maps the .sb file
-     extension to the moniker declared here.
-
-     A bitmap <Source> must state its logical size (the "Manifest from Resources"
-     tool emits <Size> for .png sources, either from the <name>.<width>.<height>
-     file name pattern or from the actual pixel dimensions); without it the image
-     service cannot pick the variant to draw and the file keeps the generic
-     icon. -->
+<!-- Declares the image moniker that carries the Small Basic logo.
+     SmallBasicIcons.pkgdef maps the .sb file extension to the moniker declared
+     here. The image manifest points at an assembly-resource XAML surface,
+     mirroring the FileIcons extension's pattern, while the XAML surface simply
+     wraps the logo-derived PNG resource that ships in the extension assembly.
+     Visual Studio 2026/Exp may still fail to render this custom file moniker
+     in folder view, but the intended .sb association remains the Small Basic
+     logo rather than a fallback built-in icon. -->
 <ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
   <Symbols>
     <String Name="Resources" Value="/SmallBasic.Vsix;Component/Icons" />
@@ -17,13 +14,8 @@
     <ID Name="SmallBasicFileIcon" Value="1" />
   </Symbols>
   <Images>
-    <Image Guid="$(SmallBasicImagesGuid)" ID="$(SmallBasicFileIcon)">
-      <Source Uri="$(Resources)/SmallBasicFileIcon.16.16.png">
-        <Size Value="16" />
-      </Source>
-      <Source Uri="$(Resources)/SmallBasicFileIcon.32.32.png">
-        <Size Value="32" />
-      </Source>
+    <Image Guid="$(SmallBasicImagesGuid)" ID="$(SmallBasicFileIcon)" AllowColorInversion="false">
+      <Source Uri="$(Resources)/SmallBasicFileIcon.xaml" />
     </Image>
   </Images>
   <ImageLists />

@@ -16,6 +16,7 @@ namespace SmallBasic.Vsix
     /// </summary>
     [PackageRegistration(UseManagedResourcesOnly = true, AllowsBackgroundLoading = true)]
     [InstalledProductRegistration("SmallBasic for Visual Studio", "SmallBasic language support", SmallBasicVersion.Value)]
+    [ProvideBindingPath]
     [ProvideService(typeof(SmallBasicLanguageService), IsAsyncQueryable = true)]
     [ProvideLanguageService(typeof(SmallBasicLanguageService), "SmallBasic", 100, ShowDropDownOptions = true)]
     [ProvideLanguageExtension(typeof(SmallBasicLanguageService), ".sb")]

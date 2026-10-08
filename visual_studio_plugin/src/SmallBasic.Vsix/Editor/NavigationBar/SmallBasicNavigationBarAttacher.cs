@@ -36,7 +36,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
                     return;
                 }
 
-                IWpfTextView view = this.AdaptersFactory.GetWpfTextView(textViewAdapter);
+                IWpfTextView? view = this.AdaptersFactory.GetWpfTextView(textViewAdapter);
                 SmallBasicNavigationBarAttachment.TryAttach(manager, view, this.CompilationService, "text view");
             }
             catch (Exception ex)

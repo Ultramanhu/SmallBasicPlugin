@@ -5,8 +5,6 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
     using System.Globalization;
     using System.Runtime.InteropServices;
     using Microsoft.VisualStudio;
-    using Microsoft.VisualStudio.Imaging;
-    using Microsoft.VisualStudio.Imaging.Interop;
     using Microsoft.VisualStudio.Text;
     using Microsoft.VisualStudio.Text.Editor;
     using Microsoft.VisualStudio.TextManager.Interop;
@@ -21,14 +19,12 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
     /// variables that are first used in the selected scope.
     /// </summary>
     /// <remarks>
-    /// The editor builds its navigation bar entries from image monikers: a client
-    /// that reports <see cref="DROPDOWNENTRYTYPE.ENTRY_IMAGE"/> together with a
-    /// null image list has to expose <see cref="IVsDropdownBarClient4.GetEntryImage(int, int)"/>,
-    /// which is what the C# navigation bar client does. Without it the entries are
-    /// dropped and the bar renders as an empty combo.
+    /// Visual Studio 17.14/2026 intermittently paints owner-drawn image entries as
+    /// blank even though it successfully queries the text for each item, so the
+    /// Small Basic navigation bar deliberately exposes plain text entries only.
     /// </remarks>
     [ComVisible(true)]
-    public sealed class SmallBasicNavigationBarClient : IVsDropdownBarClient, IVsDropdownBarClient3, IVsDropdownBarClient4
+    public sealed class SmallBasicNavigationBarClient : IVsDropdownBarClient, IVsDropdownBarClient3
     {
         public const int ComboCount = 2;
 
@@ -123,11 +119,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
 
         public int GetComboAttributes(int iCombo, out uint pcEntries, out uint puEntryType, out IntPtr phImageList)
         {
-            // Like the C# navigation bar client: entries carry text, font
-            // attributes and an image, and the image comes from
-            // IVsDropdownBarClient4 (image monikers) rather than from a legacy
-            // HIMAGELIST, so phImageList stays null.
-            puEntryType = (uint)(DROPDOWNENTRYTYPE.ENTRY_TEXT | DROPDOWNENTRYTYPE.ENTRY_ATTR | DROPDOWNENTRYTYPE.ENTRY_IMAGE);
+            puEntryType = (uint)(DROPDOWNENTRYTYPE.ENTRY_TEXT | DROPDOWNENTRYTYPE.ENTRY_ATTR);
             phImageList = IntPtr.Zero;
             pcEntries = 0;
 
@@ -222,47 +214,9 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
 
         public int GetEntryImage(int iCombo, int iIndex, out int piImageIndex)
         {
-            // The entries are drawn from image monikers, not from an image list
-            // index; E_UNEXPECTED tells the editor to use the moniker overload.
             piImageIndex = -1;
-            this.Trace($"GetEntryImage({iCombo},{iIndex}) [image index] -> E_UNEXPECTED");
-            return VSConstants.E_UNEXPECTED;
-        }
-
-        /// <summary>Image moniker drawn in front of a navigation bar entry.</summary>
-        ImageMoniker IVsDropdownBarClient4.GetEntryImage(int iCombo, int iIndex)
-        {
-            ImageMoniker moniker = KnownMonikers.Document;
-            try
-            {
-                this.EnsureItems();
-                if (iCombo == 0)
-                {
-                    if (iIndex <= 0)
-                    {
-                        moniker = KnownMonikers.Module;
-                    }
-                    else
-                    {
-                        OutlineItem procedure = this.GetProcedureAt(iIndex);
-                        if (procedure != null)
-                        {
-                            moniker = procedure.Kind == OutlineItemKind.Function ? KnownMonikers.Method : KnownMonikers.Procedure;
-                        }
-                    }
-                }
-                else if (iCombo == 1)
-                {
-                    moniker = KnownMonikers.LocalVariable;
-                }
-            }
-            catch (Exception ex)
-            {
-                this.Trace("GetEntryImage threw: " + ex.GetType().Name);
-            }
-
-            this.Trace($"GetEntryImage({iCombo},{iIndex}) [moniker] -> {moniker.Guid}:{moniker.Id}");
-            return moniker;
+            this.Trace($"GetEntryImage({iCombo},{iIndex}) [image index] -> E_NOTIMPL");
+            return VSConstants.E_NOTIMPL;
         }
 
         public int GetComboTipText(int iCombo, out string pbstrText)
@@ -340,11 +294,10 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
 
         public int GetEntryImage(int iCombo, int iIndex, out int piImageIndex, out IntPtr phImageList)
         {
-            // See the single index overload: entries use image monikers.
             piImageIndex = -1;
             phImageList = IntPtr.Zero;
-            this.Trace($"GetEntryImage({iCombo},{iIndex}) [image index + image list] -> E_UNEXPECTED");
-            return VSConstants.E_UNEXPECTED;
+            this.Trace($"GetEntryImage({iCombo},{iIndex}) [image index + image list] -> E_NOTIMPL");
+            return VSConstants.E_NOTIMPL;
         }
 
         private static bool Contains(TextRange range, int line, int column)

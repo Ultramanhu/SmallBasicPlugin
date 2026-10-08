@@ -21,9 +21,12 @@ namespace SmallBasic.Vsix.Services
     /// </remarks>
     internal static class SmallBasicDiagnostics
     {
+        private const int FileIconId = 1;
+
         private static readonly Guid PaneGuid = new Guid("2C6D9F31-4B7A-4E28-9A5D-7F3B1C8E0A44");
+        private static readonly Guid FileIconGuid = new Guid("57c89fbb-6dd2-49b1-ad07-e02f072f65b9");
         private static readonly object SyncRoot = new object();
-        private static IVsOutputWindowPane outputPane;
+        private static IVsOutputWindowPane? outputPane;
 
         public static string LogPath { get; } =
             Path.Combine(Path.GetTempPath(), "SmallBasicVsix.log");
@@ -48,7 +51,7 @@ namespace SmallBasic.Vsix.Services
 
                 try
                 {
-                    IVsOutputWindowPane pane = GetOutputPane();
+                    IVsOutputWindowPane? pane = GetOutputPane();
                     pane?.OutputStringThreadSafe(line + Environment.NewLine);
                 }
                 catch (Exception)
@@ -58,14 +61,17 @@ namespace SmallBasic.Vsix.Services
         }
 
         /// <summary>
-        /// Reports whether the .sb file icon chain works: the moniker string used
-        /// by SmallBasicIcons.pkgdef has to parse, the WPF resource referenced by
-        /// SmallBasicIcons.imagemanifest has to be loadable, and the shell has to
-        /// report that same moniker for a .sb file.
+        /// Reports whether the intended .sb file icon chain works: the custom
+        /// Small Basic logo moniker used by SmallBasicIcons.pkgdef has to parse,
+        /// the shell has to report that same moniker for a .sb file, the image
+        /// service should materialize pixels for it, and both the loose VSIX
+        /// files plus the assembly-resource fallback must be present.
         /// </summary>
         public static void ProbeFileIconMoniker()
         {
-            string monikerText = FileIconGuid.ToString("D") + ":" + FileIconId.ToString(CultureInfo.InvariantCulture);
+            string monikerText = FileIconGuid.ToString("D", CultureInfo.InvariantCulture)
+                + ":"
+                + FileIconId.ToString(CultureInfo.InvariantCulture);
             try
             {
                 ThreadHelper.ThrowIfNotOnUIThread();
@@ -78,6 +84,7 @@ namespace SmallBasic.Vsix.Services
                 {
                     bool parsedOk = imageService.TryParseImageMoniker(monikerText, out ImageMoniker parsed);
                     Write($"[probe] TryParseImageMoniker(\"{monikerText}\") -> {parsedOk} guid={parsed.Guid} id={parsed.Id}");
+                    ProbeMonikerImage(imageService, parsed, monikerText);
 
                     string probeFile = Path.Combine(Path.GetTempPath(), "smallbasic-icon-probe.sb");
                     try
@@ -85,6 +92,7 @@ namespace SmallBasic.Vsix.Services
                         File.WriteAllText(probeFile, "TextWindow.WriteLine(\"probe\")");
                         ImageMoniker fileMoniker = imageService.GetImageMonikerForFile(probeFile);
                         Write($"[probe] GetImageMonikerForFile(.sb) -> guid={fileMoniker.Guid} id={fileMoniker.Id}");
+                        ProbeMonikerImage(imageService, fileMoniker, ".sb file");
                     }
                     catch (Exception ex)
                     {
@@ -102,6 +110,9 @@ namespace SmallBasic.Vsix.Services
                     }
                 }
 
+                string assemblyDirectory = Path.GetDirectoryName(typeof(SmallBasicPackage).Assembly.Location) ?? string.Empty;
+                ProbeLooseFile(Path.Combine(assemblyDirectory, "Icons", "SmallBasicFileIcon.16.16.png"));
+                ProbeLooseFile(Path.Combine(assemblyDirectory, "Icons", "SmallBasicFileIcon.32.32.png"));
                 ProbeResource("/SmallBasic.Vsix;Component/Icons/SmallBasicFileIcon.16.16.png");
                 ProbeResource("/SmallBasic.Vsix;Component/Icons/SmallBasicFileIcon.32.32.png");
             }
@@ -170,9 +181,60 @@ namespace SmallBasic.Vsix.Services
             LogTextEditorNodes(Registry.CurrentUser, "HKCU");
         }
 
-        private static readonly Guid FileIconGuid = new Guid("57c89fbb-6dd2-49b1-ad07-e02f072f65b9");
+        private static void ProbeLooseFile(string path)
+        {
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    Write($"[probe] file {path} -> MISSING");
+                    return;
+                }
 
-        private const int FileIconId = 1;
+                var info = new FileInfo(path);
+                Write($"[probe] file {path} -> {info.Length} bytes");
+            }
+            catch (Exception ex)
+            {
+                Write($"[probe] file {path} -> FAILED {ex.GetType().Name}: {ex.Message}");
+            }
+        }
+
+        private static void ProbeMonikerImage(IVsImageService2 imageService, ImageMoniker moniker, string label)
+        {
+            try
+            {
+                var attributes = new ImageAttributes
+                {
+                    StructSize = Marshal.SizeOf(typeof(ImageAttributes)),
+                    Flags = (uint)_ImageAttributesFlags.IAF_RequiredFlags,
+                    ImageType = (uint)_UIImageType.IT_Bitmap,
+                    Format = (uint)_UIDataFormat.DF_WPF,
+                    LogicalWidth = 16,
+                    LogicalHeight = 16,
+                };
+
+                IVsUIObject uiObject = imageService.GetImage(moniker, attributes);
+                if (uiObject == null)
+                {
+                    Write($"[probe] GetImage({label}) -> null");
+                    return;
+                }
+
+                uiObject.get_Data(out object data);
+                if (data is System.Windows.Media.Imaging.BitmapSource bitmap)
+                {
+                    Write($"[probe] GetImage({label}) -> {bitmap.PixelWidth}x{bitmap.PixelHeight}");
+                    return;
+                }
+
+                Write($"[probe] GetImage({label}) -> {data?.GetType().FullName ?? "null data"}");
+            }
+            catch (Exception ex)
+            {
+                Write($"[probe] GetImage({label}) FAILED {ex.GetType().Name}: {ex.Message}");
+            }
+        }
 
         /// <summary>
         /// Loads one of the image manifest resources through the very WPF pack URI
@@ -218,7 +280,7 @@ namespace SmallBasic.Vsix.Services
             }
         }
 
-        private static IVsOutputWindowPane GetOutputPane()
+        private static IVsOutputWindowPane? GetOutputPane()
         {
             if (outputPane != null)
             {
