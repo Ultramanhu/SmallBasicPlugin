@@ -20,6 +20,13 @@
 # Studio and VS Code extensions; tools\sync-version.mjs keeps tauri.conf.json,
 # the npm package and Cargo.toml in step (Build-All.ps1 runs it automatically).
 #
+# Every target is compiled only when its toolchain is actually installed: the
+# Rust toolchain plus the Tauri CLI for desktop targets, WSL plus cargo-tauri and
+# the WebKit/GTK development packages inside the distro for Linux-from-Windows
+# (see -WslDistro), the Android SDK/NDK/JDK for Android and Xcode for iOS. A
+# missing environment skips that target with a warning and the remaining targets
+# still build; the skipped targets are listed again at the end of the run.
+#
 # Package shapes:
 #   default        stage + compile the selected local binaries only
 #                  (default targets: linux-x64 + win-x64, no installers)
@@ -189,6 +196,9 @@ foreach ($required in @($stageScript, $tauriConfigPath, $versionFile)) {
     }
 }
 
+# Shared build helpers (toolchain detection).
+Import-Module (Join-Path $repoRoot "tools\common.psm1") -Force
+
 function Get-HostTriple {
     $arch = if ([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
         "aarch64"
@@ -200,6 +210,54 @@ function Get-HostTriple {
     if ($IsMacOS) { return "$arch-apple-darwin" }
     if ($IsLinux) { return "$arch-unknown-linux-gnu" }
     throw "Unsupported host platform; pass -Target explicitly."
+}
+
+function Invoke-ProbeCommand {
+    # Runs a native probe and returns its output lines. cargo/rustup write
+    # progress to stderr, which would become a terminating NativeCommandError
+    # under $ErrorActionPreference = "Stop", so the preference is relaxed for the
+    # duration of the call.
+    param(
+        [Parameter(Mandatory)][string]$Command,
+        [string[]]$Arguments = @()
+    )
+
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        return @(& $Command @Arguments 2>$null)
+    }
+    finally {
+        $ErrorActionPreference = $previous
+    }
+}
+
+function Get-DesktopToolchainGap {
+    # What a native or cross desktop build is missing, as a list of readable
+    # items (empty when the environment is complete). The per-target pipeline
+    # compiles a target only when this list is empty - see the target loop.
+    param(
+        [Parameter(Mandatory)][string]$TargetTriple,
+        [Parameter(Mandatory)][bool]$IsCrossBuild
+    )
+
+    $missing = @()
+    if (-not (Test-ToolchainCommand -Name @("cargo"))) {
+        $missing += "cargo (https://rustup.rs)"
+    }
+    if (-not (Test-TauriCliAvailable -WorkingDirectory $desktopPackage)) {
+        $missing += "the Tauri CLI ('npm install' in visual_studio_code_plugin)"
+    }
+    if ($IsCrossBuild -and (Test-ToolchainCommand -Name @("rustup"))) {
+        # A cross build needs the target's std library; without it the bundler
+        # fails late with a cryptic linker error.
+        $installedTargets = Invoke-ProbeCommand -Command "rustup" -Arguments @("target", "list", "--installed")
+        if ($installedTargets -notcontains $TargetTriple) {
+            $missing += "the Rust target $TargetTriple ('rustup target add $TargetTriple')"
+        }
+    }
+
+    return $missing
 }
 
 $targetAliases = @{
@@ -456,48 +514,66 @@ function Build-DesktopTarget {
     Invoke-Step -Name "tauri build ($TargetTriple, $Configuration)" -WorkingDirectory $desktopPackage -Action { npx @tauriArgs }.GetNewClosure()
 }
 
+function Get-WslToolchainGap {
+    # What the WSL distro is missing to build a Linux target, as a list of
+    # readable items (empty when it can build). These are the checks the build
+    # steps used to raise as hard failures: a machine without WSL - or without
+    # the distro's toolchain - now skips the target instead of failing the build.
+    param([Parameter(Mandatory)][string]$TargetTriple)
+
+    if (-not (Test-ToolchainCommand -Name @("wsl"))) {
+        return @("WSL (wsl.exe)")
+    }
+
+    Invoke-Wsl @("-d", $WslDistro, "-e", "true")
+    if ($LASTEXITCODE -ne 0) {
+        return @("the WSL distribution '$WslDistro' (install it or pass -WslDistro)")
+    }
+
+    Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", 'test -x ~/.cargo/bin/cargo-tauri && test -x ~/.cargo/bin/cargo')
+    if ($LASTEXITCODE -ne 0) {
+        return @("the Rust toolchain and cargo-tauri inside WSL (see the header of this script)")
+    }
+
+    # x86_64 builds natively in the distro; other triples (aarch64) cross
+    # compile with the distro's GNU cross toolchain.
+    if ($TargetTriple -eq "x86_64-unknown-linux-gnu") {
+        $nativeCheck = "pkg-config --exists webkit2gtk-4.1 libsoup-3.0 && dpkg -s libayatana-appindicator3-dev >/dev/null 2>&1 && dpkg -s librsvg2-dev >/dev/null 2>&1 && dpkg -s libxdo-dev >/dev/null 2>&1"
+        Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $nativeCheck)
+        if ($LASTEXITCODE -ne 0) {
+            return @("the WebKit/GTK development packages inside WSL (sudo apt install libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev)")
+        }
+    }
+    elseif ($TargetTriple -like "aarch64*") {
+        $arm64PkgConfigLibDir = "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/share/pkgconfig:/usr/share/pkgconfig"
+        $crossCheck = "rustup target list --installed | grep -q '^$TargetTriple$' && command -v aarch64-linux-gnu-gcc >/dev/null && PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_LIBDIR=$arm64PkgConfigLibDir pkg-config --exists webkit2gtk-4.1 libsoup-3.0"
+        Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $crossCheck)
+        if ($LASTEXITCODE -ne 0) {
+            return @("the arm64 cross toolchain inside WSL (rustup target add $TargetTriple plus the :arm64 development packages; see the header of this script)")
+        }
+    }
+    else {
+        return @("a WSL cross-build recipe for $TargetTriple (build it on a native $TargetTriple host)")
+    }
+
+    return @()
+}
+
 function Build-LinuxViaWsl {
     # Linux bundles from a Windows host: the sidecar is cross-published on the
     # Windows side by the staging step, the GTK/webkit build happens in WSL.
+    # Get-WslToolchainGap has already verified that the distro can build this
+    # target.
     param([Parameter(Mandatory)][string]$TargetTriple)
 
     if (-not $hostIsWindows) {
         throw "Use the native path for Linux builds on a Linux host (this branch is Windows+WSL only)."
     }
 
-    Invoke-Wsl @("-d", $WslDistro, "-e", "true")
-    if ($LASTEXITCODE -ne 0) {
-        throw "WSL distribution '$WslDistro' is not available. Install it or pass -WslDistro."
-    }
-
-    $toolchainCheck = 'test -x ~/.cargo/bin/cargo-tauri && test -x ~/.cargo/bin/cargo'
-    Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $toolchainCheck)
-    if ($LASTEXITCODE -ne 0) {
-        throw "The WSL distro '$WslDistro' lacks the Rust toolchain or cargo-tauri. See the header of this script for setup."
-    }
-
     # x86_64 builds natively in the distro; other triples (aarch64) cross
     # compile with the distro's GNU cross toolchain and emit their binary
     # under target/<triple>/.
     $isWslHostTriple = $TargetTriple -eq "x86_64-unknown-linux-gnu"
-    if ($isWslHostTriple) {
-        $nativeCheck = "pkg-config --exists webkit2gtk-4.1 libsoup-3.0 && dpkg -s libayatana-appindicator3-dev >/dev/null 2>&1 && dpkg -s librsvg2-dev >/dev/null 2>&1 && dpkg -s libxdo-dev >/dev/null 2>&1"
-        Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $nativeCheck)
-        if ($LASTEXITCODE -ne 0) {
-            throw "The WSL distro '$WslDistro' cannot build linux-x64 yet. Install: sudo apt install libwebkit2gtk-4.1-dev libsoup-3.0-dev libayatana-appindicator3-dev librsvg2-dev libxdo-dev."
-        }
-    } else {
-        if ($TargetTriple -like "aarch64*") {
-            $arm64PkgConfigLibDir = "/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/lib/aarch64-linux-gnu/share/pkgconfig:/usr/share/pkgconfig"
-            $crossCheck = "rustup target list --installed | grep -q '^$TargetTriple$' && command -v aarch64-linux-gnu-gcc >/dev/null && PKG_CONFIG_ALLOW_CROSS=1 PKG_CONFIG_LIBDIR=$arm64PkgConfigLibDir pkg-config --exists webkit2gtk-4.1 libsoup-3.0"
-            Invoke-Wsl @("-d", $WslDistro, "--", "bash", "-lc", $crossCheck)
-            if ($LASTEXITCODE -ne 0) {
-                throw "The WSL distro '$WslDistro' cannot cross-build $TargetTriple. Install: rustup target add $TargetTriple; sudo dpkg --add-architecture arm64; sudo apt update; sudo apt install gcc-aarch64-linux-gnu libwebkit2gtk-4.1-dev:arm64 libsoup-3.0-dev:arm64 libayatana-appindicator3-dev:arm64 librsvg2-dev:arm64 libxdo-dev:arm64."
-            }
-        } else {
-            throw "No WSL cross-build recipe for $TargetTriple; build it on a native $TargetTriple host."
-        }
-    }
 
     $srcTauriWsl = Convert-ToWslPath (Join-Path $desktopPackage "src-tauri")
     # The compile cache stays on the ext4 filesystem: building tauri over the
@@ -719,6 +795,8 @@ function Build-iOSTarget {
 
 $archivedAny = $false
 $finalPortable = $null
+$finalPortableTriple = $null
+$skippedTargets = [System.Collections.Generic.List[string]]::new()
 
 foreach ($current in $tripleList) {
     $isAndroid = $current -like "*-android"
@@ -732,6 +810,37 @@ foreach ($current in $tripleList) {
     $isLinuxOnWindows = (-not $isAndroid) -and ($current -like "*linux-gnu") -and $hostIsWindows
     $isCrossDesktop = (-not $isMobile) -and (-not $isLinuxOnWindows) -and ($current -ne $hostTriple)
 
+    # Toolchain detection before anything is staged or compiled for the target,
+    # so an uninstalled environment skips the target instead of failing the run.
+    $toolchain = $null
+    $gap = @()
+    if ($isApple -and -not $isMacOSHost) {
+        # Hand-off: the staged tree is the deliverable and no local toolchain is
+        # involved (see below).
+    }
+    elseif ($isIOS) {
+        if (-not (Test-ToolchainCommand -Name @("xcodebuild"))) {
+            $gap = @("Xcode (xcodebuild)")
+        }
+    }
+    elseif ($isAndroid) {
+        # Get-AndroidToolchain names the first missing piece in its message.
+        try { $toolchain = Get-AndroidToolchain } catch { $gap = @($_.Exception.Message) }
+    }
+    elseif ($isLinuxOnWindows) {
+        $gap = Get-WslToolchainGap -TargetTriple $current
+    }
+    else {
+        $gap = Get-DesktopToolchainGap -TargetTriple $current -IsCrossBuild $isCrossDesktop
+    }
+
+    if ($gap.Count -gt 0) {
+        Write-Host ""
+        Write-Warning "Skipping ${current}: $($gap -join '; ')."
+        $skippedTargets.Add($current)
+        continue
+    }
+
     Stage-Target -TargetTriple $current
 
     # Apple bundles need macOS tooling (Xcode, hdiutil); from any other host
@@ -743,9 +852,6 @@ foreach ($current in $tripleList) {
         Write-Host "'npx tauri build' / 'npx tauri ios build' in the package directory." -ForegroundColor Green
         continue
     }
-
-    $toolchain = $null
-    if ($isAndroid) { $toolchain = Get-AndroidToolchain }
 
     if ($isIOS) {
         Build-iOSTarget -TargetTriple $current
@@ -826,6 +932,7 @@ foreach ($current in $tripleList) {
             }
         }
         $finalPortable = $portableBinary
+        $finalPortableTriple = $current
     }
 
     if ($portableOnly) {
@@ -1012,6 +1119,9 @@ foreach ($current in $tripleList) {
 
 Write-Host ""
 Write-Host "Done." -ForegroundColor Green
+if ($skippedTargets.Count -gt 0) {
+    Write-Host "  skipped      : $($skippedTargets -join ', ') (toolchain not installed; see the warnings above)" -ForegroundColor DarkYellow
+}
 if ($archivedAny) {
     Write-Host "  bundles      : $bundleRoot"
     Get-ChildItem -LiteralPath $bundleRoot -File |
@@ -1020,8 +1130,8 @@ if ($archivedAny) {
         ForEach-Object { Write-Host "    $($_.Name)" }
 }
 if ($finalPortable) {
-    Write-Host "  portable exe : $finalPortable (last target: $($tripleList[-1]))"
-    if ($hostIsWindows -and $tripleList[-1] -like "*linux-gnu*") {
+    Write-Host "  portable exe : $finalPortable (target: $finalPortableTriple)"
+    if ($hostIsWindows -and $finalPortableTriple -like "*linux-gnu*") {
         Write-Host "    run it via WSL:"
         Write-Host "      wsl -d $WslDistro --exec $(Convert-ToWslPath $finalPortable)"
         Write-Host "    (this centers the window on screen every run:"

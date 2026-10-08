@@ -72,12 +72,15 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
                 }
 
                 IVsDropdownBar dropdownBar = null;
-                if (manager.GetDropdownBar(out IVsDropdownBar bar) != VSConstants.S_OK)
+                int getHr = manager.GetDropdownBar(out IVsDropdownBar bar);
+                if (getHr != VSConstants.S_OK)
                 {
                     bar = null;
                 }
 
                 dropdownBar = bar;
+                SmallBasicDiagnostics.Write(
+                    $"[{source}] GetDropdownBar -> hr=0x{getHr:X8}, bar={(bar == null ? "null" : "ok")}");
                 var attachment = new SmallBasicNavigationBarAttachment(client, textView, dropdownBar);
                 attachment.Subscribe();
                 attachment.RefreshSelections();
@@ -119,8 +122,10 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
 
                 // RefreshCombo re-queries the client (entry counts + text) and moves
                 // the selection, which is how the bar tracks the caret.
-                this.dropdownBar.RefreshCombo(0, this.client.GetScopeIndexAtCaret());
-                this.dropdownBar.RefreshCombo(1, this.client.GetMemberIndexAtCaret());
+                int scopeIndex = this.client.GetScopeIndexAtCaret();
+                this.client.SetSelectedScopeIndex(scopeIndex);
+                this.dropdownBar.RefreshCombo(0, scopeIndex);
+                this.dropdownBar.RefreshCombo(1, this.client.GetMemberIndexAtCaret(scopeIndex));
             }
             catch (Exception ex)
             {

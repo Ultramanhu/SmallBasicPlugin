@@ -13,7 +13,7 @@ origin repository: https://github.com/sb
 
 | 功能 | VS Code | VS Code for the Web | Visual Studio |
 |---|---|---|---|
-| `.sb` 文件关联与语法着色 | 有(TextMate + 语义令牌双层着色) | 有(同VSCode，运行于 Web Worker) | 有(MEF 分类器着色) |
+| `.sb` 文件关联与语法着色 | 有(TextMate + 语义令牌双层着色) | 有(同VSCode，运行于 Web Worker) | 有(MEF 分类器着色 + 解决方案资源管理器图标) |
 | IntelliSense 补全 | 有 | 有 | 有(LSP) |
 | 悬停 Quick Info | 有 | 有 | 有(LSP) |
 | 实时诊断 | 波浪线 | 波浪线 | 波浪线(LSP) |
@@ -101,7 +101,7 @@ TextWindow.WriteLine(Math.Mod(-7, 2)) ' -1 (sign follows dividend)
 ### 安装
 
 ```powershell
-code --install-extension build\SmallBasic.VSCode-0.1.7.vsix
+code --install-extension build\SmallBasic.VSCode-0.1.8.vsix
 ```
 
 或在扩展面板 `…` 菜单中选择「从 VSIX 安装…」。
@@ -159,11 +159,11 @@ Web 配置(JavaScript、Blazor)：
 
 ### 安装
 
-双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.7.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
+双击 `visual_studio_plugin\build\SmallBasic.Vsix.0.1.8.vsix`，按 VSIX Installer 提示完成安装；已安装的旧版本会被自动升级替换。
 
 ### 使用
 
-打开任意 `.sb` 文件(无需项目系统，可直接「打开文件夹」)，即可获得语法着色、补全、悬停、错误列表、代码折叠与编辑器顶部抬头(面包屑)。F5/Ctrl+F5 默认使用纯 C# 路径：
+打开任意 `.sb` 文件(无需项目系统，可直接「打开文件夹」)，即可获得语法着色、补全、悬停、错误列表、代码折叠、编辑器顶部抬头(面包屑)与解决方案资源管理器中的 Small Basic 文件图标。语言本身也按内建语言的方式出现在「工具 → 选项 → 文本编辑器 → SmallBasic」下，可在那里单独设置行号等编辑器选项。F5/Ctrl+F5 默认使用纯 C# 路径：
 
 | 按键 | 行为 |
 |---|---|
@@ -314,8 +314,8 @@ node serve.mjs            # 直接调用服务器(--no-open 只启动服务器�
 |---|---|
 | RunHost 运行时分发 | `runhost\net48`、`runhost\net8.0`、`runhost\net8.0-windows`、`runhost\javascript`、`runhost\blazor` |
 | Web RunHost 静态站点 | `runhost\web`(浏览器内 JS / Blazor WASM 双后端，含 `samples\` 示例与 `run.cmd` 一键启动) |
-| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.7.vsix` |
-| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.7.vsix` |
+| VS Code 扩展包 | `visual_studio_code_plugin\build\SmallBasic.VSCode-0.1.8.vsix` |
+| Visual Studio 扩展包 | `visual_studio_plugin\build\SmallBasic.Vsix.0.1.8.vsix` |
 | Playground 便携二进制 | `runhost\playground\SmallBasic.Playground.exe`、`runhost\playground\SmallBasic.Playground` |
 | Playground 安装包归档 | `runhost\playground\bundles\SmallBasic.Playground-*`（按需执行 `runhost\Build-PlaygroundApp.ps1 -BuildBundles ...` 生成） |
 

@@ -95,16 +95,24 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- Solution Explorer icon for .sb files: the Resource item packs the logo
-         into the WPF resource bundle referenced by the image manifest, and the
+    <!-- Solution Explorer icon for .sb files: the Resource items pack the logo
+         variants (16x16 and 32x32, derived from the repository logo.png) into
+         the WPF resource bundle referenced by the image manifest, and the
          manifest plus the pkgdef that maps .sb to the moniker ship as VSIX
          assets. -->
-    <Resource Include="Icons\SmallBasicFileIcon.png" />
+    <Resource Include="Icons\SmallBasicFileIcon.16.16.png" />
+    <Resource Include="Icons\SmallBasicFileIcon.32.32.png" />
     <Content Include="SmallBasicIcons.imagemanifest">
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>
     <Content Include="SmallBasicIcons.pkgdef">
+      <IncludeInVSIX>true</IncludeInVSIX>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+    <!-- Registers the language under Tools > Options > Text Editor so the
+         per-language General page (line numbers, ...) is reachable. -->
+    <Content Include="SmallBasicEditorOptions.pkgdef">
       <IncludeInVSIX>true</IncludeInVSIX>
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </Content>

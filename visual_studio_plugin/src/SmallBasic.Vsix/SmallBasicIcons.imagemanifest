@@ -1,9 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Declares the image moniker that carries the Small Basic logo. The image is
+<!-- Declares the image moniker that carries the Small Basic logo. The images are
      packed into the extension assembly's WPF resource bundle
-     (SmallBasic.Vsix.g.resources, entry "icons/SmallBasicFileIcon.png") by the
-     <Resource> item in SmallBasic.Vsix.csproj. SmallBasicIcons.pkgdef then maps
-     the .sb file extension to the moniker declared here. -->
+     (SmallBasic.Vsix.g.resources) by the <Resource> items in
+     SmallBasic.Vsix.csproj. SmallBasicIcons.pkgdef then maps the .sb file
+     extension to the moniker declared here.
+
+     A bitmap <Source> must state its logical size (the "Manifest from Resources"
+     tool emits <Size> for .png sources, either from the <name>.<width>.<height>
+     file name pattern or from the actual pixel dimensions); without it the image
+     service cannot pick the variant to draw and the file keeps the generic
+     icon. -->
 <ImageManifest xmlns="http://schemas.microsoft.com/VisualStudio/ImageManifestSchema/2014">
   <Symbols>
     <String Name="Resources" Value="/SmallBasic.Vsix;Component/Icons" />
@@ -12,7 +18,12 @@
   </Symbols>
   <Images>
     <Image Guid="$(SmallBasicImagesGuid)" ID="$(SmallBasicFileIcon)">
-      <Source Uri="$(Resources)/SmallBasicFileIcon.png" />
+      <Source Uri="$(Resources)/SmallBasicFileIcon.16.16.png">
+        <Size Value="16" />
+      </Source>
+      <Source Uri="$(Resources)/SmallBasicFileIcon.32.32.png">
+        <Size Value="32" />
+      </Source>
     </Image>
   </Images>
   <ImageLists />

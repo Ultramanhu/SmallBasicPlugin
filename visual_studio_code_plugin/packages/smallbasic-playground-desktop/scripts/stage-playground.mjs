@@ -311,6 +311,13 @@ function stageSidecars(targetTriple, rid, exeSuffix) {
 function stageNet8Sidecar({ targetTriple, rid, exeSuffix, tfm }) {
     const assembly = "SmallBasic.RunHost";
     const publishDir = path.join(PACKAGE_ROOT, "obj", "publish", `csharp-net8-${rid}`);
+    // A RID publish also writes an output tree of its own into
+    // visual_studio_plugin/src/SmallBasic.RunHost/bin/<Configuration>/<tfm>/<rid>
+    // - `-o` only redirects the publish output. That shared folder is what
+    // scripts/stage-runhost.mjs reads for the VS Code VSIX, so a self-contained
+    // runtime per architecture would end up inside the extension. Redirect the
+    // base output path to keep the project's `bin` framework-dependent only.
+    const baseOutputPath = `${path.join(PACKAGE_ROOT, "obj", "sidecar-output")}${path.sep}`;
     console.log(`==> Publishing ${assembly} (${tfm}, ${rid}) for the .NET 8 sidecar`);
 
     run("dotnet", [
@@ -320,6 +327,7 @@ function stageNet8Sidecar({ targetTriple, rid, exeSuffix, tfm }) {
         "-r", rid,
         "--self-contained", "true",
         "-p:SmallBasicStageSidecar=true",
+        `-p:BaseOutputPath=${baseOutputPath}`,
         "-o", publishDir,
         "--nologo"
     ]);

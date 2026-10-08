@@ -1,0 +1,33 @@
+; Makes the SmallBasic language show up under Tools > Options > Text Editor.
+;
+; The text-editor options tree is built from the AutomationProperties\TextEditor
+; nodes. This is the same shape the Bicep extension ships (Bicep.pkgdef) - a
+; VSIX-installed language with no legacy language service at all - so it is the
+; reference for the required values:
+;   Package         = the shell package that owns the generic editor options page
+;                     ({F5E7E720-1401-11D1-883B-0000F87579D2}, msenv.dll), which
+;                     materialises the per-language "General" page (line numbers,
+;                     tab size, indent type, ...).
+;   ResourcePackage = the extension package the shell loads the node's strings
+;                     from; omitting it leaves the node invisible even though the
+;                     registry section exists.
+;   Name / @        = the automation name and the display text of the node.
+; Name has to match the language name reported by the language service
+; (SmallBasicLanguageService.GetLanguageName) so the page edits the same language
+; that owns .sb buffers.
+[$RootKey$\AutomationProperties\TextEditor\SmallBasic]
+@="SmallBasic"
+"Description"="Options for tab size, indent type and line number display"
+"Name"="SmallBasic"
+"Package"="{F5E7E720-1401-11D1-883B-0000F87579D2}"
+"ResourcePackage"="{B2A8F1D6-8F88-4E90-9A34-487561F94801}"
+"ProfileSave"=dword:00000001
+"VSSettingsMigration"=dword:00000001
+
+; Advertises the line-number option and VB-style editor defaults for the
+; language. These are the values ProvideLanguageService would emit through
+; EnableLineNumbersOption / ShowSmartIndent / DefaultToInsertSpaces.
+[$RootKey$\Languages\Language Services\SmallBasic]
+"EnableLineNumbersOption"=dword:00000001
+"ShowSmartIndent"=dword:00000001
+"DefaultToInsertSpaces"=dword:00000001

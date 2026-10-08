@@ -2,6 +2,15 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+/**
+ * Stages the RunHost payload the extension ships into
+ * `packages/smallbasic-vscode/runhost/`: the two framework-dependent C# hosts
+ * (`windows/`, `portable/`) and the Blazor WASM payload (`blazor/`, plus the
+ * CDN-safe ICU aliases under `wwwroot/_framework-webview/`).
+ *
+ * Only the files the extension actually launches or serves are copied - see the
+ * payload boundary below - because everything staged here ends up in the VSIX.
+ */
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const extensionDirectory = path.resolve(scriptDirectory, "..");
 const repositoryRoot = path.resolve(extensionDirectory, "..", "..", "..");
@@ -49,10 +58,88 @@ if (!fs.existsSync(path.join(blazorSource, "SmallBasic.Blazor.RunHost.dll"))) {
 
 const destinationDirectory = path.join(extensionDirectory, "runhost");
 const blazorDestination = path.join(destinationDirectory, "blazor");
+
+// ---------------------------------------------------------------------------
+// Payload boundary: stage only what the extension itself consumes.
+// ---------------------------------------------------------------------------
+
+/**
+ * RID folders (`win-x64`, `linux-arm64`, ...) that a self-contained
+ * `dotnet publish -r <rid>` leaves in
+ * `visual_studio_plugin\src\SmallBasic.RunHost\bin\<Configuration>\<tfm>`.
+ *
+ * That folder is shared with packages/smallbasic-playground-desktop, which
+ * publishes the desktop sidecars (self-contained, single file) from the same
+ * project. `-o <dir>` only moves the *publish* output, so every RID publish
+ * additionally drops a complete self-contained runtime next to the
+ * framework-dependent files staged here - up to ~300 MB per architecture. The
+ * extension launches the framework-dependent hosts (`SmallBasic.RunHost.exe` /
+ * `SmallBasic.RunHost.dll`), so nothing inside those folders is ever used.
+ */
+const RUNTIME_IDENTIFIER_DIRECTORY =
+  /^(?:win|linux|osx|freebsd|illumos|browser|android|ios|maccatalyst)[-_](?:musl[-_])?(?:x64|x86|arm|arm64|loongarch64|ppc64le|s390x|wasm)$/i;
+
+/**
+ * Blazor's browser debug proxy (Roslyn plus `BrowserDebugProxy.dll` and
+ * `BrowserDebugHost.dll`, ~11 MB), emitted by the WebAssembly.Server package for
+ * the Visual Studio / browser-launch debugging tooling. The extension never
+ * launches it: the Blazor WASM debug flow runs over its own webview channel
+ * (src/web/debug-broker.ts and src/web/webview-debug-adapter.ts).
+ */
+const UNUSED_PUBLISH_DIRECTORIES = new Set(["BlazorDebugProxy"]);
+
+/** Totals of everything the filter below kept out, keyed by reason. */
+const skipped = new Map();
+
+function measure(target) {
+  const stats = fs.statSync(target);
+  if (!stats.isDirectory()) {
+    return { files: 1, bytes: stats.size };
+  }
+
+  let files = 0;
+  let bytes = 0;
+  for (const entry of fs.readdirSync(target, { withFileTypes: true })) {
+    const measured = measure(path.join(target, entry.name));
+    files += measured.files;
+    bytes += measured.bytes;
+  }
+
+  return { files, bytes };
+}
+
+function exclude(reason, sourcePath) {
+  const measured = measure(sourcePath);
+  const total = skipped.get(reason) ?? { files: 0, bytes: 0 };
+  total.files += measured.files;
+  total.bytes += measured.bytes;
+  skipped.set(reason, total);
+  return false;
+}
+
+/** `fs.cpSync` filter: keeps the payload to the framework-dependent host files. */
+function shouldStage(sourcePath) {
+  const name = path.basename(sourcePath);
+
+  if (RUNTIME_IDENTIFIER_DIRECTORY.test(name)) {
+    return exclude("self-contained RID runtime folders", sourcePath);
+  }
+
+  if (UNUSED_PUBLISH_DIRECTORIES.has(name)) {
+    return exclude("Visual Studio / browser debugging output", sourcePath);
+  }
+
+  if (!keepDebugSymbols && path.extname(name).toLowerCase() === ".pdb") {
+    return exclude("managed debug symbols", sourcePath);
+  }
+
+  return true;
+}
+
 const copyOptions = {
   recursive: true,
   force: true,
-  filter: (source) => keepDebugSymbols || path.extname(source).toLowerCase() !== ".pdb"
+  filter: shouldStage
 };
 
 /**
@@ -110,6 +197,12 @@ if (blazorOnly) {
 
 stageWebviewResourceAliases();
 
-if (!keepDebugSymbols) {
-  console.log("Skipped PDB files (release packaging).");
+const staged = measure(destinationDirectory);
+console.log(`Staged RunHost payload: ${staged.files} file(s), ${formatBytes(staged.bytes)}.`);
+for (const [reason, total] of skipped) {
+  console.log(`  Skipped ${reason}: ${total.files} file(s), ${formatBytes(total.bytes)}.`);
+}
+
+function formatBytes(bytes) {
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }

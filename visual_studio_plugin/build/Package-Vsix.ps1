@@ -76,6 +76,9 @@ try {
         "SmallBasic.Vsix.dll",
         "SmallBasic.Vsix.pkgdef",
         "SmallBasic.LanguageServices.dll",
+        "SmallBasicIcons.imagemanifest",
+        "SmallBasicIcons.pkgdef",
+        "SmallBasicEditorOptions.pkgdef",
         "debugadapter/adapter.js",
         "runhost/csharp/SmallBasic.RunHost.exe",
         "runhost/javascript/smallbasic-runhost.js"

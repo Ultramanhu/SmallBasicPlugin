@@ -46,8 +46,56 @@ function Read-RequiredWebSiteFiles {
     return @($manifest.required)
 }
 
+function Test-ToolchainCommand {
+    <# .SYNOPSIS
+    True when every named command is on PATH. The build scripts compile a target
+    only when its toolchain is actually installed, so a machine without it gets a
+    warning instead of a failed build.#>
+    param(
+        [Parameter(Mandatory)]
+        [string[]]$Name
+    )
+
+    foreach ($command in $Name) {
+        if (-not (Get-Command $command -ErrorAction SilentlyContinue)) {
+            return $false
+        }
+    }
+
+    return $true
+}
+
+function Test-TauriCliAvailable {
+    <# .SYNOPSIS
+    True when the Tauri CLI is installed. It is the @tauri-apps/cli dev
+    dependency of the VS Code workspace, probed with --no-install so a missing
+    CLI is reported instead of being fetched from the registry.#>
+    param(
+        [Parameter(Mandatory)]
+        [string]$WorkingDirectory
+    )
+
+    if (-not (Test-ToolchainCommand -Name @("npx"))) {
+        return $false
+    }
+
+    $previous = $ErrorActionPreference
+    $ErrorActionPreference = "SilentlyContinue"
+    Push-Location -LiteralPath $WorkingDirectory
+    try {
+        $null = & npx --no-install tauri --version 2>&1
+        return $LASTEXITCODE -eq 0
+    }
+    finally {
+        Pop-Location
+        $ErrorActionPreference = $previous
+    }
+}
+
 Export-ModuleMember -Function @(
     "Get-RepoVersion",
     "Sync-RepoVersion",
-    "Read-RequiredWebSiteFiles"
+    "Read-RequiredWebSiteFiles",
+    "Test-ToolchainCommand",
+    "Test-TauriCliAvailable"
 )

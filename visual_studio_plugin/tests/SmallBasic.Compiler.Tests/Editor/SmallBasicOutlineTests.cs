@@ -78,8 +78,10 @@ namespace SmallBasic.Tests.Editor
         [Fact]
         public void HandlesTheSampleHelloProgram()
         {
-            // Mirrors sample/hello/hello.sb, the file used to validate the editor UI.
+            // Mirrors sample/hello/hello.sb, including the scoped variables that the
+            // Visual Studio navigation bar relies on.
             IReadOnlyList<OutlineItem> items = OutlineOf(
+                "On Error Resume Next",
                 "TextWindow.WriteLine(\"Hello, World!\")",
                 string.Empty,
                 "a1 = 1",
@@ -90,20 +92,50 @@ namespace SmallBasic.Tests.Editor
                 "s2 = s1 * 1",
                 "TextWindow.WriteLine(s2)",
                 string.Empty,
-                "Sub MySub",
-                "\tTextWindow.WriteLine(\"Hello\")",
+                "p = 1 / 0",
+                "i = 10",
+                string.Empty,
+                "Sub MySub(i)",
+                "\tDim j",
+                "\tTextWindow.WriteLine(\"MySub:\" + i)",
+                "\tj = i + 1",
+                "\tIf j < 10 Then",
+                "\t\tMySub(j)",
+                "\tEndIf",
                 "EndSub",
                 string.Empty,
-                "MySub()");
+                "MySub(0)",
+                string.Empty,
+                "Function MyFunc(i)",
+                "\tDim j",
+                "\tTextWindow.WriteLine(\"MyFunc:\" + i)",
+                "\tj = i + 1",
+                "\tIf j < 10 Then",
+                "\t\tReturn MyFunc(j)",
+                "\tEndIf",
+                "\tReturn i",
+                "EndFunction",
+                string.Empty,
+                "Ret = MyFunc(0)",
+                "TextWindow.WriteLine(\"MyFunc Ret:\" + Ret)");
 
             items.Select(Describe).Should().Equal(
-                "Variable a1@2:0",
-                "Variable a2@3:0",
-                "Variable s1@6:0",
-                "Variable s2@7:0",
-                "Procedure MySub@10:4");
+                "Variable a1@3:0",
+                "Variable a2@4:0",
+                "Variable s1@7:0",
+                "Variable s2@8:0",
+                "Variable p@11:0",
+                "Variable i@12:0",
+                "Procedure MySub@14:4",
+                "Function MyFunc@25:9",
+                "Variable Ret@35:0");
 
-            items.Single(item => item.Kind == OutlineItemKind.Procedure).Children.Should().BeEmpty();
+            items.Single(item => item.Name == "MySub").Children.Select(Describe).Should().Equal(
+                "Variable i@14:10",
+                "Variable j@15:5");
+            items.Single(item => item.Name == "MyFunc").Children.Select(Describe).Should().Equal(
+                "Variable i@25:16",
+                "Variable j@26:5");
         }
 
         private static IReadOnlyList<OutlineItem> OutlineOf(params string[] lines)
@@ -113,7 +145,11 @@ namespace SmallBasic.Tests.Editor
 
         private static string Describe(OutlineItem item)
         {
-            var kind = item.Kind == OutlineItemKind.Procedure ? "Procedure" : "Variable";
+            var kind = item.Kind == OutlineItemKind.Procedure
+                ? "Procedure"
+                : item.Kind == OutlineItemKind.Function
+                    ? "Function"
+                    : "Variable";
             return $"{kind} {item.Name}@{item.SelectionRange.Start.Line}:{item.SelectionRange.Start.Column}";
         }
     }

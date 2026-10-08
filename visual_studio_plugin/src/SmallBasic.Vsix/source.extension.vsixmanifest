@@ -3,7 +3,7 @@
                  xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011"
                  xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Language="en-US" Id="smallbasic-tools-vs" Version="0.1.7" Publisher="ultramanhu" />
+    <Identity Language="en-US" Id="smallbasic-tools-vs" Version="0.1.8" Publisher="ultramanhu" />
     <DisplayName>SmallBasic for Visual Studio</DisplayName>
     <Description xml:space="preserve">SmallBasic editor support for Visual Studio.</Description>
     <License>LICENSE.txt</License>
@@ -49,5 +49,8 @@
          association that points the .sb extension at it. -->
     <Asset Type="Microsoft.VisualStudio.ImageManifest" Path="SmallBasicIcons.imagemanifest" />
     <Asset Type="Microsoft.VisualStudio.VsPackage" Path="SmallBasicIcons.pkgdef" />
+    <!-- Tools > Options > Text Editor registration (per-language General page,
+         line numbers, ...). -->
+    <Asset Type="Microsoft.VisualStudio.VsPackage" Path="SmallBasicEditorOptions.pkgdef" />
   </Assets>
 </PackageManifest>

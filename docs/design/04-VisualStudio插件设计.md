@@ -7,7 +7,7 @@
 > - Visual Studio 侧已收敛为**单包**：`src/SmallBasic.Vsix`（新版扩展 SDK in-proc 混合托管 + 内置 LSP server）。过渡期的旧工程与公共库 `src/SmallBasic.VsCommon` 已删除，内容全部并入本工程（命名空间统一为 `SmallBasic.Vsix.*`）；迁移与收敛记录见本文第 9 节。
 > - 解决方案是新格式 `SmallBasic.VisualStudio.slnx`，收录 `src/SmallBasic.Vsix`、`src/SmallBasic.LanguageServices`、`src/SmallBasic.RunHost`、`tests/SmallBasic.Compiler.Tests`、`tests/SmallBasic.LanguageServices.Tests` 与 `vendor/SmallBasicEditor` 的 Compiler/Utilities；`src/SmallBasic.Blazor.*` 三件套由 Ext 项目的 MSBuild Target 间接构建并发布。**没有**独立的 `SB.DebugAdapter` 项目（调试内嵌在 RunHost），也**没有** `vsdconfig`。
 > - 包内代码分为新框架层（`Commands/` 的新 SDK 命令、`LanguageServer/`、`ToolWindows/`）与兼容层（`Commands/` 的调试启动与 F5 过滤器、`Services/`、`Workspace/`、`Editor/` 的分类/折叠/导航栏/调试内联值）。**没有** `Templates/`、`Resources/`（无项模板）。补全 / QuickInfo / Squiggle 的旧 MEF 实现已删除，同等能力由 LSP 提供。
-> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（仓库根 `launch.vs.json` 的 `smallbasic` 配置按其 `backend` 生效；`.vscode/launch.json` 仅供 VS Code 使用）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口及 Show Document Outline（共 7 项），仅当活动编辑器是 `.sb` 文件时启用。**没有**“工具→选项”设置页，后端由菜单/快捷键直接决定。
+> - 打开文件夹时 `F5`/`F10`/`F11` 交给 VS 调试目标机制（仓库根 `launch.vs.json` 的 `smallbasic` 配置按其 `backend` 生效；`.vscode/launch.json` 仅供 VS Code 使用）；解决方案或无工作区时 `F5` 默认纯 C# DAP 调试；`Ctrl+F5` 始终运行 `SelectedBackend`（默认 C#）；调试会话激活期间命令过滤器把 `F5/F10/F11` 转发给调试器。Tools 菜单提供 C#/JS/Blazor 的运行与调试入口及 Show Document Outline（共 7 项），仅当活动编辑器是 `.sb` 文件时启用。**没有**扩展自己的“工具→选项”设置页，后端由菜单/快捷键直接决定；语言本身仍按内建语言的方式出现在“工具→选项→文本编辑器→SmallBasic”下（见 3.6）。
 > - C# 运行/调试用随 VSIX 分发的 `net48` 宿主，支持图形；JS 路径只捆 `runhost/javascript` bundle 并依赖外部 Node.js 20+，不支持图形；Blazor 路径用 `dotnet ...SmallBasic.Blazor.RunHost.dll`，跨平台提供图形。
 > - 本文其余章节若出现 `src/SmallBasic.Vsix/...` 或 `src/SmallBasic.VsCommon/...` 路径，按“均已并入 `src/SmallBasic.Vsix/...`”理解。
 
@@ -117,10 +117,17 @@ internal static FileExtensionToContentTypeDefinition SBFileExtension;
 
 ### 3.5 大纲、导航栏与折叠
 
-- **原生导航栏**：注册一个不含着色器与编辑器工厂的极简遗留语言服务 `SmallBasicLanguageService`（`IVsLanguageInfo`）以取得 `IVsCodeWindow`，再由 `SmallBasicCodeWindowManager` 挂上 `IVsDropdownBar`；`SmallBasicNavigationBarClient` 提供两个下拉——左侧 `<主程序>` + 所有过程，右侧当前作用域首次使用的变量，光标移动时自动同步。
+- **原生导航栏**：注册一个不含着色器与编辑器工厂的极简遗留语言服务 `SmallBasicLanguageService`（`IVsLanguageInfo`）以取得 `IVsCodeWindow`，再由 `SmallBasicCodeWindowManager` 挂上 `IVsDropdownBar`；`SmallBasicNavigationBarClient` 提供两个下拉——左侧 `<主程序>` + 所有过程，右侧当前作用域首次使用的变量，光标移动时自动同步。条目图标与 C# 导航栏一致：客户端实现 `IVsDropdownBarClient4.GetEntryImage`，用 `ImageMoniker`（`KnownMonikers.Module` / `Procedure` / `Method` / `LocalVariable`）提供字形，`GetComboAttributes` 因此返回 `ENTRY_TEXT | ENTRY_ATTR | ENTRY_IMAGE` 且 `phImageList` 为 `null`；只声明 `ENTRY_IMAGE` 而不实现 `IVsDropdownBarClient4` 会让编辑器丢弃全部条目，导航栏表现为空白下拉。
 - **文档大纲工具窗**：`SmallBasicOutlineToolWindow`（Tools → Small Basic → Show Document Outline）列出当前文件的 Sub 与变量，双击跳转。
 - **代码折叠 + 结构**：`SmallBasicOutliningTagger` 折叠 `If/While/For` 控制流块；`SmallBasicStructureTagger` 用编译器 `GetOutlineItems()` 产生过程/变量结构。
 - **调试内联值**：`SmallBasicInlineValuesAdornment` 在断点暂停时于编辑器内联显示当前行相关变量。
+
+### 3.6 文件图标与编辑器选项节点
+
+两者都是随 VSIX 分发的独立 `Microsoft.VisualStudio.VsPackage` / `Microsoft.VisualStudio.ImageManifest` 资产，注册内容手写在 pkgdef 中（没有对应的托管特性）：
+
+- **`.sb` 文件图标**（`SmallBasicIcons.pkgdef` + `SmallBasicIcons.imagemanifest`）：`[$RootKey$\ShellFileAssociations\.sb] "DefaultIconMoniker"="{小图标库 GUID}:1"` 指向清单里的 `ImageMoniker`；清单的图像来自程序集 WPF 资源（`<Resource>` 项，源文件由仓库根 `logo.png` 生成 16×16 / 32×32 两个变体）。位图 `<Source>` 必须声明 `<Size>`（“Manifest from Resources”工具对 png 源即如此生成）：只按图片像素尺寸推断会让图像服务在请求 16px 时找不到匹配变体，`.sb` 只能显示通用文档图标。
+- **“文本编辑器”选项节点**（`SmallBasicEditorOptions.pkgdef`）：在 `[$RootKey$\AutomationProperties\TextEditor\SmallBasic]` 注册 `Package` = 编辑器选项页宿主（msenv）、`Name` = 语言服务名、`ResourcePackage` = 本扩展包 GUID、`Description` = 说明文本，Shell 便为该语言生成“常规”页（含“行号”）；同时给 `Languages\Language Services\SmallBasic` 补上 `EnableLineNumbersOption` / `ShowSmartIndent` / `DefaultToInsertSpaces`。字段取值以机器上已装且可用的第三方扩展 Bicep（`Bicep.pkgdef`，只用 AutomationProperties 节点、没有遗留语言服务）为参照：缺少 `ResourcePackage`/`Description` 时该节点不会出现在语言列表里，行号只能跟随“所有语言”全局设置。
 
 ## 4. 新建文件（未实现）
 

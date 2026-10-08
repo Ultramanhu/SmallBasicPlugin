@@ -3,7 +3,7 @@
   "displayName": "SmallBasic for Visual Studio Code",
   "icon": "media/icon.png",
   "description": "Microsoft SmallBasic Support for Visual Studio Code",
-  "version": "0.1.7",
+  "version": "0.1.8",
   "publisher": "ultramanhu",
   "private": true,
   "license": "MIT",

@@ -39,6 +39,12 @@ namespace SmallBasic.Vsix
             await this.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             SmallBasicDiagnostics.Write(
                 $"package {SmallBasicVersion.Value} initialized from {typeof(SmallBasicPackage).Assembly.Location}");
+
+            // Both the .sb file icon and the "Text Editor" options node are pure
+            // registry registrations, so verify from inside the running instance
+            // that the shell really sees them.
+            SmallBasicDiagnostics.ProbeFileIconMoniker();
+            SmallBasicDiagnostics.ProbeEditorOptions(this);
         }
 
         private static System.Threading.Tasks.Task<object?> CreateLanguageServiceAsync(

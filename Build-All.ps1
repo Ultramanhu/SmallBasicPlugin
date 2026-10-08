@@ -7,6 +7,10 @@
 #   3. visual_studio_plugin\build\Package-Vsix.ps1 -> builds src\SmallBasic.Vsix
 #                                                -> visual_studio_plugin\build\SmallBasic.Vsix.<version>.vsix
 #   4. runhost\Build-PlaygroundApp.ps1            -> runhost\playground\ (portable Windows/Linux x64 + staged app + sidecars)
+#      Steps 1-3 need .NET and Node only. Step 4 additionally needs the toolchain
+#      of each target it was asked for, so it is skipped with a warning when
+#      Rust/cargo or the Tauri CLI is missing (WSL, the Android SDK and Xcode are
+#      checked the same way inside Build-PlaygroundApp.ps1).
 #
 # The packaging scripts in steps 2-3 depend on the RunHost distribution built in
 # step 1 and accept -SkipRunHost for exactly that reason: running them standalone
@@ -102,10 +106,24 @@ if (-not $SkipVsix) {
 # playground bundle), so tell the desktop script to reuse them: rebuild only what
 # the earlier steps actually skipped. This keeps the "never build the same
 # artifact twice" rule of this script and avoids a second tsup run over dist\.
+$playgroundBuilt = $false
 if (-not $SkipPlayground) {
     $playgroundScript = Join-Path $repoRoot "runhost\Build-PlaygroundApp.ps1"
     if (-not (Test-Path $playgroundScript)) {
         throw "Desktop Playground build script not found: $playgroundScript"
+    }
+
+    # Only compile the desktop app when its toolchain is present: the three
+    # artifacts above are complete without it, so a machine that has no Rust or
+    # no Tauri CLI gets the extensions and a warning instead of a failed build.
+    # Build-PlaygroundApp.ps1 repeats this per target (and for WSL / Android).
+    $missingDesktopTools = [System.Collections.Generic.List[string]]::new()
+    if (-not (Test-ToolchainCommand -Name @("cargo"))) {
+        $missingDesktopTools.Add("cargo (https://rustup.rs)")
+    }
+    $desktopPackage = Join-Path $repoRoot "visual_studio_code_plugin\packages\smallbasic-playground-desktop"
+    if (-not (Test-TauriCliAvailable -WorkingDirectory $desktopPackage)) {
+        $missingDesktopTools.Add("Tauri CLI ('npm install' in visual_studio_code_plugin)")
     }
 
     $playgroundArgs = @{
@@ -119,9 +137,18 @@ if (-not $SkipPlayground) {
     if (-not $SkipWeb) { $playgroundArgs.SkipPlaygroundBundle = $true }
     if ($SkipPlaygroundSidecars) { $playgroundArgs.SkipSidecars = $true }
 
-    Write-Host ""
-    Write-Host "=== Build-PlaygroundApp: runhost\playground ($Configuration) ===" -ForegroundColor Yellow
-    & $playgroundScript @playgroundArgs
+    if ($missingDesktopTools.Count -gt 0) {
+        Write-Host ""
+        Write-Host "=== Build-PlaygroundApp: runhost\playground ($Configuration) ===" -ForegroundColor Yellow
+        Write-Warning ("Skipping the desktop Playground build: {0} is not available. " +
+            "The extension VSIX packages above are unaffected.") -f ($missingDesktopTools -join ", ")
+    }
+    else {
+        Write-Host ""
+        Write-Host "=== Build-PlaygroundApp: runhost\playground ($Configuration) ===" -ForegroundColor Yellow
+        & $playgroundScript @playgroundArgs
+        $playgroundBuilt = $true
+    }
 }
 
 Write-Host ""
@@ -131,7 +158,18 @@ if (-not $SkipVsix) {
     Write-Host "  visual_studio_code_plugin\build\SmallBasic.VSCode-$version.vsix"
     Write-Host "  visual_studio_plugin\build\SmallBasic.Vsix.$version.vsix"
 }
-if (-not $SkipPlayground) {
-    Write-Host "  runhost\playground\SmallBasic.Playground.exe (portable, Windows)"
-    Write-Host "  runhost\playground\SmallBasic.Playground (portable ELF, Linux - run via WSL/WSLg)"
+if ($playgroundBuilt) {
+    # Report what step 4 actually staged: a skipped target (no WSL, no cross
+    # toolchain) leaves its portable executable out of runhost\playground.
+    $portables = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "runhost\playground") -File -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "SmallBasic.Playground*" })
+    if ($portables.Count -eq 0) {
+        Write-Host "  runhost\playground\               (staged, no portable executable)"
+    }
+    foreach ($portable in $portables) {
+        Write-Host "  runhost\playground\$($portable.Name)"
+    }
+}
+elseif (-not $SkipPlayground) {
+    Write-Host "  runhost\playground\               (skipped: the desktop toolchain is not installed)"
 }

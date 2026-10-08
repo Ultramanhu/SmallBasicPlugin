@@ -1,6 +1,6 @@
 [package]
 name = "smallbasic-playground-desktop"
-version = "0.1.7"
+version = "0.1.8"
 description = "Small Basic local playground - Tauri desktop shell with CLI sidecar backends"
 edition = "2021"
 rust-version = "1.77"
