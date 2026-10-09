@@ -5,6 +5,10 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
     using System.Globalization;
     using System.Runtime.InteropServices;
     using Microsoft.VisualStudio;
+    using Microsoft.VisualStudio.Imaging.Interop;
+    using Microsoft.VisualStudio.PlatformUI;
+    using Microsoft.VisualStudio.Shell;
+    using Microsoft.VisualStudio.Shell.Interop;
     using Microsoft.VisualStudio.Text;
     using Microsoft.VisualStudio.Text.Editor;
     using Microsoft.VisualStudio.TextManager.Interop;
@@ -19,9 +23,8 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
     /// variables that are first used in the selected scope.
     /// </summary>
     /// <remarks>
-    /// Visual Studio 17.14/2026 intermittently paints owner-drawn image entries as
-    /// blank even though it successfully queries the text for each item, so the
-    /// Small Basic navigation bar deliberately exposes plain text entries only.
+    /// Supplies a real image list to both dropdown image callbacks. Some editor
+    /// hosts query IVsDropdownBarClient3 rather than the image-moniker interface.
     /// </remarks>
     [ComVisible(true)]
     public sealed class SmallBasicNavigationBarClient : IVsDropdownBarClient, IVsDropdownBarClient3
@@ -29,10 +32,25 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
         public const int ComboCount = 2;
 
         private const string MainProgramName = "<主程序>";
+        private const int MainProgramImageIndex = 0;
+        private const int ProcedureImageIndex = 1;
+        private const int VariableImageIndex = 2;
+
+        private static readonly ImageMoniker NavigationIcons = new ImageMoniker
+        {
+            Guid = new Guid("57c89fbb-6dd2-49b1-ad07-e02f072f65b9"),
+            Id = 2,
+        };
 
         private readonly SmallBasicCompilationService compilationService;
         private readonly IWpfTextView textView;
         private IVsDropdownBar dropdownBar;
+        // The image service owns the HIMAGELIST. Keep its wrapper alive for as
+        // long as the dropdown can use the handle; never destroy it ourselves.
+        private IVsUIObject? imageListObject;
+        private IntPtr imageListHandle;
+        private uint imageListBackground;
+        private int imageListDpi;
         private int cachedVersionNumber = -1;
         private int selectedScopeIndex;
         private List<OutlineItem> procedures = new List<OutlineItem>();
@@ -139,6 +157,15 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
                     pcEntries = (uint)this.GetCurrentMembers().Count;
                     hr = VSConstants.S_OK;
                 }
+
+                if (hr == VSConstants.S_OK)
+                {
+                    phImageList = this.GetImageList();
+                    if (phImageList != IntPtr.Zero)
+                    {
+                        puEntryType |= (uint)DROPDOWNENTRYTYPE.ENTRY_IMAGE;
+                    }
+                }
             }
             catch (Exception ex)
             {
@@ -214,9 +241,7 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
 
         public int GetEntryImage(int iCombo, int iIndex, out int piImageIndex)
         {
-            piImageIndex = -1;
-            this.Trace($"GetEntryImage({iCombo},{iIndex}) [image index] -> E_NOTIMPL");
-            return VSConstants.E_NOTIMPL;
+            return this.GetEntryImage(iCombo, iIndex, out piImageIndex, out _);
         }
 
         public int GetComboTipText(int iCombo, out string pbstrText)
@@ -296,8 +321,89 @@ namespace SmallBasic.Vsix.Editor.NavigationBar
         {
             piImageIndex = -1;
             phImageList = IntPtr.Zero;
-            this.Trace($"GetEntryImage({iCombo},{iIndex}) [image index + image list] -> E_NOTIMPL");
+
+            try
+            {
+                this.EnsureItems();
+                if (iCombo == 0 && iIndex >= 0 && iIndex <= this.procedures.Count)
+                {
+                    piImageIndex = iIndex == 0 ? MainProgramImageIndex : ProcedureImageIndex;
+                }
+                else if (iCombo == 1 && iIndex >= 0 && iIndex < this.GetCurrentMembers().Count)
+                {
+                    piImageIndex = VariableImageIndex;
+                }
+                else
+                {
+                    return VSConstants.E_INVALIDARG;
+                }
+
+                phImageList = this.GetImageList();
+                if (phImageList != IntPtr.Zero)
+                {
+                    this.Trace($"GetEntryImage({iCombo},{iIndex}) -> image={piImageIndex} imageList=set");
+                    return VSConstants.S_OK;
+                }
+            }
+            catch (Exception ex)
+            {
+                this.Trace("GetEntryImage threw: " + ex.GetType().Name);
+            }
+
+            piImageIndex = -1;
             return VSConstants.E_NOTIMPL;
+        }
+
+        private IntPtr GetImageList()
+        {
+            try
+            {
+                var color = VSColorTheme.GetThemedColor(EnvironmentColors.DropDownBackgroundColorKey);
+                uint background = ((uint)color.A << 24) | ((uint)color.R << 16) | ((uint)color.G << 8) | color.B;
+                var presentationSource = System.Windows.PresentationSource.FromVisual(this.textView.VisualElement);
+                int dpi = (int)Math.Round(96 * (presentationSource?.CompositionTarget?.TransformToDevice.M11 ?? 1));
+                if (this.imageListObject != null && this.imageListHandle != IntPtr.Zero
+                    && this.imageListBackground == background && this.imageListDpi == dpi)
+                {
+                    return this.imageListHandle;
+                }
+
+                if (Package.GetGlobalService(typeof(SVsImageService)) is IVsImageService2 imageService)
+                {
+                    var attributes = new ImageAttributes
+                    {
+                        StructSize = Marshal.SizeOf(typeof(ImageAttributes)),
+                        ImageType = (uint)_UIImageType.IT_ImageList,
+                        Format = (uint)_UIDataFormat.DF_Win32,
+                        LogicalWidth = 16,
+                        LogicalHeight = 16,
+                        Dpi = dpi,
+                        Background = background,
+                        Flags = unchecked((uint)(_ImageAttributesFlags.IAF_RequiredFlags | _ImageAttributesFlags.IAF_Background)),
+                    };
+
+                    IVsUIObject image = imageService.GetImage(NavigationIcons, attributes);
+                    if (image != null && ErrorHandler.Succeeded(image.get_Data(out object data))
+                        && data is IVsUIWin32ImageList imageList
+                        && ErrorHandler.Succeeded(imageList.GetHIMAGELIST(out IntPtr handle))
+                        && handle != IntPtr.Zero)
+                    {
+                        this.imageListObject = image;
+                        this.imageListHandle = handle;
+                        this.imageListBackground = background;
+                        this.imageListDpi = dpi;
+                        return handle;
+                    }
+                }
+
+                this.Trace("GetImageList: navigation icons unavailable");
+            }
+            catch (Exception ex)
+            {
+                this.Trace("GetImageList threw: " + ex.GetType().Name);
+            }
+
+            return IntPtr.Zero;
         }
 
         private static bool Contains(TextRange range, int line, int column)

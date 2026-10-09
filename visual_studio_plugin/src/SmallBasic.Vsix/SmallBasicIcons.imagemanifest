@@ -11,12 +11,21 @@
   <Symbols>
     <String Name="Resources" Value="/SmallBasic.Vsix;Component/Icons" />
     <Guid Name="SmallBasicImagesGuid" Value="{57c89fbb-6dd2-49b1-ad07-e02f072f65b9}" />
+    <Guid Name="ImageCatalogGuid" Value="{ae27a6b0-e345-4288-96df-5eaf394ee369}" />
     <ID Name="SmallBasicFileIcon" Value="1" />
+    <ID Name="SmallBasicNavigationIcons" Value="2" />
   </Symbols>
   <Images>
     <Image Guid="$(SmallBasicImagesGuid)" ID="$(SmallBasicFileIcon)" AllowColorInversion="false">
       <Source Uri="$(Resources)/SmallBasicFileIcon.xaml" />
     </Image>
   </Images>
-  <ImageLists />
+  <ImageLists>
+    <!-- Indices: main program, procedure/function, variable. -->
+    <ImageList Guid="$(SmallBasicImagesGuid)" ID="$(SmallBasicNavigationIcons)">
+      <ContainedImage Guid="$(ImageCatalogGuid)" ID="1913" External="true" /> <!-- Module -->
+      <ContainedImage Guid="$(ImageCatalogGuid)" ID="1880" External="true" /> <!-- MethodPublic -->
+      <ContainedImage Guid="$(ImageCatalogGuid)" ID="1747" External="true" /> <!-- LocalVariable -->
+    </ImageList>
+  </ImageLists>
 </ImageManifest>
