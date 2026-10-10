@@ -4,7 +4,7 @@
  * samples/ folder and writes samples/index.json - the single implementation
  * behind the runhost/web static site (runhost/Build-RunHost.ps1) and the
  * staged desktop playground app
- * (packages/smallbasic-playground-desktop/scripts/stage-playground.mjs).
+ * (smallbasic_playground_app/scripts/stage-playground.mjs).
  *
  * Programs that draw are flagged (`graphics`) so the shell can preselect the
  * Blazor backend for them. Paths inside dot-prefixed folders (and dot files)

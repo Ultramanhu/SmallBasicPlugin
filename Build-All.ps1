@@ -20,7 +20,7 @@
 #
 # <version> is read from version.json, the single version shared by the Visual
 # Studio and Visual Studio Code extensions. The desktop installers carry the
-# version of packages\smallbasic-playground-desktop instead (see step 4).
+# version of smallbasic_playground_app instead (see step 4).
 #
 # Usage examples:
 #   .\Build-All.ps1                    # full Release build (RunHost + VSIX + Playground Win/Linux x64 binaries)
@@ -121,9 +121,9 @@ if (-not $SkipPlayground) {
     if (-not (Test-ToolchainCommand -Name @("cargo"))) {
         $missingDesktopTools.Add("cargo (https://rustup.rs)")
     }
-    $desktopPackage = Join-Path $repoRoot "visual_studio_code_plugin\packages\smallbasic-playground-desktop"
+    $desktopPackage = Join-Path $repoRoot "smallbasic_playground_app"
     if (-not (Test-TauriCliAvailable -WorkingDirectory $desktopPackage)) {
-        $missingDesktopTools.Add("Tauri CLI ('npm install' in visual_studio_code_plugin)")
+        $missingDesktopTools.Add("Tauri CLI ('npm install' in smallbasic_playground_app)")
     }
 
     $playgroundArgs = @{

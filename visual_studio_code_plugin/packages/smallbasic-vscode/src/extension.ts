@@ -8,6 +8,7 @@ import { SmallBasicDebugAdapterFactory } from "./debug/factory";
 import { isSmallBasicDocument } from "./language/providers";
 import { CSharpRunner } from "./run/csharp-runner";
 import { BlazorRunner } from "./run/blazor-runner";
+import { CSharpCompilerRunner } from "./run/compiler-runner";
 import { runJavaScriptCompilation } from "./run/javascript-runner";
 import { runInWebview } from "./web/blazor-webview";
 import { routeWebDebugRequest } from "./web/run-routing";
@@ -17,7 +18,8 @@ export function activate(context: vscode.ExtensionContext): void {
     debugAdapterFactory: new SmallBasicDebugAdapterFactory(context),
     debugConfigurationProvider: createDebugConfigurationProvider(context),
     runCSharp: async () => CSharpRunner.runActiveDocument(context.extensionPath),
-    runBlazor: async () => BlazorRunner.runActiveDocument(context.extensionPath)
+    runBlazor: async () => BlazorRunner.runActiveDocument(context.extensionPath),
+    compileCSharp: async () => CSharpCompilerRunner.compileActiveDocument(context.extensionPath)
   });
 }
 

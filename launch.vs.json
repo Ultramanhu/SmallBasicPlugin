@@ -29,6 +29,15 @@
       "program": "${file}",
       "backend": "blazor",
       "stopOnEntry": false
+    },
+    {
+      "type": "smallbasic",
+      "project": "sample/hello/hello.sb",
+      "projectTarget": "compiled-csharp",
+      "name": "SmallBasic [Compiled]: Debug current file with compiled C# backend",
+      "program": "${file}",
+      "backend": "compiled-csharp",
+      "stopOnEntry": false
     }
   ]
 }

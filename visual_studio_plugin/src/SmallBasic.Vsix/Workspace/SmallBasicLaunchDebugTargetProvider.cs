@@ -33,7 +33,7 @@ namespace SmallBasic.Vsix.Workspace
         ""type"": { ""type"": ""string"", ""enum"": [ ""smallbasic"" ] },
         ""program"": { ""type"": ""string"" },
         ""target"": { ""type"": ""string"" },
-        ""backend"": { ""type"": ""string"", ""enum"": [ ""csharp"", ""javascript"", ""blazor"" ] },
+  ""backend"": { ""type"": ""string"", ""enum"": [ ""csharp"", ""compiled-csharp"", ""javascript"", ""blazor"" ] },
         ""noDebug"": { ""type"": ""boolean"" },
         ""stopOnEntry"": { ""type"": ""boolean"" }
       }
@@ -201,6 +201,12 @@ namespace SmallBasic.Vsix.Workspace
                 return true;
             }
 
+            if (string.Equals(backend, "compiled-csharp", StringComparison.OrdinalIgnoreCase))
+            {
+                resolvedBackend = SmallBasicBackend.CompiledCSharp;
+                return true;
+            }
+
             if (string.Equals(backend, "javascript", StringComparison.OrdinalIgnoreCase))
             {
                 resolvedBackend = SmallBasicBackend.JavaScript;
@@ -216,7 +222,7 @@ namespace SmallBasic.Vsix.Workspace
             if (!string.IsNullOrWhiteSpace(backend))
             {
                 resolvedBackend = default;
-                error = $"Small Basic 调试配置中的 backend 值 {backend} 无效。仅支持 csharp、javascript 或 blazor；已取消启动，不会自动切换到其他后端。";
+                error = $"Small Basic 调试配置中的 backend 值 {backend} 无效。仅支持 csharp、compiled-csharp、javascript 或 blazor；已取消启动，不会自动切换到其他后端。";
                 return false;
             }
 
@@ -224,6 +230,12 @@ namespace SmallBasic.Vsix.Workspace
             // when it materializes a named launch.vs.json profile. Recover only
             // an unambiguous backend encoded by one of our standard profile
             // names; never consult mutable global selection state as fallback.
+            if (configurationName.IndexOf("compiled", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                resolvedBackend = SmallBasicBackend.CompiledCSharp;
+                return true;
+            }
+
             if (configurationName.IndexOf("javascript", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 resolvedBackend = SmallBasicBackend.JavaScript;
@@ -246,7 +258,7 @@ namespace SmallBasic.Vsix.Workspace
             if (IsSmallBasicProfileName(configurationName))
             {
                 resolvedBackend = default;
-                error = $"Small Basic 调试配置 {configurationName} 没有指定有效的 backend。请设置为 csharp、javascript 或 blazor；已取消启动，不会自动选择其他后端。";
+                error = $"Small Basic 调试配置 {configurationName} 没有指定有效的 backend。请设置为 csharp、compiled-csharp、javascript 或 blazor；已取消启动，不会自动选择其他后端。";
                 return false;
             }
 

@@ -10,6 +10,7 @@ namespace SmallBasic.Tests.Runtime
     using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Services;
     using SmallBasic.RunHost.Libraries;
+    using SmallBasic.Utilities.Resources;
     using Xunit;
 
     public sealed class LanguageExtensionTests : IClassFixture<CultureFixture>
@@ -460,6 +461,28 @@ EndSub").ConfigureAwait(false);
         }
 
         [Fact]
+        public void ItProvidesOnErrorHoverInTheConfiguredDocumentationLocale()
+        {
+            var compilation = new SmallBasicCompilation("On Error Resume Next");
+            CultureInfo previousCulture = LibrariesResources.Culture;
+            try
+            {
+                // Statement help follows the documentation locale
+                // (DocumentationLocales.xml) like the library hovers do; the
+                // English literal in the provider remains the fallback.
+                LibrariesResources.Culture = new CultureInfo("zh-CN");
+
+                compilation.ProvideHover((0, 4)).Should().Equal(
+                    "On Error Resume Next",
+                    "跳过引发运行时错误的语句，将该错误以 [Runtime Error] 错误码: 错误消息 的形式输出到控制台，然后继续运行。");
+            }
+            finally
+            {
+                LibrariesResources.Culture = previousCulture;
+            }
+        }
+
+        [Fact]
         public async Task OnErrorGoToZeroAndGoToMinusOneRestoreTermination()
         {
             await new SmallBasicCompilation(@"
@@ -525,18 +548,32 @@ EndSub").ConfigureAwait(false);
                 "Sub Handle(Code, Message)\n" +
                 "EndSub");
 
-            compilation.ProvideHover((0, 1)).Should().Equal(
-                "On Error GoSub",
-                "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.");
-            compilation.ProvideHover((0, 16)).Should().Equal(
-                "Sub Handle(Code, Message)",
-                "User-defined subroutine");
-            compilation.ProvideHover((1, 1)).Should().Equal(
-                "GoSub",
-                "Calls a parameterless Sub and returns to the statement after the call.");
-            compilation.ProvideHover((1, 7)).Should().Equal(
-                "Sub Ping",
-                "User-defined subroutine");
+            // Hover descriptions come from the localized documentation, which
+            // follows the process UI culture. Pin the neutral (English)
+            // resources here so the expectation does not depend on the machine
+            // locale; ItProvidesOnErrorHoverInTheConfiguredDocumentationLocale
+            // covers the localized lookup.
+            CultureInfo previousCulture = LibrariesResources.Culture;
+            LibrariesResources.Culture = CultureInfo.InvariantCulture;
+            try
+            {
+                compilation.ProvideHover((0, 1)).Should().Equal(
+                    "On Error GoSub",
+                    "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.");
+                compilation.ProvideHover((0, 16)).Should().Equal(
+                    "Sub Handle(Code, Message)",
+                    "User-defined subroutine");
+                compilation.ProvideHover((1, 1)).Should().Equal(
+                    "GoSub",
+                    "Calls a parameterless Sub and returns to the statement after the call.");
+                compilation.ProvideHover((1, 7)).Should().Equal(
+                    "Sub Ping",
+                    "User-defined subroutine");
+            }
+            finally
+            {
+                LibrariesResources.Culture = previousCulture;
+            }
         }
 
         [Fact]

@@ -1,5 +1,8 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/SmallBasic.CompiledArtifacts/SmallBasic.CompiledArtifacts.csproj" />
+    <Project Path="src/SmallBasic.Compiler.Tool/SmallBasic.Compiler.Tool.csproj" />
+    <Project Path="src/SmallBasic.CompiledDebugAdapter/SmallBasic.CompiledDebugAdapter.csproj" />
     <Project Path="src/SmallBasic.Vsix/SmallBasic.Vsix.csproj">
       <Deploy />
     </Project>
@@ -13,6 +16,13 @@
     <Project Path="tests/SmallBasic.LanguageServices.Tests/SmallBasic.LanguageServices.Tests.csproj" />
   </Folder>
   <Folder Name="/vendor/">
+    <!-- SmallBasic.Analyzers must stay part of the solution: every other vendor
+         project references it as a Roslyn analyzer and hard-codes its output as
+         ...\SmallBasic.Analyzers\bin\$(Configuration)\netstandard2.0\. A project
+         that is only referenced (not listed here) is built with the solution's
+         fallback Debug configuration, so a Release solution build would look for
+         a Release analyzer that was never produced (CS0006). -->
+    <Project Path="vendor/SmallBasicEditor/Source/SmallBasic.Analyzers/SmallBasic.Analyzers.csproj" />
     <Project Path="vendor/SmallBasicEditor/Source/SmallBasic.Compiler/SmallBasic.Compiler.csproj" />
     <Project Path="vendor/SmallBasicEditor/Source/SmallBasic.Utilities/SmallBasic.Utilities.csproj" />
   </Folder>

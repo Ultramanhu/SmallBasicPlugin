@@ -57,6 +57,8 @@ $repoRoot = $PSScriptRoot
 $vscodeRoot = Join-Path $repoRoot 'visual_studio_code_plugin'
 $runHostRoot = Join-Path $repoRoot 'runhost'
 $stagedPlayground = Join-Path $runHostRoot 'playground'
+# The Tauri shell is a standalone npm project at the repository root.
+$desktopAppRoot = Join-Path $repoRoot 'smallbasic_playground_app'
 
 # Shared build helpers (version.json handling, the web site's required files).
 Import-Module (Join-Path $repoRoot 'tools\common.psm1') -Force
@@ -261,7 +263,25 @@ else {
     Add-Result 'TypeScript typecheck / unit tests' 'SKIP' 'npm is not on PATH'
 }
 
-$desktopSrcTauri = Join-Path $vscodeRoot 'packages\smallbasic-playground-desktop\src-tauri'
+# The Tauri shell is a standalone npm project at the repository root, so its
+# typecheck and specs are their own steps (they used to run through the VS Code
+# workspace when the package still lived under visual_studio_code_plugin).
+if ((Test-Tool 'npm') -and (Test-Path -LiteralPath (Join-Path $desktopAppRoot 'package.json'))) {
+    Invoke-Check 'Desktop shell typecheck (npm run typecheck)' {
+        $code = Invoke-External 'npm' @('run', 'typecheck') $desktopAppRoot
+        if ($code -ne 0) { throw "npm run typecheck exited with code $code" }
+    }
+
+    Invoke-Check 'Desktop shell tests (npm test)' {
+        $code = Invoke-External 'npm' @('test', '--', '--reporter=dot') $desktopAppRoot
+        if ($code -ne 0) { throw "npm test exited with code $code" }
+    }
+}
+else {
+    Add-Result 'Desktop shell typecheck / tests' 'SKIP' 'npm is not on PATH'
+}
+
+$desktopSrcTauri = Join-Path $desktopAppRoot 'src-tauri'
 if ((Test-Tool 'cargo') -and (Test-Path -LiteralPath (Join-Path $desktopSrcTauri 'Cargo.toml'))) {
     Invoke-Check 'Rust tests (cargo test --lib)' {
         $code = Invoke-External 'cargo' @('test', '--lib') $desktopSrcTauri
@@ -310,6 +330,9 @@ $runHostEntries = [System.Collections.Generic.List[string]]::new()
 $runHostEntries.Add('net48\SmallBasic.RunHost.exe')
 $runHostEntries.Add('net8.0-windows\SmallBasic.RunHost.exe')
 $runHostEntries.Add('net8.0\SmallBasic.RunHost.dll')
+$runHostEntries.Add('compiler\SmallBasic.Compiler.Tool.exe')
+$runHostEntries.Add('compiler\SmallBasic.CompiledDebugAdapter.exe')
+$runHostEntries.Add('compiler\template\net48\SmallBasic.RunHost.exe')
 $runHostEntries.Add('blazor\SmallBasic.Blazor.RunHost.dll')
 if (-not $SkipJavaScript) { $runHostEntries.Add('javascript\smallbasic-runhost.js') }
 
@@ -329,7 +352,7 @@ else {
 }
 
 # The desktop (Tauri) playground is an optional artifact: it is staged by
-# packages\smallbasic-playground-desktop and gitignored.
+# smallbasic_playground_app and gitignored.
 $stagedManifest = Join-Path $stagedPlayground 'manifest.json'
 if (Test-Path -LiteralPath $stagedManifest) {
     Invoke-Check 'Staged desktop playground' {
@@ -345,10 +368,22 @@ if (Test-Path -LiteralPath $stagedManifest) {
         if (-not (Test-Path -LiteralPath $sidecar)) {
             throw "staged sidecar missing for ${triple}: smallbasic-csharp-net8-$triple$suffix"
         }
+
+        # Windows targets also stage the net48 compiler payload, which backs both
+        # the compiler backend's artifact build and its compiled DAP debugging.
+        if ($triple -like '*windows*') {
+            foreach ($entry in @(
+                'SmallBasic.Compiler.Tool.exe',
+                'SmallBasic.CompiledDebugAdapter.exe',
+                'template\net48\SmallBasic.RunHost.exe'
+            )) {
+                Assert-FileExists (Join-Path $stagedPlayground "resources\dotnet\compiler-net48\$entry") 'staged net48 compiler payload'
+            }
+        }
     }
 }
 else {
-    Add-Result 'Staged desktop playground' 'SKIP' 'not staged (run npm run stage in smallbasic-playground-desktop)'
+    Add-Result 'Staged desktop playground' 'SKIP' 'not staged (run npm run stage in smallbasic_playground_app)'
 }
 
 # ---------------------------------------------------------------------------

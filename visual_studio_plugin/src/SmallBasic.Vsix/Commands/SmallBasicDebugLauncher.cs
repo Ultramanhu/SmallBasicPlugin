@@ -129,6 +129,20 @@ namespace SmallBasic.Vsix.Commands
                 return;
             }
 
+            if (backend == SmallBasicBackend.CompiledCSharp)
+            {
+                adapterPath = Path.Combine(extensionDirectory, "runhost", "compiler", "SmallBasic.CompiledDebugAdapter.exe");
+                adapterArguments = string.Empty;
+                if (!File.Exists(adapterPath))
+                {
+                    throw new FileNotFoundException(
+                        "未找到 Small Basic 编译后调试适配器。请重新安装完整的 VSIX。",
+                        adapterPath);
+                }
+
+                return;
+            }
+
             if (backend == SmallBasicBackend.Blazor)
             {
                 string hostPath = Path.Combine(extensionDirectory, "runhost", "blazor", "SmallBasic.Blazor.RunHost.dll");
@@ -165,9 +179,13 @@ namespace SmallBasic.Vsix.Commands
 
             string backendName = backend == SmallBasicBackend.CSharp
                 ? "C#"
+                : backend == SmallBasicBackend.CompiledCSharp
+                    ? "Compiled C#"
                 : backend == SmallBasicBackend.Blazor ? "Blazor" : "JavaScript";
             string launchFileName = backend == SmallBasicBackend.CSharp
                 ? "launch-csharp.json"
+                : backend == SmallBasicBackend.CompiledCSharp
+                    ? "launch-compiled-csharp.json"
                 : backend == SmallBasicBackend.Blazor ? "launch-blazor.json" : "launch-javascript.json";
             string launchPath = Path.Combine(directory, launchFileName);
 

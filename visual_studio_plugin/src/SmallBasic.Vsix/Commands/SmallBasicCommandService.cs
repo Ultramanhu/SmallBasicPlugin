@@ -53,6 +53,14 @@ namespace SmallBasic.Vsix.Commands
             }
         }
 
+        public static void CompileActiveDocument()
+        {
+            if (TrySaveActiveDocument(out string? filePath))
+            {
+                Compile(filePath!);
+            }
+        }
+
         public static void Run(string filePath, SmallBasicBackend backend)
         {
             // Preserve the exact backend the user requested even if validation
@@ -76,6 +84,17 @@ namespace SmallBasic.Vsix.Commands
                     case SmallBasicBackend.CSharp:
                         startInfo = CreateCSharpRunStartInfo(extensionDirectory, filePath);
                         break;
+                    case SmallBasicBackend.CompiledCSharp:
+                    {
+                        string compiledExecutable = CompileWithTool(filePath);
+                        startInfo = new ProcessStartInfo
+                        {
+                            FileName = compiledExecutable,
+                            WorkingDirectory = Path.GetDirectoryName(compiledExecutable) ?? extensionDirectory,
+                            UseShellExecute = true,
+                        };
+                        break;
+                    }
                     case SmallBasicBackend.Blazor:
                         startInfo = CreateBlazorRunStartInfo(extensionDirectory, filePath);
                         break;
@@ -106,11 +125,40 @@ namespace SmallBasic.Vsix.Commands
                     return;
                 }
 
+                if (backend == SmallBasicBackend.CompiledCSharp)
+                {
+                    CompileWithTool(filePath);
+                }
+
                 SmallBasicDebugLauncher.Launch(filePath, backend, stopOnEntry);
             }
             catch (Exception ex)
             {
                 ShowError($"启动调试失败：{ex.Message}");
+            }
+        }
+
+        public static void Compile(string filePath)
+        {
+            RememberSmallBasicDocument(filePath);
+
+            try
+            {
+                if (!TryCompile(filePath, out _))
+                {
+                    return;
+                }
+
+                string executablePath = CompileWithTool(filePath);
+                MessageBox.Show(
+                    $"已生成编译产物：{executablePath}",
+                    "Small Basic",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+            catch (Exception ex)
+            {
+                ShowError($"编译失败：{ex.Message}");
             }
         }
 
@@ -228,6 +276,9 @@ namespace SmallBasic.Vsix.Commands
 
         private static string GetExtensionDirectory()
             => ExtensionPayloadDirectory.Resolve();
+
+        private static string CompileWithTool(string filePath)
+            => SmallBasicCompilerTool.CompileToSourceDirectory(filePath);
 
         private static string QuoteArgument(string value) => $"\"{value.Replace("\"", "\\\"")}\"";
 

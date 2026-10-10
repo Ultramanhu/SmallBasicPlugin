@@ -6,6 +6,7 @@ namespace SmallBasic.Vsix.Commands
     internal enum SmallBasicBackend
     {
         CSharp,
+        CompiledCSharp,
         JavaScript,
         Blazor,
     }

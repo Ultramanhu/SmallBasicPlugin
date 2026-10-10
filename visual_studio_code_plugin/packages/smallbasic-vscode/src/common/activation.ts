@@ -12,6 +12,7 @@ export interface PlatformActivation {
   runJavaScript?: () => Promise<void>;
   runCSharp?: () => Promise<void>;
   runBlazor?: () => Promise<void>;
+  compileCSharp?: () => Promise<void>;
 }
 
 export function activateCommon(context: vscode.ExtensionContext, platform: PlatformActivation): void {
@@ -97,6 +98,10 @@ export function activateCommon(context: vscode.ExtensionContext, platform: Platf
 
   if (platform.runBlazor) {
     subscriptions.push(vscode.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
+  }
+
+  if (platform.compileCSharp) {
+    subscriptions.push(vscode.commands.registerCommand("smallbasic.compileCSharp", platform.compileCSharp));
   }
 
   context.subscriptions.push(...subscriptions);

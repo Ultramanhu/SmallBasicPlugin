@@ -82,6 +82,8 @@
 #                                      # default Release rebuild: linux-x64 + win-x64 binaries only
 #   .\runhost\Build-PlaygroundApp.ps1 -SkipSidecars
 #                                      # reuse bin\ sidecars (front-end change only)
+#   .\runhost\Build-PlaygroundApp.ps1 -Clean
+#                                      # delete the Tauri/Rust intermediates first
 #   .\runhost\Build-PlaygroundApp.ps1 -StageOnly -WindowsTargets x64,arm64
 #                                      # force binary-only mode for the selected Windows targets
 #   .\runhost\Build-PlaygroundApp.ps1 -BuildBundles -WindowsTargets x64,arm64 -LinuxTargets x64
@@ -111,6 +113,14 @@ param(
 
     # Skip 'npm run build:playground' (the Monaco page bundle).
     [switch]$SkipPlaygroundBundle,
+
+    # Remove the regenerable intermediates before building: src-tauri\target
+    # (the Rust artifacts, several GB), src-tauri\gen (the Tauri Android/iOS
+    # scaffolding) and obj\ (the sidecar-staging scratch). All three are
+    # gitignored; use this to reclaim disk space, at the cost of a from-scratch
+    # Rust rebuild. The WSL build cache lives in ~/tauri-target inside the
+    # distro and is left alone.
+    [switch]$Clean,
 
     # Force local-binary-only mode: assemble runhost\playground\ and compile
     # the selected app binaries, but do not produce or archive installers. On
@@ -183,7 +193,7 @@ $env:WSL_UTF8 = "1"
 # This script lives in runhost\, so the repository root is one level up.
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginRoot = Join-Path $repoRoot "visual_studio_code_plugin"
-$desktopPackage = Join-Path $pluginRoot "packages\smallbasic-playground-desktop"
+$desktopPackage = Join-Path $repoRoot "smallbasic_playground_app"
 $stageScript = Join-Path $desktopPackage "scripts\stage-playground.mjs"
 $tauriConfigPath = Join-Path $desktopPackage "src-tauri\tauri.conf.json"
 $versionFile = Join-Path $repoRoot "version.json"
@@ -193,6 +203,24 @@ $bundleRoot = Join-Path $stageRoot "bundles"
 foreach ($required in @($stageScript, $tauriConfigPath, $versionFile)) {
     if (-not (Test-Path $required)) {
         throw "Expected file not found: $required"
+    }
+}
+
+if ($Clean) {
+    # The Rust target directory is by far the largest thing in the working tree
+    # (several GB per profile and per cross target), followed by the generated
+    # mobile scaffolding and this package's sidecar-staging scratch. Dotnet's
+    # Delete is used instead of Remove-Item so the removal never goes through
+    # the recycle bin, which would not free the disk space at all.
+    foreach ($intermediate in @(
+        (Join-Path $desktopPackage "src-tauri\target"),
+        (Join-Path $desktopPackage "src-tauri\gen"),
+        (Join-Path $desktopPackage "obj")
+    )) {
+        if (Test-Path -LiteralPath $intermediate) {
+            Write-Host "==> Removing $intermediate" -ForegroundColor Cyan
+            [System.IO.Directory]::Delete($intermediate, $true)
+        }
     }
 }
 
@@ -246,7 +274,7 @@ function Get-DesktopToolchainGap {
         $missing += "cargo (https://rustup.rs)"
     }
     if (-not (Test-TauriCliAvailable -WorkingDirectory $desktopPackage)) {
-        $missing += "the Tauri CLI ('npm install' in visual_studio_code_plugin)"
+        $missing += "the Tauri CLI ('npm install' in smallbasic_playground_app)"
     }
     if ($IsCrossBuild -and (Test-ToolchainCommand -Name @("rustup"))) {
         # A cross build needs the target's std library; without it the bundler
@@ -471,6 +499,13 @@ Write-Host "  package shape : $(if ($portableOnly) { if ($StageOnly) { 'local bi
 
 if (-not (Test-Path (Join-Path $pluginRoot "node_modules"))) {
     Invoke-Step -Name "npm install ($pluginRoot)" -WorkingDirectory $pluginRoot -Action { npm install }
+}
+
+# The shell package is a standalone npm project (it is not part of the VS Code
+# workspace), so its own toolchain - @tauri-apps/cli, esbuild, typescript - is
+# installed in place on first use.
+if (-not (Test-Path (Join-Path $desktopPackage "node_modules"))) {
+    Invoke-Step -Name "npm install ($desktopPackage)" -WorkingDirectory $desktopPackage -Action { npm install }
 }
 
 if (-not $SkipJavaScript) {

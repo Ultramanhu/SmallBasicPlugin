@@ -1,6 +1,6 @@
 {
   "targetTriple": "x86_64-pc-windows-msvc",
-  "generatedAt": "2026-10-08T18:00:15.440Z",
+  "generatedAt": "2026-10-10T20:33:21.187Z",
   "files": [
     {
       "path": "app/app.css",
@@ -14,8 +14,8 @@
     },
     {
       "path": "app/desktop.js",
-      "bytes": 23943,
-      "sha256": "fecb98d0c01b4431d589c96baba56191467814b71ffd008a8c1d92a6d0dad4ff"
+      "bytes": 26455,
+      "sha256": "cd1ffa5b949321fded6eb5a7e721822cf8282bd159b279115f724ca025065d0a"
     },
     {
       "path": "app/editor/assets/codicon-LN6W7LCM.ttf",
@@ -44,13 +44,13 @@
     },
     {
       "path": "app/editor/language.worker.js",
-      "bytes": 1639977,
-      "sha256": "0f32242970abcb45df6661602c9caf4bf098fe7fb271cfa1e363136843980fe7"
+      "bytes": 1640362,
+      "sha256": "5b5d2569cfc4937fffdb71699ddc6598a2cf29f38861b00ebc677b2ed651cebc"
     },
     {
       "path": "app/editor/language.worker.js.map",
-      "bytes": 2262654,
-      "sha256": "c176ba9ce7549ba0d2007c65a912f0ddf824fce716773d742c63f45ed128da27"
+      "bytes": 2263741,
+      "sha256": "dbf532b68cf55fdfd37f832200e83379d83f0e87b5aafe348c2bbf9bf9aac6df"
     },
     {
       "path": "app/editor/onig.wasm",
@@ -69,28 +69,28 @@
     },
     {
       "path": "app/playground.css",
-      "bytes": 504696,
-      "sha256": "669a2426bf0b07bcaa1c334c417441fa5d649f75ef6d13390ef7d3963e7ad429"
+      "bytes": 505073,
+      "sha256": "11eb1ed9462cd9def600fedbdfd78e203c883ec691975270cdc00edc1895f0a9"
     },
     {
       "path": "app/playground.css.map",
-      "bytes": 759833,
-      "sha256": "3a8fffe873a32b099144f5205506849acee3658ac413e6d11d111c992553f51a"
+      "bytes": 760651,
+      "sha256": "6540e1ef009fbd15f0dbb577374d7d67af66ced031223e15c2c9e92e8754b7aa"
     },
     {
       "path": "app/playground.html",
-      "bytes": 6602,
-      "sha256": "c6a687a2928dcdce6baa2b5f565c4a906e45e59d01b210d90fab6b26b9cdf865"
+      "bytes": 7880,
+      "sha256": "d2d641687090dee415f4108ecc807c502a41066d8aa9f91ab61547ab947d6051"
     },
     {
       "path": "app/playground.js",
-      "bytes": 11030702,
-      "sha256": "eb5993ece98533d44f89da878cf21bf083b34cf3f105b6ed1417818f0cf77ff8"
+      "bytes": 11038035,
+      "sha256": "04fd6fff51b39f6e5abf6d12423effa782d07abebf42f95c39b09195b744ce77"
     },
     {
       "path": "app/playground.js.map",
-      "bytes": 18936554,
-      "sha256": "4ec993b0fcf02147edcfc22d960ee04f3213f5779095c706dcb50874ad4e1f0b"
+      "bytes": 18955905,
+      "sha256": "97387bb8c32fa3c45eb9a2a7fb03543881ea9db2122c39330050953bec5a309d"
     },
     {
       "path": "app/run.bat",
@@ -104,13 +104,13 @@
     },
     {
       "path": "app/runhost-page.js",
-      "bytes": 8108,
-      "sha256": "a4f3e904ecd0e8005d7b0ddb1d171294cf8dc1a70bb404af141e2cc37a67086b"
+      "bytes": 8895,
+      "sha256": "bff2f3e46087a9debe17adff4aa5a4b7523b55a7d19c8e8289afb7e711cc765e"
     },
     {
       "path": "app/runhost.html",
-      "bytes": 3309,
-      "sha256": "a99ce777fcddb6ee89c1c50dba84fae99f1c1827fec030cac2bae16412df7a2f"
+      "bytes": 3630,
+      "sha256": "fdd669630026ab0c3dc651c6e5465788a4106260d7af170f00d5850e802399d2"
     },
     {
       "path": "app/samples/hello/accumulate.sb",
@@ -219,8 +219,8 @@
     },
     {
       "path": "app/shell-core.js",
-      "bytes": 31500,
-      "sha256": "67038efadeb8a6e751a2cf437a63935f735281caed81779ecd02614aa2db7bb5"
+      "bytes": 34821,
+      "sha256": "8b98e64e61480edb8af14b7ce9b79a047b05f6965fab793be91c142870d308a5"
     },
     {
       "path": "app/shell.js",
@@ -229,8 +229,8 @@
     },
     {
       "path": "app/smallbasic-js.js",
-      "bytes": 1680106,
-      "sha256": "2e75db39e21697095105b08abff4b6328b1f98ae1b91febf5929a9eeb791a0cf"
+      "bytes": 1680499,
+      "sha256": "acc9397865a083ffa25427abec729d796dcf366e51319da50bdb6f9c788c69c7"
     },
     {
       "path": "app/third-party-notices.txt",
@@ -244,13 +244,13 @@
     },
     {
       "path": "app/_framework/blazor.boot.json",
-      "bytes": 5257,
-      "sha256": "3f6b222927452c7ec4b8daf3f19b40899138467d9ed7bdfb120bf8a435875e1c"
+      "bytes": 5036,
+      "sha256": "e2547e9256ae716578b0b8c79a24221606b0f2571823655d9fe2bf3264226729"
     },
     {
       "path": "app/_framework/blazor.boot.json.br",
-      "bytes": 2307,
-      "sha256": "11f3a5b20479d2cb5df1879a45ec0575a45eea0843514682509b572d0e68703c"
+      "bytes": 2230,
+      "sha256": "ee034f75a96c09162fd73ac53eae3f306b20860cd9a22871723b4d232fd18be0"
     },
     {
       "path": "app/_framework/blazor.webassembly.js",
@@ -295,12 +295,12 @@
     {
       "path": "app/_framework/dotnet.native.wasm",
       "bytes": 2730985,
-      "sha256": "96f3d547f51192de70bcea0e771a71093014f75b57d4fab0c963942b6532bd73"
+      "sha256": "2df616da1658adb9aee96b2ab2f7933406ea63936148aa9464110a78db71ea43"
     },
     {
       "path": "app/_framework/dotnet.native.wasm.br",
-      "bytes": 890665,
-      "sha256": "c118103dda3a593316c50bd789b1fd494fad88c111d54c5b2cecd8c7af597483"
+      "bytes": 891064,
+      "sha256": "b508112b9a2db04f5d09720cf95c414a1c1b47a1940674f76d7cdc3b95ccf2ef"
     },
     {
       "path": "app/_framework/dotnet.runtime.js",
@@ -410,12 +410,12 @@
     {
       "path": "app/_framework/Microsoft.Extensions.DependencyInjection.Abstractions.wasm",
       "bytes": 16149,
-      "sha256": "43678cec826340536978b34ec48d60a264fb71ac1da133fbd4c3396773676080"
+      "sha256": "4de6b35e15128cd5b6bb416ca2a3123568b0e171c5b8e362d5bdcbfae66779cd"
     },
     {
       "path": "app/_framework/Microsoft.Extensions.DependencyInjection.Abstractions.wasm.br",
-      "bytes": 5946,
-      "sha256": "a737f76c6443863d96f3cc67e8c64af97e0b1bc4e407e09c50087e6a7f2dc59c"
+      "bytes": 5881,
+      "sha256": "7e21b017a6ca81adfaabb40fdfeb912edaa82d97b9821ef1ce2582bca6e0fe79"
     },
     {
       "path": "app/_framework/Microsoft.Extensions.DependencyInjection.wasm",
@@ -428,34 +428,14 @@
       "sha256": "2676d8471190ac1c107aeee0127034abf0580874775f59814446734d3182e2ec"
     },
     {
-      "path": "app/_framework/Microsoft.Extensions.Localization.Abstractions.wasm",
-      "bytes": 7957,
-      "sha256": "58dd8033e830ed267c95e8abe8d316817d33a4b67ffa9edf385da64ae2d7f90f"
-    },
-    {
-      "path": "app/_framework/Microsoft.Extensions.Localization.Abstractions.wasm.br",
-      "bytes": 2965,
-      "sha256": "8a486c6435a47b01f5707d130b934ffd52f511bbe81086819ab59a2eaba0bb20"
-    },
-    {
-      "path": "app/_framework/Microsoft.Extensions.Localization.wasm",
-      "bytes": 19733,
-      "sha256": "51541e07dea5746ced01bdb250b41f483834d6c706e04b329d1e62bac8764a41"
-    },
-    {
-      "path": "app/_framework/Microsoft.Extensions.Localization.wasm.br",
-      "bytes": 8089,
-      "sha256": "5df72c87156200adbc8fda19c7c7a9e6e17ae359afe7cb71ce39a56a23eeb04d"
-    },
-    {
       "path": "app/_framework/Microsoft.Extensions.Logging.Abstractions.wasm",
       "bytes": 25877,
-      "sha256": "fa2d00f01e4590c66733b814ad1249fc1a0e0cb6661947eccfb2170f6008cae0"
+      "sha256": "33f025878804d0d3e8e89c16e11f5fae90171acb175c84de94009bf730aed39e"
     },
     {
       "path": "app/_framework/Microsoft.Extensions.Logging.Abstractions.wasm.br",
-      "bytes": 10295,
-      "sha256": "6af0b81a3a7e2ccd9d49121421b8a127ad7fd6c2b0cc358fc8c71fbf4654bbbe"
+      "bytes": 10257,
+      "sha256": "8f9a7a9e258ce94657a8e08740de5695171c546eb96748f9b10c57d8a8ce4119"
     },
     {
       "path": "app/_framework/Microsoft.Extensions.Logging.wasm",
@@ -469,13 +449,13 @@
     },
     {
       "path": "app/_framework/Microsoft.Extensions.Options.wasm",
-      "bytes": 17685,
-      "sha256": "71c840170ee2d5b579b0b3f8762f26db34ff864f6732a1c68798665205f202d4"
+      "bytes": 16661,
+      "sha256": "9a783167b0ed079b58ce6c597555996a9253489ff218296a40072a3a42e4dcb9"
     },
     {
       "path": "app/_framework/Microsoft.Extensions.Options.wasm.br",
-      "bytes": 7418,
-      "sha256": "d0a7c47d79b0324f6595fb403fd0fdff533a8a26994ed3e5f2629641f6356194"
+      "bytes": 7033,
+      "sha256": "86615689e9c596f0a0a4217e89b78c59f6200dc0d983e94e1a7c7f288e8eefb5"
     },
     {
       "path": "app/_framework/Microsoft.Extensions.Primitives.wasm",
@@ -509,53 +489,53 @@
     },
     {
       "path": "app/_framework/netstandard.wasm",
-      "bytes": 8469,
-      "sha256": "4db98b46ce4303f6c161a692cbf59ea72fef8b33f5f1e06735806342ac3bb24e"
+      "bytes": 7957,
+      "sha256": "52afb35c0f6b41cde25688979ceb478a88295085779a6fa80237ae8039cb3397"
     },
     {
       "path": "app/_framework/netstandard.wasm.br",
-      "bytes": 2713,
-      "sha256": "a77e592b17b8e9405a14bb0b0cacfe7a02f17f2ddd6129ad033d5e32b9af1c43"
+      "bytes": 2652,
+      "sha256": "256749cd22a7c503204b242d89def065b66928b06c7e79830332852a8761bb9b"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Client.wasm",
       "bytes": 107797,
-      "sha256": "d62614f5b37c5c0c940d881bafd07018247cb2f829bc8963a5e4a7dbf6cca087"
+      "sha256": "d239dfacd735906976cd2f589da33898774747f8336855d586e4f457401b1071"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Client.wasm.br",
-      "bytes": 36780,
-      "sha256": "b7798967dc1879624bcd3bad6998683a044dcb488ecd3ab91d56927543eb1d31"
+      "bytes": 36656,
+      "sha256": "6b58a4e39150a3ecf53247c754dca5fa960fccd45ac99ed4151727824ecd9823"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Shared.wasm",
       "bytes": 10005,
-      "sha256": "43f1a230ed37904f2b7111a54cdfe763cfa1a83b1517a6ee4694f6af267dfbd5"
+      "sha256": "dbcbff323b3cfd6d2e789990de53be1ab315e3675c27741b50ca591149b22483"
     },
     {
       "path": "app/_framework/SmallBasic.Blazor.Shared.wasm.br",
-      "bytes": 3282,
-      "sha256": "2088a10c48a01933c04c8fae5c520133d3cafeba707d09e1da923d8dcca762b1"
+      "bytes": 3302,
+      "sha256": "0b02f01d7ba77bc43a0d9282c89eeb73a8c89477f94609d39f75fef902d1b913"
     },
     {
       "path": "app/_framework/SmallBasic.Compiler.wasm",
-      "bytes": 294165,
-      "sha256": "d3262c398dd60b55b5e2d3f2b6142a27e963270d8191d029d3ce19c2c2e11cb3"
+      "bytes": 294677,
+      "sha256": "6aa25d33dbc4fa6cc698df9cbff98960d86511321603e5638c0e73104f635589"
     },
     {
       "path": "app/_framework/SmallBasic.Compiler.wasm.br",
-      "bytes": 76162,
-      "sha256": "3ce84dd0707b9ec9303425715a05c9f2e9093773c67123466cc858e4a62b2c5d"
+      "bytes": 76515,
+      "sha256": "6bc7e73d3fb1265e75251fe0a967431e47713075870accee3f69404f12929364"
     },
     {
       "path": "app/_framework/SmallBasic.Utilities.wasm",
       "bytes": 1446677,
-      "sha256": "87eb5ccb569dfe77cb1344c11624da7643a014a9a6da306bc369a8a1aa8603b6"
+      "sha256": "cfe2bd403fae01805dadf03cd7eb6124ed37506829efe9b356bf5aed95f1e014"
     },
     {
       "path": "app/_framework/SmallBasic.Utilities.wasm.br",
-      "bytes": 211296,
-      "sha256": "a362468ec7a0c850adae88f660182f562802f719ee11e32fb3fdf08a031dc499"
+      "bytes": 211393,
+      "sha256": "3e3f086e17b943dd3d32a01c3cb5db6a0feae55605354715f6f9a5f1be47ef58"
     },
     {
       "path": "app/_framework/System.Collections.Concurrent.wasm",
@@ -689,13 +669,13 @@
     },
     {
       "path": "app/_framework/System.Private.CoreLib.wasm",
-      "bytes": 1601301,
-      "sha256": "7f87bc9ce96763dfcff8bd8ceabd00fd74aa675ab5af1f39c873691d5b0eacbc"
+      "bytes": 1598229,
+      "sha256": "3cf72b77354ed60ace55afa81d36838fdca0656e37cb1f94701c0a78e317794e"
     },
     {
       "path": "app/_framework/System.Private.CoreLib.wasm.br",
-      "bytes": 506419,
-      "sha256": "97ad3aee9eb1612dae4abbfb72ba400f15f62d8188ec6f3944a974c0749f56c9"
+      "bytes": 505565,
+      "sha256": "ed073e210f67396c632aeea31bb3ec19e2dcba09c6c36f7b597bf3d1776502b0"
     },
     {
       "path": "app/_framework/System.Private.Uri.wasm",
@@ -788,59 +768,204 @@
       "sha256": "b22cee7b45b4d6d3d76781d5af4484f3c1eab6173bbaca09cf2afd2dfdf95f5b"
     },
     {
+      "path": "resources/dotnet/compiler-net48/Microsoft.Bcl.AsyncInterfaces.dll",
+      "bytes": 26904,
+      "sha256": "80678203bd0203a6594f4e330b22543c0de5059382bb1c9334b7868b8f31b1bc"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.CompiledArtifacts.dll",
+      "bytes": 10240,
+      "sha256": "519b1d102f9eae26628118abb5d21ae63dc93d68523fbf01d0a1b126105fab2f"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.CompiledDebugAdapter.exe",
+      "bytes": 9728,
+      "sha256": "7b145aecffdeb412b6a8cc842f8c497b5e8f1083684f18ce50d67496db1da3cf"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.CompiledDebugAdapter.exe.config",
+      "bytes": 879,
+      "sha256": "a36ba65611c3e17eedcb55a704bd143a277f5ef4e3e9ac025cf4730aced6c09b"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.Compiler.dll",
+      "bytes": 294912,
+      "sha256": "cfc1b18949b3de76f143b17bb91680bd6265a945a619a6005b528dbc3e960613"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.Compiler.Tool.exe",
+      "bytes": 13312,
+      "sha256": "186c129111cd3b0e959ebdeed71b83fec75746907161849a16e27e345c75e32b"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.Compiler.Tool.exe.config",
+      "bytes": 879,
+      "sha256": "a36ba65611c3e17eedcb55a704bd143a277f5ef4e3e9ac025cf4730aced6c09b"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.RunHost.exe",
+      "bytes": 78848,
+      "sha256": "8c75b62c8f7e85a1981cb648b10d15d6571276fb2f4bf599051d8927b0692f27"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.RunHost.exe.config",
+      "bytes": 879,
+      "sha256": "a36ba65611c3e17eedcb55a704bd143a277f5ef4e3e9ac025cf4730aced6c09b"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasic.Utilities.dll",
+      "bytes": 1446912,
+      "sha256": "9041d9f4e2ccd667e79a9010b472b98dcdd9da26706a6fac5833bc908b13af0a"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/SmallBasicLibrary.dll",
+      "bytes": 265472,
+      "sha256": "4ea0823aa7a754719e751ba044468428bc7bc428a434f634ab6d405f6ccfaeef"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Buffers.dll",
+      "bytes": 20856,
+      "sha256": "accccfbe45d9f08ffeed9916e37b33e98c65be012cfff6e7fa7b67210ce1fefb"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Memory.dll",
+      "bytes": 142240,
+      "sha256": "bf3fb84664f4097f1a8a9bc71a51dcf8cf1a905d4080a4d290da1730866e856f"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Numerics.Vectors.dll",
+      "bytes": 115856,
+      "sha256": "1d3ef8698281e7cf7371d1554afef5872b39f96c26da772210a33da041ba1183"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Runtime.CompilerServices.Unsafe.dll",
+      "bytes": 18024,
+      "sha256": "37768488e8ef45729bc7d9a2677633c6450042975bb96516e186da6cb9cd0dcf"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Text.Encodings.Web.dll",
+      "bytes": 79024,
+      "sha256": "e9c4f5eed186cb129c527c4b8d67d163ea2f2396e9d8b96e30b5e7c12203ce84"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Text.Json.dll",
+      "bytes": 644888,
+      "sha256": "86c3f263ae9b4469ab1266c80471087082447eb4a38e6b97bf5e84de15c07a1d"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.Threading.Tasks.Extensions.dll",
+      "bytes": 25984,
+      "sha256": "4f81ffd0dc7204db75afc35ea4291769b07c440592f28894260eea76626a23c6"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/System.ValueTuple.dll",
+      "bytes": 25232,
+      "sha256": "e905d102585b22c6df04f219af5cbdbfa7bc165979e9788b62df6dcc165e10f4"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/Microsoft.Bcl.AsyncInterfaces.dll",
+      "bytes": 26904,
+      "sha256": "80678203bd0203a6594f4e330b22543c0de5059382bb1c9334b7868b8f31b1bc"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/SmallBasic.CompiledArtifacts.dll",
+      "bytes": 10240,
+      "sha256": "519b1d102f9eae26628118abb5d21ae63dc93d68523fbf01d0a1b126105fab2f"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/SmallBasic.Compiler.dll",
+      "bytes": 294912,
+      "sha256": "cfc1b18949b3de76f143b17bb91680bd6265a945a619a6005b528dbc3e960613"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/SmallBasic.RunHost.exe",
+      "bytes": 78848,
+      "sha256": "8c75b62c8f7e85a1981cb648b10d15d6571276fb2f4bf599051d8927b0692f27"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/SmallBasic.RunHost.exe.config",
+      "bytes": 879,
+      "sha256": "a36ba65611c3e17eedcb55a704bd143a277f5ef4e3e9ac025cf4730aced6c09b"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/SmallBasic.Utilities.dll",
+      "bytes": 1446912,
+      "sha256": "9041d9f4e2ccd667e79a9010b472b98dcdd9da26706a6fac5833bc908b13af0a"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/SmallBasicLibrary.dll",
+      "bytes": 265472,
+      "sha256": "4ea0823aa7a754719e751ba044468428bc7bc428a434f634ab6d405f6ccfaeef"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Buffers.dll",
+      "bytes": 20856,
+      "sha256": "accccfbe45d9f08ffeed9916e37b33e98c65be012cfff6e7fa7b67210ce1fefb"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Memory.dll",
+      "bytes": 142240,
+      "sha256": "bf3fb84664f4097f1a8a9bc71a51dcf8cf1a905d4080a4d290da1730866e856f"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Numerics.Vectors.dll",
+      "bytes": 115856,
+      "sha256": "1d3ef8698281e7cf7371d1554afef5872b39f96c26da772210a33da041ba1183"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Runtime.CompilerServices.Unsafe.dll",
+      "bytes": 18024,
+      "sha256": "37768488e8ef45729bc7d9a2677633c6450042975bb96516e186da6cb9cd0dcf"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Text.Encodings.Web.dll",
+      "bytes": 79024,
+      "sha256": "e9c4f5eed186cb129c527c4b8d67d163ea2f2396e9d8b96e30b5e7c12203ce84"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Text.Json.dll",
+      "bytes": 644888,
+      "sha256": "86c3f263ae9b4469ab1266c80471087082447eb4a38e6b97bf5e84de15c07a1d"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.Threading.Tasks.Extensions.dll",
+      "bytes": 25984,
+      "sha256": "4f81ffd0dc7204db75afc35ea4291769b07c440592f28894260eea76626a23c6"
+    },
+    {
+      "path": "resources/dotnet/compiler-net48/template/net48/System.ValueTuple.dll",
+      "bytes": 25232,
+      "sha256": "e905d102585b22c6df04f219af5cbdbfa7bc165979e9788b62df6dcc165e10f4"
+    },
+    {
       "path": "resources/dotnet/csharp-net48/Microsoft.Bcl.AsyncInterfaces.dll",
       "bytes": 26904,
       "sha256": "80678203bd0203a6594f4e330b22543c0de5059382bb1c9334b7868b8f31b1bc"
     },
     {
-      "path": "resources/dotnet/csharp-net48/Microsoft.Extensions.DependencyInjection.Abstractions.dll",
-      "bytes": 36856,
-      "sha256": "901b7c5727f29fa4f55eb2cf9f1a44d15afd02f1d14103eb08966de31f5bb12f"
-    },
-    {
-      "path": "resources/dotnet/csharp-net48/Microsoft.Extensions.Localization.Abstractions.dll",
-      "bytes": 17400,
-      "sha256": "33483b7dd99fa216b04dd062d5c48ed37a553fe29f0ecc34019d4fb5ee1f23b0"
-    },
-    {
-      "path": "resources/dotnet/csharp-net48/Microsoft.Extensions.Localization.dll",
-      "bytes": 29168,
-      "sha256": "6c48a8e1a0000478211e0652590a122f3184a902e42a9ec9c7da47c08e9c5d76"
-    },
-    {
-      "path": "resources/dotnet/csharp-net48/Microsoft.Extensions.Logging.Abstractions.dll",
-      "bytes": 47632,
-      "sha256": "8c7763fce381531dda9e9d6b533599e789f705da613ac711b7c82f8c08185bb4"
-    },
-    {
-      "path": "resources/dotnet/csharp-net48/Microsoft.Extensions.Options.dll",
-      "bytes": 40440,
-      "sha256": "1323345e21f12e5c0cd90ed2a96fc497010a94667ea4fdaf4c9bbbdb1610f148"
-    },
-    {
-      "path": "resources/dotnet/csharp-net48/Microsoft.Extensions.Primitives.dll",
-      "bytes": 35832,
-      "sha256": "fa58254542604e4c90e9876b5a5c7653d6ac8a3164102e5604981fba6660f750"
+      "path": "resources/dotnet/csharp-net48/SmallBasic.CompiledArtifacts.dll",
+      "bytes": 10240,
+      "sha256": "519b1d102f9eae26628118abb5d21ae63dc93d68523fbf01d0a1b126105fab2f"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.Compiler.dll",
-      "bytes": 294400,
-      "sha256": "837d9cc0927e6c8f123cd506c7a96184c2a8fd4657c1421e5e421ab8fa1aa38a"
+      "bytes": 294912,
+      "sha256": "cfc1b18949b3de76f143b17bb91680bd6265a945a619a6005b528dbc3e960613"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.RunHost.exe",
-      "bytes": 76800,
-      "sha256": "dce4a50dd72fdd4c9e7769ff7dbe52f8aca719426a976252c623cfd74f261f43"
+      "bytes": 78848,
+      "sha256": "8c75b62c8f7e85a1981cb648b10d15d6571276fb2f4bf599051d8927b0692f27"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.RunHost.exe.config",
-      "bytes": 876,
-      "sha256": "1458931beec207fb43ae2e52fc4210940a3f617995b6519c29c4c89972a4b88f"
+      "bytes": 879,
+      "sha256": "a36ba65611c3e17eedcb55a704bd143a277f5ef4e3e9ac025cf4730aced6c09b"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasic.Utilities.dll",
       "bytes": 1446912,
-      "sha256": "26a6a57e4202720633bf8af32156019091c139a2aff55d3c59d458a09318edc7"
+      "sha256": "9041d9f4e2ccd667e79a9010b472b98dcdd9da26706a6fac5833bc908b13af0a"
     },
     {
       "path": "resources/dotnet/csharp-net48/SmallBasicLibrary.dll",
@@ -889,8 +1014,8 @@
     },
     {
       "path": "bin/smallbasic-csharp-net8-x86_64-pc-windows-msvc.exe",
-      "bytes": 72263406,
-      "sha256": "52511ffcdde2f0c880a66587200c91b2b4a4552fdb0eace37018f5d53275598a"
+      "bytes": 72162246,
+      "sha256": "5ce5240f3a40fa72b2a35442768890dd6d020e04c5d2ce98e9bbd0b1acc394d7"
     }
   ]
 }

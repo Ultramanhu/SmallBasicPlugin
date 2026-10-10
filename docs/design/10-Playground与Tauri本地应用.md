@@ -4,7 +4,7 @@
 >
 > 本文集中描述 Monaco Playground 的页面入口、共享语言 Worker、构建分发、页内调试与实测状态，并在第 17–19 节加入 Tauri v2 本地应用方案。Blazor / CLI RunHost、静态 Web RunHost 与 VS Code Web 模式保留在 [09-Blazor与Web运行宿主.md](./09-Blazor与Web运行宿主.md)。
 >
-> 当前浏览器 Playground 已落地；Tauri 桌面集成已于 2026-10-02 按 §17–19 设计落地第一到四阶段（桌面壳与能力探测、三类 CLI sidecar Run、通用 DAP 桥、Blazor 图形会话握手），实现位于 `visual_studio_code_plugin/packages/smallbasic-playground-desktop/`，跨平台发布矩阵（第五阶段）仍待 CI 建设。桌面侧已补齐单元、契约与载荷边界测试（§13.4），并在该轮测试中修复了 Blazor CLI 断点早于 `launch` 到达时无法验证的问题（§19.3）。文档会明确区分“已完成的 Web 能力”和“桌面能力当前进度”。
+> 当前浏览器 Playground 已落地；Tauri 桌面集成已于 2026-10-02 按 §17–19 设计落地第一到四阶段（桌面壳与能力探测、三类 CLI sidecar Run、通用 DAP 桥、Blazor 图形会话握手），实现位于 `smallbasic_playground_app/`（2026-10-11 前位于 `visual_studio_code_plugin/packages/smallbasic-playground-desktop/`），跨平台发布矩阵（第五阶段）仍待 CI 建设。桌面侧已补齐单元、契约与载荷边界测试（§13.4），并在该轮测试中修复了 Blazor CLI 断点早于 `launch` 到达时无法验证的问题（§19.3）。文档会明确区分“已完成的 Web 能力”和“桌面能力当前进度”。
 >
 > **2026-10-03 重要变更**：桌面 CLI 后端先收敛为仅 C#——CLI Blazor 在打包后的应用里调用不成功，CLI JavaScript（Node sidecar）随之一并移除（Node/Blazor sidecar 打包、Blazor 图形 Webview 握手与 `smallbasic/blazorSession` 通知均删除）；随后 C# 又拆成 **`.NET Framework 4.8`** 与 **`.NET 8.0`** 两个下拉选项，Backend 选项目前为 `JavaScript (TextWindow)` / `Blazor WASM (GraphicsWindow)` / `C# (.NET Framework 4.8)` / `C# (.NET 8.0)`。net48 是 Windows 独有的文件夹部署，因此 `resources/` 载荷树与资源目录解析以「只承载 net48 宿主」的形式恢复，并由仅 Windows 生效的 `tauri.windows.conf.json` 声明。§17–19 中描述三后端/图形会话的段落保留了当时的设计意图，并在对应位置标注为历史或已移除；当前实现口径以本节与 §13.5、§17.2、§18.1、§18.5、§19.3 的说明为准。
 
@@ -734,16 +734,16 @@ Monaco 只承载 glyph margin、装饰与定位；`PlaygroundDebugController` �
 
 | 验证 | 结果 |
 |---|---|
-| `npm run typecheck`（含 `smallbasic-playground-desktop`） | 通过 |
+| `npm run typecheck`（含 `smallbasic_playground_app`） | 通过 |
 | `npm test -- --reporter=dot` | 通过，29 个测试文件、620 项测试全绿（较基线 +33） |
-| `cargo test --lib`（`smallbasic-playground-desktop/src-tauri`） | 通过，7 项；编译零警告 |
+| `cargo test --lib`（`smallbasic_playground_app/src-tauri`） | 通过，7 项；编译零警告 |
 | `npm run build:playground` 与 `npm run build`（含 `desktop.js`） | 通过 |
 | 三套 CLI sidecar 文本运行冒烟（Node / C# / Blazor，`sample/hello/hello.sb`） | 输出一致，退出码 0 |
 | Blazor 图形 run 冒烟（`--no-open`，`sample/tutorial/level1.sb`） | stderr 输出一行版本化 JSON 控制消息，stdout 保持人类可读文案 |
 | CLI 调试适配器进程级契约（三套后端，`setBreakpoints` 先于 `launch`） | 断点均验证为真并在该行停下，调用栈可用 |
 | `playwright test runhost-web.spec.ts playground-desktop.spec.ts` | 6 项通过（Web 回归 5 + 桌面暂存页 1） |
 
-新增测试文件（`packages/smallbasic-playground-desktop/tests/`）：
+新增测试文件（`smallbasic_playground_app/tests/`）：
 
 - `backend-capabilities.spec.ts`：CLI 后端可用性与图形矩阵（2026-10-03 收敛为单一 C# 后端）；
 - `desktop-bridge.spec.ts`：`isTauriRuntime` 只在注入 IPC 桥时为真，浏览器构建保持纯 Web 后端；
@@ -809,22 +809,27 @@ Tauri 自身只解决桌面窗口、安装包和本机命令边界。仓库已�
 
 统一输出目录同样可行：构建源和归档统一落在 `runhost/playground/`，目标相关二进制用后端名 + target triple 区分。Tauri 构建每次从该目录选择当前 target 所需文件，不要求为 Windows、macOS、Linux 分别复制完整资源树。
 
-截至 2026-10-02，本节方案已按 §19.3 的 1–4 阶段实现：新增 `visual_studio_code_plugin/packages/smallbasic-playground-desktop/`（TS 桥接层 + Tauri Rust 壳 + staging 脚本）。Windows x64 已完成 sidecar 冒烟验证；DAP 断点/单步在桌面宿主下的端到端验收与跨平台 CI（第五阶段）仍未收口。2026-10-03 收敛后，第 4 阶段（Blazor 图形会话）随 CLI Blazor 一并移除，`smallbasic/blazorSession` 通知不再存在。
+截至 2026-10-02，本节方案已按 §19.3 的 1–4 阶段实现：新增 `smallbasic_playground_app/`（TS 桥接层 + Tauri Rust 壳 + staging 脚本）。Windows x64 已完成 sidecar 冒烟验证；DAP 断点/单步在桌面宿主下的端到端验收与跨平台 CI（第五阶段）仍未收口。2026-10-03 收敛后，第 4 阶段（Blazor 图形会话）随 CLI Blazor 一并移除，`smallbasic/blazorSession` 通知不再存在。
 
 ### 17.2 产品边界
 
-同一套 Playground UI 保留四个可选执行目标（2026-10-03 起 CLI 只剩两种 C# 宿主）：
+同一套 Playground UI 保留五个可选执行目标（2026-10-03 起 CLI 只剩两种 C# 宿主，2026-10-06 增加编译器后端）：
 
 | 目标 | 运行位置 | 运行 | 调试 | 图形 |
 |---|---|---:|---:|---:|
 | Web JavaScript | 主 Webview 内 | 是 | 是 | 否 |
 | Web Blazor | 主 Webview 的 WASM | 是 | 是 | 是 |
-| C# (.NET Framework 4.8) | CLI 宿主（`SmallBasic.RunHost`，net48，仅 Windows） | 是 | 是 | Windows 原生宿主支持 |
-| C# (.NET 8.0) | CLI 宿主（`SmallBasic.RunHost`，net8.0-windows / 便携 net8.0） | 是 | 是 | Windows 原生；其它平台文本模式 |
+| C# (.net Framework 4.8) | CLI 宿主（`SmallBasic.RunHost`，net48，仅 Windows） | 是 | 是 | Windows 原生宿主支持 |
+| C# (.net 8.0) | CLI 宿主（`SmallBasic.RunHost`，net8.0-windows / 便携 net8.0） | 是 | 是 | Windows 原生；其它平台文本模式 |
+| Compiler (.net Framework 4.8) | 编译器载荷（先编成 net48 EXE，再运行或调试该产物，仅 Windows） | 是 | 是（编译后调试） | net48 模板宿主原生支持 |
 
-浏览器静态站点只显示两个 Web 目标；Tauri 构建在相同页面上增量启用两个 C# 目标。页面通过运行环境能力查询决定选项，不用 UA 判断，也不让普通 Web 部署看到无效的本机入口。
+浏览器静态站点只显示两个 Web 目标；Tauri 构建在相同页面上增量启用其它目标。页面通过运行环境能力查询决定选项，不用 UA 判断，也不让普通 Web 部署看到无效的本机入口。
 
 C# 后端的图形能力必须按平台明确展示：Windows 的 `net8.0-windows` / `net48` 宿主可使用原生 `GraphicsWindow`，跨平台 `net8.0` 宿主仍是文本模式。跨平台图形统一由 Web Blazor 提供。
+
+下拉框标签统一写作小写 `.net`（`C# (.net Framework 4.8)` / `C# (.net 8.0)` / `Compiler (.net Framework 4.8)`），三个宿主条目只有一种拼写。
+
+Compiler 目标取代了原先 Windows 桌面版专属的 **Compile** 按钮（§19.5）：它不再是「编译完把产物路径写到状态栏」的一次性动作，而是一个可选后端——选中它之后 Run 会编译并启动产物，Debug 会编译并用编译后调试适配器调试产物。
 
 **2026-10-03 收敛与拆分**：原先的 CLI JavaScript（Node sidecar + 共享 JS bundle）与 CLI Blazor（.NET sidecar + localhost 会话）已移除——CLI Blazor 在打包后的应用里调用不成功，两者合计还让每个安装包多背约 147 MB 的 sidecar 载荷。随之删除的还有 Node/Blazor sidecar 的打包、Blazor 图形 Webview 会话握手（§18.4）。随后 C# 又拆成 `.NET Framework 4.8` 与 `.NET 8.0` 两个下拉选项：前者是 Windows 独有的文件夹部署（经 `bundle.resources` 分发），后者是自包含单文件 sidecar（经 `bundle.externalBin` 分发），因此 `resources/` 载荷树与资源目录解析以「只承载 net48 宿主」的形式恢复。Web JavaScript 后端不受影响，它仍由页面内的 `smallbasic-js.js` 提供。
 
@@ -856,10 +861,11 @@ Rust session manager
 
 | 后端 | 当前运行入口 | 当前调试入口 | Tauri 集成要点 |
 |---|---|---|---|
-| C# (.NET 8.0) | `SmallBasic.RunHost run --file <program.sb> [--pause]` | `SmallBasic.RunHost debug`，stdio DAP | 按 RID 发布自包含**单文件**宿主，无需任何同目录载荷；Windows 图形（`net8.0-windows`）与跨平台文本（`net8.0`）载荷分开 |
-| C# (.NET Framework 4.8) | `SmallBasic.RunHost run --file <program.sb> [--pause]` | `SmallBasic.RunHost debug`，stdio DAP | 仅 Windows；**不能**单文件发布（`PublishSingleFile` 是 .NET Core 特性、net48 也无 RID 概念），因此按文件夹载荷经 `bundle.resources` 分发，并以该目录为工作目录启动 |
+| C# (.net 8.0) | `SmallBasic.RunHost run --file <program.sb> [--pause]` | `SmallBasic.RunHost debug`，stdio DAP | 按 RID 发布自包含**单文件**宿主，无需任何同目录载荷；Windows 图形（`net8.0-windows`）与跨平台文本（`net8.0`）载荷分开 |
+| C# (.net Framework 4.8) | `SmallBasic.RunHost run --file <program.sb> [--pause]` | `SmallBasic.RunHost debug`，stdio DAP | 仅 Windows；**不能**单文件发布（`PublishSingleFile` 是 .NET Core 特性、net48 也无 RID 概念），因此按文件夹载荷经 `bundle.resources` 分发，并以该目录为工作目录启动 |
+| Compiler (.net Framework 4.8) | `SmallBasic.Compiler.Tool compile --file <program.sb> --outputDir <directory>`，随后 `<program>.exe run` | 同一编译步骤后 `SmallBasic.CompiledDebugAdapter.exe`（stdio DAP，`launch.outputDirectory` 指向产物目录） | 仅 Windows；编译器与调试适配器同为 net48 文件夹部署，与 net48 宿主模板一起暂存在 `resources/dotnet/compiler-net48/`；产物目录由用户选择（§19.5） |
 
-该运行入口要求文件路径，因此运行和调试前应把编辑器当前快照写入应用缓存下的会话目录，例如 `sessions/<id>/program.sb`。这不是“保存文件”：编辑器 dirty 状态不变，用户主动 Save 仍遵循现有下载/文件保存语义。会话结束时清理临时目录。
+该运行入口要求文件路径，因此运行和调试前应把编辑器当前快照写入应用缓存下的会话目录，例如 `sessions/<id>/program.sb`。这不是“保存文件”：编辑器 dirty 状态不变，用户主动 Save 仍遵循现有下载/文件保存语义。会话结束时清理临时目录。编译器后端是唯一例外：它的会话程序按程序自身命名（`sessions/<id>/hello.sb`），因为产物基名由源文件名派生。
 
 ### 18.2 进程与输出模型
 
@@ -943,7 +949,7 @@ runhost/playground/
 }
 ```
 
-`resources` 只在 Windows 配置里声明是必须的，不是风格选择：Tauri 对「有 `*` 但一个文件都没匹配到」的模式会直接返回 `GlobPathNotFound` 并使构建失败（`tauri-utils src/resources.rs`），而 net48 载荷只存在于 Windows 目标。相对路径以 `visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/tauri.conf.json` 为基准。构建脚本必须先验证目标 triple 的 .NET 8 sidecar（以及 Windows 上的 net48 载荷）存在，再调用 `tauri build`。
+`resources` 只在 Windows 配置里声明是必须的，不是风格选择：Tauri 对「有 `*` 但一个文件都没匹配到」的模式会直接返回 `GlobPathNotFound` 并使构建失败（`tauri-utils src/resources.rs`），而 net48 载荷只存在于 Windows 目标。相对路径以 `smallbasic_playground_app/src-tauri/tauri.conf.json` 为基准（包移到仓库根后比原先少两级 `../`）。构建脚本必须先验证目标 triple 的 .NET 8 sidecar（以及 Windows 上的 net48 载荷）存在，再调用 `tauri build`。
 
 **实施修订（2026-10-03，Windows x64 打包实测）**：Tauri 打包时会自动剥掉 `externalBin` 的 `-<TARGET_TRIPLE>` 后缀（安装后为紧邻主程序的 `smallbasic-csharp.exe`），因此 Rust 侧的 sidecar 解析必须同时探测 triple 后缀名与剥离名，不能假设磁盘布局与暂存目录一致；`frontendDist`（`app/`）在 release 构建中直接内嵌进主程序，不落盘。C# sidecar 是自包含单文件，`bundle.resources` 已不再使用，原先为 Node/Blazor 载荷而实现的 `_up_` 深度探测随裁剪一并删除。
 
@@ -977,7 +983,7 @@ runhost/playground/
 建议新增独立 workspace 包存放源码，不把 Rust 工程混进现有 VS Code 扩展入口；所有可发布输出统一生成到 `runhost/playground/`：
 
 ```text
-visual_studio_code_plugin/packages/smallbasic-playground-desktop/
+smallbasic_playground_app/
 |- package.json
 |- scripts/
 |  \- stage-playground.mjs             # 组装 runhost/playground 并生成 manifest
@@ -1001,6 +1007,7 @@ visual_studio_code_plugin/packages/smallbasic-playground-desktop/
 
 - capability 只授予主 Webview 的明确命令，按平台进一步收窄；应用不再创建任何其它 Webview（图形 Webview 随 CLI Blazor 于 2026-10-03 移除）。
 - backend 使用枚举，参数由 Rust 生成；拒绝页面提供任意 executable、argument list、环境变量或工作目录。
+- 编译器后端是唯一接受页面传入目录的入口，且该目录只会作为 `compile --outputDir` 的参数与产物工作目录使用，绝不会被当成可执行文件路径；编译器与调试适配器都由后端枚举从暂存载荷解析（§19.5）。
 - 临时源码路径必须规范化并限制在应用缓存会话目录；用户打开/保存文件走单独文件 API。
 - 保持严格 CSP，不加载 CDN、远程脚本或远程编辑器资产。
 - 不记录源码、stdin 或变量值到持久日志；崩溃报告只保留后端、版本与退出码。
@@ -1017,7 +1024,7 @@ visual_studio_code_plugin/packages/smallbasic-playground-desktop/
 
 **实施状态（2026-10-02，Windows x64）**：1–4 阶段已落地——
 
-- 包结构：`smallbasic-playground-desktop`（`desktop-bridge.ts` / `backend-capabilities.ts` / `local-cli-debug-transport.ts` / `desktop-entry.ts` + `src-tauri/` Rust 壳 + `stage-playground.mjs`），与 §19.1 布局一致；
+- 包结构：`smallbasic_playground_app`（`desktop-bridge.ts` / `backend-capabilities.ts` / `local-cli-debug-transport.ts` / `desktop-entry.ts` + `src-tauri/` Rust 壳 + `stage-playground.mjs`），与 §19.1 布局一致；
 - 能力探测：Rust `desktop_capabilities` 按 sidecar 文件存在性返回后端与图形矩阵，页面据此增量注册 CLI 后端（非 UA 判断）；浏览器构建经负向检查确认不含 Tauri 桥；
 - CLI Run：C#（单文件 `net8.0-windows`，无需同目录载荷）sidecar 的 run/stdin/Stop/树终止均可用；会话目录为应用缓存 `sessions/<id>/`，退出即清理；（2026-10-03 前还包含 Node 与 Blazor sidecar，现已移除。）
 - DAP 桥：Rust 持有 Content-Length 分帧与请求序号，`LocalCliDebugTransport` 把 Web 调试协议（0-based）映射到 DAP（1-based），断点/继续/暂停/单步/调用栈/变量复用现有调试 UI；文本输入经 `evaluate` 通道提交，与 C# 适配器现状一致；
@@ -1025,7 +1032,7 @@ visual_studio_code_plugin/packages/smallbasic-playground-desktop/
 - 单文件发布通过 `SmallBasicStageSidecar=true` 项目内开关实现（CLI 全局 `-p:PublishSingleFile` 会传播到 Blazor.Client 引用项目并触发 NETSDK1098）；
 - 修正（2026-10-02 测试发现）：Blazor CLI 调试此前只在 `launch` 里计算可执行行，而桌面桥（及规范 DAP 客户端）会先从 `initialized` 事件发送 `setBreakpoints`，导致断点被判定为“无可执行语句”、永不命中。`BlazorDebugAdapter` 现在在 `setBreakpoints` 阶段即解析源码补齐可执行行表（与 `SmallBasic.RunHost` 适配器一致），三套 CLI 后端的断点验证与命中因此对齐。
 - 修正（2026-10-03 打包后实测）：桌面壳此前实际上拿不到 CLI 后端——`desktop.js` 必须 `await SmallBasicPlayground.whenReady` 才注册，而页面 `bootstrap()` 在这次 await 之前就已把待注册队列排空并转发给 controller，于是 `registerBackend` 只写进了队列、CLI 选项永远进不了 Backend 下拉框（表现为“PC 版只有 Web 后端”）。现在 `entry.ts` 在页面就绪后把 `registerBackend` 直接转发给 live controller（`controllerRef`），并新增 `playground-desktop.spec.ts` 用例：注入 Tauri IPC 能力探测后必须出现 C# 选项，未注入时仍保持两个 Web 选项。
-- 收敛与拆分（2026-10-03）：CLI 先只剩 C#，随后按 .NET 版本拆为两个下拉选项，现为 `JavaScript (TextWindow)` / `Blazor WASM (GraphicsWindow)` / `C# (.NET Framework 4.8)` / `C# (.NET 8.0)`。前端 `CliBackendId` 与 `desktop_capabilities` 是 `cli-csharp-net48` / `cli-csharp-net8` 两个条目；Rust 侧删除 JavaScript / Blazor 分支、Blazor 控制消息解析与图形窗口注册，`Backend::CSharpNet48` 经 `resolve_staged_resource` 定位文件夹载荷并以该目录为工作目录，`Backend::CSharpNet8` 经 `resolve_sidecar` 定位单文件；暂存脚本把 .NET 8 发布到 `bin/`、把 net48 发布到 `resources/dotnet/csharp-net48/`，每次组装裁剪 `bin/` 并清理已移除后端的 `resources/` 子树（非 Windows 目标同时删除 net48 载荷）。
+- 收敛与拆分（2026-10-03）：CLI 先只剩 C#，随后按 .NET 版本拆为两个下拉选项，现为 `JavaScript (TextWindow)` / `Blazor WASM (GraphicsWindow)` / `C# (.net Framework 4.8)` / `C# (.net 8.0)` / `Compiler (.net Framework 4.8)`。前端 `CliBackendId` 与 `desktop_capabilities` 是 `cli-csharp-net48` / `cli-csharp-net8` / `cli-compiler-net48` 三个条目；Rust 侧删除 JavaScript / Blazor 分支、Blazor 控制消息解析与图形窗口注册，`Backend::CSharpNet48` 经 `resolve_staged_resource` 定位文件夹载荷并以该目录为工作目录，`Backend::CSharpNet8` 经 `resolve_sidecar` 定位单文件，`Backend::CompilerNet48` 先用同一条 `resolve_staged_resource` 路径找到编译器载荷、编译产物后按 Run/Debug 分别启动产物或调试适配器（§19.5）；暂存脚本把 .NET 8 发布到 `bin/`、把 net48 宿主与 net48 编译器载荷发布到 `resources/dotnet/` 下两个子树，每次组装裁剪 `bin/` 并清理已移除后端的 `resources/` 子树（非 Windows 目标同时删除两个 net48 载荷）。
 - 已验证：两个宿主对 hello 程序的运行输出、两套适配器的 `setBreakpoints` 先于 `launch` 断点契约（`cli-debug-contract.spec.ts`，两个目标均实跑通过）、`cargo test --lib`（4 项，零警告）、全部 TS typecheck 与 620 项单元测试、`build:playground` 回归、Web Playground 页面级 E2E 回归与桌面暂存页 E2E（§13.4/§13.5）。仍未自动化：真实的 Tauri 窗口内端到端（`tauri dev` 下的 CLI 断点调试、net48 宿主在安装布局下的 `_up_` 深度探测）与第五阶段 CI/签名。
 - 跨平台打包（2026-10-03，Windows x64 宿主实测）：`bundles/` 已覆盖四个 target——`x86_64-pc-windows-msvc`（MSI+NSIS）、`aarch64-pc-windows-msvc`（MSI+NSIS，`dotnet publish -r win-arm64` 交叉出 sidecar）、`x86_64-unknown-linux-gnu`（deb+rpm+AppImage，WSL Ubuntu 22.04 内 `cargo tauri build`，webkit2gtk-4.1 依赖经 apt 安装，sidecar 仍由 Windows 侧交叉发布）、`aarch64-linux-android`（APK+AAB，sdkmanager 装 NDK 27 + `tauri android build`，开发密钥库签名）。移动端无 sidecar：`tauri.android.conf.json` 清空 `externalBin`，`rfd` 依赖按 OS triple 门控到桌面平台、对话框命令在 `#[cfg(mobile)]` 下返回错误桩，`run()` 挂 `#[cfg_attr(mobile, tauri::mobile_entry_point)]`（缺失时 bundler 校验 `.so` 运行时符号失败）。Linux AppImage 工具（AppRun/linuxdeploy）在本网络下需 Windows 侧预下载后放入 bundler 缓存。macOS/iOS 打包依赖 Xcode，无法在 Windows 宿主完成，暂存脚本已支持 apple triple 供 CI 使用。Gradle 守护进程会缓存环境，PATH 变更后需 `gradlew --stop`，否则 `BuildTask` 启动 `npm.cmd` 失败且错误被 `npm.bat` 回退异常掩盖。
 - 打包脚本形态（2026-10-03，`runhost/Build-PlaygroundApp.ps1`）：`-StageOnly` 只产运行包（暂存树 + 便携可执行文件，`tauri build --no-bundle`，不产安装器）；`-BundleTargets <列表>` 一次构建并归档多个平台（支持 `win-x64`/`win-arm64`/`linux-x64`/`android-arm64` 等别名或完整 triple；Windows 目标本地构建、Linux 目标经 `-WslDistro` 指定的 WSL 构建、Android 目标走 `tauri android build` 并自动解析 SDK/NDK/JDK 17+，系统 JAVA_HOME 指向 JDK 11 时自动跳过）。暂存根目录同一时刻只承载一个 target 的载荷，列表的最后一个 target 决定 `runhost/playground/` 的最终内容，`bundles/` 则累积全部 target。实现要点：PowerShell→wsl.exe 的嵌套引号易碎，Linux 产物校验/拷贝一律走 `wsl --exec`（不经 shell）＋由 `sh -c "cd; pwd"` 解析出的真实 home 路径；AppImage 工具缓存在 `obj/appimage-cache`（预取失败仅告警，bundler 自身缓存 `~/.cache/tauri` 命中后无需下载）。
@@ -1033,15 +1040,43 @@ visual_studio_code_plugin/packages/smallbasic-playground-desktop/
 ### 19.4 验收门槛
 
 - 每个可用后端都能从未保存的编辑器快照 Run / Debug，且输出、输入、Stop、重启行为一致。
-- 两个 C# 宿主都通过断点、继续、暂停、step in / over / out、调用栈和变量验收；条件断点按适配器现有能力显示。
-- Windows 上两个 C# 宿主的原生图形都能在自己的窗口中运行与调试；跨平台图形由 Web Blazor 覆盖，关闭任一侧不留孤儿进程。
-- 干净机器上：.NET 8 目标无需任何运行时即可运行；net48 目标依赖 Windows 自带的 .NET Framework 4.8。
+- 三个 C# 后端都通过断点、继续、暂停、step in / over / out、调用栈和变量验收；条件断点按适配器现有能力显示，编译后调试还要覆盖“产物目录与源文件目录不同”的情形。
+- Windows 上三个 C# 后端的原生图形都能在自己的窗口中运行与调试；跨平台图形由 Web Blazor 覆盖，关闭任一侧不留孤儿进程。
+- 编译器后端在产物目录已存在同名产物时按覆盖处理，不得报错或留下半新半旧的产物目录。
+- 干净机器上：.net 8 目标无需任何运行时即可运行；net48 与编译器目标依赖 Windows 自带的 .NET Framework 4.8。
 - 页面无法启动未列入白名单的程序，无法逃逸会话目录。
-- 浏览器版构建不包含 Tauri 桥或 sidecar，原有 `runhost/web` E2E 全部继续通过。
+- 浏览器版构建不包含 Tauri 桥或 sidecar，原有 `runhost/web` E2E 全部继续通过；桌面暂存页在无 Tauri 时必须保持两个 Web 后端、隐藏编译目录字段。
 - CI 对每个目标三元组校验 sidecar 与载荷文件名、执行权限和许可证清单。
 - `runhost/playground/app` 不出现按平台复制的镜像目录；`manifest.json` 中相同逻辑资源只有一个路径和哈希。
-- 每个安装包只包含当前 target 的 payload：`bin/` 恰好一个 `smallbasic-csharp-net8-<triple>`；`resources/` 只含 `dotnet/csharp-net48/**`，且仅 Windows 目标存在。已移除后端的残留（`smallbasic-node*`、`smallbasic-blazor*`、旧名 `smallbasic-csharp-*`）不得出现。
+- 每个安装包只包含当前 target 的 payload：`bin/` 恰好一个 `smallbasic-csharp-net8-<triple>`；`resources/` 只含 `dotnet/csharp-net48/**` 与 `dotnet/compiler-net48/**`，且仅 Windows 目标存在。已移除后端的残留（`smallbasic-node*`、`smallbasic-blazor*`、旧名 `smallbasic-csharp-*`）不得出现。
 - 上述两条与“浏览器构建不含 Tauri 桥”已由 `staging-boundary.spec.ts` 在暂存产物存在时自动断言。
+
+### 19.5 编译器后端（原 Compile 按钮）
+
+Windows 桌面版原先在工具栏上有一个 **Compile** 按钮：点击后弹原生文件夹选择器，把当前快照交给 net48 编译器载荷，再把产物路径写到状态栏。它有三个问题——与「运行 / 调试」并列时语义割裂（编译完还得再点一次运行），入口只在桌面版存在却占据共享页面工具栏，以及编译动作完全不参与后端选择与调试链路。
+
+现在它是后端下拉框里的第三个 CLI 目标 `Compiler (.net Framework 4.8)`，按钮、`registerCompileHandler` 扩展点与 `compile_program` 命令一并删除。
+
+**编译目录字段**：选中该后端时，后端选择器右侧出现一个「编译目录」字段（默认空，只由用户手动填充）与一个「更改…」按钮（原生文件夹选择器）。字段的显示、渲染与「未选择」文案由页面拥有，原生选择器与记住的值由桌面桥提供：
+
+1. 页面侧 `entry.ts` 新增 `PlaygroundCompileDirectory` 与 `SmallBasicPlayground.registerCompileDirectory({ backend, getDirectory, chooseDirectory })`；绑定为 `null`（浏览器构建，或未暂存编译器载荷的桌面构建）时字段永远保持 `hidden`。
+2. Run / Debug（含 Ctrl+Enter 与工具条重启按钮触发的重启）在真正启动会话前调用 `ensureCompileDirectory()`：后端不是编译器后端就直接放行；是且目录为空时先调 `chooseDirectory()`，用户取消即中止本次动作，下次再问。
+3. 桌面侧 `desktop-entry.ts` 只实现取值与选择（`pick_compile_directory`）并把结果回填到字段，不拥有任何页面 DOM。
+
+**编译与执行**：目录确定后，Rust `process_manager` 在会话启动路径里先编译再启动子进程——编译失败即作为会话启动错误返回，页面直接把它显示在诊断区，而不是启动一个注定失败的子进程：
+
+| 动作 | argv | 工作目录 |
+|---|---|---|
+| 编译 | `SmallBasic.Compiler.Tool.exe compile --file <program.sb> --outputDir <directory>` | 编译器载荷目录（net48 文件夹部署） |
+| Run | `<directory>\<program>.exe run` | 产物目录（`lib\` probing 相对于 EXE 自身，`.exe.config` 已声明） |
+| Debug | `SmallBasic.CompiledDebugAdapter.exe`（无参数，stdio DAP） | 编译器载荷目录 |
+
+三个要点：
+
+- **产物命名**：`CompiledProgramLayout.ForSourceProgram` 从源文件名派生产物名，所以编译器后端的会话程序按程序自身命名（`sessions/<id>/hello.sb` → `hello.exe` / `hello.smallbasic.json` / `hello.smallbasic.source`），两个 RunHost 后端仍沿用固定的 `program.sb`。`sanitize_program_name` 显式按两种分隔符取末段并替换 Windows 非法字符，不依赖 `Path` 的平台语义。
+- **覆盖**：编译器每次都会重写入口 EXE、`.exe.config`、sidecar 与 `lib\` 支撑程序集，因此往同一个目录重复编译就是原地覆盖，不需要额外清理。
+- **编译后调试**：`SmallBasic.CompiledDebugAdapter` 原先只在源文件同级目录找产物；新增可选的 `launch.outputDirectory` 参数后，会话程序留在应用缓存、产物落在用户目录的桌面场景才能定位到 EXE，`SourceMatchesManifest` 的源码哈希校验因此仍然成立。Visual Studio 不传该参数，行为不变。
+- **`run` 参数**：net48 模板把「无参数启动」当作双击场景，会先打印「按任意键继续」；Playground 传 `run` 走产物入口但跳过该横幅，输出面板里不会每次多一行噪声。
 
 ## 20. 外部调研参考
 

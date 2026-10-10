@@ -81,6 +81,9 @@ try {
         "SmallBasicEditorOptions.pkgdef",
         "debugadapter/adapter.js",
         "runhost/csharp/SmallBasic.RunHost.exe",
+        "runhost/compiler/SmallBasic.Compiler.Tool.exe",
+        "runhost/compiler/SmallBasic.CompiledDebugAdapter.exe",
+        "runhost/compiler/template/net48/SmallBasic.RunHost.exe",
         "runhost/javascript/smallbasic-runhost.js"
     )) {
         if ($entries -notcontains $payloadEntry) {
@@ -128,8 +131,8 @@ try {
     $smallBasicFileConstraints = [regex]::Matches(
         $extensionManifest,
         [regex]::Escape('ClientContext:Shell.ActiveEditorFileName=\\.[sS][bB]$'))
-    if ($smallBasicFileConstraints.Count -ne 6) {
-        throw "Expected six Small Basic run/debug activation constraints, found $($smallBasicFileConstraints.Count)."
+    if ($smallBasicFileConstraints.Count -ne 8) {
+        throw "Expected eight Small Basic run/debug/compile activation constraints, found $($smallBasicFileConstraints.Count)."
     }
 
     $manifestEntry = $archive.GetEntry("manifest.json")

@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SmallBasic.CompiledArtifacts\SmallBasic.CompiledArtifacts.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
+    <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
+  </ItemGroup>
+</Project>

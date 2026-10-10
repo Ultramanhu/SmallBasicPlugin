@@ -11393,7 +11393,24 @@
 }
 #save-button,
 #outline-button,
-#new-button {
+#new-button,
+#compile-directory-button {
+  white-space: nowrap;
+}
+#compile-directory-field {
+  min-width: 0;
+}
+.web-compile-path {
+  max-width: 240px;
+  overflow: hidden;
+  padding: 4px 8px;
+  background: var(--sb-panel-strong);
+  border: 1px solid var(--sb-border);
+  border-radius: 6px;
+  color: var(--sb-text);
+  font-family: var(--sb-mono);
+  font-size: 11px;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 @media (max-width: 1100px) {

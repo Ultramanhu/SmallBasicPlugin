@@ -4,7 +4,7 @@
 #        npm run build                     -> packages\smallbasic-vscode\dist\
 #                                             extension.js, debug\adapter.js, runhost.js,
 #                                             web\extension.js, web-runhost.js
-#                                             and packages\smallbasic-playground-desktop\dist\desktop.js
+#        npm run build (smallbasic_playground_app) -> dist\desktop.js
 #        npm run build:playground          -> packages\smallbasic-vscode\playground-dist\
 #                                             (Monaco page, editor/language workers, onig.wasm)
 #
@@ -20,8 +20,8 @@
 # to the Tauri shell).
 #
 # <version> is read from version.json through tools\common.psm1; the installers
-# carry the version of packages\smallbasic-playground-desktop instead (synced from
-# the same version.json).
+# carry the version of smallbasic_playground_app instead (synced from the same
+# version.json).
 #
 # Usage examples:
 #   .\runhost\Build-AllBundle.ps1
@@ -94,7 +94,7 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $pluginRoot = Join-Path $repoRoot "visual_studio_code_plugin"
 $vscodePackage = Join-Path $pluginRoot "packages\smallbasic-vscode"
-$desktopPackage = Join-Path $pluginRoot "packages\smallbasic-playground-desktop"
+$desktopPackage = Join-Path $repoRoot "smallbasic_playground_app"
 $playgroundScript = Join-Path $PSScriptRoot "Build-PlaygroundApp.ps1"
 
 # Shared build helpers (version.json handling).
@@ -153,6 +153,13 @@ else {
 
     if ($buildJavaScript) {
         Invoke-Step -Name "npm run build (VS Code workspace bundles)" -WorkingDirectory $pluginRoot -Action { npm run build }
+
+        # The shell package is a standalone npm project at the repository root,
+        # so its desktop bridge bundle is not part of the workspace build.
+        if (-not (Test-Path (Join-Path $desktopPackage "node_modules"))) {
+            Invoke-Step -Name "npm install ($desktopPackage)" -WorkingDirectory $desktopPackage -Action { npm install }
+        }
+        Invoke-Step -Name "npm run build (desktop shell bundle)" -WorkingDirectory $desktopPackage -Action { npm run build }
     }
 
     if ($buildPlaygroundBundle) {
@@ -226,7 +233,7 @@ Write-Host ""
 Write-Host "Build-AllBundle $version completed:" -ForegroundColor Green
 if (-not $SkipFrontEnd) {
     Write-Host "  visual_studio_code_plugin\packages\smallbasic-vscode\dist\            (extension, debug\adapter, runhost, web\extension, web-runhost)"
-    Write-Host "  visual_studio_code_plugin\packages\smallbasic-playground-desktop\dist\desktop.js"
+    Write-Host "  smallbasic_playground_app\dist\desktop.js"
     if ($buildPlaygroundBundle) {
         Write-Host "  visual_studio_code_plugin\packages\smallbasic-vscode\playground-dist\ (Monaco page + workers)"
     }

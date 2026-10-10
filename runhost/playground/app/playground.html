@@ -15,34 +15,42 @@
             <span class="brand">Small Basic</span>
             <span class="web-subtitle">Playground</span>
             <label class="web-field" id="program-field">
-                <span>Sample</span>
+                <span data-i18n="sampleLabel">示例</span>
                 <select class="web-select" id="program-select"></select>
             </label>
-            <button class="web-button" id="new-button" type="button">New</button>
+            <button class="web-button" id="new-button" type="button" data-i18n="newButton">新建</button>
             <label class="web-file-button" id="file-field" data-i18n-title="fileFieldTitle" title="打开本地 .sb 文件到编辑器">
-                Open…
+                <span data-i18n="fileField">打开…</span>
                 <input accept=".sb,.txt,text/plain" id="file-input" type="file" />
             </label>
-            <button class="web-button" id="save-button" type="button">Save</button>
-            <button class="web-button" id="outline-button" type="button">Symbols</button>
+            <button class="web-button" id="save-button" type="button" data-i18n="saveButton">保存</button>
+            <button class="web-button" id="outline-button" type="button" data-i18n="outlineButton">符号</button>
             <label class="web-field" id="backend-field">
-                <span>Backend</span>
+                <span data-i18n="backendLabel">后端</span>
                 <select class="web-select" id="backend-select">
-                    <option value="javascript">JavaScript (TextWindow)</option>
-                    <option value="blazor">Blazor WASM (GraphicsWindow)</option>
+                    <option value="javascript" data-i18n="backendJavaScript">JavaScript（TextWindow 文本窗口）</option>
+                    <option value="blazor" data-i18n="backendBlazor">Blazor WASM（GraphicsWindow 图形窗口）</option>
                 </select>
             </label>
-            <button class="web-button primary" id="run-button" type="button">Run</button>
-            <button class="web-button" id="debug-button" type="button" title="以断点调试运行">Debug</button>
-            <button class="web-button" id="stop-button" type="button" disabled>Stop</button>
-            <span class="web-status" id="status">Ready</span>
+            <!-- Compiled-artifact output directory. Revealed by the page while an
+                 embedder's compiler backend is selected (registerCompileDirectory);
+                 the browser build never registers one, so it stays hidden. -->
+            <span class="web-field" hidden id="compile-directory-field">
+                <span data-i18n="compileDirectoryLabel" data-i18n-title="compileDirectoryTitle" title="编译产物（EXE）的输出目录">编译目录</span>
+                <span class="web-compile-path" id="compile-directory">未选择</span>
+                <button class="web-button" id="compile-directory-button" type="button" data-i18n="compileDirectoryChange">更改…</button>
+            </span>
+            <button class="web-button primary" id="run-button" type="button" data-i18n="runButton">运行</button>
+            <button class="web-button" id="debug-button" type="button" data-i18n="debugButton" data-i18n-title="debugButtonTitle" title="以断点调试运行">调试</button>
+            <button class="web-button" id="stop-button" type="button" disabled data-i18n="stopButton">停止</button>
+            <span class="web-status" id="status" data-i18n="statusReady">就绪</span>
             <button class="web-button" id="locale-button" type="button" aria-label="Switch UI language / 切换界面语言">中文</button>
         </header>
 
         <section class="web-playground-workspace">
             <section class="web-pane web-editor-pane" id="editor-pane">
                 <div class="web-pane-header">
-                    <span class="web-pane-title">Editor</span>
+                    <span class="web-pane-title" data-i18n="editorTitle">编辑器</span>
                     <span class="web-pane-note" data-i18n="editorNote">共用 VS Code 语言层，诊断/补全/悬停/签名帮助在浏览器内离线运行。</span>
                     <!-- VS Code-style debug toolbar, docked in the editor pane header;
                          disabled while no debug session is running. -->
@@ -61,14 +69,14 @@
 
             <section class="web-pane web-output-pane" id="output-pane">
                 <div class="web-pane-header">
-                    <span class="web-pane-title">Output</span>
+                    <span class="web-pane-title" data-i18n="outputTitle">输出</span>
                     <span class="web-pane-note" id="output-note">TextWindow 输出同时写入浏览器控制台（F12 / Console）。</span>
                 </div>
                 <pre class="web-console" id="console" hidden></pre>
                 <form class="web-input-row" hidden id="input-row">
-                    <span id="input-prompt">Read</span>
+                    <span id="input-prompt" data-i18n="inputPromptRead">输入</span>
                     <input autocomplete="off" id="input-field" type="text" />
-                    <button type="submit">Send</button>
+                    <button type="submit" data-i18n="sendButton">发送</button>
                 </form>
                 <div class="web-blazor-host" id="blazor-host">
                     <div id="app"></div>
@@ -88,7 +96,7 @@
         </section>
 
         <aside class="web-outline" hidden id="outline" role="dialog" aria-labelledby="outline-title">
-            <h2 class="web-outline-title" id="outline-title">Quick Outline</h2>
+            <h2 class="web-outline-title" id="outline-title" data-i18n="outlineTitle">快速大纲</h2>
             <div class="web-outline-empty" hidden id="outline-empty" data-i18n="outlineEmpty">当前文档没有可导航的符号。</div>
             <div class="web-outline-list" id="outline-list"></div>
         </aside>
@@ -96,13 +104,13 @@
 
     <div id="blazor-error-ui">
         <span data-i18n="blazorError">运行 Small Basic Blazor WASM 后端时发生未处理的错误。</span>
-        <a class="reload" href="">Reload</a>
+        <a class="reload" href="" data-i18n="reloadButton">重新加载</a>
         <span class="dismiss">🗙</span>
     </div>
 
     <script src="shell-core.js"></script>
     <script type="module" src="playground.js"></script>
-    <!-- Desktop bridge, staged by smallbasic-playground-desktop (not part of runhost/web). -->
+    <!-- Desktop bridge, staged by smallbasic_playground_app (not part of runhost/web). -->
     <script type="module" src="desktop.js"></script>
 </body>
 </html>

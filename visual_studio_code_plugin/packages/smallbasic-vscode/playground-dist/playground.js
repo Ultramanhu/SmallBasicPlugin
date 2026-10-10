@@ -241510,7 +241510,7 @@ var PlaygroundDebugController = class {
     this.lastProgram = { name: name || "program.sb", source, backend };
     this.options.shell.setRunning(true);
     this.updateToolbar();
-    this.options.shell.setStatus("Starting debug session\u2026");
+    this.options.shell.setStatus(this.options.labels.startingSession);
     try {
       this.transport = await this.options.createTransport(backend);
       await this.transport.launch({
@@ -241533,7 +241533,7 @@ var PlaygroundDebugController = class {
     const { name, source, backend } = this.lastProgram;
     void this.start(name, source, backend).catch((error) => {
       this.options.shell.showRuntimeDiagnostics(error instanceof Error ? error.message : String(error));
-      this.options.shell.setStatus("Failed");
+      this.options.shell.setStatus(this.options.labels.failed);
     });
   }
   /** Ends the session from the Stop button (or any page-level teardown). */
@@ -241543,7 +241543,7 @@ var PlaygroundDebugController = class {
     }
     this.send({ type: "stop" });
     this.endSession();
-    this.options.shell.setStatus("Stopped");
+    this.options.shell.setStatus(this.options.labels.stopped);
   }
   /** Called on every model change; the first edit ends a running session. */
   onModelChanged() {
@@ -241603,7 +241603,7 @@ var PlaygroundDebugController = class {
         this.endSession();
         break;
       case "error":
-        this.options.shell.showRuntimeDiagnostics(event.message || "Debug session error.");
+        this.options.shell.showRuntimeDiagnostics(event.message || this.options.labels.sessionError);
         this.endSession();
         break;
     }
@@ -255410,16 +255410,20 @@ var HoverService3;
   function onErrorKeywordHover(onError, range2) {
     switch (onError.action) {
       case "resume-next":
-        return { range: range2, text: ["On Error Resume Next", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."] };
+        return { range: range2, text: ["On Error Resume Next", keywordDescription("Keywords_OnErrorResumeNext", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running.")] };
       case "goto-default":
-        return { range: range2, text: ["On Error GoTo -1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."] };
+        return { range: range2, text: ["On Error GoTo -1", keywordDescription("Keywords_OnErrorGoToMinus1", "Clears the current error state and restores the default behavior: a runtime error terminates the program.")] };
       case "goto-clear":
-        return { range: range2, text: ["On Error GoTo 0", "Disables the current On Error handler; runtime errors terminate the program again."] };
+        return { range: range2, text: ["On Error GoTo 0", keywordDescription("Keywords_OnErrorGoTo0", "Disables the current On Error handler; runtime errors terminate the program again.")] };
       case "gosub":
-        return { range: range2, text: ["On Error GoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."] };
+        return { range: range2, text: ["On Error GoSub", keywordDescription("Keywords_OnErrorGoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.")] };
       default:
         return { range: range2, text: ["On Error", "Configures the runtime error handling policy."] };
     }
+  }
+  function keywordDescription(key, fallback2) {
+    const localized = DocumentationResources.get(key);
+    return typeof localized === "string" && localized.length > 0 ? localized : fallback2;
   }
   function provideUserSymbolHover(compilation, position) {
     for (const func of compilation.parseTree.functions) {
@@ -255986,6 +255990,48 @@ var TEXT = (() => {
     emptyVariables: chinese ? "\u6682\u65E0\u5C40\u90E8\u53D8\u91CF\u3002" : "No variables in scope.",
     editEndedSession: chinese ? "\u7F16\u8F91\u5DF2\u7EC8\u6B62\u8C03\u8BD5\u4F1A\u8BDD\u3002" : "Editing ended the debug session.",
     backendUnavailable: (message) => chinese ? `\u65E0\u6CD5\u542F\u52A8\u8C03\u8BD5\u540E\u7AEF\uFF1A${message}` : `Failed to start the debug backend: ${message}`,
+    saveFailed: (message) => chinese ? `\u4FDD\u5B58\u5931\u8D25\uFF1A${message}` : `Failed to save: ${message}`,
+    saveFileType: chinese ? "Small Basic \u7A0B\u5E8F" : "Small Basic program",
+    compileDirectoryEmpty: chinese ? "\u672A\u9009\u62E9" : "Not set",
+    /**
+     * Status-line vocabulary. shell-core.js localizes everything the shell
+     * writes itself; this table covers the strings this page writes plus the
+     * ones its embedders write (the Tauri desktop entry, whose CLI sessions and
+     * native dialogs reuse it through `PlaygroundContext.status`).
+     */
+    status: chinese ? {
+      loadingEditor: "\u6B63\u5728\u52A0\u8F7D\u7F16\u8F91\u5668\u2026",
+      needsLocalServer: "\u9700\u8981\u672C\u5730\u670D\u52A1\u5668",
+      loaded: (name) => `\u5DF2\u52A0\u8F7D ${name}`,
+      saved: (name) => `\u5DF2\u4FDD\u5B58 ${name}`,
+      failed: "\u5931\u8D25",
+      stopping: "\u6B63\u5728\u505C\u6B62\u2026",
+      stopped: "\u5DF2\u505C\u6B62",
+      completed: "\u5DF2\u5B8C\u6210",
+      exitedWithCode: (code) => `\u5DF2\u9000\u51FA\uFF0C\u4EE3\u7801 ${code}`,
+      startingDebugSession: "\u6B63\u5728\u542F\u52A8\u8C03\u8BD5\u4F1A\u8BDD\u2026",
+      debugSessionError: "\u8C03\u8BD5\u4F1A\u8BDD\u9519\u8BEF\u3002",
+      backendStarting: (label) => `\u6B63\u5728\u542F\u52A8 ${label}\u2026`,
+      backendRunning: (name) => `\u6B63\u5728\u8FD0\u884C ${name}\u2026`,
+      desktopBackendsUnavailable: "\u684C\u9762\u540E\u7AEF\u4E0D\u53EF\u7528",
+      editingEndedCliSession: "\u7F16\u8F91\u5DF2\u7EC8\u6B62 CLI \u4F1A\u8BDD\u3002"
+    } : {
+      loadingEditor: "Loading editor\u2026",
+      needsLocalServer: "Needs a local server",
+      loaded: (name) => `Loaded ${name}`,
+      saved: (name) => `Saved ${name}`,
+      failed: "Failed",
+      stopping: "Stopping\u2026",
+      stopped: "Stopped",
+      completed: "Completed",
+      exitedWithCode: (code) => `Exited with code ${code}`,
+      startingDebugSession: "Starting debug session\u2026",
+      debugSessionError: "Debug session error.",
+      backendStarting: (label) => `Starting ${label}\u2026`,
+      backendRunning: (name) => `Running ${name}\u2026`,
+      desktopBackendsUnavailable: "Desktop backends unavailable",
+      editingEndedCliSession: "Editing ended the CLI session."
+    },
     titles: chinese ? {
       continue: "\u7EE7\u7EED",
       pause: "\u6682\u505C",
@@ -256008,13 +256054,37 @@ var TEXT = (() => {
   };
 })();
 shellApi.applyStaticText({
+  sampleLabel: "Sample",
+  newButton: "New",
+  fileField: "Open\u2026",
   fileFieldTitle: "Open a local .sb file into the editor.",
+  saveButton: "Save",
+  outlineButton: "Symbols",
+  backendLabel: "Backend",
+  backendJavaScript: "JavaScript (TextWindow)",
+  backendBlazor: "Blazor WASM (GraphicsWindow)",
+  runButton: "Run",
+  debugButton: "Debug",
+  debugButtonTitle: "Run with the debugger (breakpoints)",
+  stopButton: "Stop",
+  statusReady: "Ready",
+  editorTitle: "Editor",
   editorNote: "Shared VS Code language layer: diagnostics, completion, hover and signature help run offline in the browser.",
+  outputTitle: "Output",
+  inputPromptRead: "Read",
+  sendButton: "Send",
+  outlineTitle: "Quick Outline",
   outlineEmpty: "No navigable symbols in this document.",
   blazorError: "An unhandled error occurred while running the Small Basic Blazor WASM backend.",
+  // Only revealed by an embedder that registers a compiler backend
+  // (`registerCompileDirectory`); the HTML ships the Chinese copy.
+  compileDirectoryLabel: "Compile directory",
+  compileDirectoryChange: "Change\u2026",
+  compileDirectoryTitle: "Output folder for the compiled EXE.",
   // Only applied for non-Chinese browsers; the HTML ships the Chinese copy.
   debugStackTitle: "Call Stack",
-  debugVariablesTitle: "Variables"
+  debugVariablesTitle: "Variables",
+  reloadButton: "Reload"
 });
 var DIAGNOSTIC_OWNER = "smallbasic.language";
 var DEFAULT_PROGRAM_NAME = "program.sb";
@@ -256029,6 +256099,9 @@ var debugBackendFactories = /* @__PURE__ */ new Map();
 var modelChangeListeners = /* @__PURE__ */ new Set();
 var saveHandlerOverride = null;
 var graphicsBackendResolver = null;
+var compileDirectoryBinding = null;
+var refreshCompileDirectory = null;
+var saveFileHandle = null;
 window.SmallBasicPlayground = {
   whenReady,
   registerBackend(id, handler) {
@@ -256040,6 +256113,10 @@ window.SmallBasicPlayground = {
   },
   registerSaveHandler(handler) {
     saveHandlerOverride = handler;
+  },
+  registerCompileDirectory(binding) {
+    compileDirectoryBinding = binding;
+    refreshCompileDirectory?.();
   },
   addModelChangedListener(listener) {
     modelChangeListeners.add(listener);
@@ -256059,6 +256136,30 @@ async function bootstrap() {
   for (const [id, handler] of customBackends) {
     controller.registerCustomBackend(id, handler);
   }
+  const renderCompileDirectory = () => {
+    const binding = compileDirectoryBinding;
+    const visible = binding !== null && binding.backend === controller.getBackend();
+    dom.compileDirectoryField.hidden = !visible;
+    if (!binding || !visible) {
+      return;
+    }
+    const directory = binding.getDirectory();
+    const text2 = directory ?? TEXT.compileDirectoryEmpty;
+    dom.compileDirectoryValue.textContent = text2;
+    dom.compileDirectoryValue.title = text2;
+  };
+  refreshCompileDirectory = renderCompileDirectory;
+  const ensureCompileDirectory = async () => {
+    const binding = compileDirectoryBinding;
+    if (!binding || binding.backend !== controller.getBackend()) {
+      return true;
+    }
+    if (!binding.getDirectory()) {
+      await binding.chooseDirectory();
+    }
+    renderCompileDirectory();
+    return binding.getDirectory() !== null;
+  };
   const state = {
     programs: [],
     currentFileName: DEFAULT_PROGRAM_NAME,
@@ -256067,10 +256168,10 @@ async function bootstrap() {
     diagnosticsVersion: 0,
     outlineVisible: false
   };
-  controller.setStatus("Loading editor\u2026");
+  controller.setStatus(TEXT.status.loadingEditor);
   if (location.protocol === "file:") {
     controller.banner(TEXT.fileProtocolBanner());
-    controller.setStatus("Needs a local server");
+    controller.setStatus(TEXT.status.needsLocalServer);
     return;
   }
   await registerSmallBasicLanguage(new URL("./editor/onig.wasm", import.meta.url).toString());
@@ -256099,6 +256200,7 @@ async function bootstrap() {
   const resizeObserver = new ResizeObserver(() => editor2.layout());
   resizeObserver.observe(dom.editorHost);
   await controller.probeJavaScriptBackend();
+  renderCompileDirectory();
   const debug = new PlaygroundDebugController({
     editor: editor2,
     model,
@@ -256122,7 +256224,11 @@ async function bootstrap() {
       emptyStack: TEXT.emptyStack,
       emptyVariables: TEXT.emptyVariables,
       editEndedSession: TEXT.editEndedSession,
-      titles: TEXT.titles
+      titles: TEXT.titles,
+      startingSession: TEXT.status.startingDebugSession,
+      failed: TEXT.status.failed,
+      stopped: TEXT.status.stopped,
+      sessionError: TEXT.status.debugSessionError
     },
     sessionId: "playground",
     createTransport: async (backend) => {
@@ -256154,19 +256260,52 @@ async function bootstrap() {
       const saved = await saveHandlerOverride(fileName, source);
       if (saved) {
         state.currentFileName = saved;
-        controller.setStatus(`Saved ${saved}`);
+        controller.setStatus(TEXT.status.saved(saved));
       }
       return;
     }
-    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link2 = document.createElement("a");
-    link2.href = url;
-    link2.download = fileName || DEFAULT_PROGRAM_NAME;
-    document.body.appendChild(link2);
-    link2.click();
-    link2.remove();
-    URL.revokeObjectURL(url);
+    const picker = window.showSaveFilePicker;
+    if (typeof picker !== "function") {
+      downloadProgram(fileName, source);
+      return;
+    }
+    let handle = saveFileHandle;
+    if (handle && !await ensureWritePermission(handle)) {
+      handle = null;
+      saveFileHandle = null;
+    }
+    if (!handle) {
+      try {
+        handle = await picker.call(window, {
+          suggestedName: fileName || DEFAULT_PROGRAM_NAME,
+          types: [{
+            description: TEXT.saveFileType,
+            accept: { "text/plain": [".sb", ".txt"] }
+          }]
+        });
+        saveFileHandle = handle;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+        downloadProgram(fileName, source);
+        return;
+      }
+    }
+    try {
+      const writable = await handle.createWritable();
+      await writable.write(source);
+      await writable.close();
+      state.currentFileName = handle.name || fileName || DEFAULT_PROGRAM_NAME;
+      state.dirty = false;
+      controller.setStatus(TEXT.status.saved(state.currentFileName));
+    } catch (error) {
+      controller.showRuntimeDiagnostics(TEXT.saveFailed(error instanceof Error ? error.message : String(error)));
+    }
+  };
+  const compileDirectoryChoice = async () => {
+    await compileDirectoryBinding?.chooseDirectory();
+    renderCompileDirectory();
   };
   const syncDiagnostics = debounce(async () => {
     const version = model.getVersionId();
@@ -256194,11 +256333,23 @@ async function bootstrap() {
     }
     void syncDiagnostics();
   });
+  const runProgram = async () => {
+    if (!await ensureCompileDirectory()) {
+      return;
+    }
+    await controller.runProgram(currentSnapshot(model, state.currentFileName));
+  };
+  const debugProgram = async () => {
+    if (!await ensureCompileDirectory()) {
+      return;
+    }
+    await startDebugSession(controller, debug, currentSnapshot(model, state.currentFileName));
+  };
   editor2.addAction({
     id: "smallbasic.playground.run",
     label: "Run Small Basic Program",
     keybindings: [KeyMod2.CtrlCmd | KeyCode2.Enter],
-    run: async () => controller.runProgram(currentSnapshot(model, state.currentFileName))
+    run: runProgram
   });
   editor2.addAction({
     id: "smallbasic.playground.outline",
@@ -256207,7 +256358,7 @@ async function bootstrap() {
     run: async () => toggleOutline(dom, client, model, editor2, state)
   });
   dom.run.addEventListener("click", () => {
-    void controller.runProgram(currentSnapshot(model, state.currentFileName));
+    void runProgram();
   });
   dom.stop.addEventListener("click", () => {
     if (debug.isActive) {
@@ -256217,7 +256368,7 @@ async function bootstrap() {
     void controller.stopRun();
   });
   dom.debugButton.addEventListener("click", () => {
-    void startDebugSession(controller, debug, currentSnapshot(model, state.currentFileName));
+    void debugProgram();
   });
   dom.debugToggle.addEventListener("click", () => debug.togglePause());
   dom.debugStepOver.addEventListener("click", () => debug.step("next"));
@@ -256227,6 +256378,7 @@ async function bootstrap() {
   dom.debugStop.addEventListener("click", () => debug.stop());
   dom.backend.addEventListener("change", () => {
     controller.selectBackend(dom.backend.value);
+    renderCompileDirectory();
   });
   dom.newButton.addEventListener("click", () => {
     void createNewProgram(controller, model, state, NEW_FILE_TEMPLATE, debug);
@@ -256249,6 +256401,9 @@ async function bootstrap() {
   });
   dom.saveButton.addEventListener("click", () => {
     void saveProgram();
+  });
+  dom.compileDirectoryButton.addEventListener("click", () => {
+    void compileDirectoryChoice();
   });
   dom.outlineButton.addEventListener("click", () => {
     void toggleOutline(dom, client, model, editor2, state);
@@ -256342,6 +256497,7 @@ async function bootstrap() {
     model,
     editor: editor2,
     state,
+    status: TEXT.status,
     snapshot: () => currentSnapshot(model, state.currentFileName)
   });
 }
@@ -256364,6 +256520,9 @@ function bindDom() {
     file: mustElement("file-input"),
     newButton: mustElement("new-button"),
     saveButton: mustElement("save-button"),
+    compileDirectoryField: mustElement("compile-directory-field"),
+    compileDirectoryValue: mustElement("compile-directory"),
+    compileDirectoryButton: mustElement("compile-directory-button"),
     outlineButton: mustElement("outline-button"),
     editorHost: mustElement("editor-host"),
     outline: mustElement("outline"),
@@ -256423,11 +256582,13 @@ async function loadIntoEditor(model, state, fileName, source, controller, graphi
   state.suppressDirty = true;
   model.setValue(source);
   state.suppressDirty = false;
+  saveFileHandle = null;
   state.currentFileName = fileName || DEFAULT_PROGRAM_NAME;
   state.dirty = false;
-  controller.setStatus(`Loaded ${state.currentFileName}`);
+  controller.setStatus(TEXT.status.loaded(state.currentFileName));
   if (graphics) {
     controller.selectBackend(graphicsResolver?.() ?? shellApi.BACKEND_BLAZOR);
+    refreshCompileDirectory?.();
   }
 }
 async function createNewProgram(controller, model, state, template, debug) {
@@ -256480,12 +256641,34 @@ function webApi() {
   }
   return api3;
 }
+function downloadProgram(fileName, source) {
+  const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link2 = document.createElement("a");
+  link2.href = url;
+  link2.download = fileName || DEFAULT_PROGRAM_NAME;
+  document.body.appendChild(link2);
+  link2.click();
+  link2.remove();
+  URL.revokeObjectURL(url);
+}
+async function ensureWritePermission(handle) {
+  const permissionHandle = handle;
+  if (typeof permissionHandle.queryPermission !== "function") {
+    return true;
+  }
+  let permission = await permissionHandle.queryPermission({ mode: "readwrite" });
+  if (permission === "prompt" && typeof permissionHandle.requestPermission === "function") {
+    permission = await permissionHandle.requestPermission({ mode: "readwrite" });
+  }
+  return permission === "granted";
+}
 async function startDebugSession(controller, debug, snapshot) {
   try {
     await debug.start(snapshot.name, snapshot.source, controller.getBackend());
   } catch (error) {
     controller.showRuntimeDiagnostics(TEXT.backendUnavailable(error instanceof Error ? error.message : String(error)));
-    controller.setStatus("Failed");
+    controller.setStatus(TEXT.status.failed);
   }
 }
 async function toggleOutline(dom, client, model, editor2, state) {
@@ -256499,7 +256682,6 @@ async function toggleOutline(dom, client, model, editor2, state) {
   for (const symbol of symbols) {
     renderOutlineSymbol(dom.outlineList, symbol, editor2, state, 0);
   }
-  dom.outlineTitle.textContent = "Quick Outline";
   dom.outline.hidden = false;
   state.outlineVisible = true;
 }

@@ -41,8 +41,11 @@ runhost/playground/bundles/
 !runhost/playground/bin/
 !runhost/playground/bundles/*.msi
 
-# Build inputs and intermediates of the desktop shell (never shipped).
-visual_studio_code_plugin/packages/smallbasic-playground-desktop/dist/
-visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/target/
-visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/gen/
-visual_studio_code_plugin/packages/smallbasic-playground-desktop/src-tauri/keystore/
+# Build inputs and intermediates of the desktop shell (never shipped). The Tauri
+# package lives at the repository root (smallbasic_playground_app) so its Rust
+# target/ (several GB), the mobile scaffolding under gen/ and the staging obj/
+# stay out of the VS Code workspace tree and out of the repository.
+smallbasic_playground_app/dist/
+smallbasic_playground_app/src-tauri/target/
+smallbasic_playground_app/src-tauri/gen/
+smallbasic_playground_app/src-tauri/keystore/

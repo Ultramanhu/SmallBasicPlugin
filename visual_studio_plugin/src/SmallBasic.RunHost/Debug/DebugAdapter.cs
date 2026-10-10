@@ -12,7 +12,7 @@ using SmallBasic.RunHost.Libraries;
 /// stepIn/next/stepOut depth rules, variable expansion, input-through-evaluate)
 /// mirror the TypeScript adapter in visual_studio_code_plugin/packages/smallbasic-vscode/src/debug/session.ts.
 /// </summary>
-public sealed class DebugAdapter : DapAdapterBase
+public class DebugAdapter : DapAdapterBase
 {
     private const long GlobalsReference = 1;
 
@@ -33,9 +33,25 @@ public sealed class DebugAdapter : DapAdapterBase
 #endif
     private long nextVariableHandle = GlobalsReference + 1;
 
-    private DebugAdapter(DapStream dap)
+    protected DebugAdapter(DapStream dap)
         : base(dap)
     {
+    }
+
+    protected sealed class LaunchProgramDescriptor
+    {
+        public LaunchProgramDescriptor(string programPath, string programName, string sourceText)
+        {
+            this.ProgramPath = programPath;
+            this.ProgramName = programName;
+            this.SourceText = sourceText;
+        }
+
+        public string ProgramPath { get; }
+
+        public string ProgramName { get; }
+
+        public string SourceText { get; }
     }
 
     public static async Task RunAsync()
@@ -221,22 +237,22 @@ public sealed class DebugAdapter : DapAdapterBase
 
     private void HandleLaunch(int seq, string command, JsonObject? arguments)
     {
-        string program = (string?)arguments?["program"] ?? string.Empty;
         this.stopOnEntry = (bool?)arguments?["stopOnEntry"] ?? false;
 
-        if (program.Length == 0 || !File.Exists(program))
+        LaunchProgramDescriptor? launch = this.ResolveLaunchProgram(arguments, out string errorMessage);
+        if (launch is null)
         {
-            this.SendErrorResponse(seq, command, $"SmallBasic source file not found: {program}");
+            this.SendErrorResponse(seq, command, errorMessage);
             return;
         }
 
-        this.programPath = Path.GetFullPath(program);
-        this.programName = Path.GetFileName(this.programPath);
+        this.programPath = launch.ProgramPath;
+        this.programName = launch.ProgramName;
 
         SmallBasicCompilation compilation;
         try
         {
-            compilation = new SmallBasicCompilation(File.ReadAllText(this.programPath));
+            compilation = new SmallBasicCompilation(launch.SourceText);
         }
         catch (Exception ex)
         {
@@ -279,6 +295,34 @@ public sealed class DebugAdapter : DapAdapterBase
         {
             this.StartRunLoop();
         }
+    }
+
+    protected virtual LaunchProgramDescriptor? ResolveLaunchProgram(JsonObject? arguments, out string errorMessage)
+    {
+        string program = (string?)arguments?["program"] ?? string.Empty;
+        if (program.Length == 0 || !File.Exists(program))
+        {
+            errorMessage = $"SmallBasic source file not found: {program}";
+            return null;
+        }
+
+        string fullProgramPath = Path.GetFullPath(program);
+        string sourceText;
+        try
+        {
+            sourceText = File.ReadAllText(fullProgramPath);
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Cannot read program file: {ex.Message}";
+            return null;
+        }
+
+        errorMessage = string.Empty;
+        return new LaunchProgramDescriptor(
+            fullProgramPath,
+            Path.GetFileName(fullProgramPath),
+            sourceText);
     }
 
     private void HandleSetBreakpoints(int seq, string command, JsonObject? arguments)

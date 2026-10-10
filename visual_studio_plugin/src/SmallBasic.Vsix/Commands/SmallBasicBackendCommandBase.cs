@@ -26,7 +26,7 @@ namespace SmallBasic.Vsix.Commands
         // out unless the active editor shows a .sb document. Declared as a shared
         // expression because the manifest generator needs a concrete
         // CommandConfiguration on every command class.
-        protected static ActivationConstraint SmallBasicDocumentEnabledWhen =>
+        internal static ActivationConstraint SmallBasicDocumentEnabledWhen =>
             ActivationConstraint.ClientContext(
                 ClientContextKey.Shell.ActiveEditorFileName,
                 @"\.[sS][bB]$");

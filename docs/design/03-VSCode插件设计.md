@@ -5,13 +5,13 @@
 > **2026-09-28 现状校准**
 >
 > - monorepo 实际只有两个包：`packages/smallbasic-lang-core`（语言核心，仅再导出 `vendor/SmallBasicOnline` 并补充调试表达式求值）与 `packages/smallbasic-vscode`（扩展本体，调试适配器内嵌其中）。**没有**独立的 `sb-debug` 包，也**没有** `conformance/` 目录。
-> - 扩展同时提供桌面入口（`src/extension.ts`）与 Web 入口（`src/web/extension.ts`，清单 `browser` 字段）；Web 端的 JavaScript 与 Blazor WASM 后端均可在 Webview 内运行和逐行调试（图形程序可用，见 [09](./09-Blazor与Web运行宿主.md) 的 VS Code Web 模式部分）。`Ctrl+F5` 运行但不调试，`F5` 通过浏览器兼容的 Inline DAP 适配器接入 VS Code 原生调试 UI；C# 后端仍只支持 `mode: "cli"`。
+> - 扩展同时提供桌面入口（`src/extension.ts`）与 Web 入口（`src/web/extension.ts`，清单 `browser` 字段）；Web 端的 JavaScript 与 Blazor WASM 后端均可在 Webview 内运行和逐行调试（图形程序可用，见 [09](./09-Blazor与Web运行宿主.md) 的 VS Code Web 模式部分），并且 `mode: "cli"` + `backend: "javascript"` 也受支持：`F5` 用扩展宿主内联 DAP 会话（不弹 Webview），`Ctrl+F5` 用扩展宿主终端运行。`Ctrl+F5` 运行但不调试，`F5` 通过浏览器兼容的 Inline DAP 适配器接入 VS Code 原生调试 UI；C# 后端仍只支持 `mode: "cli"`（且需要本机进程，浏览器里不可用）。
 > - 已实现：`.sb` 关联、TextMate + 语义令牌双层着色、诊断、悬停、上下文补全、文档大纲（Sub 与变量首次使用）、调试内联值、`TextWindow` 文本运行，以及 **JS / C# / Blazor 三后端**的运行与调试。
 > - 运行是三个**显式命令**（不再有统一的 `smallbasic.run`，也没有 `smallbasic.backend` 设置）：
 >   - `smallbasic.runJavaScript` —— 内置 JS 引擎，跨平台（含 VS Code for the Web），无图形能力；
 >   - `smallbasic.runCSharp` —— 内置 .NET 宿主：Windows 为 `net8.0-windows` 图形宿主，其它平台为 `net8.0` 便携文本宿主；
 >   - `smallbasic.runBlazor` —— 跨平台；文本程序留在终端，图形程序才打开浏览器 WASM 页面。
-> - `launch.json` 用 `backend = "javascript" | "csharp" | "blazor"` 选择后端，用 `mode = "cli" | "web"` 选择命令行或浏览器模式。`mode` 默认 `cli`；Web 模式支持 JavaScript/Blazor，C# 仅支持 CLI；VS Code for Web 强制使用 Web 模式。未指定 `backend` 时按「Windows 且有 C# 宿主 → `csharp`，否则 `javascript`」选择，Blazor 仅支持显式指定。设置项为 `smallbasic.diagnostics.debounceMs`、`smallbasic.csharp.runHostPath`、`smallbasic.blazor.runHostPath`。
+> - `launch.json` 用 `backend = "javascript" | "csharp" | "blazor"` 选择后端，用 `mode = "cli" | "web"` 选择命令行或浏览器模式。`mode` 默认 `cli`；Web 模式支持 JavaScript/Blazor，C# 仅支持 CLI；VS Code for Web 上 `cli` 只对 JavaScript 生效（引擎内联在扩展宿主，`csharp` 的 CLI 被拒绝、`blazor` 的 CLI 回落到 Web 模式），未写 `mode` 时按 `web` 处理。未指定 `backend` 时按「Windows 且有 C# 宿主 → `csharp`，否则 `javascript`」选择，Blazor 仅支持显式指定。设置项为 `smallbasic.diagnostics.debounceMs`、`smallbasic.csharp.runHostPath`、`smallbasic.blazor.runHostPath`。
 > - 未实现：定义跳转、引用、重命名、签名帮助、折叠等（原方案的若干“二期”项）。
 
 ## 1. 工程结构
@@ -215,7 +215,7 @@ class CompilationCache {
 
 ## 9. 调试接入
 
-`contributes.debuggers` 声明 `type: "smallbasic"`，`languages: ["smallbasic"]`；`launch` 配置含 `program`（默认 `${file}`）、`backend`（枚举 `javascript|csharp|blazor`，**无默认值**）、`mode`（枚举 `cli|web`，默认 `cli`）、`stopOnEntry`（默认 `true`）。五个 `configurationSnippets` 按运行模式展开：CLI 提供 JavaScript/C#/Blazor，Web 提供 JavaScript/Blazor；VS Code for Web 强制使用 Web 模式。
+`contributes.debuggers` 声明 `type: "smallbasic"`，`languages: ["smallbasic"]`；`launch` 配置含 `program`（默认 `${file}`）、`backend`（枚举 `javascript|csharp|blazor`，**无默认值**）、`mode`（枚举 `cli|web`，默认 `cli`）、`stopOnEntry`（默认 `true`）。五个 `configurationSnippets` 按运行模式展开：CLI 提供 JavaScript/C#/Blazor，Web 提供 JavaScript/Blazor。VS Code for Web 上 Web 的两个 snippet 行为不变，CLI 的 JavaScript snippet 走扩展宿主内联会话，CLI 的 C# snippet 被拒绝、CLI 的 Blazor snippet 回落到 Web 模式。
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic: CLI / JavaScript",
@@ -236,7 +236,7 @@ class CompilationCache {
 
 **适配器分流**（`src/debug/factory.ts`）：
 
-- `javascript`（默认）：以 `DebugAdapterExecutable(process.execPath, [dist/debug/adapter.js])` 启动内嵌 Node DAP；Web 端改用 `DebugAdapterInlineImplementation`（`src/web/debug-factory.ts`，只支持 JS）。
+- `javascript`（默认）：以 `DebugAdapterExecutable(process.execPath, [dist/debug/adapter.js])` 启动内嵌 Node DAP；Web 端改用 `DebugAdapterInlineImplementation`（`src/web/debug-factory.ts`）：`mode: "cli"` 用扩展宿主内的 `SmallBasicDebugSession`，`mode: "web"` 用共享的 Webview 适配器。
 - `csharp` / `blazor`：以 `DebugAdapterExecutable` 启动对应 RunHost 的 `debug` 子命令（stdio 原生 DAP）。
 - 缺省后端：`selectDefaultDebugBackend(platform, hasCSharpHost)` → Windows 且有 C# 宿主为 `csharp`，否则 `javascript`；Blazor 仅显式指定。
 

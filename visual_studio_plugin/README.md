@@ -14,7 +14,8 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
   - `SmallBasic: Run with C# Backend` — bundled .NET run host; supports graphics programs (`GraphicsWindow` / `Shapes` / `Turtle`) on Windows
   - `SmallBasic: Run with JavaScript Backend` — external Node.js 20+, text-only programs
   - `SmallBasic: Run with Blazor Backend` — bundled ASP.NET Core/Blazor WebAssembly run host; graphics programs run in the browser
-- Debugging with the C#, JavaScript, or Blazor backend: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack
+- `Compile to EXE (C#)` — uses the bundled net48 compiler payload to generate `<program>.exe`, `<program>.exe.config` and the manifest/source sidecars next to the `.sb`; every runtime assembly is staged in a `lib\` subfolder that the generated configuration probes, so the output folder stays readable
+- Debugging with the C#, JavaScript, Blazor, or compiled C# backend: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack
 - Localized Document
 
 ## Language extension: procedures, loop control, integer division and modulo
@@ -88,7 +89,8 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
 
 - **Open**: open any `.sb` file — no project system required, "Open Folder" works. 
 - **Edit**: Syntax highlighting, completions, hover info, the Error List and code outlining are enabled automatically.
-- **Choose a backend**: use `Tools > Small Basic` to run or debug explicitly with C#, JavaScript, or Blazor. The chosen backend remains active for subsequent standard run/debug commands in the current Visual Studio session; C# is the initial default.
+- **Choose a backend**: use `Tools > Small Basic` to run or debug explicitly with C#, JavaScript, Blazor, or the compiled C# backend. The chosen backend remains active for subsequent standard run/debug commands in the current Visual Studio session; C# is the initial default.
+- **Compile**: use `Tools > Small Basic > Compile to EXE (C#)` to generate `<program>.exe` plus the required runtime DLLs in the source file's directory.
 - **Run**: press `Ctrl+F5` to run the current `.sb` with the active backend.
 - **Debug**: set breakpoints in a `.sb` file and press `F5`. `F10`/`F11` at design time start with stop-on-entry; during a debug session `F5`/`F10`/`F11`/`Shift+F5` are forwarded to the debugger.
 `launch.vs.json` (Visual Studio launch configuration file). `project` must name an existing `.sb` file in the workspace, and profiles for that file must use distinct `projectTarget` values because Visual Studio uses `project + projectTarget` as the target identity. `program` can still use `${file}` to debug the active document:
@@ -102,9 +104,13 @@ Double-click `build\SmallBasic.Vsix.#Version#.vsix` and follow the VSIX Installe
 
 {  "type": "smallbasic",  "project": "hello/hello.sb",  "projectTarget": "blazor",  "request": "launch",  "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
   "program": "${file}",  "backend": "blazor",  "mode": "cli",  "stopOnEntry": false }
+
+{  "type": "smallbasic",  "project": "hello/hello.sb",  "projectTarget": "compiled-csharp",  "request": "launch",  "name": "SmallBasic [Compiled]: Debug current file with compiled C# backend",
+  "program": "${file}",  "backend": "compiled-csharp",  "stopOnEntry": false }
 ```
 
 - The JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use the Windows C# backend or the cross-platform Blazor backend.
+- The compiled C# backend validates that the generated net48 artifact is up to date, then debugs it through a dedicated Small Basic DAP adapter instead of the standard managed-code debugger.
 
 ## License
 

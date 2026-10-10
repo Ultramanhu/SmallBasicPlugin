@@ -71,6 +71,25 @@ describe("SmallBasicLanguageService document state", () => {
     }
   });
 
+  it("serves statement hover documentation in the configured compiler locale", () => {
+    // Statement hovers (On Error ...) used to be hardcoded English even though
+    // the localized documentation ships translations for their keys; both this
+    // core and the C# HoverProvider now read them through the same table.
+    setDocumentationLocale(resolveDocumentationLocale("zh-CN"));
+    try {
+      const service = new SmallBasicLanguageService();
+      const source = "On Error Resume Next";
+      service.syncDocument(URI, source, 1);
+
+      const hover = service.provideHover(URI, source, 1, { line: 0, column: 4 });
+      expect(hover).toBeDefined();
+      expect(hover!.contents[0]).toBe("On Error Resume Next");
+      expect(hover!.contents[1]).toBe("跳过引发运行时错误的语句，将该错误以 [Runtime Error] 错误码: 错误消息 的形式输出到控制台，然后继续运行。");
+    } finally {
+      setDocumentationLocale(undefined);
+    }
+  });
+
   it("describes Break and Continue on hover", () => {
     const service = new SmallBasicLanguageService();
     const source = [

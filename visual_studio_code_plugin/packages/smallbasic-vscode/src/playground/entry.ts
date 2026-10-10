@@ -78,6 +78,28 @@ interface ShellApi {
   createRunHostController(options: { dom: Record<string, ControllerDomValue> }): RunHostController;
 }
 
+interface SaveFilePickerType {
+  description?: string;
+  accept: Record<string, string[]>;
+}
+
+interface SaveFilePickerOptions {
+  suggestedName?: string;
+  types?: SaveFilePickerType[];
+  excludeAcceptAllOption?: boolean;
+  id?: string;
+}
+
+/**
+ * `showSaveFilePicker` belongs to the File System Access API: TypeScript's DOM
+ * lib ships the handle/stream types but not the picker entry point, so it is
+ * declared here. Chromium-only and secure-context-only; everywhere else the
+ * save flow degrades to a download.
+ */
+interface SaveFilePickerWindow extends Window {
+  showSaveFilePicker?(options?: SaveFilePickerOptions): Promise<FileSystemFileHandle>;
+}
+
 /** Editor snapshot handed to run/debug entry points. */
 export interface ProgramSnapshot {
   name: string;
@@ -113,6 +135,46 @@ export interface PlaygroundControllerFacade {
   setSessionInputVisible(visible: boolean): void;
 }
 
+/**
+ * Localized status-line texts of the playground page. Embedders receive this
+ * table through {@link PlaygroundContext.status} so the desktop CLI sessions
+ * and native dialogs report progress in the same language as the page chrome
+ * (see the `status` table in {@link TEXT}).
+ */
+export interface PlaygroundStatusText {
+  loadingEditor: string;
+  needsLocalServer: string;
+  loaded(name: string): string;
+  saved(name: string): string;
+  failed: string;
+  stopping: string;
+  stopped: string;
+  completed: string;
+  exitedWithCode(code: number): string;
+  startingDebugSession: string;
+  debugSessionError: string;
+  backendStarting(label: string): string;
+  backendRunning(name: string): string;
+  desktopBackendsUnavailable: string;
+  editingEndedCliSession: string;
+}
+
+/**
+ * An embedder backend that stages a compiled artifact instead of interpreting
+ * the program: Run and Debug need an output directory before the session can
+ * start. The page owns the field (visibility, rendering, the pre-run prompt)
+ * and the embedder owns the native picker and the remembered value - design
+ * doc 10, §19.5.
+ */
+export interface PlaygroundCompileDirectory {
+  /** Backend id whose selection reveals the compile-directory field. */
+  backend: string;
+  /** The chosen directory, or null while the user has not picked one. */
+  getDirectory(): string | null;
+  /** Native folder picker; resolves the chosen directory, or null on cancel. */
+  chooseDirectory(): Promise<string | null>;
+}
+
 export interface PlaygroundContext {
   controller: PlaygroundControllerFacade;
   /** Shared host-notification path: status bar + debug event routing. */
@@ -121,20 +183,23 @@ export interface PlaygroundContext {
   model: monaco.editor.ITextModel;
   editor: monaco.editor.IStandaloneCodeEditor;
   state: { currentFileName: string; dirty: boolean };
+  /** Status-line vocabulary shared with the embedder's own status writes. */
+  status: PlaygroundStatusText;
   snapshot(): ProgramSnapshot;
 }
 
 /**
  * Extension surface of the playground page. The web build defines it but
- * nothing consumes it; the desktop entry (`smallbasic-playground-desktop`)
- * registers CLI backends, debug transports, native file dialogs and edit
- * teardown hooks through it.
+ * nothing consumes it; the desktop entry (`smallbasic_playground_app`)
+ * registers CLI backends, debug transports, native file dialogs, the compiler
+ * backend's artifact directory and edit teardown hooks through it.
  */
 export interface PlaygroundGlobalApi {
   whenReady: Promise<PlaygroundContext>;
   registerBackend(id: string, handler: PlaygroundBackendHandler): void;
   registerDebugBackend(id: string, factory: () => Promise<DebugTransport>): void;
   registerSaveHandler(handler: (name: string, source: string) => Promise<string | null>): void;
+  registerCompileDirectory(binding: PlaygroundCompileDirectory | null): void;
   addModelChangedListener(listener: () => void): void;
   setGraphicsBackendResolver(resolver: (() => string | null) | null): void;
 }
@@ -157,6 +222,9 @@ interface DomHandles {
   file: HTMLInputElement;
   newButton: HTMLButtonElement;
   saveButton: HTMLButtonElement;
+  compileDirectoryField: HTMLElement;
+  compileDirectoryValue: HTMLElement;
+  compileDirectoryButton: HTMLButtonElement;
   outlineButton: HTMLButtonElement;
   editorHost: HTMLElement;
   outline: HTMLElement;
@@ -209,6 +277,50 @@ const TEXT = (() => {
     backendUnavailable: (message: string) => chinese
       ? `无法启动调试后端：${message}`
       : `Failed to start the debug backend: ${message}`,
+    saveFailed: (message: string) => chinese ? `保存失败：${message}` : `Failed to save: ${message}`,
+    saveFileType: chinese ? "Small Basic 程序" : "Small Basic program",
+    compileDirectoryEmpty: chinese ? "未选择" : "Not set",
+    /**
+     * Status-line vocabulary. shell-core.js localizes everything the shell
+     * writes itself; this table covers the strings this page writes plus the
+     * ones its embedders write (the Tauri desktop entry, whose CLI sessions and
+     * native dialogs reuse it through `PlaygroundContext.status`).
+     */
+    status: (chinese
+      ? {
+          loadingEditor: "正在加载编辑器…",
+          needsLocalServer: "需要本地服务器",
+          loaded: (name: string) => `已加载 ${name}`,
+          saved: (name: string) => `已保存 ${name}`,
+          failed: "失败",
+          stopping: "正在停止…",
+          stopped: "已停止",
+          completed: "已完成",
+          exitedWithCode: (code: number) => `已退出，代码 ${code}`,
+          startingDebugSession: "正在启动调试会话…",
+          debugSessionError: "调试会话错误。",
+          backendStarting: (label: string) => `正在启动 ${label}…`,
+          backendRunning: (name: string) => `正在运行 ${name}…`,
+          desktopBackendsUnavailable: "桌面后端不可用",
+          editingEndedCliSession: "编辑已终止 CLI 会话。"
+        }
+      : {
+          loadingEditor: "Loading editor…",
+          needsLocalServer: "Needs a local server",
+          loaded: (name: string) => `Loaded ${name}`,
+          saved: (name: string) => `Saved ${name}`,
+          failed: "Failed",
+          stopping: "Stopping…",
+          stopped: "Stopped",
+          completed: "Completed",
+          exitedWithCode: (code: number) => `Exited with code ${code}`,
+          startingDebugSession: "Starting debug session…",
+          debugSessionError: "Debug session error.",
+          backendStarting: (label: string) => `Starting ${label}…`,
+          backendRunning: (name: string) => `Running ${name}…`,
+          desktopBackendsUnavailable: "Desktop backends unavailable",
+          editingEndedCliSession: "Editing ended the CLI session."
+        }),
     titles: chinese
       ? {
           continue: "继续",
@@ -234,13 +346,37 @@ const TEXT = (() => {
 })();
 
 shellApi.applyStaticText({
+  sampleLabel: "Sample",
+  newButton: "New",
+  fileField: "Open…",
   fileFieldTitle: "Open a local .sb file into the editor.",
+  saveButton: "Save",
+  outlineButton: "Symbols",
+  backendLabel: "Backend",
+  backendJavaScript: "JavaScript (TextWindow)",
+  backendBlazor: "Blazor WASM (GraphicsWindow)",
+  runButton: "Run",
+  debugButton: "Debug",
+  debugButtonTitle: "Run with the debugger (breakpoints)",
+  stopButton: "Stop",
+  statusReady: "Ready",
+  editorTitle: "Editor",
   editorNote: "Shared VS Code language layer: diagnostics, completion, hover and signature help run offline in the browser.",
+  outputTitle: "Output",
+  inputPromptRead: "Read",
+  sendButton: "Send",
+  outlineTitle: "Quick Outline",
   outlineEmpty: "No navigable symbols in this document.",
   blazorError: "An unhandled error occurred while running the Small Basic Blazor WASM backend.",
+  // Only revealed by an embedder that registers a compiler backend
+  // (`registerCompileDirectory`); the HTML ships the Chinese copy.
+  compileDirectoryLabel: "Compile directory",
+  compileDirectoryChange: "Change…",
+  compileDirectoryTitle: "Output folder for the compiled EXE.",
   // Only applied for non-Chinese browsers; the HTML ships the Chinese copy.
   debugStackTitle: "Call Stack",
-  debugVariablesTitle: "Variables"
+  debugVariablesTitle: "Variables",
+  reloadButton: "Reload"
 });
 
 const DIAGNOSTIC_OWNER = "smallbasic.language";
@@ -267,6 +403,19 @@ const debugBackendFactories = new Map<string, () => Promise<DebugTransport>>();
 const modelChangeListeners = new Set<() => void>();
 let saveHandlerOverride: ((name: string, source: string) => Promise<string | null>) | null = null;
 let graphicsBackendResolver: (() => string | null) | null = null;
+/**
+ * Compiler backend binding registered by an embedder, plus the bootstrap-owned
+ * renderer for the compile-directory field. Both stay null in the browser
+ * build, so the field never leaves its `hidden` state there.
+ */
+let compileDirectoryBinding: PlaygroundCompileDirectory | null = null;
+let refreshCompileDirectory: (() => void) | null = null;
+/**
+ * Target chosen through the File System Access picker, reused so later saves
+ * (Ctrl+S) overwrite the same file instead of re-opening the dialog. Cleared
+ * whenever another document is loaded into the editor.
+ */
+let saveFileHandle: FileSystemFileHandle | null = null;
 
 (window as typeof window & { SmallBasicPlayground?: PlaygroundGlobalApi }).SmallBasicPlayground = {
   whenReady,
@@ -282,6 +431,10 @@ let graphicsBackendResolver: (() => string | null) | null = null;
   },
   registerSaveHandler(handler: (name: string, source: string) => Promise<string | null>): void {
     saveHandlerOverride = handler;
+  },
+  registerCompileDirectory(binding: PlaygroundCompileDirectory | null): void {
+    compileDirectoryBinding = binding;
+    refreshCompileDirectory?.();
   },
   addModelChangedListener(listener: () => void): void {
     modelChangeListeners.add(listener);
@@ -309,6 +462,48 @@ async function bootstrap(): Promise<void> {
     controller.registerCustomBackend(id, handler);
   }
 
+  /**
+   * Reveals the compile-directory field while the embedder's compiler backend
+   * is the selected one, and renders the remembered directory. Registered as a
+   * hook so `registerCompileDirectory` (which runs after `whenReady`) can
+   * refresh the row without owning the DOM.
+   */
+  const renderCompileDirectory = (): void => {
+    const binding = compileDirectoryBinding;
+    const visible = binding !== null && binding.backend === controller.getBackend();
+    dom.compileDirectoryField.hidden = !visible;
+    if (!binding || !visible) {
+      return;
+    }
+
+    const directory = binding.getDirectory();
+    const text = directory ?? TEXT.compileDirectoryEmpty;
+    dom.compileDirectoryValue.textContent = text;
+    dom.compileDirectoryValue.title = text;
+  };
+  refreshCompileDirectory = renderCompileDirectory;
+
+  /**
+   * Run and Debug gate on the artifact directory: a compiler backend cannot
+   * start without one, so the page opens the native folder picker itself when
+   * the field is still empty and aborts when the user dismisses it (the next
+   * attempt asks again). Every other backend - and the web build, which has no
+   * binding at all - passes straight through.
+   */
+  const ensureCompileDirectory = async (): Promise<boolean> => {
+    const binding = compileDirectoryBinding;
+    if (!binding || binding.backend !== controller.getBackend()) {
+      return true;
+    }
+
+    if (!binding.getDirectory()) {
+      await binding.chooseDirectory();
+    }
+
+    renderCompileDirectory();
+    return binding.getDirectory() !== null;
+  };
+
   const state = {
     programs: [] as ShellProgram[],
     currentFileName: DEFAULT_PROGRAM_NAME,
@@ -318,11 +513,11 @@ async function bootstrap(): Promise<void> {
     outlineVisible: false
   };
 
-  controller.setStatus("Loading editor…");
+  controller.setStatus(TEXT.status.loadingEditor);
 
   if (location.protocol === "file:") {
     controller.banner(TEXT.fileProtocolBanner());
-    controller.setStatus("Needs a local server");
+    controller.setStatus(TEXT.status.needsLocalServer);
     return;
   }
 
@@ -355,6 +550,8 @@ async function bootstrap(): Promise<void> {
   resizeObserver.observe(dom.editorHost);
 
   await controller.probeJavaScriptBackend();
+  // The probe may have dropped the JavaScript option and re-selected Blazor.
+  renderCompileDirectory();
 
   // In-page debugging: gutter breakpoints + the floating step toolbar + the
   // stack/variables panel, over the web debug protocol. The JS engine runs in
@@ -383,7 +580,11 @@ async function bootstrap(): Promise<void> {
       emptyStack: TEXT.emptyStack,
       emptyVariables: TEXT.emptyVariables,
       editEndedSession: TEXT.editEndedSession,
-      titles: TEXT.titles
+      titles: TEXT.titles,
+      startingSession: TEXT.status.startingDebugSession,
+      failed: TEXT.status.failed,
+      stopped: TEXT.status.stopped,
+      sessionError: TEXT.status.debugSessionError
     },
     sessionId: "playground",
     createTransport: async (backend: DebugBackendKind) => {
@@ -414,8 +615,10 @@ async function bootstrap(): Promise<void> {
   };
   controller.debugListener = (event) => debug.handleEvent(event);
 
-  // Save goes to the browser download flow by default; an embedder (desktop
-  // shell) swaps in a native file dialog through registerSaveHandler.
+  // Save prefers the File System Access picker so the user can choose (and
+  // keep) a real target file; an embedder (desktop shell) still wins with a
+  // native dialog through registerSaveHandler, and browsers without the picker
+  // (Firefox/Safari) fall back to the classic download.
   const saveProgram = async (): Promise<void> => {
     const fileName = state.currentFileName;
     const source = model.getValue();
@@ -423,20 +626,65 @@ async function bootstrap(): Promise<void> {
       const saved = await saveHandlerOverride(fileName, source);
       if (saved) {
         state.currentFileName = saved;
-        controller.setStatus(`Saved ${saved}`);
+        controller.setStatus(TEXT.status.saved(saved));
       }
       return;
     }
 
-    const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = fileName || DEFAULT_PROGRAM_NAME;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(url);
+    const picker = (window as SaveFilePickerWindow).showSaveFilePicker;
+    if (typeof picker !== "function") {
+      downloadProgram(fileName, source);
+      return;
+    }
+
+    let handle = saveFileHandle;
+    if (handle && !(await ensureWritePermission(handle))) {
+      handle = null;
+      saveFileHandle = null;
+    }
+
+    // Only a fresh document opens the dialog; subsequent saves reuse the
+    // granted handle so Ctrl+S writes straight back to the chosen file.
+    if (!handle) {
+      try {
+        handle = await picker.call(window, {
+          suggestedName: fileName || DEFAULT_PROGRAM_NAME,
+          types: [{
+            description: TEXT.saveFileType,
+            accept: { "text/plain": [".sb", ".txt"] }
+          }]
+        });
+        saveFileHandle = handle;
+      } catch (error) {
+        // Dismissing the dialog is a normal outcome and must not trigger a
+        // surprise download; anything else means the picker is unusable here
+        // (permissions policy, insecure context, ...), so keep the classic
+        // download rather than leaving the user without a way to save.
+        if (error instanceof DOMException && error.name === "AbortError") {
+          return;
+        }
+
+        downloadProgram(fileName, source);
+        return;
+      }
+    }
+
+    try {
+      const writable = await handle.createWritable();
+      await writable.write(source);
+      await writable.close();
+
+      state.currentFileName = handle.name || fileName || DEFAULT_PROGRAM_NAME;
+      state.dirty = false;
+      controller.setStatus(TEXT.status.saved(state.currentFileName));
+    } catch (error) {
+      controller.showRuntimeDiagnostics(TEXT.saveFailed(error instanceof Error ? error.message : String(error)));
+    }
+  };
+
+  const compileDirectoryChoice = async (): Promise<void> => {
+    await compileDirectoryBinding?.chooseDirectory();
+    renderCompileDirectory();
   };
 
   const syncDiagnostics = debounce(async () => {
@@ -469,11 +717,29 @@ async function bootstrap(): Promise<void> {
     void syncDiagnostics();
   });
 
+  /** Run entry point: the artifact directory is settled before anything runs. */
+  const runProgram = async (): Promise<void> => {
+    if (!(await ensureCompileDirectory())) {
+      return;
+    }
+
+    await controller.runProgram(currentSnapshot(model, state.currentFileName));
+  };
+
+  /** Debug entry point; restarting reuses the directory this one settled on. */
+  const debugProgram = async (): Promise<void> => {
+    if (!(await ensureCompileDirectory())) {
+      return;
+    }
+
+    await startDebugSession(controller, debug, currentSnapshot(model, state.currentFileName));
+  };
+
   editor.addAction({
     id: "smallbasic.playground.run",
     label: "Run Small Basic Program",
     keybindings: [monaco.KeyMod.CtrlCmd | monaco.KeyCode.Enter],
-    run: async () => controller.runProgram(currentSnapshot(model, state.currentFileName))
+    run: runProgram
   });
 
   editor.addAction({
@@ -484,7 +750,7 @@ async function bootstrap(): Promise<void> {
   });
 
   dom.run.addEventListener("click", () => {
-    void controller.runProgram(currentSnapshot(model, state.currentFileName));
+    void runProgram();
   });
   dom.stop.addEventListener("click", () => {
     if (debug.isActive) {
@@ -495,7 +761,7 @@ async function bootstrap(): Promise<void> {
     void controller.stopRun();
   });
   dom.debugButton.addEventListener("click", () => {
-    void startDebugSession(controller, debug, currentSnapshot(model, state.currentFileName));
+    void debugProgram();
   });
   dom.debugToggle.addEventListener("click", () => debug.togglePause());
   dom.debugStepOver.addEventListener("click", () => debug.step("next"));
@@ -505,6 +771,7 @@ async function bootstrap(): Promise<void> {
   dom.debugStop.addEventListener("click", () => debug.stop());
   dom.backend.addEventListener("change", () => {
     controller.selectBackend(dom.backend.value);
+    renderCompileDirectory();
   });
   dom.newButton.addEventListener("click", () => {
     void createNewProgram(controller, model, state, NEW_FILE_TEMPLATE, debug);
@@ -530,6 +797,9 @@ async function bootstrap(): Promise<void> {
   });
   dom.saveButton.addEventListener("click", () => {
     void saveProgram();
+  });
+  dom.compileDirectoryButton.addEventListener("click", () => {
+    void compileDirectoryChoice();
   });
   dom.outlineButton.addEventListener("click", () => {
     void toggleOutline(dom, client, model, editor, state);
@@ -644,6 +914,7 @@ async function bootstrap(): Promise<void> {
     model,
     editor,
     state,
+    status: TEXT.status,
     snapshot: () => currentSnapshot(model, state.currentFileName)
   });
 }
@@ -667,6 +938,9 @@ function bindDom(): DomHandles {
     file: mustElement<HTMLInputElement>("file-input"),
     newButton: mustElement<HTMLButtonElement>("new-button"),
     saveButton: mustElement<HTMLButtonElement>("save-button"),
+    compileDirectoryField: mustElement<HTMLElement>("compile-directory-field"),
+    compileDirectoryValue: mustElement<HTMLElement>("compile-directory"),
+    compileDirectoryButton: mustElement<HTMLButtonElement>("compile-directory-button"),
     outlineButton: mustElement<HTMLButtonElement>("outline-button"),
     editorHost: mustElement<HTMLElement>("editor-host"),
     outline: mustElement<HTMLElement>("outline"),
@@ -749,13 +1023,19 @@ async function loadIntoEditor(
   state.suppressDirty = true;
   model.setValue(source);
   state.suppressDirty = false;
+  // The editor now holds a different document, so a previous picker handle no
+  // longer describes it; the next save opens the dialog again.
+  saveFileHandle = null;
   state.currentFileName = fileName || DEFAULT_PROGRAM_NAME;
   state.dirty = false;
-  controller.setStatus(`Loaded ${state.currentFileName}`);
+  controller.setStatus(TEXT.status.loaded(state.currentFileName));
   if (graphics) {
     // Embedders may prefer a graphics-capable CLI backend (native
     // GraphicsWindow on Windows); the web default stays Blazor WASM.
     controller.selectBackend(graphicsResolver?.() ?? shellApi.BACKEND_BLAZOR);
+    // The selected backend may have just changed under the compile-directory
+    // field (a graphics program auto-selects a native host).
+    refreshCompileDirectory?.();
   }
 }
 
@@ -826,6 +1106,42 @@ function webApi(): SmallBasicWebApi {
   return api;
 }
 
+/** Classic save fallback: the browser drops the file in its downloads folder. */
+function downloadProgram(fileName: string, source: string): void {
+  const blob = new Blob([source], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = fileName || DEFAULT_PROGRAM_NAME;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * `queryPermission`/`requestPermission` are Chromium extensions on the file
+ * handle that lib.dom does not model, so they are probed structurally. When
+ * they are absent the write is attempted as-is.
+ */
+async function ensureWritePermission(handle: FileSystemFileHandle): Promise<boolean> {
+  const permissionHandle = handle as FileSystemFileHandle & {
+    queryPermission?(descriptor: { mode: "readwrite" }): Promise<PermissionState>;
+    requestPermission?(descriptor: { mode: "readwrite" }): Promise<PermissionState>;
+  };
+
+  if (typeof permissionHandle.queryPermission !== "function") {
+    return true;
+  }
+
+  let permission = await permissionHandle.queryPermission({ mode: "readwrite" });
+  if (permission === "prompt" && typeof permissionHandle.requestPermission === "function") {
+    permission = await permissionHandle.requestPermission({ mode: "readwrite" });
+  }
+
+  return permission === "granted";
+}
+
 async function startDebugSession(
   controller: RunHostController,
   debug: PlaygroundDebugController,
@@ -837,7 +1153,7 @@ async function startDebugSession(
     await debug.start(snapshot.name, snapshot.source, controller.getBackend());
   } catch (error) {
     controller.showRuntimeDiagnostics(TEXT.backendUnavailable(error instanceof Error ? error.message : String(error)));
-    controller.setStatus("Failed");
+    controller.setStatus(TEXT.status.failed);
   }
 }
 
@@ -860,7 +1176,9 @@ async function toggleOutline(
     renderOutlineSymbol(dom.outlineList, symbol, editor, state, 0);
   }
 
-  dom.outlineTitle.textContent = "Quick Outline";
+  // The dialog title is never rewritten here: playground.html ships the
+  // localized copy (data-i18n="outlineTitle") and shell-core.js already swapped
+  // it for English when the UI language is not Chinese.
   dom.outline.hidden = false;
   state.outlineVisible = true;
 }

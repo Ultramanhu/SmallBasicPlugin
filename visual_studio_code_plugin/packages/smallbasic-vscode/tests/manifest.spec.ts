@@ -10,7 +10,7 @@ type ExtensionManifest = {
   };
   contributes?: {
     breakpoints?: Array<{ language?: string }>;
-    commands?: Array<{ command?: string; icon?: string; enablement?: string }>;
+    commands?: Array<{ command?: string; title?: string; icon?: string; enablement?: string }>;
     debuggers?: Array<{
       configurationAttributes?: {
         launch?: {
@@ -76,6 +76,16 @@ describe("VS Code extension manifest", () => {
     ).toBe("!isWeb");
   });
 
+  it("hides the compiler command outside desktop Windows workspaces", () => {
+    const runMenu = manifest.contributes?.menus?.["editor/title/run"];
+    expect(runMenu?.find((item) => item.command === "smallbasic.compileCSharp")?.when).toBe(
+      "resourceLangId == smallbasic && !isWeb && isWindows"
+    );
+    expect(
+      manifest.contributes?.commands?.find((item) => item.command === "smallbasic.compileCSharp")?.enablement
+    ).toBe("!isWeb && isWindows");
+  });
+
   it("names backend run commands explicitly and unifies their icons", () => {
     const runCommands = (manifest.contributes?.commands ?? []).filter((item) =>
       item.command?.startsWith("smallbasic.run")
@@ -86,6 +96,12 @@ describe("VS Code extension manifest", () => {
       "smallbasic.runBlazor"
     ]);
     expect(runCommands.every((item) => item.icon === "$(play)")).toBe(true);
+  });
+
+  it("contributes a dedicated compile command for the C# backend", () => {
+    const command = manifest.contributes?.commands?.find((item) => item.command === "smallbasic.compileCSharp");
+    expect(command?.title).toBe("SmallBasic: Compile to C# EXE");
+    expect(command?.icon).toBe("$(package)");
   });
 
   it("contributes the Blazor backend on the desktop and in the browser", () => {

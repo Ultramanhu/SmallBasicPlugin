@@ -3,6 +3,7 @@
 #   net48/           - .NET Framework 4.8 host (Windows, WPF graphics supported)
 #   net8.0-windows/  - .NET 8 host (Windows, WPF graphics supported)
 #   net8.0/          - .NET 8 portable host (Windows/Linux/macOS, text-only)
+#   compiler/        - .NET Framework 4.8 compiler tool + compiled debug adapter + net48 host template
 #   javascript/      - Node.js host (any platform with Node >= 20, text-only)
 #   blazor/           - .NET 8 + Blazor WASM host (CLI text, browser graphics)
 #   web/             - static site: JavaScript + Blazor WASM backends in the browser
@@ -37,6 +38,8 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 # Shared build helpers (version handling, the web site's required-file list).
 Import-Module (Join-Path $repoRoot "tools\common.psm1") -Force
 $projectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.RunHost\SmallBasic.RunHost.csproj"
+$compilerToolProjectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Compiler.Tool\SmallBasic.Compiler.Tool.csproj"
+$compiledDebugAdapterProjectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.CompiledDebugAdapter\SmallBasic.CompiledDebugAdapter.csproj"
 $blazorProjectPath = Join-Path $repoRoot "visual_studio_plugin\src\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj"
 $vscodeRoot = Join-Path $repoRoot "visual_studio_code_plugin"
 $vscodePackage = Join-Path $vscodeRoot "packages\smallbasic-vscode"
@@ -50,10 +53,18 @@ if (-not (Test-Path $blazorProjectPath)) {
     throw "Blazor RunHost project not found: $blazorProjectPath"
 }
 
+if (-not (Test-Path $compilerToolProjectPath)) {
+    throw "Compiler tool project not found: $compilerToolProjectPath"
+}
+
+if (-not (Test-Path $compiledDebugAdapterProjectPath)) {
+    throw "Compiled debug adapter project not found: $compiledDebugAdapterProjectPath"
+}
+
 if ($Clean) {
     # Only remove generated platform folders, never the folder itself (this
     # script and future support files live here too).
-    $generatedFolders = @($DotNetPlatforms) + @("javascript", "blazor")
+    $generatedFolders = @($DotNetPlatforms) + @("compiler", "javascript", "blazor")
     if (-not $SkipWeb) {
         $generatedFolders += "web"
     }
@@ -85,6 +96,38 @@ foreach ($platform in $DotNetPlatforms) {
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet publish failed for $platform"
     }
+}
+
+if ($DotNetPlatforms -contains "net48") {
+    $compilerDestination = Join-Path $outputRoot "compiler"
+    if (Test-Path $compilerDestination) {
+        Remove-Item $compilerDestination -Recurse -Force
+    }
+
+    Write-Host "==> Publishing SmallBasic.Compiler.Tool (net48, $Configuration) to $compilerDestination" -ForegroundColor Cyan
+    dotnet publish $compilerToolProjectPath -c $Configuration -f net48 -o $compilerDestination --nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed for SmallBasic.Compiler.Tool"
+    }
+
+    Write-Host "==> Publishing SmallBasic.CompiledDebugAdapter (net48, $Configuration) to $compilerDestination" -ForegroundColor Cyan
+    dotnet publish $compiledDebugAdapterProjectPath -c $Configuration -f net48 -o $compilerDestination --nologo
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed for SmallBasic.CompiledDebugAdapter"
+    }
+
+    $templateDestination = Join-Path $compilerDestination "template\net48"
+    if (Test-Path $templateDestination) {
+        Remove-Item $templateDestination -Recurse -Force
+    }
+
+    New-Item -ItemType Directory -Force -Path $templateDestination | Out-Null
+    Copy-Item (Join-Path $outputRoot "net48\*") $templateDestination -Recurse -Force
+    Get-ChildItem -Path $templateDestination -Filter *.pdb -Recurse -File | Remove-Item -Force
+    Write-Host "==> Compiler tool template staged to $templateDestination" -ForegroundColor Cyan
+}
+else {
+    Write-Host "==> Skipping compiler tool staging because net48 was not requested." -ForegroundColor Yellow
 }
 
 if (-not $SkipJavaScript -or -not $SkipWeb) {
@@ -182,6 +225,7 @@ Write-Host "RunHost distribution ready under $outputRoot" -ForegroundColor Green
 Write-Host "  net48            : SmallBasic.RunHost.exe (.NET Framework 4.8, Windows graphics)"
 Write-Host "  net8.0-windows   : SmallBasic.RunHost.exe (.NET 8, Windows graphics)"
 Write-Host "  net8.0           : SmallBasic.RunHost.dll  (.NET 8 portable: 'dotnet SmallBasic.RunHost.dll', text-only)"
+Write-Host "  compiler         : SmallBasic.Compiler.Tool.exe + SmallBasic.CompiledDebugAdapter.exe + template\net48"
 Write-Host "  javascript       : smallbasic-runhost.js    ('node smallbasic-runhost.js', text-only)"
 Write-Host "  blazor           : SmallBasic.Blazor.RunHost.dll ('dotnet ...', CLI text + browser graphics)"
 Write-Host "  web              : static site ('web\run.bat' or 'node web\serve.mjs', JavaScript + Blazor WASM backends)"

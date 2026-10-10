@@ -5,8 +5,9 @@ import { fileURLToPath } from "node:url";
 /**
  * Stages the RunHost payload the extension ships into
  * `packages/smallbasic-vscode/runhost/`: the two framework-dependent C# hosts
- * (`windows/`, `portable/`) and the Blazor WASM payload (`blazor/`, plus the
- * CDN-safe ICU aliases under `wwwroot/_framework-webview/`).
+ * (`windows/`, `portable/`), the net48 compiler payload (`compiler/`) and the
+ * Blazor WASM payload (`blazor/`, plus the CDN-safe ICU aliases under
+ * `wwwroot/_framework-webview/`).
  *
  * Only the files the extension actually launches or serves are copied - see the
  * payload boundary below - because everything staged here ends up in the VSIX.
@@ -52,12 +53,18 @@ function findHost(targetFramework, fileName) {
 }
 
 const blazorSource = path.join(repositoryRoot, "runhost", "blazor");
+const compilerSource = path.join(repositoryRoot, "runhost", "compiler");
 if (!fs.existsSync(path.join(blazorSource, "SmallBasic.Blazor.RunHost.dll"))) {
   throw new Error("runhost/blazor/SmallBasic.Blazor.RunHost.dll was not found. Run runhost/Build-RunHost.ps1 first.");
 }
 
+if (!fs.existsSync(path.join(compilerSource, "SmallBasic.Compiler.Tool.exe"))) {
+  throw new Error("runhost/compiler/SmallBasic.Compiler.Tool.exe was not found. Run runhost/Build-RunHost.ps1 first.");
+}
+
 const destinationDirectory = path.join(extensionDirectory, "runhost");
 const blazorDestination = path.join(destinationDirectory, "blazor");
+const compilerDestination = path.join(destinationDirectory, "compiler");
 
 // ---------------------------------------------------------------------------
 // Payload boundary: stage only what the extension itself consumes.
@@ -68,7 +75,7 @@ const blazorDestination = path.join(destinationDirectory, "blazor");
  * `dotnet publish -r <rid>` leaves in
  * `visual_studio_plugin\src\SmallBasic.RunHost\bin\<Configuration>\<tfm>`.
  *
- * That folder is shared with packages/smallbasic-playground-desktop, which
+ * That folder is shared with smallbasic_playground_app, which
  * publishes the desktop sidecars (self-contained, single file) from the same
  * project. `-o <dir>` only moves the *publish* output, so every RID publish
  * additionally drops a complete self-contained runtime next to the
@@ -186,13 +193,16 @@ if (blazorOnly) {
   fs.mkdirSync(windowsDestination, { recursive: true });
   fs.mkdirSync(portableDestination, { recursive: true });
   fs.mkdirSync(blazorDestination, { recursive: true });
+  fs.mkdirSync(compilerDestination, { recursive: true });
 
   fs.cpSync(windowsSource, windowsDestination, copyOptions);
   fs.cpSync(portableSource, portableDestination, copyOptions);
   fs.cpSync(blazorSource, blazorDestination, copyOptions);
+  fs.cpSync(compilerSource, compilerDestination, copyOptions);
   console.log(`Staged Windows C# run host from ${windowsSource}`);
   console.log(`Staged portable C# run host from ${portableSource}`);
   console.log(`Staged Blazor run host from ${blazorSource}`);
+  console.log(`Staged compiler payload from ${compilerSource}`);
 }
 
 stageWebviewResourceAliases();

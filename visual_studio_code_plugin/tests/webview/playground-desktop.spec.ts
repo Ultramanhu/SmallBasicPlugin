@@ -12,7 +12,7 @@ test.describe("staged desktop playground app", () => {
   let server: StaticServer;
 
   // `runhost/playground/` is a generated staging root; skip on a clean checkout.
-  test.skip(!hasStagedPlaygroundApp(), "runhost/playground/app is not staged ('npm run stage' in smallbasic-playground-desktop).");
+  test.skip(!hasStagedPlaygroundApp(), "runhost/playground/app is not staged ('npm run stage' in smallbasic_playground_app).");
 
   test.beforeAll(async () => {
     server = await serveDirectory(stagedPlaygroundAppRoot);
@@ -64,9 +64,10 @@ test.describe("staged desktop playground app", () => {
    * controller; this is the regression guard for "the Tauri build shows only the
    * two Web backends" (design doc 10, §19.3 phase 2).
    *
-   * The CLI offering is the two .NET RunHost flavours (doc 10, §17.2).
+   * The CLI offering is the two .NET RunHost flavours plus the net48 compiler
+   * backend (doc 10, §17.2 / §19.5).
    */
-  test("registers both C# CLI flavours when a Tauri IPC bridge is present", async ({ page }) => {
+  test("registers the two C# CLI flavours and the compiler backend when a Tauri IPC bridge is present", async ({ page }) => {
     const diagnostics: string[] = [];
     page.on("pageerror", (error) => diagnostics.push(String(error)));
 
@@ -85,7 +86,7 @@ test.describe("staged desktop playground app", () => {
           if (command === "desktop_capabilities") {
             return {
               platform: "x86_64-pc-windows-msvc",
-              backends: { cliCsharpNet48: true, cliCsharpNet8: true },
+              backends: { cliCsharpNet48: true, cliCsharpNet8: true, cliCompilerNet48: true },
               graphics: { cliCsharpNet48: true, cliCsharpNet8: true }
             };
           }
@@ -102,22 +103,36 @@ test.describe("staged desktop playground app", () => {
     await expect(page.locator("#status")).toContainText("Loaded", { timeout: 60_000 });
 
     const options = page.locator("#backend-select option");
-    await expect(options).toHaveCount(4, { timeout: 60_000 });
-    // Two Web backends plus the two .NET RunHost flavours.
+    await expect(options).toHaveCount(5, { timeout: 60_000 });
+    // Two Web backends plus the two .NET RunHost flavours and the compiler.
     expect(await options.allTextContents()).toEqual([
       "JavaScript (TextWindow)",
       "Blazor WASM (GraphicsWindow)",
-      "C# (.NET Framework 4.8)",
-      "C# (.NET 8.0)"
+      "C# (.net Framework 4.8)",
+      "C# (.net 8.0)",
+      "Compiler (.net Framework 4.8)"
     ]);
     await expect(page.locator('#backend-select option[value="cli-csharp-net48"]'))
-      .toHaveText("C# (.NET Framework 4.8)");
+      .toHaveText("C# (.net Framework 4.8)");
     await expect(page.locator('#backend-select option[value="cli-csharp-net8"]'))
-      .toHaveText("C# (.NET 8.0)");
+      .toHaveText("C# (.net 8.0)");
+    await expect(page.locator('#backend-select option[value="cli-compiler-net48"]'))
+      .toHaveText("Compiler (.net Framework 4.8)");
     // The removed CLI backends and the old unversioned C# id must not reappear.
     await expect(page.locator('#backend-select option[value="cli-javascript"]')).toHaveCount(0);
     await expect(page.locator('#backend-select option[value="cli-blazor"]')).toHaveCount(0);
     await expect(page.locator('#backend-select option[value="cli-csharp"]')).toHaveCount(0);
+
+    // The compile-directory field replaced the old Compile button: it is hidden
+    // until the compiler backend is selected, and the button is gone entirely.
+    await expect(page.locator("#compile-directory-field")).toBeHidden();
+    await expect(page.locator("#compile-button")).toHaveCount(0);
+    await page.locator("#backend-select").selectOption("cli-compiler-net48");
+    await expect(page.locator("#compile-directory-field")).toBeVisible();
+    await expect(page.locator("#compile-directory")).toHaveText("Not set");
+    await page.locator("#backend-select").selectOption("cli-csharp-net8");
+    await expect(page.locator("#compile-directory-field")).toBeHidden();
+
     expect(diagnostics).toEqual([]);
   });
 });

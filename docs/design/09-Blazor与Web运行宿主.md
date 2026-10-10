@@ -74,7 +74,7 @@ RunHost 负责 DAP 生命周期、断点吸附和 IDE 消息；WASM 负责真正
 - Kestrel 只监听 `127.0.0.1` 的随机端口。
 - 会话使用随机 128 位标识，源码只由对应会话 API 返回。
 - RunHost 在浏览器报告程序终止后退出；事件监听型程序则保持会话，直到调试器停止或浏览器关闭。
-- VS Code Web 不能创建本机 RunHost 进程，因此不提供 CLI C# / CLI Blazor；它已在 Webview 内提供 JavaScript 与 Blazor WASM 的运行和调试入口。桌面 VS Code 与 Visual Studio 还可使用三种 CLI 后端。
+- VS Code Web 不能创建本机 RunHost 进程，因此不提供 CLI C# / CLI Blazor；它在 Webview 内提供 JavaScript 与 Blazor WASM 的运行和调试入口，并额外支持 CLI JavaScript（引擎内联在扩展宿主里，不需要进程）。桌面 VS Code 与 Visual Studio 可使用三种 CLI 后端。
 
 
 
@@ -255,7 +255,7 @@ node serve.mjs                 # 等价直接调用：--no-open / --port 9000 / 
 
 VS Code for the Web 的扩展宿主是浏览器 Web Worker，不能启动本机进程，但**可以开 Webview**。桌面 VS Code 选择 `mode: "web"` 时也必须进入同一条浏览器兼容链路，不能因为桌面扩展宿主能够启动进程就回退到 CLI RunHost。由此形成两条正交维度：
 
-- `mode: "cli"`：仅桌面 VS Code 可用，JavaScript/C#/Blazor 使用现有本机 RunHost 或外部调试适配器；
+- `mode: "cli"`：桌面 VS Code 上 JavaScript/C#/Blazor 使用现有本机 RunHost 或外部调试适配器；VS Code for the Web 上 JavaScript 仍走 `cli`（引擎在扩展宿主内联运行，不需要任何本机进程，见「Web 宿主的 CLI JavaScript」），C# 因需要本机进程被拒绝，Blazor 回落到 Webview 并给出提示；
 - `mode: "web"`：桌面 VS Code 与 VS Code for the Web 均可用，不启动 Small Basic 本机子进程；JavaScript 在扩展宿主内运行，Blazor 在 Webview 的 WASM 中运行。
 
 运行链路如下：
@@ -304,7 +304,8 @@ CSP 要求（`webview-html.ts` 中集中定义）：
 |---|---|---|---|---|
 | 桌面 VS Code | `cli` | 现有外部 Node DAP（Debug Console） | 现有本机 Blazor RunHost DAP（浏览器页面） | 现有本机 C# RunHost DAP（宿主窗口） |
 | 桌面 VS Code | `web` | Webview Inline DAP，引擎在页面内 | Webview Inline DAP，引擎在页面的 WASM 内 | 拒绝，提示改用 `mode: "cli"` 或换后端 |
-| VS Code for the Web | 强制 `web` | 与桌面 `mode: "web"` 相同 | 与桌面 `mode: "web"` 相同 | 拒绝，本机进程不可用 |
+| VS Code for the Web | `cli` | 扩展宿主 Inline DAP，引擎在 Web Worker 内，不弹 Webview（输出在 Debug Console）；Ctrl+F5 在扩展宿主终端运行 | 回落到 `mode: "web"`（同一个 Webview 适配器），状态栏提示 CLI Blazor 需要本机 RunHost | 拒绝，本机进程不可用 |
+| VS Code for the Web | `web`（未写 `mode` 时的默认） | 与桌面 `mode: "web"` 相同 | 与桌面 `mode: "web"` 相同 | 拒绝，本机进程不可用 |
 | 独立 `runhost/web` | 不适用 | 仅运行，不提供调试 UI | 仅运行，不提供调试 UI | 不提供 |
 
 功能目标为：断点及断点吸附、Continue、Pause、Step In、Step Over、Step Out、当前执行行、调用栈、全局变量/数组、程序输出、`TextWindow.Read/ReadNumber` 输入以及终止会话。JavaScript 保留条件断点（协议通过 `conditions` 透传，由页面内驱动编译求值）；Blazor 第一阶段与现有 `SmallBasic.Blazor.RunHost` 对齐，不把条件断点列为阻塞项。
@@ -338,7 +339,7 @@ WebDebugSessionBroker ── debug-launch / debug-command / debug-event ──�
 1. **DAP 只存在于扩展宿主**。页面内的两个引擎都不实现 DAP，只处理与运行时相关的强类型调试命令/事件；独立 `runhost/web` 因此不需要成为 DAP 客户端。
 2. **调试语义只实现一次**。断点吸附、条件断点、单步、暂停/阻塞/终止状态机集中在宿主无关的 `src/debug/engine-driver.ts`：CLI 的 JavaScript DAP 适配器（`src/debug/session.ts`）与 Webview 内的 JavaScript 运行时（`src/runhost/web-debug.ts`）都只是它的薄翻译层（一个翻译成 DAP，一个翻译成 Web 调试协议）。Blazor 侧同理复用 `BrowserEngineSession`，不做第二套断点/单步实现。
 3. **桌面/Web 共用同一份 Web 调试代码**。桌面入口与 Web 入口只负责取得 `TextDocument` 和创建会话；`mode: "web"` 的 backend 路由、Inline Adapter、协议类型与会话 Broker 都放在浏览器兼容的共享模块中，不引用 `node:fs`、`node:path`、`child_process` 或 `process.execPath`。
-4. **CLI 调试不受影响**。`mode: "cli"` 继续使用现有外部 JS Adapter（Debug Console 输出）、`SmallBasic.RunHost debug` 与 `SmallBasic.Blazor.RunHost debug`，各后端保持各自既有体验。
+4. **CLI 调试不受影响**。`mode: "cli"` 继续使用现有外部 JS Adapter（Debug Console 输出）、`SmallBasic.RunHost debug` 与 `SmallBasic.Blazor.RunHost debug`，各后端保持各自既有体验（VS Code for the Web 上额外支持的内联 CLI JavaScript 见「Web 宿主的 CLI JavaScript」）。
 
 #### Web 调试协议与会话模型
 
@@ -447,7 +448,9 @@ WebDebugSessionBroker ── debug-launch / debug-command / debug-event ──�
 
 #### VS Code `launch.json` 的运行模式
 
-桌面扩展支持与 `backend` 正交的 `mode` 参数：`"cli"`（默认）使用原有本机命令行/调试宿主，`"web"` 使用浏览器兼容的运行/调试链路。Web 模式支持 `javascript` 与 `blazor` 的 F5/Ctrl+F5，不支持 `csharp`；VS Code for the Web 会忽略配置中的 `cli` 并强制使用 `web`。桌面 VS Code 显式配置 `mode: "web"` 时也必须使用共享 Inline Adapter，不得因为本机可执行文件存在而回退到 CLI。
+桌面扩展支持与 `backend` 正交的 `mode` 参数：`"cli"`（默认）使用原有本机命令行/调试宿主，`"web"` 使用浏览器兼容的运行/调试链路。Web 模式支持 `javascript` 与 `blazor` 的 F5/Ctrl+F5，不支持 `csharp`。桌面 VS Code 显式配置 `mode: "web"` 时也必须使用共享 Inline Adapter，不得因为本机可执行文件存在而回退到 CLI。
+
+VS Code for the Web 没有本机进程，但 **CLI JavaScript 不需要进程**：`mode: "cli"` + `backend: "javascript"` 仍然受支持，落地为扩展宿主内的引擎（详见下节）；其余 `cli` 请求保持原有结果——`cli` + `csharp` 拒绝并提示，`cli` + `blazor` 回落到 Webview 并提示，`cli` + JavaScript + 图形程序按 Web 模式的图形规则处理。未写 `mode`（或写了 `web`）时维持 Web 模式，与浏览器默认体验一致。
 
 ```jsonc
 {
@@ -460,6 +463,22 @@ WebDebugSessionBroker ── debug-launch / debug-command / debug-event ──�
   "stopOnEntry": true
 }
 ```
+
+#### Web 宿主的 CLI JavaScript
+
+`mode: "cli"` 在 VS Code for the Web 上对 `backend: "javascript"` 完全放开，因为这条链路只需要纯 TypeScript 引擎：
+
+| 请求 | 表面 | 实现 |
+|---|---|---|
+| F5（`noDebug` 为假） | 扩展宿主内联 DAP，不弹 Webview；断点、单步、变量、调用栈、`TextWindow` 输入走 Debug Console | `createWebHostDebugAdapter` → `DebugAdapterInlineImplementation(SmallBasicDebugSession)`（`src/debug/session.ts`，与桌面 CLI JavaScript 适配器共用同一份 `DebugEngineDriver`） |
+| Ctrl+F5（`noDebug`） | 扩展宿主终端（`SmallBasicTerminalSession`），与桌面 CLI JavaScript 的「运行」完全一致 | `runJavaScriptCompilation`（`src/run/javascript-runner.ts`） |
+
+要点：
+
+1. 路由是纯函数 `routeWebHostLaunch`（`packages/smallbasic-vscode/src/web/run-routing.ts`），与已有的 `routeWebDebugRequest`（`mode: "web"` 表）并列，两个入口共用，`mode` 缺省按 `web` 处理以保持浏览器默认体验。
+2. `SmallBasicDebugSession` 的源码访问器用 `WebDebugSourceAccessor`（内存源 + 路径别名），不依赖 `node:fs`，因此可以随 Web bundle（`dist/web/extension.js`）一起打进 Web Worker。
+3. **只新增、不改动既有组合**：除「`cli` + `javascript` + 文本程序」外，其余请求仍返回它们原本（`cli` 被强制成 `web` 时）的结果——CLI C# 本来就落在 Web 模式的 C# 拒绝分支，这里换成更贴切的提示；CLI Blazor 继续回落到 Webview 并加一条状态栏提示；CLI JavaScript 的图形程序继续按 Web 模式的图形规则处理（F5 拒绝、Ctrl+F5 回落 Blazor）。
+4. 桌面 `mode: "cli"` 行为零变化：JavaScript 仍是外部 Node DAP，C#/Blazor 仍是本机 RunHost `debug`。
 
 #### 本地安装与调试
 

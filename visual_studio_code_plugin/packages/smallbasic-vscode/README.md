@@ -14,6 +14,7 @@ repo: https://github.com/Ultramanhu/SmallBasicPlugin/
   - `SmallBasic: Run with JavaScript Backend` — CLI mode uses the built-in JavaScript engine and terminal; Web mode runs `TextWindow` inside a browser Webview
   - `SmallBasic: Run with C# Backend` — bundled .NET run host; CLI mode only, with Windows graphics support (`GraphicsWindow` / `Shapes` / `Turtle`)
   - `SmallBasic: Run with Blazor Backend` — CLI mode uses the cross-platform host; Web mode runs Blazor WASM in a Webview with SVG graphics
+- `SmallBasic: Compile to C# EXE` — Windows only; uses the bundled net48 compiler payload to generate `<program>.exe`, its configuration and the manifest/source sidecars next to the current `.sb`, with the runtime DLLs staged in a `lib\` subfolder that the generated `<program>.exe.config` probes
 - Debugging: breakpoints, stepping, variables (with SmallBasic array expansion) and call stack, shared DAP semantics across backends
 - `SmallBasic: New File` command and Explorer context-menu template
 - Localized Document
@@ -84,9 +85,10 @@ TextWindow.WriteLine(Math.Mod(-7, 2)) ' -1
 - **New file/Open**: run `SmallBasic: New File` from the command palette, or open any `.sb` file — no project system required, "Open Folder" works.
 - **Edit**: Syntax highlighting, completions, hover info, the Error List and code outlining are enabled automatically.
 - **Run**: use the play button in the editor title bar, or the command palette.
+- **Compile**: on Windows desktop, use `SmallBasic: Compile to C# EXE` to generate `<program>.exe` and its support files in the source file's directory.
 - **Debug**: set breakpoints in a `.sb` file and press F5. You can pick a backend explicitly in `launch.json`:
 
-CLI mode (the default; all three backends are available; the JavaScript backend support VSCode for Web, others only on desktop):
+CLI mode (the default; all three backends are available on desktop; in VS Code for the Web only the JavaScript backend is, and it runs inline in the extension host):
 
 ```jsonc
 { "type": "smallbasic", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with JavaScript backend",
@@ -111,8 +113,12 @@ Web mode (JavaScript/Blazor; supported by desktop and VS Code for the Web):
 
 `mode` accepts `cli` or `web`. On desktop, `cli` is the default; choose `web` and use
 Run Without Debugging (Ctrl+F5) to run either the JavaScript or Blazor backend in the
-browser Webview. VS Code for the Web always uses `web` mode. JavaScript can still be
-debugged with F5; Blazor Web mode currently supports running only.
+browser Webview. In VS Code for the Web, `mode: "cli"` is honoured for the JavaScript
+backend only: F5 debugs it inline in the extension host (no Webview, output in the
+Debug Console) and Ctrl+F5 runs it in an extension-host terminal; `cli` with C# is
+refused (a browser has no local RunHost process), while `cli` with Blazor falls back
+to Web mode in the Webview and says so in the status bar. Without a `mode` (or with
+`mode: "web"`), JavaScript and Blazor both run and debug inside the Webview.
 
 ## Settings
 
@@ -120,12 +126,14 @@ debugged with F5; Blazor Web mode currently supports running only.
 |---|---|---|
 | `smallbasic.diagnostics.debounceMs` | `150` | Delay before recomputing diagnostics after edits |
 | `smallbasic.csharp.runHostPath` | `""` | Path to `SmallBasic.RunHost.exe`/`.dll`; leave empty to use the bundled host |
+| `smallbasic.csharp.compilerPath` | `""` | Path to `SmallBasic.Compiler.Tool.exe`; leave empty to use the bundled compiler payload |
 | `smallbasic.blazor.runHostPath` | `""` | Path to `SmallBasic.Blazor.RunHost.dll`/executable; leave empty to use the bundled host |
 
 ## Known limitations
 
 - The CLI JavaScript backend does not support graphics libraries (`GraphicsWindow`, `Shapes`, `Turtle`); use Web mode with Blazor or the Windows C# backend.
-- The CLI debugging options are not supported in VSCode for Web.
+- Compile-to-EXE is currently available only on Windows desktop because the bundled compiler payload targets .NET Framework 4.8.
+- In VS Code for the Web, `mode: "cli"` only changes behaviour for the JavaScript backend (engine inline in the extension host); CLI C# is refused with a message naming the alternative, and CLI Blazor falls back to Web mode in the Webview.
 
 ## License
 

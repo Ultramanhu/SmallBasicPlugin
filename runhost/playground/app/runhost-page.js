@@ -19,16 +19,32 @@
     // Static HTML ships the Chinese copy; non-zh browsers swap markers to
     // English (see shell-core.js SmallBasicRunHostShell.applyStaticText).
     shell.applyStaticText({
+        programLabel: "Program",
         fileField: "Open .sb file…",
         fileFieldTitle: "Choose a local .sb file; you can also drag one onto the page.",
-        blazorError: "An unhandled error occurred while running the Small Basic Blazor WASM backend."
+        backendLabel: "Backend",
+        backendJavaScript: "JavaScript (TextWindow)",
+        backendBlazor: "Blazor WASM (GraphicsWindow)",
+        runButton: "Run",
+        stopButton: "Stop",
+        statusReady: "Ready",
+        outputTitle: "Output",
+        inputPromptRead: "Read",
+        sendButton: "Send",
+        blazorError: "An unhandled error occurred while running the Small Basic Blazor WASM backend.",
+        reloadButton: "Reload"
     });
     const chinese = shell.isChineseLocale();
     const TEXT = {
         fileProtocolBanner: chinese
             ? "当前页面通过 <code>file://</code> 打开，浏览器不允许从 <code>file://</code> 加载 WebAssembly。请双击 <code>run.bat</code>（或执行 <code>node serve.mjs</code>），脚本会启动本地静态服务器并自动打开浏览器。"
             : 'This page was opened via <code>file://</code>, and browsers cannot load WebAssembly from <code>file://</code>. Double-click <code>run.bat</code> (or run <code>node serve.mjs</code>); it starts a local static server and opens the browser automatically.',
-        localFileLabel: (name) => chinese ? `本地文件：${name}` : `Local file: ${name}`
+        localFileLabel: (name) => chinese ? `本地文件：${name}` : `Local file: ${name}`,
+        // Status-line vocabulary owned by this page; the shell localizes the
+        // statuses it writes itself (see shell-core.js).
+        needsLocalServer: chinese ? "需要本地服务器" : "Needs a local server",
+        failedStatus: chinese ? "失败" : "Failed",
+        loadedStatus: (name) => chinese ? `已加载 ${name}` : `Loaded ${name}`
     };
 
     const dom = bindDom();
@@ -94,7 +110,7 @@
 
             console.error("Small Basic runtime failure:", event.reason);
             if (controller.isRunning()) {
-                controller.setStatus("Failed");
+                controller.setStatus(TEXT.failedStatus);
             }
         });
     }
@@ -107,7 +123,7 @@
 
         if (location.protocol === "file:") {
             controller.banner(TEXT.fileProtocolBanner);
-            controller.setStatus("Needs a local server");
+            controller.setStatus(TEXT.needsLocalServer);
             return;
         }
 
@@ -139,14 +155,14 @@
             state.program = resolved;
             dom.program.value = resolved.path;
             if (!controller.isRunning()) {
-                controller.setStatus(`Loaded ${resolved.name}`);
+                controller.setStatus(TEXT.loadedStatus(resolved.name));
             }
             if (resolved.graphics && controller.getBackend() !== shell.BACKEND_BLAZOR) {
                 controller.selectBackend(shell.BACKEND_BLAZOR);
             }
         } catch (error) {
             controller.showRuntimeDiagnostics(error && error.message ? error.message : String(error));
-            controller.setStatus("Failed");
+            controller.setStatus(TEXT.failedStatus);
         }
     }
 
@@ -183,7 +199,7 @@
 
         state.program = program;
         dom.program.value = program.path;
-        controller.setStatus(`Loaded ${program.name}`);
+        controller.setStatus(TEXT.loadedStatus(program.name));
         if (program.graphics && controller.getBackend() !== shell.BACKEND_BLAZOR) {
             controller.selectBackend(shell.BACKEND_BLAZOR);
         }

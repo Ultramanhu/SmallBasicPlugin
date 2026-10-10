@@ -16175,16 +16175,20 @@ var HoverService;
   function onErrorKeywordHover(onError, range) {
     switch (onError.action) {
       case "resume-next":
-        return { range, text: ["On Error Resume Next", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."] };
+        return { range, text: ["On Error Resume Next", keywordDescription("Keywords_OnErrorResumeNext", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running.")] };
       case "goto-default":
-        return { range, text: ["On Error GoTo -1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."] };
+        return { range, text: ["On Error GoTo -1", keywordDescription("Keywords_OnErrorGoToMinus1", "Clears the current error state and restores the default behavior: a runtime error terminates the program.")] };
       case "goto-clear":
-        return { range, text: ["On Error GoTo 0", "Disables the current On Error handler; runtime errors terminate the program again."] };
+        return { range, text: ["On Error GoTo 0", keywordDescription("Keywords_OnErrorGoTo0", "Disables the current On Error handler; runtime errors terminate the program again.")] };
       case "gosub":
-        return { range, text: ["On Error GoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."] };
+        return { range, text: ["On Error GoSub", keywordDescription("Keywords_OnErrorGoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.")] };
       default:
         return { range, text: ["On Error", "Configures the runtime error handling policy."] };
     }
+  }
+  function keywordDescription(key, fallback) {
+    const localized = DocumentationResources.get(key);
+    return typeof localized === "string" && localized.length > 0 ? localized : fallback;
   }
   function provideUserSymbolHover(compilation, position) {
     for (const func of compilation.parseTree.functions) {

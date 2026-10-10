@@ -2,6 +2,7 @@ import { Compilation } from "../../compiler/compilation";
 import { CompilerRange, CompilerPosition } from "../syntax/ranges";
 import { RuntimeLibraries } from "../runtime/libraries";
 import { CompilerUtils } from "../utils/compiler-utils";
+import { DocumentationResources } from "../../strings/documentation";
 import {
     BaseSyntaxNode,
     BinaryOperatorExpressionSyntax,
@@ -150,18 +151,28 @@ export module HoverService {
     }
 
     function onErrorKeywordHover(onError: OnErrorCommandSyntax, range: CompilerRange): Result {
+        // Statement help lives in the localized documentation
+        // (strings/documentation.locales); the literals are the English fallback
+        // used when the active locale has no translation for the key. The C#
+        // HoverProvider.OnErrorHover uses the same lookup, so both editors show
+        // the same language as the library hovers.
         switch (onError.action) {
             case "resume-next":
-                return { range, text: ["On Error Resume Next", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."] };
+                return { range, text: ["On Error Resume Next", keywordDescription("Keywords_OnErrorResumeNext", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running.")] };
             case "goto-default":
-                return { range, text: ["On Error GoTo -1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."] };
+                return { range, text: ["On Error GoTo -1", keywordDescription("Keywords_OnErrorGoToMinus1", "Clears the current error state and restores the default behavior: a runtime error terminates the program.")] };
             case "goto-clear":
-                return { range, text: ["On Error GoTo 0", "Disables the current On Error handler; runtime errors terminate the program again."] };
+                return { range, text: ["On Error GoTo 0", keywordDescription("Keywords_OnErrorGoTo0", "Disables the current On Error handler; runtime errors terminate the program again.")] };
             case "gosub":
-                return { range, text: ["On Error GoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."] };
+                return { range, text: ["On Error GoSub", keywordDescription("Keywords_OnErrorGoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.")] };
             default:
                 return { range, text: ["On Error", "Configures the runtime error handling policy."] };
         }
+    }
+
+    function keywordDescription(key: string, fallback: string): string {
+        const localized = DocumentationResources.get(key);
+        return typeof localized === "string" && localized.length > 0 ? localized : fallback;
     }
 
     function provideUserSymbolHover(compilation: Compilation, position: CompilerPosition): Result | undefined {

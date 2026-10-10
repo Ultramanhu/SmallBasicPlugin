@@ -161,12 +161,30 @@
   </Target>
 
   <Target Name="PrepareRunHostForVsix" BeforeTargets="GetVsixSourceItems">
-    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=net48" />
+    <!-- The RunHost payload and the compiler tool are staged into the VSIX as
+         loose files, so they are built here with the MSBuild task instead of
+         being ProjectReferences (which would pull their assemblies into the
+         extension's own reference set). That keeps them outside this project's
+         restore graph: the implicit restore of a command line build - and of
+         build\Package-Vsix.ps1, which builds exactly this project - does not
+         cover them, and a build that starts from a clean tree therefore fails
+         with NETSDK1004 (project.assets.json not found). Restore them
+         explicitly; each call is a no-op once the assets exist. -->
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj" Targets="Restore" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Compiler.Tool\SmallBasic.Compiler.Tool.csproj" Targets="Restore" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.CompiledDebugAdapter\SmallBasic.CompiledDebugAdapter.csproj" Targets="Restore" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj" Targets="Restore" />
+
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\SmallBasic.RunHost.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=net48;RuntimeIdentifier=" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Compiler.Tool\SmallBasic.Compiler.Tool.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=net48;RuntimeIdentifier=" />
+    <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.CompiledDebugAdapter\SmallBasic.CompiledDebugAdapter.csproj" Targets="Build" Properties="Configuration=$(Configuration);TargetFramework=net48;RuntimeIdentifier=" />
 
     <PropertyGroup>
       <BlazorRunHostStaging>$(MSBuildProjectDirectory)\obj\$(Configuration)\vsix\runhost\blazor\</BlazorRunHostStaging>
+      <CompilerStaging>$(MSBuildProjectDirectory)\obj\$(Configuration)\vsix\runhost\compiler\</CompilerStaging>
     </PropertyGroup>
     <RemoveDir Directories="$(BlazorRunHostStaging)" />
+    <RemoveDir Directories="$(CompilerStaging)" />
     <MSBuild Projects="$(MSBuildThisFileDirectory)..\SmallBasic.Blazor.RunHost\SmallBasic.Blazor.RunHost.csproj" Targets="Publish" Properties="Configuration=$(Configuration);TargetFramework=net8.0;PublishDir=$(BlazorRunHostStaging)" />
 
     <PropertyGroup>
@@ -175,10 +193,27 @@
 
     <MakeDir Directories="$([System.IO.Path]::GetDirectoryName('$(JavaScriptRunHostStaging)'))" Condition="Exists('$(JavaScriptRunHostSource)')" />
     <Copy SourceFiles="$(JavaScriptRunHostSource)" DestinationFiles="$(JavaScriptRunHostStaging)" SkipUnchangedFiles="true" Condition="Exists('$(JavaScriptRunHostSource)')" />
+    <MakeDir Directories="$(CompilerStaging)template\net48\" />
+
+    <ItemGroup>
+      <CompilerToolFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.Compiler.Tool\bin\$(Configuration)\net48\**\*" />
+      <CompiledDebugAdapterFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.CompiledDebugAdapter\bin\$(Configuration)\net48\**\*" />
+      <CompilerTemplateFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(CompilerToolFiles)"
+          DestinationFiles="@(CompilerToolFiles->'$(CompilerStaging)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(CompiledDebugAdapterFiles)"
+          DestinationFiles="@(CompiledDebugAdapterFiles->'$(CompilerStaging)%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="@(CompilerTemplateFiles)"
+          DestinationFiles="@(CompilerTemplateFiles->'$(CompilerStaging)template\net48\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
 
     <ItemGroup>
       <RunHostFiles Include="$(MSBuildThisFileDirectory)..\SmallBasic.RunHost\bin\$(Configuration)\net48\**\*" />
       <BlazorRunHostFiles Include="$(BlazorRunHostStaging)**\*" />
+      <CompilerPayloadFiles Include="$(CompilerStaging)**\*" />
       <Content Include="@(RunHostFiles)">
         <Link>runhost\csharp\%(RecursiveDir)%(Filename)%(Extension)</Link>
         <IncludeInVSIX>true</IncludeInVSIX>
@@ -189,6 +224,10 @@
       </Content>
       <Content Include="$(JavaScriptRunHostStaging)" Condition="Exists('$(JavaScriptRunHostStaging)')">
         <Link>runhost\javascript\smallbasic-runhost.js</Link>
+        <IncludeInVSIX>true</IncludeInVSIX>
+      </Content>
+      <Content Include="@(CompilerPayloadFiles)">
+        <Link>runhost\compiler\%(RecursiveDir)%(Filename)%(Extension)</Link>
         <IncludeInVSIX>true</IncludeInVSIX>
       </Content>
     </ItemGroup>

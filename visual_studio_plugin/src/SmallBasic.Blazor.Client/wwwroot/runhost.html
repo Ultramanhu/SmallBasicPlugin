@@ -17,7 +17,7 @@
             <span class="brand">Small Basic</span>
             <span class="web-subtitle">RunHost</span>
             <label class="web-field" id="program-field">
-                <span>Program</span>
+                <span data-i18n="programLabel">程序</span>
                 <select class="web-select" id="program-select"></select>
             </label>
             <label class="web-file-button" id="file-field" data-i18n-title="fileFieldTitle" title="选择本地 .sb 文件，也可以直接把文件拖到页面上">
@@ -25,28 +25,28 @@
                 <input accept=".sb,.txt,text/plain" id="file-input" type="file" />
             </label>
             <label class="web-field" id="backend-field">
-                <span>Backend</span>
+                <span data-i18n="backendLabel">后端</span>
                 <select class="web-select" id="backend-select">
-                    <option value="javascript">JavaScript (TextWindow)</option>
-                    <option value="blazor">Blazor WASM (GraphicsWindow)</option>
+                    <option value="javascript" data-i18n="backendJavaScript">JavaScript（TextWindow 文本窗口）</option>
+                    <option value="blazor" data-i18n="backendBlazor">Blazor WASM（GraphicsWindow 图形窗口）</option>
                 </select>
             </label>
-            <button class="web-button primary" id="run-button" type="button">Run</button>
-            <button class="web-button" id="stop-button" type="button" disabled>Stop</button>
-            <span class="web-status" id="status">Ready</span>
+            <button class="web-button primary" id="run-button" type="button" data-i18n="runButton">运行</button>
+            <button class="web-button" id="stop-button" type="button" disabled data-i18n="stopButton">停止</button>
+            <span class="web-status" id="status" data-i18n="statusReady">就绪</span>
             <button class="web-button" id="locale-button" type="button" aria-label="Switch UI language / 切换界面语言">中文</button>
         </header>
 
         <section class="web-pane web-output-pane" id="output-pane">
             <div class="web-pane-header">
-                <span class="web-pane-title">Output</span>
+                <span class="web-pane-title" data-i18n="outputTitle">输出</span>
                 <span class="web-pane-note" id="output-note">TextWindow 输出同时写入浏览器控制台（F12 / Console）。</span>
             </div>
             <pre class="web-console" id="console" hidden></pre>
             <form class="web-input-row" hidden id="input-row">
-                <span id="input-prompt">Read</span>
+                <span id="input-prompt" data-i18n="inputPromptRead">输入</span>
                 <input autocomplete="off" id="input-field" type="text" />
-                <button type="submit">Send</button>
+                <button type="submit" data-i18n="sendButton">发送</button>
             </form>
             <div class="web-blazor-host" id="blazor-host">
                 <div id="app"></div>
@@ -57,7 +57,7 @@
 
     <div id="blazor-error-ui">
         <span data-i18n="blazorError">运行 Small Basic Blazor WASM 后端时发生未处理的错误。</span>
-        <a class="reload" href="">Reload</a>
+        <a class="reload" href="" data-i18n="reloadButton">重新加载</a>
         <span class="dismiss">🗙</span>
     </div>
 

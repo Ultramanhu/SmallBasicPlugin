@@ -118,6 +118,8 @@ try {
         'extension/dist/debug/adapter.js',
         'extension/dist/web/extension.js',
         'extension/dist/web-runhost.js',
+        'extension/runhost/compiler/SmallBasic.Compiler.Tool.exe',
+        'extension/runhost/compiler/template/net48/SmallBasic.RunHost.exe',
         'extension/runhost/windows/SmallBasic.RunHost.exe',
         'extension/runhost/portable/SmallBasic.RunHost.dll',
         'extension/runhost/blazor/SmallBasic.Blazor.RunHost.dll',

@@ -25,7 +25,7 @@
 >
 > **2026-09-30 补充（Web 模式调试落地）**
 >
-> - VS Code 的 `mode: "web"` 已支持 `javascript` 与 `blazor` 的 F5 调试：**两个后端都在 Webview 内运行**（JavaScript 引擎在页面里，Blazor 是页面的 WASM），共用同一份 Inline DAP 适配器，F5 都会弹出页面并由 VS Code 原生调试 UI 驱动；`csharp` 仍只支持 `mode: "cli"`。详见 [09](./09-Blazor与Web运行宿主.md)。
+> - VS Code 的 `mode: "web"` 已支持 `javascript` 与 `blazor` 的 F5 调试：**两个后端都在 Webview 内运行**（JavaScript 引擎在页面里，Blazor 是页面的 WASM），共用同一份 Inline DAP 适配器，F5 都会弹出页面并由 VS Code 原生调试 UI 驱动；`csharp` 仍只支持 `mode: "cli"`。此外 VS Code for the Web 也支持 `mode: "cli"` + `backend: "javascript"`（引擎内联在扩展宿主，F5 调试 / Ctrl+F5 终端运行，不弹 Webview）；CLI C# 被拒绝，CLI Blazor 回落到 Web 模式。详见 [09](./09-Blazor与Web运行宿主.md)。
 > - Web 调试协议集中在 `src/web/debug-protocol.ts`（`protocolVersion` = 1），C# 侧在 `SmallBasic.Blazor.Shared/Protocol.cs` 镜像；断点吸附、条件断点、单步与终止语义集中在宿主无关的 `src/debug/engine-driver.ts`（CLI JavaScript DAP 与页面内 JavaScript 运行时共用），Blazor 侧复用 `BrowserEngineSession`。CLI 各后端体验不变。
 
 ## 文档索引
@@ -43,6 +43,7 @@
 | [09-Blazor与Web运行宿主.md](./09-Blazor与Web运行宿主.md) | Blazor / CLI RunHost、静态 Web RunHost，以及 VS Code Web 模式的运行与调试链路 |
 | [10-Playground与Tauri本地应用.md](./10-Playground与Tauri本地应用.md) | Monaco Playground 的入口、共享语言 Worker、构建分发、页内调试、实测状态，以及 Tauri 本地应用、C# CLI 后端（2026-10-03 收敛）和 `runhost/playground/` 统一产物布局 |
 | [11-SmallBasic语言扩展.md](./11-SmallBasic语言扩展.md) | Small Basic 语言扩展总览、通用要求、统一结构、共同门禁与分册组织方式 |
+| [12-CSharp编译器模式与可执行文件支持设计.md](./12-CSharp编译器模式与可执行文件支持设计.md) | 调查官方 C# 资产是否已有 compiler mode / EXE 发射能力，并给出 VS / VS Code 的编译、运行、调试与三运行时支持设计 |
 | [extends/README.md](./extends/README.md) | 按功能点拆分的语言扩展分册索引：过程与作用域、循环控制、整除与取余、GoSub 与 On Error |
 
 ## 方案摘要（TL;DR）

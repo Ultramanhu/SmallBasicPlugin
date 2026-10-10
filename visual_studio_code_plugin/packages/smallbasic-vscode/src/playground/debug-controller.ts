@@ -172,6 +172,11 @@ export interface DebugControllerLabels {
   emptyStack: string;
   emptyVariables: string;
   editEndedSession: string;
+  /** Status-line texts the controller writes (see PlaygroundStatusText). */
+  startingSession: string;
+  failed: string;
+  stopped: string;
+  sessionError: string;
   titles: {
     continue: string;
     pause: string;
@@ -240,7 +245,7 @@ export class PlaygroundDebugController {
     this.lastProgram = { name: name || "program.sb", source, backend };
     this.options.shell.setRunning(true);
     this.updateToolbar();
-    this.options.shell.setStatus("Starting debug session…");
+    this.options.shell.setStatus(this.options.labels.startingSession);
 
     try {
       this.transport = await this.options.createTransport(backend);
@@ -266,7 +271,7 @@ export class PlaygroundDebugController {
     const { name, source, backend } = this.lastProgram;
     void this.start(name, source, backend).catch((error: unknown) => {
       this.options.shell.showRuntimeDiagnostics(error instanceof Error ? error.message : String(error));
-      this.options.shell.setStatus("Failed");
+      this.options.shell.setStatus(this.options.labels.failed);
     });
   }
 
@@ -278,7 +283,7 @@ export class PlaygroundDebugController {
 
     this.send({ type: "stop" } satisfies DebugCommand);
     this.endSession();
-    this.options.shell.setStatus("Stopped");
+    this.options.shell.setStatus(this.options.labels.stopped);
   }
 
   /** Called on every model change; the first edit ends a running session. */
@@ -349,7 +354,7 @@ export class PlaygroundDebugController {
         this.endSession();
         break;
       case "error":
-        this.options.shell.showRuntimeDiagnostics(event.message || "Debug session error.");
+        this.options.shell.showRuntimeDiagnostics(event.message || this.options.labels.sessionError);
         this.endSession();
         break;
     }

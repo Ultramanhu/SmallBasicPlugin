@@ -1,4 +1,4 @@
-// visual_studio_code_plugin/node_modules/@tauri-apps/api/external/tslib/tslib.es6.js
+// smallbasic_playground_app/node_modules/@tauri-apps/api/external/tslib/tslib.es6.js
 function __classPrivateFieldGet(receiver, state, kind, f) {
   if (kind === "a" && !f) throw new TypeError("Private accessor was defined without a getter");
   if (typeof state === "function" ? receiver !== state || !f : !state.has(receiver)) throw new TypeError("Cannot read private member from an object whose class did not declare it");
@@ -11,11 +11,13 @@ function __classPrivateFieldSet(receiver, state, value, kind, f) {
   return kind === "a" ? f.call(receiver, value) : f ? f.value = value : state.set(receiver, value), value;
 }
 
-// visual_studio_code_plugin/node_modules/@tauri-apps/api/core.js
+// smallbasic_playground_app/node_modules/@tauri-apps/api/core.js
+var _Channel_instances;
 var _Channel_onmessage;
 var _Channel_nextMessageIndex;
 var _Channel_pendingMessages;
 var _Channel_messageEndIndex;
+var _Channel_deliver;
 var _Resource_rid;
 var SERIALIZE_TO_IPC_FN = "__TAURI_TO_IPC_KEY__";
 function transformCallback(callback, once = false) {
@@ -23,6 +25,7 @@ function transformCallback(callback, once = false) {
 }
 var Channel = class {
   constructor(onmessage) {
+    _Channel_instances.add(this);
     _Channel_onmessage.set(this, void 0);
     _Channel_nextMessageIndex.set(this, 0);
     _Channel_pendingMessages.set(this, []);
@@ -41,11 +44,11 @@ var Channel = class {
       }
       const message = rawMessage.message;
       if (index == __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")) {
-        __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message);
+        __classPrivateFieldGet(this, _Channel_instances, "m", _Channel_deliver).call(this, message);
         __classPrivateFieldSet(this, _Channel_nextMessageIndex, __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") + 1, "f");
         while (__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") in __classPrivateFieldGet(this, _Channel_pendingMessages, "f")) {
           const message2 = __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")];
-          __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message2);
+          __classPrivateFieldGet(this, _Channel_instances, "m", _Channel_deliver).call(this, message2);
           delete __classPrivateFieldGet(this, _Channel_pendingMessages, "f")[__classPrivateFieldGet(this, _Channel_nextMessageIndex, "f")];
           __classPrivateFieldSet(this, _Channel_nextMessageIndex, __classPrivateFieldGet(this, _Channel_nextMessageIndex, "f") + 1, "f");
         }
@@ -73,7 +76,15 @@ var Channel = class {
   get onmessage() {
     return __classPrivateFieldGet(this, _Channel_onmessage, "f");
   }
-  [(_Channel_onmessage = /* @__PURE__ */ new WeakMap(), _Channel_nextMessageIndex = /* @__PURE__ */ new WeakMap(), _Channel_pendingMessages = /* @__PURE__ */ new WeakMap(), _Channel_messageEndIndex = /* @__PURE__ */ new WeakMap(), SERIALIZE_TO_IPC_FN)]() {
+  [(_Channel_onmessage = /* @__PURE__ */ new WeakMap(), _Channel_nextMessageIndex = /* @__PURE__ */ new WeakMap(), _Channel_pendingMessages = /* @__PURE__ */ new WeakMap(), _Channel_messageEndIndex = /* @__PURE__ */ new WeakMap(), _Channel_instances = /* @__PURE__ */ new WeakSet(), _Channel_deliver = function _Channel_deliver2(message) {
+    try {
+      __classPrivateFieldGet(this, _Channel_onmessage, "f").call(this, message);
+    } catch (error) {
+      queueMicrotask(() => {
+        throw error;
+      });
+    }
+  }, SERIALIZE_TO_IPC_FN)]() {
     return `__CHANNEL__:${this.id}`;
   }
   toJSON() {
@@ -108,7 +119,7 @@ var Resource = class {
   }
 };
 
-// visual_studio_code_plugin/packages/smallbasic-playground-desktop/src/desktop-bridge.ts
+// smallbasic_playground_app/src/desktop-bridge.ts
 function isTauriRuntime() {
   return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 }
@@ -132,6 +143,9 @@ var TauriDesktopBridge = class {
       backend: request.backend,
       name: request.name,
       source: request.source,
+      // The compiler backend refuses to start without it; the RunHost
+      // flavours ignore it.
+      outputDirectory: request.outputDirectory ?? null,
       onEvent: channel
     });
   }
@@ -150,24 +164,39 @@ var TauriDesktopBridge = class {
   async saveProgramFile(defaultName, source) {
     return invoke("save_program_file", { defaultName, source });
   }
+  async pickCompileDirectory() {
+    return invoke("pick_compile_directory");
+  }
 };
 
-// visual_studio_code_plugin/packages/smallbasic-playground-desktop/src/backend-capabilities.ts
+// smallbasic_playground_app/src/backend-capabilities.ts
 function resolveCliBackends(capabilities) {
   return [
     {
       id: "cli-csharp-net48",
-      label: "C# (.NET Framework 4.8)",
+      label: "C# (.net Framework 4.8)",
       available: capabilities.backends.cliCsharpNet48,
       supportsGraphics: capabilities.graphics.cliCsharpNet48,
-      supportsStdin: true
+      supportsStdin: true,
+      requiresOutputDirectory: false
     },
     {
       id: "cli-csharp-net8",
-      label: "C# (.NET 8.0)",
+      label: "C# (.net 8.0)",
       available: capabilities.backends.cliCsharpNet8,
       supportsGraphics: capabilities.graphics.cliCsharpNet8,
-      supportsStdin: true
+      supportsStdin: true,
+      requiresOutputDirectory: false
+    },
+    {
+      // The compiled artifact is a net48 template deployment, so it inherits
+      // the Windows GraphicsWindow host (doc 10, §19.5).
+      id: "cli-compiler-net48",
+      label: "Compiler (.net Framework 4.8)",
+      available: capabilities.backends.cliCompilerNet48,
+      supportsGraphics: capabilities.graphics.cliCsharpNet48,
+      supportsStdin: true,
+      requiresOutputDirectory: true
     }
   ];
 }
@@ -192,16 +221,22 @@ function fromDapLine(dapLine) {
   return dapLine - 1;
 }
 
-// visual_studio_code_plugin/packages/smallbasic-playground-desktop/src/local-cli-debug-transport.ts
+// smallbasic_playground_app/src/local-cli-debug-transport.ts
 var REQUEST_TIMEOUT_MS = 1e4;
 var VARIABLE_CHILDREN_LIMIT = 100;
 var NUMBER_INPUT_HINT = /debug console/i;
 var NUMBER_INPUT_KEYWORD = /number|数字/i;
 var LocalCliDebugTransport = class {
-  constructor(bridge, backend, sinks) {
+  /**
+   * @param outputDirectory Artifact directory of an embedder compiler backend;
+   *   the Rust shell compiles into it before the adapter starts. The RunHost
+   *   flavours ignore it (doc 10, §19.5).
+   */
+  constructor(bridge, backend, sinks, outputDirectory = null) {
     this.bridge = bridge;
     this.backend = backend;
     this.sinks = sinks;
+    this.outputDirectory = outputDirectory;
   }
   pending = /* @__PURE__ */ new Map();
   /** Responses that arrived before `debug_request` resolved its seq number. */
@@ -219,6 +254,7 @@ var LocalCliDebugTransport = class {
       backend: this.backend,
       name: payload.name,
       source: payload.source,
+      outputDirectory: this.outputDirectory,
       onEvent: (event) => this.onSessionEvent(event)
     });
     this.started = true;
@@ -290,7 +326,12 @@ var LocalCliDebugTransport = class {
     const body = await this.request("launch", {
       program: this.session.programPath,
       name: this.programName,
-      stopOnEntry: false
+      stopOnEntry: false,
+      // The compiler backend keeps the session program in its own scratch
+      // directory and stages the artifact in the directory the user picked, so
+      // the compiled adapter has to be told where to look (doc 10, §19.5). The
+      // RunHost flavours leave this unset and resolve nothing from it.
+      ...this.session.artifactDirectory ? { outputDirectory: this.session.artifactDirectory } : {}
     }).catch(async (error) => {
       this.sinks.emit({ type: "error", message: error.message });
       throw error;
@@ -518,7 +559,7 @@ function echoToConsole(controller, text) {
   controller.mirrorToConsole(text);
 }
 
-// visual_studio_code_plugin/packages/smallbasic-playground-desktop/src/desktop-entry.ts
+// smallbasic_playground_app/src/desktop-entry.ts
 async function activateDesktopPlayground() {
   if (!isTauriRuntime()) {
     return;
@@ -533,16 +574,18 @@ async function activateDesktopPlayground() {
   const capabilities = await bridge.capabilities();
   const available = resolveCliBackends(capabilities).filter((backend) => backend.available);
   if (available.length === 0) {
-    context.controller.setStatus("Desktop backends unavailable");
+    context.controller.setStatus(context.status.desktopBackendsUnavailable);
     return;
   }
+  const compileBackend = available.find((backend) => backend.requiresOutputDirectory);
+  let compileDirectory = null;
   const sessions = /* @__PURE__ */ new Map();
   for (const backend of available) {
     const session = new CliRunSession(bridge, context, backend);
     sessions.set(backend.id, session);
     api.registerBackend(backend.id, {
       label: backend.label,
-      run: (snapshot) => session.run(snapshot),
+      run: (snapshot) => session.run(snapshot, compileDirectory),
       stop: () => session.stop(),
       onInput: (text) => session.sendInput(text)
     });
@@ -553,9 +596,25 @@ async function activateDesktopPlayground() {
         // CLI sessions drive the same status bar as the Web sessions.
         emit: (event) => context.notify(event),
         onOutput: (text) => echoToConsole(context.controller, text)
-      }))
+      }, compileDirectory))
     );
   }
+  api.registerCompileDirectory(compileBackend ? {
+    backend: compileBackend.id,
+    getDirectory: () => compileDirectory,
+    chooseDirectory: async () => {
+      try {
+        const chosen = await bridge.pickCompileDirectory();
+        if (chosen) {
+          compileDirectory = chosen;
+        }
+        return chosen;
+      } catch (error) {
+        context.controller.showRuntimeDiagnostics(describeError(error));
+        return null;
+      }
+    }
+  } : null);
   api.addModelChangedListener(() => {
     for (const session of sessions.values()) {
       session.endFromEdit();
@@ -564,7 +623,7 @@ async function activateDesktopPlayground() {
   api.registerSaveHandler(async (name, source) => {
     const saved = await bridge.saveProgramFile(name, source);
     if (saved) {
-      context.controller.setStatus(`Saved ${saved}`);
+      context.controller.setStatus(context.status.saved(saved));
     }
     return saved;
   });
@@ -583,12 +642,12 @@ var CliRunSession = class {
   }
   info = null;
   stopping = false;
-  async run(snapshot) {
+  async run(snapshot, outputDirectory) {
     await this.endActive();
     this.stopping = false;
     const controller = this.context.controller;
     controller.setRunning(true);
-    controller.setStatus(`Starting ${this.descriptor.label}\u2026`);
+    controller.setStatus(this.context.status.backendStarting(this.descriptor.label));
     if (this.descriptor.supportsGraphics && usesGraphics(snapshot.source)) {
       controller.setSessionInputVisible(false);
     } else {
@@ -599,14 +658,15 @@ var CliRunSession = class {
         backend: this.descriptor.id,
         name: snapshot.name,
         source: snapshot.source,
+        outputDirectory,
         onEvent: (event) => this.onEvent(event)
       });
-      controller.setStatus(`Running ${snapshot.name}\u2026`);
+      controller.setStatus(this.context.status.backendRunning(snapshot.name));
     } catch (error) {
       this.info = null;
       controller.setSessionInputVisible(false);
       controller.setRunning(false);
-      controller.setStatus("Failed");
+      controller.setStatus(this.context.status.failed);
       controller.showRuntimeDiagnostics(describeError(error));
     }
   }
@@ -615,7 +675,7 @@ var CliRunSession = class {
       return;
     }
     this.stopping = true;
-    this.context.controller.setStatus("Stopping\u2026");
+    this.context.controller.setStatus(this.context.status.stopping);
     await this.terminate(this.info.sessionId);
   }
   sendInput(text) {
@@ -634,7 +694,7 @@ var CliRunSession = class {
     this.stopping = true;
     this.context.controller.setSessionInputVisible(false);
     this.context.controller.setRunning(false);
-    this.context.controller.setStatus("Editing ended the CLI session.");
+    this.context.controller.setStatus(this.context.status.editingEndedCliSession);
     void this.terminate(this.info.sessionId);
   }
   async endActive() {
@@ -666,7 +726,7 @@ var CliRunSession = class {
         this.info = null;
         controller.setSessionInputVisible(false);
         controller.setRunning(false);
-        controller.setStatus(sessionExitStatus(event.exitCode, this.stopping));
+        controller.setStatus(sessionExitStatus(this.context.status, event.exitCode, this.stopping));
         break;
       }
       default:
@@ -674,11 +734,11 @@ var CliRunSession = class {
     }
   }
 };
-function sessionExitStatus(exitCode, stopped) {
+function sessionExitStatus(status, exitCode, stopped) {
   if (stopped || exitCode === null) {
-    return "Stopped";
+    return status.stopped;
   }
-  return exitCode === 0 ? "Completed" : `Exited with code ${exitCode}`;
+  return exitCode === 0 ? status.completed : status.exitedWithCode(exitCode);
 }
 function usesGraphics(source) {
   return /\b(GraphicsWindow|Shapes|Turtle)\s*[\.(]/i.test(source || "");

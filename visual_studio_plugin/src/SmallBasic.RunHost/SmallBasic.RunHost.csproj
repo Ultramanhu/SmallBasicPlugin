@@ -43,6 +43,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\SmallBasic.CompiledArtifacts\SmallBasic.CompiledArtifacts.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />
   </ItemGroup>

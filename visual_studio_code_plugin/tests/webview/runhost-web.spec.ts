@@ -185,8 +185,10 @@ test.describe("runhost/web static distribution", () => {
     // continuous mouse path (a single teleporting move does not trigger it).
     // After the reload the editor shows the default sample again, whose line
     // 1 is `TextWindow.WriteLine("Hello, World!")` — wait for the language
-    // worker to settle, then glide onto the library object.
-    await expect(page.locator("#status")).toContainText("Loaded", { timeout: 60_000 });
+    // worker to settle, then glide onto the library object. The toggle above
+    // switched this page to Chinese, so the status line reports the freshly
+    // loaded default sample in Chinese as well.
+    await expect(page.locator("#status")).toContainText("已加载", { timeout: 60_000 });
     await page.waitForTimeout(800);
     const lineBox = await page.locator("#editor-host .view-line").first().boundingBox();
     await page.mouse.move(lineBox.x + 400, lineBox.y + 400, { steps: 4 });

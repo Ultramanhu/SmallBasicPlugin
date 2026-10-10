@@ -23,6 +23,12 @@ export function csharpHostMissing(scenario: "运行" | "调试"): string {
     "或安装 .NET 8 后重新安装完整的扩展包。";
 }
 
+/** The local compiler tool payload could not be resolved. */
+export function csharpCompilerMissing(): string {
+  return "未找到 Small Basic C# 编译工具。请在设置中配置 smallbasic.csharp.compilerPath，" +
+    "或先运行 runhost\\Build-RunHost.ps1 生成 runhost\\compiler 载荷。";
+}
+
 /** The local C# RunHost is too old for the Function/Dim/Return extension. */
 export function csharpHostMissingFunctions(scenario: "运行" | "调试"): string {
   return `当前 SmallBasic C# ${scenario}宿主不支持 Function/Dim/Return。` +

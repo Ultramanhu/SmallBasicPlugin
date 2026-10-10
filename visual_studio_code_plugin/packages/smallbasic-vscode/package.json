@@ -90,6 +90,12 @@
         "enablement": "!isWeb"
       },
       {
+        "command": "smallbasic.compileCSharp",
+        "title": "SmallBasic: Compile to C# EXE",
+        "icon": "$(package)",
+        "enablement": "!isWeb && isWindows"
+      },
+      {
         "command": "smallbasic.runBlazor",
         "title": "SmallBasic: Run with Blazor Backend",
         "icon": "$(play)"
@@ -105,6 +111,11 @@
         {
           "command": "smallbasic.runCSharp",
           "when": "resourceLangId == smallbasic && !isWeb",
+          "group": "navigation"
+        },
+        {
+          "command": "smallbasic.compileCSharp",
+          "when": "resourceLangId == smallbasic && !isWeb && isWindows",
           "group": "navigation"
         },
         {
@@ -241,6 +252,11 @@
           "type": "string",
           "default": "",
           "description": "Path to SmallBasic.RunHost.exe or SmallBasic.RunHost.dll for the C# runtime backend. If empty, the extension uses the bundled Windows or portable host."
+        },
+        "smallbasic.csharp.compilerPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to SmallBasic.Compiler.Tool.exe for compile-to-EXE workflows. If empty, the extension uses the bundled compiler payload under runhost/compiler."
         },
         "smallbasic.blazor.runHostPath": {
           "type": "string",

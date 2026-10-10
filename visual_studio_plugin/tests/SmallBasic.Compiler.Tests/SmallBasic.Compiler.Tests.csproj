@@ -6,6 +6,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\SmallBasic.CompiledArtifacts\SmallBasic.CompiledArtifacts.csproj" />
     <ProjectReference Include="..\..\src\SmallBasic.RunHost\SmallBasic.RunHost.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Compiler\SmallBasic.Compiler.csproj" />
     <ProjectReference Include="..\..\vendor\SmallBasicEditor\Source\SmallBasic.Utilities\SmallBasic.Utilities.csproj" />

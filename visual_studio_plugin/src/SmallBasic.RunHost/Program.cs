@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.IO;
+using SmallBasic.CompiledArtifacts;
 using SmallBasic.Compiler;
 using SmallBasic.RunHost;
 using SmallBasic.RunHost.Debug;
@@ -35,7 +36,7 @@ if (args.Length >= 1 && string.Equals(args[0], "debug", StringComparison.Ordinal
 #endif
 }
 
-if (!TryParseArguments(args, out var filePath, out var pauseOnExit, out var errorMessage))
+if (!TryResolveProgramInvocation(args, out var filePath, out var pauseOnExit, out var errorMessage))
 {
     Console.Error.WriteLine(errorMessage);
     PauseAndExit(1, pauseOnExit: true);
@@ -120,7 +121,7 @@ static void PauseAndExit(int code, bool pauseOnExit)
     Environment.Exit(code);
 }
 
-static bool TryParseArguments(string[] args, out string filePath, out bool pauseOnExit, out string errorMessage)
+static bool TryResolveProgramInvocation(string[] args, out string filePath, out bool pauseOnExit, out string errorMessage)
 {
     filePath = string.Empty;
     pauseOnExit = args.Any(value => string.Equals(value, "--pause", StringComparison.OrdinalIgnoreCase));
@@ -139,5 +140,81 @@ static bool TryParseArguments(string[] args, out string filePath, out bool pause
         }
     }
 
+    bool compiledCandidate = args.Length == 0 || (args.Length >= 1 && string.Equals(args[0], "run", StringComparison.OrdinalIgnoreCase));
+    if (compiledCandidate)
+    {
+        bool resolvedCompiledProgram = TryResolveCompiledArtifactProgram(out string compiledProgramPath, out string compiledError);
+        if (resolvedCompiledProgram)
+        {
+            filePath = compiledProgramPath;
+            // A generated EXE is primarily launched directly (double-click / Start
+            // menu / explorer). Keep the window open by default so TextWindow
+            // output does not disappear as soon as the process exits.
+            if (args.Length == 0)
+            {
+                pauseOnExit = true;
+            }
+
+            errorMessage = string.Empty;
+            return true;
+        }
+
+        if (!string.IsNullOrEmpty(compiledError))
+        {
+            errorMessage = compiledError;
+        }
+    }
+
     return false;
+}
+
+static bool TryResolveCompiledArtifactProgram(out string filePath, out string errorMessage)
+{
+    filePath = string.Empty;
+    errorMessage = string.Empty;
+
+    string currentExecutablePath = GetCurrentExecutablePath();
+    if (string.IsNullOrWhiteSpace(currentExecutablePath) || !File.Exists(currentExecutablePath))
+    {
+        return false;
+    }
+
+    CompiledProgramArtifact artifact = CompiledProgramLayout.ForExecutable(currentExecutablePath);
+    if (!File.Exists(artifact.ManifestPath))
+    {
+        return false;
+    }
+
+    CompiledProgramManifest manifest;
+    try
+    {
+        manifest = CompiledProgramLayout.LoadManifest(artifact.ManifestPath);
+    }
+    catch (Exception ex)
+    {
+        errorMessage = $"Failed to read compiled Small Basic manifest: {ex.Message}";
+        return false;
+    }
+
+    filePath = Path.Combine(artifact.OutputDirectory, manifest.ProgramFile);
+    if (!File.Exists(filePath))
+    {
+        errorMessage = $"Compiled Small Basic source payload not found: {filePath}";
+        return false;
+    }
+
+    return true;
+}
+
+static string GetCurrentExecutablePath()
+{
+    try
+    {
+        return System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName
+            ?? string.Empty;
+    }
+    catch
+    {
+        return string.Empty;
+    }
 }

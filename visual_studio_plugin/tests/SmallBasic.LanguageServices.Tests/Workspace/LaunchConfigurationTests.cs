@@ -26,7 +26,7 @@ namespace SmallBasic.LanguageServices
             var projectTargets = new List<string>();
             string? defaultBackend = null;
 
-            configurations.GetArrayLength().Should().Be(3);
+            configurations.GetArrayLength().Should().Be(4);
             foreach (JsonElement configuration in configurations.EnumerateArray())
             {
                 configuration.GetProperty("type").GetString().Should().Be("smallbasic");
@@ -62,7 +62,7 @@ namespace SmallBasic.LanguageServices
                 projectTargets.Add(projectTarget);
             }
 
-            backends.Should().BeEquivalentTo("javascript", "csharp", "blazor");
+            backends.Should().BeEquivalentTo("javascript", "csharp", "blazor", "compiled-csharp");
             defaultBackend.Should().Be("csharp");
             projectTargets.Should().OnlyHaveUniqueItems(
                 "Visual Studio identifies targets by project and projectTarget, not by configuration name");

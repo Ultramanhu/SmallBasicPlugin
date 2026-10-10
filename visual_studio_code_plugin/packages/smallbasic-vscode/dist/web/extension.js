@@ -6248,7 +6248,7 @@ var require_debugSession = __commonJS({
     var messages_1 = require_messages();
     var runDebugAdapter_1 = require_runDebugAdapterStub();
     var url_1 = require_url();
-    var Source2 = class {
+    var Source3 = class {
       constructor(name, path, id = 0, origin, data) {
         this.name = name;
         this.path = path;
@@ -6261,16 +6261,16 @@ var require_debugSession = __commonJS({
         }
       }
     };
-    exports.Source = Source2;
-    var Scope2 = class {
+    exports.Source = Source3;
+    var Scope3 = class {
       constructor(name, reference, expensive = false) {
         this.name = name;
         this.variablesReference = reference;
         this.expensive = expensive;
       }
     };
-    exports.Scope = Scope2;
-    var StackFrame4 = class {
+    exports.Scope = Scope3;
+    var StackFrame5 = class {
       constructor(i, nm, src, ln = 0, col = 0) {
         this.id = i;
         this.source = src;
@@ -6279,8 +6279,8 @@ var require_debugSession = __commonJS({
         this.name = nm;
       }
     };
-    exports.StackFrame = StackFrame4;
-    var Thread2 = class {
+    exports.StackFrame = StackFrame5;
+    var Thread3 = class {
       constructor(id, name) {
         this.id = id;
         if (name) {
@@ -6290,7 +6290,7 @@ var require_debugSession = __commonJS({
         }
       }
     };
-    exports.Thread = Thread2;
+    exports.Thread = Thread3;
     var Variable = class {
       constructor(name, value, ref = 0, indexedVariables, namedVariables) {
         this.name = name;
@@ -6339,7 +6339,7 @@ var require_debugSession = __commonJS({
       }
     };
     exports.CompletionItem = CompletionItem2;
-    var StoppedEvent = class extends messages_1.Event {
+    var StoppedEvent2 = class extends messages_1.Event {
       constructor(reason, threadId, exceptionText) {
         super("stopped");
         this.body = {
@@ -6353,7 +6353,7 @@ var require_debugSession = __commonJS({
         }
       }
     };
-    exports.StoppedEvent = StoppedEvent;
+    exports.StoppedEvent = StoppedEvent2;
     var ContinuedEvent = class extends messages_1.Event {
       constructor(threadId, allThreadsContinued) {
         super("continued");
@@ -6366,13 +6366,13 @@ var require_debugSession = __commonJS({
       }
     };
     exports.ContinuedEvent = ContinuedEvent;
-    var InitializedEvent2 = class extends messages_1.Event {
+    var InitializedEvent3 = class extends messages_1.Event {
       constructor() {
         super("initialized");
       }
     };
-    exports.InitializedEvent = InitializedEvent2;
-    var TerminatedEvent2 = class extends messages_1.Event {
+    exports.InitializedEvent = InitializedEvent3;
+    var TerminatedEvent3 = class extends messages_1.Event {
       constructor(restart) {
         super("terminated");
         if (typeof restart === "boolean" || restart) {
@@ -6383,8 +6383,8 @@ var require_debugSession = __commonJS({
         }
       }
     };
-    exports.TerminatedEvent = TerminatedEvent2;
-    var ExitedEvent2 = class extends messages_1.Event {
+    exports.TerminatedEvent = TerminatedEvent3;
+    var ExitedEvent3 = class extends messages_1.Event {
       constructor(exitCode) {
         super("exited");
         this.body = {
@@ -6392,8 +6392,8 @@ var require_debugSession = __commonJS({
         };
       }
     };
-    exports.ExitedEvent = ExitedEvent2;
-    var OutputEvent2 = class extends messages_1.Event {
+    exports.ExitedEvent = ExitedEvent3;
+    var OutputEvent3 = class extends messages_1.Event {
       constructor(output2, category = "console", data) {
         super("output");
         this.body = {
@@ -6405,7 +6405,7 @@ var require_debugSession = __commonJS({
         }
       }
     };
-    exports.OutputEvent = OutputEvent2;
+    exports.OutputEvent = OutputEvent3;
     var ThreadEvent = class extends messages_1.Event {
       constructor(reason, threadId) {
         super("thread");
@@ -7074,7 +7074,7 @@ var require_loggingDebugSession = __commonJS({
     var Logger = require_logger();
     var logger = Logger.logger;
     var debugSession_1 = require_debugSession();
-    var LoggingDebugSession2 = class extends debugSession_1.DebugSession {
+    var LoggingDebugSession3 = class extends debugSession_1.DebugSession {
       constructor(obsolete_logFilePath, obsolete_debuggerLinesAndColumnsStartAt1, obsolete_isServer) {
         super(obsolete_debuggerLinesAndColumnsStartAt1, obsolete_isServer);
         this.obsolete_logFilePath = obsolete_logFilePath;
@@ -7120,7 +7120,7 @@ var require_loggingDebugSession = __commonJS({
         super.dispatchRequest(request);
       }
     };
-    exports.LoggingDebugSession = LoggingDebugSession2;
+    exports.LoggingDebugSession = LoggingDebugSession3;
   }
 });
 
@@ -7131,7 +7131,7 @@ var require_handles = __commonJS({
     init_polyfills();
     Object.defineProperty(exports, "__esModule", { value: true });
     exports.Handles = void 0;
-    var Handles2 = class {
+    var Handles3 = class {
       constructor(startHandle) {
         this.START_HANDLE = 1e3;
         this._handleMap = /* @__PURE__ */ new Map();
@@ -7150,7 +7150,7 @@ var require_handles = __commonJS({
         return this._handleMap.get(handle) || dflt;
       }
     };
-    exports.Handles = Handles2;
+    exports.Handles = Handles3;
   }
 });
 
@@ -7270,11 +7270,7 @@ __export(extension_exports, {
 });
 module.exports = __toCommonJS(extension_exports);
 init_polyfills();
-var vscode11 = __toESM(require("vscode"));
-
-// src/common/activation.ts
-init_polyfills();
-var vscode7 = __toESM(require("vscode"));
+var vscode12 = __toESM(require("vscode"));
 
 // ../smallbasic-lang-core/src/index.ts
 init_polyfills();
@@ -23909,16 +23905,20 @@ var HoverService;
   function onErrorKeywordHover(onError, range) {
     switch (onError.action) {
       case "resume-next":
-        return { range, text: ["On Error Resume Next", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."] };
+        return { range, text: ["On Error Resume Next", keywordDescription("Keywords_OnErrorResumeNext", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running.")] };
       case "goto-default":
-        return { range, text: ["On Error GoTo -1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."] };
+        return { range, text: ["On Error GoTo -1", keywordDescription("Keywords_OnErrorGoToMinus1", "Clears the current error state and restores the default behavior: a runtime error terminates the program.")] };
       case "goto-clear":
-        return { range, text: ["On Error GoTo 0", "Disables the current On Error handler; runtime errors terminate the program again."] };
+        return { range, text: ["On Error GoTo 0", keywordDescription("Keywords_OnErrorGoTo0", "Disables the current On Error handler; runtime errors terminate the program again.")] };
       case "gosub":
-        return { range, text: ["On Error GoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."] };
+        return { range, text: ["On Error GoSub", keywordDescription("Keywords_OnErrorGoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.")] };
       default:
         return { range, text: ["On Error", "Configures the runtime error handling policy."] };
     }
+  }
+  function keywordDescription(key, fallback) {
+    const localized = DocumentationResources.get(key);
+    return typeof localized === "string" && localized.length > 0 ? localized : fallback;
   }
   function provideUserSymbolHover(compilation, position) {
     for (const func of compilation.parseTree.functions) {
@@ -24056,6 +24056,66 @@ var HoverService;
 
 // ../smallbasic-lang-core/src/debug-expression.ts
 init_polyfills();
+var RESULT_VARIABLE = "__SmallBasicDebugExpression";
+var MAX_EVALUATION_STEPS = 1e5;
+function compileDebugExpression(text) {
+  const normalized = text.replace(/\r?\n/g, " ").trim();
+  if (!normalized) {
+    return void 0;
+  }
+  const compilation = new Compilation(`${RESULT_VARIABLE} = (${normalized})`);
+  if (!compilation.isReadyToRun) {
+    return void 0;
+  }
+  const instructions = compilation.emit()[ModulesBinder.MainModuleName];
+  if (!instructions || instructions.length === 0) {
+    return void 0;
+  }
+  if (instructions.some((instruction) => instruction.kind === 5 /* InvokeSubModule */)) {
+    return void 0;
+  }
+  return { instructions, resultVariable: RESULT_VARIABLE };
+}
+function evaluateDebugExpression(engine, expression, selectedFrame) {
+  const savedState = engine.state;
+  selectedFrame ??= engine.executionStack.length ? engine.executionStack[engine.executionStack.length - 1] : void 0;
+  const localMemory = selectedFrame?.localMemory ?? new ArrayValue();
+  const resultMemory = localMemory.getValue(expression.resultVariable) !== void 0 ? localMemory : engine.memory;
+  const previous = resultMemory.getValue(expression.resultVariable);
+  const hadPrevious = previous !== void 0;
+  const evaluationStackBase = engine.evaluationStack.length;
+  const frame = {
+    moduleName: "<debug-expression>",
+    instructionIndex: 0,
+    localMemory,
+    evaluationStackBase,
+    returnsValue: false
+  };
+  try {
+    let steps = 0;
+    while (frame.instructionIndex < expression.instructions.length) {
+      if (steps >= MAX_EVALUATION_STEPS) {
+        return void 0;
+      }
+      steps += 1;
+      expression.instructions[frame.instructionIndex].execute(engine, 1 /* Debug */, frame);
+    }
+    return resultMemory.getValue(expression.resultVariable);
+  } finally {
+    while (engine.evaluationStack.length > evaluationStackBase) {
+      engine.popEvaluationStack();
+    }
+    if (hadPrevious && previous) {
+      resultMemory.setIndex(expression.resultVariable, previous);
+    } else {
+      resultMemory.deleteIndex(expression.resultVariable);
+    }
+    engine.state = savedState;
+  }
+}
+function evaluateDebugCondition(engine, expression) {
+  return evaluateDebugExpression(engine, expression)?.toBoolean();
+}
 
 // ../../vendor/SmallBasicOnline/src/strings/locale.ts
 init_polyfills();
@@ -24085,6 +24145,10 @@ function resolveDocumentationLocale(language) {
   }
   return void 0;
 }
+
+// src/common/activation.ts
+init_polyfills();
+var vscode7 = __toESM(require("vscode"));
 
 // src/common/messages.ts
 init_polyfills();
@@ -25440,6 +25504,9 @@ function activateCommon(context, platform) {
   if (platform.runBlazor) {
     subscriptions.push(vscode7.commands.registerCommand("smallbasic.runBlazor", platform.runBlazor));
   }
+  if (platform.compileCSharp) {
+    subscriptions.push(vscode7.commands.registerCommand("smallbasic.compileCSharp", platform.compileCSharp));
+  }
   context.subscriptions.push(...subscriptions);
 }
 async function createNewFile(resource) {
@@ -25917,6 +25984,657 @@ function flushPendingRun() {
 
 // src/web/debug-factory.ts
 init_polyfills();
+var vscode11 = __toESM(require("vscode"));
+
+// src/debug/session.ts
+init_polyfills();
+var import_debugadapter = __toESM(require_main());
+
+// src/debug/dap.ts
+init_polyfills();
+var DEBUG_THREAD_ID = 1;
+function toDapLine(protocolLine) {
+  return protocolLine + 1;
+}
+function fromDapLine(dapLine) {
+  return dapLine - 1;
+}
+function evaluateFailedMessage(expression) {
+  return `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`;
+}
+function conditionCompileFailedMessage(condition) {
+  return `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${condition}`;
+}
+function rawStoppedEvent(reason, description) {
+  return {
+    seq: 0,
+    type: "event",
+    event: "stopped",
+    body: {
+      reason,
+      threadId: DEBUG_THREAD_ID,
+      allThreadsStopped: true,
+      ...description ? { description } : {}
+    }
+  };
+}
+
+// src/debug/engine-driver.ts
+init_polyfills();
+var DebugEngineDriver = class {
+  constructor(callbacks, reader, options = {}) {
+    this.callbacks = callbacks;
+    this.reader = reader;
+    this.sliceMs = options.sliceMs ?? 5;
+    this.sliceSteps = options.sliceSteps ?? 128;
+  }
+  callbacks;
+  reader;
+  breakpointsByFile = /* @__PURE__ */ new Map();
+  textWindow = new DriverTextWindow(this);
+  sliceMs;
+  sliceSteps;
+  compilation;
+  engine;
+  loadedPath = "";
+  executionStarted = false;
+  running = false;
+  pauseRequested = false;
+  initialLocationChecked = false;
+  ended = false;
+  exceptionStopReported = false;
+  activeControl = { kind: "continue" };
+  get programPath() {
+    return this.loadedPath;
+  }
+  get isLoaded() {
+    return this.engine !== void 0;
+  }
+  get isEnded() {
+    return this.ended;
+  }
+  get isRunning() {
+    return this.running;
+  }
+  get isWaitingForInput() {
+    return this.textWindow.isWaitingForInput();
+  }
+  /**
+   * Compiles `programPath` and prepares the engine. Throws with the compiler
+   * diagnostics (or the unsupported-graphics message) when it cannot run.
+   */
+  load(programPath) {
+    const compilation = this.compile(programPath);
+    this.loadedPath = programPath;
+    this.compilation = compilation;
+    this.engine = new ExecutionEngine4(compilation);
+    this.engine.libraries.TextWindow.plugin = this.textWindow;
+  }
+  /** Verifies breakpoints against `sourcePath` and stores them for the run. */
+  setBreakpoints(sourcePath, requests) {
+    const verified = this.verifyBreakpoints(sourcePath, requests);
+    this.breakpointsByFile.set(normalizeProgramPath(sourcePath), verified);
+    return verified;
+  }
+  /**
+   * Re-verifies the breakpoints already configured for `sourcePath`. The DAP
+   * client is allowed to set breakpoints before `launch`, so they are verified
+   * again once the program is known.
+   */
+  reverifyBreakpoints(sourcePath) {
+    const current = this.breakpointsByFile.get(normalizeProgramPath(sourcePath)) ?? [];
+    if (current.length === 0) {
+      return [];
+    }
+    const verified = this.verifyBreakpoints(
+      sourcePath,
+      current.map((breakpoint) => ({ line: breakpoint.line, condition: breakpoint.condition }))
+    );
+    this.breakpointsByFile.set(normalizeProgramPath(sourcePath), verified);
+    return verified;
+  }
+  /** Starts execution; reports `entry` instead when stopping on entry. */
+  begin(stopOnEntry) {
+    if (!this.engine || this.executionStarted || this.ended) {
+      return;
+    }
+    this.executionStarted = true;
+    this.activeControl = { kind: "continue" };
+    if (stopOnEntry) {
+      this.initialLocationChecked = true;
+      this.callbacks.onStopped("entry", this.snapshot());
+      return;
+    }
+    this.resume();
+  }
+  continueExecution() {
+    this.activeControl = { kind: "continue" };
+    this.pauseRequested = false;
+    this.resume();
+  }
+  step(depth, kind) {
+    const frames = this.frames();
+    const line = kind === "stepOut" ? frames[1]?.line : frames[0]?.line;
+    this.activeControl = { kind, depth, line };
+    this.pauseRequested = false;
+    this.resume();
+  }
+  pause() {
+    this.pauseRequested = true;
+  }
+  /** Feeds a `TextWindow.Read`/`ReadNumber` line and resumes the program. */
+  submitInput(raw) {
+    if (!this.textWindow.isWaitingForInput()) {
+      return;
+    }
+    this.textWindow.pushInput(raw);
+    this.activeControl = { kind: "continue" };
+    this.pauseRequested = false;
+    this.resume();
+  }
+  /** Forced termination; reports `terminated` even when the loop is idle. */
+  terminate() {
+    if (this.ended) {
+      return;
+    }
+    this.engine?.terminate();
+    if (!this.running) {
+      this.finish(0);
+    }
+  }
+  frames() {
+    if (!this.engine) {
+      return [];
+    }
+    return [...this.engine.executionStack].reverse().map((frame, index) => {
+      const instruction = this.instructionFor(frame.moduleName, frame.instructionIndex);
+      return {
+        id: index + 1,
+        name: frame.moduleName,
+        line: instruction?.sourceRange.start.line ?? 0,
+        column: instruction?.sourceRange.start.column ?? 0,
+        variables: this.valuesFromMemory(frame.localMemory.values)
+      };
+    });
+  }
+  variables() {
+    const memory = this.engine?.memory.values ?? {};
+    return this.valuesFromMemory(memory);
+  }
+  /** Returns the parameters and Dim variables for a top-first frame id. */
+  localVariables(frameId) {
+    const frame = this.getFrame(frameId);
+    return frame ? this.valuesFromMemory(frame.localMemory.values) : [];
+  }
+  valuesFromMemory(memory) {
+    return Object.keys(memory).sort((left, right) => left.localeCompare(right)).map((name) => this.toVariableValue(name, memory[name]));
+  }
+  snapshot() {
+    return { frames: this.frames(), variables: this.variables() };
+  }
+  /** Children of an array variable; empty for scalars. */
+  expand(variable) {
+    if (!variable.array) {
+      return [];
+    }
+    return Object.entries(variable.array.values).sort(([left], [right]) => left.localeCompare(right)).map(([name, value]) => this.toVariableValue(name, value));
+  }
+  /** Fully expands a variable into the recursive shape of the web protocol. */
+  toVariableTree(variable) {
+    return {
+      name: variable.name,
+      value: variable.value,
+      children: this.expand(variable).map((child) => this.toVariableTree(child))
+    };
+  }
+  findVariable(name, frameId = 1) {
+    const variables = [...this.localVariables(frameId), ...this.variables()];
+    return variables.find((variable) => variable.name === name) ?? variables.find((variable) => variable.name.toLowerCase() === name.toLowerCase());
+  }
+  /** Evaluates an expression with the selected frame's locals and the live globals. */
+  evaluate(expressionText, frameId = 1) {
+    if (!this.engine) {
+      return void 0;
+    }
+    const expression = compileDebugExpression(expressionText);
+    if (!expression) {
+      return void 0;
+    }
+    const value = evaluateDebugExpression(this.engine, expression, this.getFrame(frameId));
+    return value ? this.toVariableValue(expressionText, value) : void 0;
+  }
+  /** Called by the TextWindow plugin; keeps the driver the only emitter. */
+  notifyInputNeeded(kind) {
+    this.callbacks.onInputRequested(kind, this.snapshot());
+  }
+  emitOutput(text) {
+    this.callbacks.onOutput(text);
+  }
+  compile(sourcePath) {
+    let text;
+    try {
+      text = this.reader.readFile(sourcePath);
+    } catch {
+      throw new Error(`\u627E\u4E0D\u5230\u7A0B\u5E8F\u6587\u4EF6: ${sourcePath}`);
+    }
+    const compilation = new Compilation(text);
+    if (!compilation.isReadyToRun) {
+      const message = compilation.diagnostics.map((item) => item.toString()).join("\n");
+      throw new Error(message || "Program contains compilation errors.");
+    }
+    if (compilation.kind.drawsShapes()) {
+      throw new Error("\u5F53\u524D\u5185\u7F6E SmallBasic \u8C03\u8BD5\u5668\u6682\u4E0D\u652F\u6301 GraphicsWindow/Shapes/Turtle/Controls \u56FE\u5F62\u5BBF\u4E3B\u3002\u8BF7\u5148\u8C03\u8BD5\u6587\u672C\u6A21\u5F0F\u7A0B\u5E8F\uFF0C\u6216\u6539\u7528\u540E\u7EED\u56FE\u5F62\u540E\u7AEF\u3002");
+    }
+    return compilation;
+  }
+  verifyBreakpoints(sourcePath, requests) {
+    let compilation;
+    try {
+      compilation = this.compile(sourcePath);
+    } catch {
+      return requests.map((breakpoint) => ({ ...breakpoint, verified: false }));
+    }
+    const lines = executableLines(compilation);
+    return requests.map((breakpoint) => {
+      const actualLine = lines.find((line) => line >= breakpoint.line);
+      if (actualLine === void 0) {
+        return { ...breakpoint, actualLine, verified: false };
+      }
+      if (breakpoint.condition) {
+        const compiledCondition = compileDebugExpression(breakpoint.condition);
+        if (!compiledCondition) {
+          return { ...breakpoint, actualLine, verified: false, compiledCondition: void 0 };
+        }
+        return { ...breakpoint, actualLine, verified: true, compiledCondition };
+      }
+      return { ...breakpoint, actualLine, verified: true };
+    });
+  }
+  resume() {
+    if (!this.engine || this.running || this.ended) {
+      return;
+    }
+    if (!this.initialLocationChecked) {
+      this.initialLocationChecked = true;
+      void this.checkInitialBreakpoint();
+      return;
+    }
+    this.running = true;
+    setTimeout(() => void this.executionLoop(), 0);
+  }
+  async checkInitialBreakpoint() {
+    if (!this.engine) {
+      return;
+    }
+    if (this.activeControl.kind === "continue" && await this.shouldStopAtLine(this.currentLine())) {
+      this.callbacks.onStopped("breakpoint", this.snapshot());
+      return;
+    }
+    this.running = true;
+    setTimeout(() => void this.executionLoop(), 0);
+  }
+  async executionLoop() {
+    if (!this.engine) {
+      this.running = false;
+      return;
+    }
+    const startedAt = Date.now();
+    let steps = 0;
+    while (this.engine && Date.now() - startedAt < this.sliceMs && steps < this.sliceSteps) {
+      this.engine.execute(2 /* NextStatement */);
+      steps += 1;
+      if (this.engine.state === 3 /* Terminated */) {
+        this.running = false;
+        const terminatedWithError = this.reportRuntimeErrorOnce();
+        if (terminatedWithError || this.engine.exception) {
+          this.finish(1);
+        } else {
+          this.finish(0);
+        }
+        return;
+      }
+      if (this.engine.state === 2 /* BlockedOnInput */) {
+        this.running = false;
+        return;
+      }
+      if (this.engine.state === 1 /* Paused */) {
+        if (this.engine.pausedOnRuntimeError) {
+          this.running = false;
+          this.reportRuntimeErrorOnce();
+          this.callbacks.onStopped("exception", this.snapshot());
+          return;
+        }
+        const stopReason = await this.getStopReason();
+        if (stopReason) {
+          this.running = false;
+          this.callbacks.onStopped(stopReason, this.snapshot());
+          return;
+        }
+      }
+    }
+    this.running = false;
+    if (this.engine && this.engine.state !== 3 /* Terminated */) {
+      this.resume();
+    }
+  }
+  async getStopReason() {
+    if (!this.engine) {
+      return void 0;
+    }
+    if (this.pauseRequested) {
+      this.pauseRequested = false;
+      return "pause";
+    }
+    const depth = this.engine.executionStack.length;
+    switch (this.activeControl.kind) {
+      case "stepIn":
+        return "step";
+      case "next":
+        return depth <= this.activeControl.depth && this.currentLine() !== this.activeControl.line ? "step" : void 0;
+      case "stepOut":
+        return depth < this.activeControl.depth && this.currentLine() !== this.activeControl.line ? "step" : void 0;
+      case "continue":
+        return await this.shouldStopAtLine(this.currentLine()) ? "breakpoint" : void 0;
+      default:
+        return void 0;
+    }
+  }
+  /**
+   * Mirrors the engine's unified runtime error to the console exactly once
+   * per session (at the exception stop or at termination) and tells whether
+   * an unhandled runtime error ended the run.
+   */
+  reportRuntimeErrorOnce() {
+    if (!this.engine) {
+      return false;
+    }
+    const error = this.engine.lastRuntimeError;
+    if (!error) {
+      return false;
+    }
+    if (!this.exceptionStopReported) {
+      this.exceptionStopReported = true;
+      this.callbacks.onOutput(`
+[Runtime Error] ${error.code}: ${error.message}
+`);
+    }
+    return true;
+  }
+  // A line stops execution when it has a verified unconditional breakpoint, or a
+  // conditional breakpoint whose condition evaluates to true. Conditions are
+  // evaluated against the live program memory; failures simply fall through so
+  // the program keeps running.
+  async shouldStopAtLine(line) {
+    if (line === void 0 || !this.engine) {
+      return false;
+    }
+    const fileBreakpoints = this.breakpointsByFile.get(normalizeProgramPath(this.loadedPath)) ?? [];
+    for (const breakpoint of fileBreakpoints) {
+      if (!breakpoint.verified || breakpoint.actualLine !== line) {
+        continue;
+      }
+      if (!breakpoint.compiledCondition) {
+        return true;
+      }
+      if (evaluateDebugCondition(this.engine, breakpoint.compiledCondition)) {
+        return true;
+      }
+    }
+    return false;
+  }
+  currentLine() {
+    const stack = this.engine?.executionStack ?? [];
+    if (stack.length === 0) {
+      return void 0;
+    }
+    const top = stack[stack.length - 1];
+    return this.instructionFor(top.moduleName, top.instructionIndex)?.sourceRange.start.line;
+  }
+  instructionFor(moduleName, instructionIndex) {
+    const instructions = this.engine?.modules[moduleName];
+    if (!instructions || instructionIndex < 0 || instructionIndex >= instructions.length) {
+      return void 0;
+    }
+    return instructions[instructionIndex];
+  }
+  getFrame(frameId) {
+    const stack = this.engine?.executionStack;
+    if (!stack || frameId < 1 || frameId > stack.length) {
+      return void 0;
+    }
+    return stack[stack.length - frameId];
+  }
+  toVariableValue(name, value) {
+    return {
+      name,
+      value: value.toDebuggerString(),
+      kind: value.kind,
+      array: value.kind === 2 /* Array */ ? value : void 0
+    };
+  }
+  finish(exitCode) {
+    if (this.ended) {
+      return;
+    }
+    this.ended = true;
+    this.running = false;
+    this.callbacks.onTerminated(exitCode);
+  }
+};
+function executableLines(compilation) {
+  const lines = /* @__PURE__ */ new Set();
+  for (const instructions of Object.values(compilation.emit())) {
+    for (const instruction of instructions) {
+      lines.add(instruction.sourceRange.start.line);
+    }
+  }
+  return [...lines].sort((left, right) => left - right);
+}
+var DriverTextWindow = class extends BufferedTextWindowPlugin {
+  constructor(driver) {
+    super();
+    this.driver = driver;
+  }
+  driver;
+  inputIsNeeded(kind) {
+    super.inputIsNeeded(kind);
+    this.driver.notifyInputNeeded(kind);
+  }
+  writeText(value, appendNewLine) {
+    this.driver.emitOutput(value + (appendNewLine ? "\n" : ""));
+  }
+};
+
+// src/debug/session.ts
+var SmallBasicDebugSession = class extends import_debugadapter.LoggingDebugSession {
+  constructor(sources) {
+    super("smallbasic-debug.log");
+    this.sources = sources;
+    this.setDebuggerLinesStartAt1(true);
+    this.setDebuggerColumnsStartAt1(true);
+    this.driver = new DebugEngineDriver(
+      {
+        onOutput: (text) => this.sendEvent(new import_debugadapter.OutputEvent(text)),
+        onStopped: (reason) => this.sendEvent(new import_debugadapter.StoppedEvent(reason, DEBUG_THREAD_ID)),
+        onInputRequested: (kind) => this.onInputRequested(kind),
+        onTerminated: (exitCode) => this.endSession(exitCode)
+      },
+      sources
+    );
+  }
+  sources;
+  driver;
+  variableHandles = new import_debugadapter.Handles();
+  programPath = "";
+  stopOnEntry = false;
+  configurationDone = false;
+  loaded = false;
+  executionStarted = false;
+  terminated = false;
+  initializeRequest(response, _args) {
+    this.configurationDone = false;
+    this.loaded = false;
+    this.executionStarted = false;
+    this.terminated = false;
+    response.body = {
+      supportsConfigurationDoneRequest: true,
+      supportsConditionalBreakpoints: true,
+      supportsEvaluateForHovers: true,
+      supportsStepBack: false,
+      supportsRestartRequest: false
+    };
+    this.sendResponse(response);
+    this.sendEvent(new import_debugadapter.InitializedEvent());
+  }
+  async launchRequest(response, args) {
+    this.programPath = this.sources.resolvePath(String(args.program));
+    this.stopOnEntry = !!args.stopOnEntry;
+    this.executionStarted = false;
+    this.terminated = false;
+    try {
+      this.driver.load(this.programPath);
+      this.loaded = true;
+      this.driver.reverifyBreakpoints(this.programPath);
+      this.sendResponse(response);
+      this.startExecutionAfterConfiguration();
+    } catch (error) {
+      this.sendErrorResponse(response, 2001, error instanceof Error ? error.message : String(error));
+    }
+  }
+  configurationDoneRequest(response, _args) {
+    this.configurationDone = true;
+    this.sendResponse(response);
+    this.startExecutionAfterConfiguration();
+  }
+  setBreakPointsRequest(response, args) {
+    const sourcePath = args.source.path ? this.sources.resolvePath(args.source.path) : this.programPath;
+    const requested = args.breakpoints ? args.breakpoints.map((breakpoint) => ({
+      line: fromDapLine(breakpoint.line),
+      condition: breakpoint.condition?.trim() || void 0
+    })) : (args.lines ?? []).map((line) => ({ line: fromDapLine(line) }));
+    const verified = sourcePath ? this.driver.setBreakpoints(sourcePath, requested) : requested.map((breakpoint) => ({ ...breakpoint, verified: false }));
+    response.body = {
+      breakpoints: verified.map((breakpoint) => {
+        const result = {
+          verified: breakpoint.verified,
+          line: toDapLine(breakpoint.actualLine ?? breakpoint.line)
+        };
+        if (!breakpoint.verified && breakpoint.condition) {
+          result.message = conditionCompileFailedMessage(breakpoint.condition);
+        }
+        return result;
+      })
+    };
+    this.sendResponse(response);
+  }
+  threadsRequest(response) {
+    response.body = {
+      threads: [new import_debugadapter.Thread(DEBUG_THREAD_ID, "Main")]
+    };
+    this.sendResponse(response);
+  }
+  stackTraceRequest(response, _args) {
+    const stackFrames = this.driver.frames().map((frame) => {
+      const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
+      return new import_debugadapter.StackFrame(frame.id, frame.name, source, toDapLine(frame.line), toDapLine(frame.column));
+    });
+    response.body = {
+      stackFrames,
+      totalFrames: stackFrames.length
+    };
+    this.sendResponse(response);
+  }
+  scopesRequest(response, args) {
+    response.body = {
+      scopes: [
+        new import_debugadapter.Scope("Globals", this.variableHandles.create({ kind: "globals" }), false),
+        new import_debugadapter.Scope("Locals", this.variableHandles.create({ kind: "locals", frameId: args.frameId }), false)
+      ]
+    };
+    this.sendResponse(response);
+  }
+  variablesRequest(response, args) {
+    const container = this.variableHandles.get(args.variablesReference);
+    const variables = !container ? [] : container.kind === "globals" ? this.driver.variables() : container.kind === "locals" ? this.driver.localVariables(container.frameId) : this.driver.expand(container.value);
+    response.body = {
+      variables: variables.map((variable) => this.createVariable(variable))
+    };
+    this.sendResponse(response);
+  }
+  continueRequest(response, _args) {
+    this.sendResponse(response);
+    this.driver.continueExecution();
+  }
+  nextRequest(response, _args) {
+    this.sendResponse(response);
+    this.driver.step(this.driver.frames().length, "next");
+  }
+  stepInRequest(response, _args) {
+    this.sendResponse(response);
+    this.driver.step(this.driver.frames().length, "stepIn");
+  }
+  stepOutRequest(response, _args) {
+    this.sendResponse(response);
+    this.driver.step(this.driver.frames().length, "stepOut");
+  }
+  pauseRequest(response, _args) {
+    this.driver.pause();
+    this.sendResponse(response);
+  }
+  disconnectRequest(response, _args) {
+    this.driver.terminate();
+    this.sendResponse(response);
+    this.endSession(0);
+  }
+  evaluateRequest(response, args) {
+    const expression = args.expression.trim();
+    if (this.driver.isWaitingForInput) {
+      this.driver.submitInput(expression);
+      response.body = {
+        result: expression,
+        variablesReference: 0
+      };
+      this.sendResponse(response);
+      return;
+    }
+    const value = this.driver.evaluate(expression, args.frameId ?? 1) ?? this.driver.findVariable(expression, args.frameId ?? 1);
+    if (value) {
+      response.body = {
+        result: value.value,
+        variablesReference: value.array ? this.variableHandles.create({ kind: "array", value }) : 0
+      };
+      this.sendResponse(response);
+      return;
+    }
+    this.sendErrorResponse(response, 2002, evaluateFailedMessage(expression));
+  }
+  startExecutionAfterConfiguration() {
+    if (!this.configurationDone || !this.loaded || this.executionStarted) {
+      return;
+    }
+    this.executionStarted = true;
+    this.driver.begin(this.stopOnEntry);
+  }
+  onInputRequested(kind) {
+    this.sendEvent(new import_debugadapter.OutputEvent(kind === 1 /* Number */ ? "\n[Input] \u8BF7\u8F93\u5165\u6570\u5B57\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u8F93\u5165\u6587\u672C\u540E\u5728 Debug Console \u4E2D\u6309\u56DE\u8F66\u3002\n"));
+    this.sendEvent(rawStoppedEvent("pause", "Waiting for input"));
+  }
+  createVariable(variable) {
+    return {
+      name: variable.name,
+      value: variable.value,
+      variablesReference: variable.array ? this.variableHandles.create({ kind: "array", value: variable }) : 0
+    };
+  }
+  endSession(exitCode) {
+    if (this.terminated) {
+      return;
+    }
+    this.terminated = true;
+    this.sendEvent(new import_debugadapter.ExitedEvent(exitCode));
+    this.sendEvent(new import_debugadapter.TerminatedEvent());
+  }
+};
 
 // src/web/inline-factory.ts
 init_polyfills();
@@ -26311,39 +27029,8 @@ var WebDebugSourceAccessor = class {
 
 // src/web/webview-debug-adapter.ts
 init_polyfills();
-var import_debugadapter = __toESM(require_main());
-
-// src/debug/dap.ts
-init_polyfills();
-var DEBUG_THREAD_ID = 1;
-function toDapLine(protocolLine) {
-  return protocolLine + 1;
-}
-function fromDapLine(dapLine) {
-  return dapLine - 1;
-}
-function evaluateFailedMessage(expression) {
-  return `\u65E0\u6CD5\u8BA1\u7B97\u8868\u8FBE\u5F0F: ${expression}`;
-}
-function conditionCompileFailedMessage(condition) {
-  return `\u65E0\u6CD5\u7F16\u8BD1\u6761\u4EF6: ${condition}`;
-}
-function rawStoppedEvent(reason, description) {
-  return {
-    seq: 0,
-    type: "event",
-    event: "stopped",
-    body: {
-      reason,
-      threadId: DEBUG_THREAD_ID,
-      allThreadsStopped: true,
-      ...description ? { description } : {}
-    }
-  };
-}
-
-// src/web/webview-debug-adapter.ts
-var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession {
+var import_debugadapter2 = __toESM(require_main());
+var WebviewDebugSession = class extends import_debugadapter2.LoggingDebugSession {
   constructor(broker, sources, options) {
     super("smallbasic-web-debug.log");
     this.broker = broker;
@@ -26359,7 +27046,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
   programPath = "";
   breakpoints = [];
   snapshot;
-  variableHandles = new import_debugadapter.Handles();
+  variableHandles = new import_debugadapter2.Handles();
   subscription;
   waitingForInput = false;
   terminated = false;
@@ -26374,7 +27061,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
       supportsRestartRequest: false
     };
     this.sendResponse(response);
-    this.sendEvent(new import_debugadapter.InitializedEvent());
+    this.sendEvent(new import_debugadapter2.InitializedEvent());
   }
   launchRequest(response, args) {
     if (typeof args.program === "string" && args.program.length > 0) {
@@ -26420,7 +27107,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
   }
   threadsRequest(response) {
     response.body = {
-      threads: [new import_debugadapter.Thread(DEBUG_THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
+      threads: [new import_debugadapter2.Thread(DEBUG_THREAD_ID, this.options.backend === "javascript" ? "JavaScript" : "Blazor WASM")]
     };
     this.sendResponse(response);
   }
@@ -26428,8 +27115,8 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
     const snapshot = this.snapshot;
     const rawFrames = snapshot && snapshot.frames.length > 0 ? snapshot.frames : snapshot ? [{ name: "Program", line: snapshot.line }] : [];
     const frames = rawFrames.map((frame, index) => {
-      const source = new import_debugadapter.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
-      return new import_debugadapter.StackFrame(index + 1, frame.name || "Program", source, toDapLine(frame.line), 1);
+      const source = new import_debugadapter2.Source(this.sources.basename(this.programPath || "program.sb"), this.programPath);
+      return new import_debugadapter2.StackFrame(index + 1, frame.name || "Program", source, toDapLine(frame.line), 1);
     });
     response.body = { stackFrames: frames, totalFrames: frames.length };
     this.sendResponse(response);
@@ -26438,8 +27125,8 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
     const locals = this.snapshot?.frames[args.frameId - 1]?.variables ?? [];
     response.body = {
       scopes: [
-        new import_debugadapter.Scope("Globals", this.variableHandles.create(this.snapshot?.variables ?? []), false),
-        new import_debugadapter.Scope("Locals", this.variableHandles.create(locals), false)
+        new import_debugadapter2.Scope("Globals", this.variableHandles.create(this.snapshot?.variables ?? []), false),
+        new import_debugadapter2.Scope("Locals", this.variableHandles.create(locals), false)
       ]
     };
     this.sendResponse(response);
@@ -26505,7 +27192,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
   onRuntimeEvent(event) {
     switch (event.kind) {
       case "output":
-        this.sendEvent(new import_debugadapter.OutputEvent(event.text));
+        this.sendEvent(new import_debugadapter2.OutputEvent(event.text));
         return;
       case "stopped":
         this.snapshot = { line: event.line, frames: event.frames, variables: event.variables };
@@ -26516,14 +27203,14 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
         this.snapshot = { line: event.line, frames: event.frames, variables: event.variables };
         this.resetVariableHandles();
         this.waitingForInput = true;
-        this.sendEvent(new import_debugadapter.OutputEvent(event.numberInput ? "\n[Input] \u8BF7\u5728 Debug Console \u8F93\u5165\u4E00\u4E2A\u6570\u5B57\u540E\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u5728 Debug Console \u8F93\u5165\u6587\u672C\u540E\u56DE\u8F66\u3002\n"));
+        this.sendEvent(new import_debugadapter2.OutputEvent(event.numberInput ? "\n[Input] \u8BF7\u5728 Debug Console \u8F93\u5165\u4E00\u4E2A\u6570\u5B57\u540E\u56DE\u8F66\u3002\n" : "\n[Input] \u8BF7\u5728 Debug Console \u8F93\u5165\u6587\u672C\u540E\u56DE\u8F66\u3002\n"));
         this.sendStopped("pause", event.numberInput ? "Waiting for TextWindow number" : "Waiting for TextWindow input");
         return;
       case "terminated":
         this.endSession(event.exitCode);
         return;
       case "error":
-        this.sendEvent(new import_debugadapter.OutputEvent(`[Webview] ${event.message}
+        this.sendEvent(new import_debugadapter2.OutputEvent(`[Webview] ${event.message}
 `, "stderr"));
         return;
       default:
@@ -26562,7 +27249,7 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
   }
   emitDiagnostic(error) {
     const text = error instanceof Error ? error.message : String(error);
-    this.sendEvent(new import_debugadapter.OutputEvent(`[Debug] ${text}
+    this.sendEvent(new import_debugadapter2.OutputEvent(`[Debug] ${text}
 `, "stderr"));
   }
   endSession(exitCode) {
@@ -26570,8 +27257,8 @@ var WebviewDebugSession = class extends import_debugadapter.LoggingDebugSession 
       return;
     }
     this.terminated = true;
-    this.sendEvent(new import_debugadapter.ExitedEvent(exitCode));
-    this.sendEvent(new import_debugadapter.TerminatedEvent());
+    this.sendEvent(new import_debugadapter2.ExitedEvent(exitCode));
+    this.sendEvent(new import_debugadapter2.TerminatedEvent());
   }
 };
 
@@ -26636,17 +27323,6 @@ async function createWebInlineAdapter(context, session) {
   return new vscode10.DebugAdapterInlineImplementation(adapter);
 }
 
-// src/web/debug-factory.ts
-var SmallBasicWebDebugAdapterFactory = class {
-  constructor(context) {
-    this.context = context;
-  }
-  context;
-  createDebugAdapterDescriptor(session) {
-    return createWebInlineAdapter(this.context, session);
-  }
-};
-
 // src/web/run-routing.ts
 init_polyfills();
 var RUN_WITH_BLAZOR = "\u201CSmallBasic: Run with Blazor Backend\u201D";
@@ -26673,8 +27349,69 @@ function routeWebDebugRequest(request, programDrawsShapes) {
   }
   return { kind: "inline-debug", backend: selectedBackend };
 }
+var CLI_CSHARP_MESSAGE = "CLI \u6A21\u5F0F\u7684 C# \u540E\u7AEF\u9700\u8981\u672C\u673A RunHost \u8FDB\u7A0B\uFF0CVS Code for the Web \u6CA1\u6709\u672C\u673A\u8FDB\u7A0B\u3002\u6587\u672C\u7A0B\u5E8F\u8BF7\u6539\u7528 JavaScript \u540E\u7AEF\uFF08CLI \u6216 Web \u6A21\u5F0F\u5747\u53EF\uFF09\uFF0C\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u6539\u7528 Web \u6A21\u5F0F\u7684 Blazor \u540E\u7AEF\u3002";
+var CLI_BLAZOR_NOTE = "CLI Blazor \u9700\u8981\u672C\u673A RunHost \u8FDB\u7A0B\uFF0CVS Code for the Web \u6CA1\u6709\u672C\u673A\u8FDB\u7A0B\uFF0C\u5DF2\u6539\u7528 Web \u6A21\u5F0F\u5728 Webview \u5185\u8FD0\u884C\u3002";
+function normalizeLaunchMode(value) {
+  return value === "cli" ? "cli" : "web";
+}
+function routeWebHostLaunch(request, programDrawsShapes) {
+  const backend = normalizeBackend(request.backend);
+  if (normalizeLaunchMode(request.mode) === "cli") {
+    if (backend === "csharp") {
+      return { kind: "reject", message: CLI_CSHARP_MESSAGE };
+    }
+    if (backend === "blazor") {
+      return withNote(routeWebDebugRequest(request, programDrawsShapes), CLI_BLAZOR_NOTE);
+    }
+    if ((backend === "javascript" || backend === void 0) && !programDrawsShapes) {
+      return request.noDebug === true ? { kind: "run-in-extension-host", backend: "javascript" } : { kind: "inline-debug", surface: "extension-host", backend: "javascript" };
+    }
+  }
+  const routing = routeWebDebugRequest(request, programDrawsShapes);
+  return routing.kind === "inline-debug" ? { kind: "inline-debug", surface: "webview", backend: routing.backend } : routing;
+}
+function withNote(routing, note) {
+  switch (routing.kind) {
+    case "inline-debug":
+      return { kind: "inline-debug", surface: "webview", backend: routing.backend, note };
+    case "run-in-webview":
+      return { ...routing, note: routing.note ?? note };
+    default:
+      return routing;
+  }
+}
 function normalizeBackend(value) {
   return value === "javascript" || value === "csharp" || value === "blazor" ? value : void 0;
+}
+
+// src/web/debug-factory.ts
+var SmallBasicWebDebugAdapterFactory = class {
+  constructor(context) {
+    this.context = context;
+  }
+  context;
+  createDebugAdapterDescriptor(session) {
+    return createWebHostDebugAdapter(this.context, session);
+  }
+};
+async function createWebHostDebugAdapter(context, session) {
+  return normalizeLaunchMode(session.configuration.mode) === "cli" ? createExtensionHostJavaScriptAdapter(session) : createWebInlineAdapter(context, session);
+}
+async function createExtensionHostJavaScriptAdapter(session) {
+  if (session.configuration.backend !== "javascript") {
+    void vscode11.window.showErrorMessage(
+      'CLI \u6A21\u5F0F\u5728 VS Code for the Web \u4E2D\u53EA\u652F\u6301 JavaScript \u540E\u7AEF\uFF1AC# \u4E0E Blazor \u9700\u8981\u672C\u673A RunHost \u8FDB\u7A0B\u3002\u56FE\u5F62\u7A0B\u5E8F\u8BF7\u628A launch.json \u6539\u4E3A mode: "web" + backend: "blazor"\u3002'
+    );
+    return void 0;
+  }
+  const program = typeof session.configuration.program === "string" ? session.configuration.program : "";
+  const document = await resolveDebugDocument(program);
+  if (!document) {
+    void vscode11.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8C03\u8BD5\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u5E76\u4FDD\u5B58\u8BE5\u6587\u4EF6\u3002");
+    return void 0;
+  }
+  const sources = new WebDebugSourceAccessor(document, program);
+  return new vscode11.DebugAdapterInlineImplementation(new SmallBasicDebugSession(sources));
 }
 
 // src/web/extension.ts
@@ -26692,9 +27429,9 @@ function activate(context) {
 function deactivate() {
 }
 async function runWebActiveDocument(context, backend) {
-  const editor = vscode11.window.activeTextEditor;
+  const editor = vscode12.window.activeTextEditor;
   if (!editor || !isSmallBasicDocument(editor.document)) {
-    void vscode11.window.showWarningMessage(OPEN_SB_FILE_WARNING);
+    void vscode12.window.showWarningMessage(OPEN_SB_FILE_WARNING);
     return;
   }
   const document = editor.document;
@@ -26708,14 +27445,14 @@ function warnWhenJavaScriptWouldDo(document) {
   if (!shape.ready || shape.drawsShapes) {
     return;
   }
-  void vscode11.window.setStatusBarMessage(
+  void vscode12.window.setStatusBarMessage(
     "Small Basic \u63D0\u793A\uFF1A\u8BE5\u7A0B\u5E8F\u53EA\u4F7F\u7528 TextWindow\uFF0CJavaScript \u540E\u7AEF\u542F\u52A8\u66F4\u5FEB\u3002",
     8e3
   );
 }
 function createWebDebugConfigurationProvider(context) {
   const activeDocument = () => {
-    const document = vscode11.window.activeTextEditor?.document;
+    const document = vscode12.window.activeTextEditor?.document;
     return document && isSmallBasicDocument(document) ? document : void 0;
   };
   const createConfig = (document) => {
@@ -26743,34 +27480,53 @@ function createWebDebugConfigurationProvider(context) {
       if (config.type !== "smallbasic") {
         return config;
       }
-      config.mode = "web";
       const document = activeDocument();
       const program = (typeof config.program === "string" ? config.program.trim() : "") || document?.fileName || document?.uri.toString() || "";
       if (!program) {
-        void vscode11.window.showErrorMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
+        void vscode12.window.showErrorMessage("\u8BF7\u5148\u6253\u5F00\u4E00\u4E2A SmallBasic (.sb) \u6587\u4EF6\u540E\u518D\u542F\u52A8\u8C03\u8BD5\u3002");
         return void 0;
       }
       const target = await resolveDebugDocument(program);
       const shape = target ? analyzeProgramShape(target) : { ready: false, drawsShapes: false };
-      const routing = routeWebDebugRequest(
-        { backend: config.backend, noDebug: config.noDebug === true },
+      const routing = routeWebHostLaunch(
+        {
+          mode: normalizeLaunchMode(config.mode),
+          backend: config.backend,
+          noDebug: config.noDebug === true
+        },
         shape.ready && shape.drawsShapes
       );
       if (routing.kind === "reject") {
-        void vscode11.window.showErrorMessage(routing.message);
+        void vscode12.window.showErrorMessage(routing.message);
+        return void 0;
+      }
+      if (routing.kind === "run-in-extension-host") {
+        if (!target) {
+          void vscode12.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
+          return void 0;
+        }
+        if (!target.isUntitled && target.isDirty && !await target.save()) {
+          void vscode12.window.showWarningMessage(SAVE_BEFORE_RUN_WARNING);
+          return void 0;
+        }
+        runJavaScriptCompilation(target, new Compilation(target.getText()));
         return void 0;
       }
       if (routing.kind === "run-in-webview") {
         if (!target) {
-          void vscode11.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
+          void vscode12.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u8981\u8FD0\u884C\u7684 SmallBasic \u6587\u4EF6\u3002\u8BF7\u5148\u5728\u7F16\u8F91\u5668\u4E2D\u6253\u5F00\u8BE5\u6587\u4EF6\u3002");
           return void 0;
         }
         if (routing.note) {
-          void vscode11.window.setStatusBarMessage(routing.note, 8e3);
+          void vscode12.window.setStatusBarMessage(routing.note, 8e3);
         }
         await runInWebview(context, documentBaseName(target), target.getText(), routing.backend);
         return void 0;
       }
+      if (routing.note) {
+        void vscode12.window.setStatusBarMessage(routing.note, 8e3);
+      }
+      config.mode = routing.surface === "extension-host" ? "cli" : "web";
       config.backend = routing.backend;
       config.program = program;
       return config;

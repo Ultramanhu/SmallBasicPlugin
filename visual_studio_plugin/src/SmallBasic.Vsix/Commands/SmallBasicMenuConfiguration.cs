@@ -14,6 +14,9 @@ namespace SmallBasic.Vsix.Commands
                     GroupChild.Command<RunCSharpCommand>(),
                     GroupChild.Command<DebugCSharpCommand>()),
                 MenuChild.Group(
+                    GroupChild.Command<CompileCSharpCommand>(),
+                    GroupChild.Command<DebugCompiledCSharpCommand>()),
+                MenuChild.Group(
                     GroupChild.Command<RunJavaScriptCommand>(),
                     GroupChild.Command<DebugJavaScriptCommand>()),
                 MenuChild.Group(

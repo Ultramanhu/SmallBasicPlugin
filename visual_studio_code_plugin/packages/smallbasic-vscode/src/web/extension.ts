@@ -1,11 +1,13 @@
 import * as vscode from "vscode";
+import { Compilation } from "smallbasic-lang-core";
 import { activateCommon } from "../common/activation";
 import { analyzeProgramShape, documentBaseName, resolveDebugDocument } from "../common/documents";
-import { OPEN_SB_FILE_WARNING } from "../common/messages";
+import { OPEN_SB_FILE_WARNING, SAVE_BEFORE_RUN_WARNING } from "../common/messages";
 import { isSmallBasicDocument } from "../language/providers";
+import { runJavaScriptCompilation } from "../run/javascript-runner";
 import { runInWebview, type WebviewBackend } from "./blazor-webview";
 import { SmallBasicWebDebugAdapterFactory } from "./debug-factory";
-import { routeWebDebugRequest } from "./run-routing";
+import { normalizeLaunchMode, routeWebHostLaunch } from "./run-routing";
 
 export function activate(context: vscode.ExtensionContext): void {
   activateCommon(context, {
@@ -55,17 +57,21 @@ function warnWhenJavaScriptWouldDo(document: vscode.TextDocument): void {
 }
 
 /**
- * Resolves the launch configuration of the web entry.
+ * Resolves the launch configuration of the Web entry.
  *
  * Both "Start Debugging" (F5) and "Run Without Debugging" (Ctrl+F5) arrive here,
  * the latter flagged by `noDebug` on the configuration. See `./run-routing.ts`
  * for the full table:
  *
- *   - Ctrl+F5 runs the program in the Blazor webview and ends the request;
- *   - F5 for JavaScript or Blazor returns the configuration so the inline
- *     adapter factory (`./inline-factory.ts`) can start a real debug session;
- *   - `csharp` and an explicit JavaScript request for a graphics program are
- *     refused with a message pointing at the supported alternative.
+ *   - `mode: "cli"` is honoured for the JavaScript backend (the one backend that
+ *     needs no local process): F5 debugs it inline in the extension host and
+ *     Ctrl+F5 runs it in an extension-host terminal, exactly like the desktop
+ *     CLI backend. CLI C# needs a local RunHost process and is refused; CLI
+ *     Blazor and a graphics program fall back to the webview with a note.
+ *   - `mode: "web"` (the default here, and what the manifest snippets without a
+ *     mode produce) is unchanged: Ctrl+F5 runs in the Blazor webview and ends
+ *     the request, F5 returns the configuration so the inline adapter factory
+ *     (`./debug-factory.ts`) can start a webview debug session.
  */
 function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): vscode.DebugConfigurationProvider {
   const activeDocument = (): vscode.TextDocument | undefined => {
@@ -105,10 +111,6 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
         return config;
       }
 
-      // A browser extension host has no local process/terminal host. Treat the
-      // launch configuration as web mode even if a shared launch.json says cli.
-      config.mode = "web";
-
       const document = activeDocument();
       const program = (typeof config.program === "string" ? config.program.trim() : "")
         || document?.fileName
@@ -121,13 +123,34 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
 
       const target = await resolveDebugDocument(program);
       const shape = target ? analyzeProgramShape(target) : { ready: false, drawsShapes: false };
-      const routing = routeWebDebugRequest(
-        { backend: config.backend, noDebug: config.noDebug === true },
+      const routing = routeWebHostLaunch(
+        {
+          mode: normalizeLaunchMode(config.mode),
+          backend: config.backend,
+          noDebug: config.noDebug === true
+        },
         shape.ready && shape.drawsShapes
       );
 
       if (routing.kind === "reject") {
         void vscode.window.showErrorMessage(routing.message);
+        return undefined;
+      }
+
+      if (routing.kind === "run-in-extension-host") {
+        // CLI JavaScript, "Run Without Debugging": same terminal session the
+        // desktop CLI backend uses, only without a Node process to spawn.
+        if (!target) {
+          void vscode.window.showErrorMessage("无法打开要运行的 SmallBasic 文件。请先在编辑器中打开该文件。");
+          return undefined;
+        }
+
+        if (!target.isUntitled && target.isDirty && !(await target.save())) {
+          void vscode.window.showWarningMessage(SAVE_BEFORE_RUN_WARNING);
+          return undefined;
+        }
+
+        runJavaScriptCompilation(target, new Compilation(target.getText()));
         return undefined;
       }
 
@@ -146,7 +169,13 @@ function createWebDebugConfigurationProvider(context: vscode.ExtensionContext): 
         return undefined;
       }
 
-      // F5: let the inline adapter factory start the shared web debug session.
+      // F5: the adapter factory starts either the extension-host JavaScript
+      // session (`cli`) or the shared webview session (`web`).
+      if (routing.note) {
+        void vscode.window.setStatusBarMessage(routing.note, 8000);
+      }
+
+      config.mode = routing.surface === "extension-host" ? "cli" : "web";
       config.backend = routing.backend;
       config.program = program;
       return config;

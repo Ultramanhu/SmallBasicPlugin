@@ -20,8 +20,9 @@ origin repository: https://github.com/sb
 | 代码片段 + 新建文件 | 有 | 有 | 仅代码片段 |
 | 文档大纲 + 导航栏 | 有 | 有 | 有(LSP 文档符号 + 大纲工具窗 + 原生导航栏) |
 | 运行程序 | CLI 三后端(JS / C# / Blazor)+ Web 双后端(JS / Blazor) | Web 双后端(JS / Blazor) | CLI 三后端(JS / C# / Blazor) |
+| 编译为 EXE | Windows 桌面版可生成 net48 EXE(运行库收在 lib\) | 无 | 可生成 net48 EXE(运行库收在 lib\) |
 | 图形程序(GraphicsWindow/Shapes/Turtle) | C#(Windows)或跨平台 Blazor | Blazor WASM 在 Webview 内渲染 SVG | C# 桌面窗口或 Blazor 浏览器窗口 |
-| 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | Web 双后端(JavaScript / Blazor)；Blazor 支持图形调试 | 三后端；C#/Blazor 支持图形调试 |
+| 调试(断点/单步/变量/调用栈) | 三后端；Blazor 支持跨平台图形调试 | Web 双后端(JavaScript / Blazor，均调试于 Webview 内)+ CLI JavaScript(扩展宿主内联)；Blazor 支持图形调试 | 三后端 + compiled C#；C#/Blazor 支持图形调试 |
 | 语言扩展 | 有 | 有 | 有 |
 | 多语言 | 支持 | 支持 | 支持 |
 
@@ -29,10 +30,10 @@ origin repository: https://github.com/sb
 
 三个方案共用同一套语言与运行基线，差异只在宿主与接入方式：
 
-- **VS Code / VS Code for the Web**：同一个扩展，靠 `mode`(`cli` / `web`)选择运行面；Web 面没有本机进程，因此语言核心跑在 Web Worker 里，C# 后端不可用。
+- **VS Code / VS Code for the Web**：同一个扩展，靠 `mode`(`cli` / `web`)选择运行面；Web 面没有本机进程，因此语言核心跑在 Web Worker 里，C# 后端不可用。`cli` 对 JavaScript 后端只意味着「不弹 Webview」——引擎直接在扩展宿主(Web Worker)里跑，因此浏览器里同样可用；C# / Blazor 的 `cli` 需要本机 RunHost 进程，在浏览器里会被拒绝。
 - **Visual Studio**：`SmallBasic.Vsix` 包。菜单 / 命令 / 大纲工具窗走新版扩展 SDK，补全 / 悬停 / 诊断 / 文档符号由**进程内 LSP server** 提供；分类着色、折叠、原生导航栏、调试内联值、F5 过滤器、Open Folder 调试目标由包内兼容层(MEF / DTE)承担。语言层位于独立程序集 `SmallBasic.LanguageServices`(`SmallBasic.LanguageServices.Tests` 直接引用同一程序集)。详见 [docs/design/04-VisualStudio插件设计.md](docs/design/04-VisualStudio插件设计.md)。
 
-VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本机命令行/调试宿主，`"web"` 走浏览器 Webview。Web 模式支持 JavaScript 与 Blazor；C# 需要本机进程，只支持 CLI。VS Code for the Web 没有本机进程，会把启动配置强制按 Web 模式处理。
+VS Code 的 `launch.json` 使用 `mode` 选择运行面：`"cli"`(默认)走本机命令行/调试宿主，`"web"` 走浏览器 Webview。Web 模式支持 JavaScript 与 Blazor；C# 需要本机进程，只支持 CLI。VS Code for the Web 没有本机进程：`mode: "cli"` 对 JavaScript 后端照常生效（引擎在扩展宿主内联运行，不弹 Webview），`cli` + C# 会被拒绝，`cli` + Blazor 会回落到 Web 模式的 Webview。
 
 ## Small Basic 语言扩展
 
@@ -114,6 +115,7 @@ code --install-extension build\SmallBasic.VSCode-0.1.8.vsix
   - `SmallBasic: Run with JavaScript Backend` — CLI 模式使用内置 JS 引擎和终端；VS Code for the Web 在 Webview 内运行，支持 `TextWindow` 文本交互；
   - `SmallBasic: Run with C# Backend` — 使用内置 .NET 运行宿主：Windows 下为图形宿主(net8.0-windows，支持 `GraphicsWindow`/`Shapes` 等图形程序)，Linux/macOS 下为便携命令行宿主(net8.0)；
   - `SmallBasic: Run with Blazor Backend` — CLI 模式使用跨平台混合 RunHost；Web 模式在浏览器 Webview 内运行 Blazor WASM，支持 `GraphicsWindow`、`Shapes`、`Turtle` 和 `TextWindow`。
+- **编译**：Windows 桌面版新增 `SmallBasic: Compile to C# EXE`，会在当前 `.sb` 所在目录生成同名 `*.exe`、`*.exe.config` 与 sidecar manifest/source 文件；运行时支撑程序集统一收进 `lib\` 子目录(生成的 `*.exe.config` 通过 `assemblyBinding` 里的 `probing` 指向它)，因此产物根目录只留程序本体。
 - **调试**：`.sb` 文件中打断点后按 F5。Windows 桌面版在未显式指定后端时默认使用随扩展分发的 C# 图形宿主，可直接调试 `GraphicsWindow` / `Shapes` / `Turtle`；其他平台默认使用 JS。也可以在 `launch.json` 中显式选择：
 
 CLI 配置(默认，C#、JavaScript、Blazor 均可)：
@@ -141,17 +143,24 @@ Web 配置(JavaScript、Blazor)：
 
   支持断点(自动吸附到最近可执行行)、逐语句/逐过程/跳出、暂停/继续、变量(含 SB 数组递归展开)、调用栈。
 
+VS Code for the Web 上 CLI 配置按 JavaScript 后端生效(见下节)；C# 的 CLI 需要本机 RunHost 会被拒绝，Blazor 的 CLI 会回落到 Web 模式的 Webview。
+
 ### 设置
 
 | 设置项 | 默认值 | 说明 |
 |---|---|---|
 | `smallbasic.diagnostics.debounceMs` | `150` | 编辑后重新计算诊断的延迟 |
 | `smallbasic.csharp.runHostPath` | `""` | 指定 `SmallBasic.RunHost.exe`/`.dll` 路径；为空时使用扩展内置宿主 |
+| `smallbasic.csharp.compilerPath` | `""` | 指定 `SmallBasic.Compiler.Tool.exe` 路径；为空时使用扩展内置 compiler 载荷 |
 | `smallbasic.blazor.runHostPath` | `""` | 指定 `SmallBasic.Blazor.RunHost.dll`/可执行文件路径；为空时使用扩展内置宿主 |
 
 ### VS Code for the Web(vscode.dev)
 
-浏览器里没有本机进程，因此：调试模式仅支持 Web (包括 JavaScript 和 Blazor 后端)。
+浏览器里没有本机进程，因此 C# 后端与 Blazor 的本机宿主不可用。调试/运行按 `mode` 分为两面：
+
+- `mode: "web"`(未写 `mode` 时的默认)：JavaScript 与 Blazor 都在 Webview 内运行与调试，图形程序可用；
+- `mode: "cli"` + `backend: "javascript"`：引擎直接在扩展宿主(Web Worker)内联运行，不弹 Webview——F5 用内联 DAP 调试器(输出在 Debug Console)，Ctrl+F5 用扩展宿主终端运行，行为与桌面 CLI JavaScript 一致；
+- `mode: "cli"` + `backend: "csharp"`：拒绝并提示改用 JavaScript 或 Web 模式（需要本机 RunHost 进程）；`mode: "cli"` + `backend: "blazor"`：自动回落到 Web 模式的 Webview（状态栏提示），行为与 `mode: "web"` 一致。
 
 ## Visual Studio 扩展
 
@@ -163,7 +172,7 @@ Web 配置(JavaScript、Blazor)：
 
 ### 使用
 
-打开任意 `.sb` 文件(无需项目系统，可直接「打开文件夹」)，即可获得语法着色、补全、悬停、错误列表、代码折叠、编辑器顶部抬头(面包屑)与解决方案资源管理器中的 Small Basic 文件图标。语言本身也按内建语言的方式出现在「工具 → 选项 → 文本编辑器 → SmallBasic」下，可在那里单独设置行号等编辑器选项。F5/Ctrl+F5 默认使用纯 C# 路径：
+打开任意 `.sb` 文件(无需项目系统，可直接「打开文件夹」)，即可获得语法着色、补全、悬停、错误列表、代码折叠、编辑器顶部抬头(面包屑)与解决方案资源管理器中的 Small Basic 文件图标。语言本身也按内建语言的方式出现在「工具 → 选项 → 文本编辑器 → SmallBasic」下，可在那里单独设置行号等编辑器选项。Tools > Small Basic 现额外提供 **Compile to EXE (C#)** 与 **Debug with Compiled C# Backend**。F5/Ctrl+F5 默认使用纯 C# 路径：
 
 | 按键 | 行为 |
 |---|---|
@@ -185,6 +194,9 @@ Web 配置(JavaScript、Blazor)：
 
 { "type": "smallbasic", "project": "sample/hello/hello.sb", "projectTarget": "blazor", "request": "launch", "name": "SmallBasic [CLI]: Debug current file with Blazor backend",
   "program": "${file}", "backend": "blazor", "mode": "cli", "stopOnEntry": false }
+
+{ "type": "smallbasic", "project": "sample/hello/hello.sb", "projectTarget": "compiled-csharp", "request": "launch", "name": "SmallBasic [Compiled]: Debug current file with compiled C# backend",
+  "program": "${file}", "backend": "compiled-csharp", "stopOnEntry": false }
 ```
 
 JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`、`Shapes`、`Turtle` 等图形库；选择 JS 路径运行图形程序时，插件会在启动前给出提示并停止。
@@ -193,7 +205,7 @@ JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`�
 
 ### RunHostCLI
 
-`runhost\` 下按平台分发五套 CLI 运行宿主，统一用法：`run --file <program.sb>` 运行程序，`debug` 进入 DAP 调试适配器(stdin/stdout 承载协议)。各后端的平台与能力差异如下：
+`runhost\` 下按平台分发五套 CLI 运行宿主 + 一套 compiler 载荷。运行宿主统一用法：`run --file <program.sb>` 运行程序，`debug` 进入 DAP 调试适配器(stdin/stdout 承载协议)；compiler 载荷提供 `SmallBasic.Compiler.Tool.exe compile --file <program.sb>`。各目录的平台与能力差异如下：
 
 | 目录 | 入口 | 平台 | 图形支持 | 限制 |
 |---|---|---|---|---|
@@ -202,6 +214,7 @@ JavaScript 运行与调试使用外部 Node.js 20+，不支持 `GraphicsWindow`�
 | `net8.0\` | `SmallBasic.RunHost.dll` | Windows / Linux / macOS | 无 | 纯文本；图形库未编译进宿主 |
 | `javascript\` | `smallbasic-runhost.js` | 任意(Node.js 20+) | 无 | 纯文本；调用图形库以退出码 3 终止；`Program.Delay` 有已知缺陷 |
 | `blazor\` | `SmallBasic.Blazor.RunHost.dll` | Windows / Linux / macOS | 有(浏览器 SVG) | 图形程序需打开浏览器；需 .NET 8 运行时 |
+| `compiler\` | `SmallBasic.Compiler.Tool.exe` | Windows | 生成 net48 编译产物 | 依赖 `template\net48\` 中的 RunHost 模板；另含 `SmallBasic.CompiledDebugAdapter.exe` |
 
 **C# 宿主**(`net48` / `net8.0-windows` / `net8.0`，共享同一 `SmallBasic.RunHost`)：
 

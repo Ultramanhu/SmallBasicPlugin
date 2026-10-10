@@ -13,6 +13,7 @@ namespace SmallBasic.Compiler.Services
     using SmallBasic.Compiler.Runtime;
     using SmallBasic.Compiler.Scanning;
     using SmallBasic.Utilities;
+    using SmallBasic.Utilities.Resources;
 
     internal static class HoverProvider
     {
@@ -291,24 +292,35 @@ namespace SmallBasic.Compiler.Services
             OnErrorAction.ResumeNext => new[]
             {
                 "On Error Resume Next",
-                "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running.",
+                KeywordDescription("Keywords_OnErrorResumeNext", "Skips the statement that caused a runtime error, mirrors it to the console, and keeps running."),
             },
             OnErrorAction.GoToDefault => new[]
             {
                 "On Error GoTo -1",
-                "Clears the current error state and restores the default behavior: a runtime error terminates the program.",
+                KeywordDescription("Keywords_OnErrorGoToMinus1", "Clears the current error state and restores the default behavior: a runtime error terminates the program."),
             },
             OnErrorAction.GoToClear => new[]
             {
                 "On Error GoTo 0",
-                "Disables the current On Error handler; runtime errors terminate the program again.",
+                KeywordDescription("Keywords_OnErrorGoTo0", "Disables the current On Error handler; runtime errors terminate the program again."),
             },
             OnErrorAction.GoSub => new[]
             {
                 "On Error GoSub",
-                "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement.",
+                KeywordDescription("Keywords_OnErrorGoSub", "When a runtime error occurs, mirrors it to the console and calls the handler Sub with the error code and message; execution then resumes after the failed statement."),
             },
             _ => new[] { "On Error", "Configures the runtime error handling policy." },
         };
+
+        /// <summary>
+        /// Keyword help from the localized documentation (DocumentationLocales.xml),
+        /// falling back to <paramref name="fallback"/>. Same lookup the completion
+        /// provider uses, so statement hovers follow the editor language too.
+        /// </summary>
+        private static string KeywordDescription(string key, string fallback)
+        {
+            string description = LibrariesResources.ResourceManager.GetString(key, LibrariesResources.Culture);
+            return string.IsNullOrEmpty(description) ? fallback : description;
+        }
     }
 }

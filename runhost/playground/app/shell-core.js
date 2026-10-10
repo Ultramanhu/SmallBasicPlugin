@@ -44,7 +44,31 @@
             blazorLoadFailed: (detail) => "Blazor WASM 运行时加载失败：" + detail +
                 "\n请确认当前页面通过 HTTP 提供（使用 node runhost/web/serve.mjs，或双击 run.bat），而不是直接用 file:// 打开。",
             blazorStartupTimeout: () => "Blazor WASM 运行时未在 30 秒内响应，请查看页面底部的错误提示后重新加载页面。",
-            programLoadFailed: (name, status) => `无法加载 ${name}：HTTP ${status}`
+            programLoadFailed: (name, status) => `无法加载 ${name}：HTTP ${status}`,
+            // Run/debug lifecycle vocabulary of the status line. Everything the
+            // shell writes itself goes through this table, so both shell pages
+            // (runhost.html / playground.html) localize identically; the English
+            // wording is what the Playwright page E2E asserts against.
+            statusBlazorOnly: () => "仅提供 Blazor 后端",
+            statusNothingToRun: () => "没有可运行的程序",
+            statusLoadingJavaScriptEngine: () => "正在加载 JavaScript 引擎…",
+            statusRunning: () => "运行中",
+            statusRunningProgram: (name, version) => `正在运行 ${name}（v${version}）…`,
+            statusLoadingBlazorRuntime: () => "正在加载 Blazor WASM 运行时…",
+            statusStartingProgram: () => "正在启动程序…",
+            statusStartingProgramNamed: (name, version) => `正在启动 ${name}（v${version}）…`,
+            statusBlazorNotResponding: () => "Blazor 运行时无响应",
+            statusStopping: () => "正在停止…",
+            statusStartingBlazorRuntime: () => "正在启动 Blazor WASM 运行时…",
+            statusPaused: (reason) => `已暂停：${reason}`,
+            statusStopped: () => "已停止",
+            statusCompleted: () => "已完成",
+            statusFailed: () => "失败",
+            statusExitedWithCode: (code) => `已退出，代码 ${code}`,
+            breakpointReason: () => "断点",
+            inputPromptRead: () => "输入",
+            inputPromptReadNumber: () => "输入数字",
+            localeToggleTitle: () => "切换界面语言为英文"
         },
         en: {
             builtinSampleName: () => "Hello, World! (built-in)",
@@ -60,7 +84,29 @@
             blazorLoadFailed: (detail) => "Failed to load the Blazor WASM runtime: " + detail +
                 "\nMake sure the page is served over HTTP (run node runhost/web/serve.mjs or double-click run.bat) instead of opening it via file://.",
             blazorStartupTimeout: () => "The Blazor WASM runtime did not respond within 30 seconds. Check the error at the bottom of the page, then reload.",
-            programLoadFailed: (name, status) => `Failed to load ${name}: HTTP ${status}`
+            programLoadFailed: (name, status) => `Failed to load ${name}: HTTP ${status}`,
+            statusBlazorOnly: () => "Blazor backend only",
+            statusNothingToRun: () => "Nothing to run",
+            statusLoadingJavaScriptEngine: () => "Loading JavaScript engine…",
+            statusRunning: () => "Running",
+            statusRunningProgram: (name, version) => `Running ${name} (v${version})…`,
+            statusLoadingBlazorRuntime: () => "Loading Blazor WASM runtime…",
+            statusStartingProgram: () => "Starting program…",
+            statusStartingProgramNamed: (name, version) => `Starting ${name} (v${version})…`,
+            statusBlazorNotResponding: () => "Blazor runtime did not respond",
+            statusStopping: () => "Stopping…",
+            statusStartingBlazorRuntime: () => "Starting Blazor WASM runtime…",
+            statusPaused: (reason) => `Paused: ${reason}`,
+            statusStopped: () => "Stopped",
+            statusCompleted: () => "Completed",
+            statusFailed: () => "Failed",
+            statusExitedWithCode: (code) => `Exited with code ${code}`,
+            // Lower case on purpose: it mirrors the DAP `reason` value the page
+            // E2E asserts against ("Paused: breakpoint").
+            breakpointReason: () => "breakpoint",
+            inputPromptRead: () => "Read",
+            inputPromptReadNumber: () => "ReadNumber",
+            localeToggleTitle: () => "Switch the UI language to Simplified Chinese (follows the browser language; can be overridden)"
         }
     };
     const t = MESSAGES[CHINESE_LOCALE ? "zh" : "en"];
@@ -121,9 +167,7 @@
             }
 
             button.textContent = CHINESE_LOCALE ? "EN" : "中文";
-            button.title = CHINESE_LOCALE
-                ? "Switch the UI language to English"
-                : "切换界面语言为简体中文（跟随浏览器语言，可手动覆盖）";
+            button.title = t.localeToggleTitle();
             button.addEventListener("click", () => {
                 try {
                     window.localStorage.setItem(LOCALE_STORAGE_KEY, CHINESE_LOCALE ? "en" : "zh");
@@ -284,7 +328,9 @@
         requestInput(kind) {
             return new Promise((resolve) => {
                 this.pendingInput = { resolve, kind };
-                this.dom.inputPrompt.textContent = kind === "number" ? "ReadNumber" : "Read";
+                this.dom.inputPrompt.textContent = kind === "number"
+                    ? t.inputPromptReadNumber()
+                    : t.inputPromptRead();
                 this.dom.inputField.value = "";
                 this.dom.inputRow.hidden = false;
                 this.dom.inputField.focus();
@@ -299,7 +345,9 @@
             return new Promise((resolve) => {
                 this.pendingDebugInput = { resolve };
                 if (this.dom.inputPrompt) {
-                    this.dom.inputPrompt.textContent = numberInput ? "ReadNumber" : "Read";
+                    this.dom.inputPrompt.textContent = numberInput
+                        ? t.inputPromptReadNumber()
+                        : t.inputPromptRead();
                 }
                 if (this.dom.inputField) {
                     this.dom.inputField.value = "";
@@ -507,13 +555,13 @@
                 this.selectBackend(BACKEND_BLAZOR);
             }
 
-            this.setStatus("Blazor backend only");
+            this.setStatus(t.statusBlazorOnly());
             this.banner(t.missingJsBundleBanner());
         }
 
         async runProgram(snapshot) {
             if (!snapshot || !snapshot.source || !snapshot.source.trim()) {
-                this.setStatus("Nothing to run");
+                this.setStatus(t.statusNothingToRun());
                 return;
             }
 
@@ -536,16 +584,18 @@
         async runJavaScript(snapshot) {
             let backend;
             try {
-                this.setStatus("Loading JavaScript engine…");
+                this.setStatus(t.statusLoadingJavaScriptEngine());
                 backend = await this.loadJavaScriptBackend();
             } catch (error) {
                 this.showRuntimeDiagnostics(t.jsBackendUnavailable(describe(error)));
-                this.setStatus("Failed");
+                this.setStatus(t.statusFailed());
                 return;
             }
 
             this.setRunning(true);
-            this.setStatus(snapshot.modelVersion ? `Running ${snapshot.name} (v${snapshot.modelVersion})…` : "Running");
+            this.setStatus(snapshot.modelVersion
+                ? t.statusRunningProgram(snapshot.name, snapshot.modelVersion)
+                : t.statusRunning());
             try {
                 const exitCode = await backend.runJavaScript(snapshot.source, {
                     writeText: (text, newLine, foreground, background) => {
@@ -562,7 +612,7 @@
             } catch (error) {
                 this.showRuntimeDiagnostics(describe(error));
                 this.setRunning(false);
-                this.setStatus("Failed");
+                this.setStatus(t.statusFailed());
             } finally {
                 this.resolvePendingInput();
             }
@@ -572,11 +622,13 @@
             this.setRunning(true);
             try {
                 if (!this.blazorStart) {
-                    this.setStatus("Loading Blazor WASM runtime…");
+                    this.setStatus(t.statusLoadingBlazorRuntime());
                 }
 
                 await this.startBlazor();
-                this.setStatus(snapshot.modelVersion ? `Starting ${snapshot.name} (v${snapshot.modelVersion})…` : "Starting program…");
+                this.setStatus(snapshot.modelVersion
+                    ? t.statusStartingProgramNamed(snapshot.name, snapshot.modelVersion)
+                    : t.statusStartingProgram());
                 this.responded = false;
                 await this.invokeBlazor("SetSession", JSON.stringify({
                     name: snapshot.name || "program.sb",
@@ -586,7 +638,7 @@
             } catch (error) {
                 this.showRuntimeDiagnostics(t.blazorLoadFailed(describe(error)));
                 this.setRunning(false);
-                this.setStatus("Failed");
+                this.setStatus(t.statusFailed());
             }
         }
 
@@ -597,7 +649,7 @@
                 }
 
                 this.setRunning(false);
-                this.setStatus("Blazor runtime did not respond");
+                this.setStatus(t.statusBlazorNotResponding());
                 this.showRuntimeDiagnostics(t.blazorStartupTimeout());
             }, 30000);
         }
@@ -620,11 +672,11 @@
                 }
 
                 this.resolvePendingInput();
-                this.setStatus("Stopping…");
+                this.setStatus(t.statusStopping());
                 return;
             }
 
-            this.setStatus("Stopping…");
+            this.setStatus(t.statusStopping());
             try {
                 await this.invokeBlazor("Stop");
             } catch (error) {
@@ -635,10 +687,10 @@
         startCliSession() {
             document.body.classList.add("web-cli-mode");
             this.selectBackend(BACKEND_BLAZOR);
-            this.setStatus("Starting Blazor WASM runtime…");
+            this.setStatus(t.statusStartingBlazorRuntime());
             this.startBlazor().catch((error) => {
                 this.showRuntimeDiagnostics(describe(error));
-                this.setStatus("Failed");
+                this.setStatus(t.statusFailed());
             });
         }
 
@@ -649,12 +701,12 @@
             }
 
             if (message.type === "ready") {
-                this.setStatus("Running");
+                this.setStatus(t.statusRunning());
                 return;
             }
 
             if (message.type === "stopped") {
-                this.setStatus(`Paused: ${message.reason || "breakpoint"}`);
+                this.setStatus(t.statusPaused(message.reason || t.breakpointReason()));
                 return;
             }
 
@@ -666,10 +718,10 @@
 
         exitStatus(exitCode) {
             if (this.stopped) {
-                return "Stopped";
+                return t.statusStopped();
             }
 
-            return exitCode === 0 ? "Completed" : `Exited with code ${exitCode}`;
+            return exitCode === 0 ? t.statusCompleted() : t.statusExitedWithCode(exitCode);
         }
 
         dispose() {

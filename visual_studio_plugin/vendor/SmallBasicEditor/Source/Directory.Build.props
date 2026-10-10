@@ -55,7 +55,17 @@
     <AssemblyAttribute Include="System.Resources.NeutralResourcesLanguage">
       <_Parameter1>en-US</_Parameter1>
     </AssemblyAttribute>
-    <PackageReference Include="Microsoft.Extensions.Localization" Version="2.1.1" />
+    <!--
+      Microsoft.Extensions.Localization used to be referenced here, but no source
+      file under this folder - or in any project consuming these libraries - uses
+      IStringLocalizer: the localized strings are plain .resx ResourceManager
+      lookups. The reference only dragged its dependency closure (Localization,
+      Localization.Abstractions, Options, Primitives, Logging.Abstractions and
+      DependencyInjection.Abstractions) into every published payload, including
+      runhost\compiler\template\net48 and therefore the folder a compiled Small
+      Basic program ships. Re-add it here if a vendor project starts localizing
+      through Microsoft.Extensions.Localization instead of ResourceManager.
+    -->
   </ItemGroup>
 
   <ItemGroup>
